@@ -110,16 +110,12 @@ const NODES = [
     prep: (s) => ({ ...s, queue: q(['jab', 'guard', 'jab', 'special']) }),
   },
   {
-    // 의지력이 깎였으니 아이템 이야기를 꺼낸다. (사과맛 피크닉을 하나 쥐어 준다)
-    say: ['아이템 항목을 볼래요? 의지력을 올려주는 아이템을 제가 하나 쏙 넣어드렸어요. 한 번 먹어보세요!'],
-    enter: { give: 'picnic', spotItems: true },
-  },
-  {
+    // 의지력이 깎였으니 아이템 이야기를 꺼낸다. 사과맛 피크닉을 쥐어 주는 것과 '먹어 보세요'는 한 대사다.
     do: true,
     allow: [],
     wait: 'item',
-    prompt: '왼쪽 아래의 “내 소지품 확인하기”를 눌러서 “사과맛 피크닉”을 사용해 보세요.',
-    enter: { baseItems: true, spotItems: true },
+    prompt: '아이템 항목을 볼래요? 의지력을 올려주는 아이템을 제가 하나 쏙 넣어드렸어요. 한 번 먹어보세요!',
+    enter: { give: 'picnic', baseItems: true, spotItems: true },
   },
   {
     say: [
@@ -213,7 +209,7 @@ const MOODS = [
   ['아이템 항목을 볼래요', ['smile']],
   ['의지력이 회복되었죠', ['smile']],
 ]
-const DO_MOODS = { '상대의 강공이 와요': 'surprise' }
+const DO_MOODS = { '상대의 강공이 와요': 'surprise', '아이템 항목을 볼래요': 'smile' }
 const moodOf = (node, line) => {
   if (node.do) return Object.entries(DO_MOODS).find(([k]) => node.prompt.includes(k))?.[1] ?? 'normal'
   const hit = MOODS.find(([k]) => node.say[0].startsWith(k))

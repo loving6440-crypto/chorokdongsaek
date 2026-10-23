@@ -1,7 +1,8 @@
-import { LogOut } from 'lucide-react'
+import { LogOut, Pencil } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS, SPIRIT_BASELINE_MAX } from '../game/constants'
 import Avatar from './Avatar'
+import { gradeOf } from '../game/character'
 import SoundToggle from './SoundToggle'
 import ThemeToggle from './ThemeToggle'
 
@@ -68,7 +69,7 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile }) {
   const location = LOCATIONS[locationId]
   const spiritMax = Math.max(SPIRIT_BASELINE_MAX, Math.ceil(player.spirit / 100) * 100)
 
@@ -104,12 +105,24 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
             <Avatar avatar={player.avatar} size={72} />
             <p className="mt-2 max-w-[150px] truncate font-serif text-lg tracking-wide text-gold">{player.name}</p>
             <div className="mt-1.5 flex gap-1.5">
-              <span className="rounded-md border border-edge/25 px-2 py-0.5 text-xs text-paper/80">1학년</span>
+              <span className="rounded-md border border-edge/25 px-2 py-0.5 text-xs text-paper/80">{gradeOf(player)}학년</span>
               <span className="rounded-md border border-edge/25 px-2 py-0.5 text-xs text-paper/80">{player.age}세</span>
             </div>
             {userId && <p className="mt-1.5 max-w-[100px] truncate text-[10px] text-paper/35">@{userId}</p>}
           </div>
         </Facet>
+
+        {onEditProfile && (
+          <button
+            type="button"
+            onClick={onEditProfile}
+            title="프로필 수정"
+            aria-label="프로필 수정"
+            className="absolute top-[118px] left-[238px] z-10 grid size-7 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
 
         {/* 현재 위치 한자: 왼쪽 아래 작은 정마름모 */}
         <Facet

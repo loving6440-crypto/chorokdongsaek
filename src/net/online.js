@@ -21,6 +21,8 @@ const set = (patch) => {
   emit()
 }
 
+const seenGifts = new Set()
+const giftListeners = new Set()
 let source = null
 let noticeSeq = 1
 let activeChannel = null // 지금 화면에 열려 있는 채팅 탭 (안 읽음 계산용)
@@ -61,6 +63,12 @@ function handle(ev) {
       break
     case 'notice':
       pushNotice(ev.text)
+      break
+    case 'gift':
+      if (!seenGifts.has(ev.gift.id)) {
+        seenGifts.add(ev.gift.id)
+        giftListeners.forEach((l) => l(ev.gift))
+      }
       break
     default:
   }
@@ -136,6 +144,17 @@ export async function respondInvite(accept) {
   if (!r.ok && r.error === 'expired') pushNotice('초대가 만료되었다.')
   return r
 }
+
+export const notify = pushNotice
+
+/** 선물이 도착하면 cb(gift) 를 부른다. 돌려주는 함수로 해제. */
+export function onGift(cb) {
+  giftListeners.add(cb)
+  return () => giftListeners.delete(cb)
+}
+
+/** 선물 보내기. 상대가 접속 중이어야 하고, 아이템만 합쳐 최대 5개. (돈은 서버가 거절한다.) */
+export const sendGift = (toId, items) => post('/api/gift', { to: toId, items })
 
 export const leaveParty = () => post('/api/party/leave', {})
 

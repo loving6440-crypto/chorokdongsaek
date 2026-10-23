@@ -558,9 +558,12 @@ button.bg-gold { border-radius: 0.55rem; }
   .tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }
 }
 
+/* 이미 absolute/fixed 로 자리가 정해진 요소는 그 자리를 그대로 지키고, 아닌 요소만 쌓임 순서를 위해 relative 로 둔다. */
+.spot:not(.absolute):not(.fixed):not(.sticky),
+.spot-wide:not(.absolute):not(.fixed):not(.sticky) { position: relative; }
+
 /* 튜토리얼 등에서 '지금 여기를 보세요' 하고 강조하는 요소: 커지고 빛나며 맥박처럼 뛴다. */
 .spot {
-  position: relative;
   z-index: 5;
   outline: 3px solid var(--c-gold-fill);
   outline-offset: 2px;
@@ -574,7 +577,6 @@ button.bg-gold { border-radius: 0.55rem; }
 
 /* 넓은 칸(기록·상대 행동 등)용 강조: 크게 부풀리지 않고 테두리와 빛으로 눈에 띄게 한다. */
 .spot-wide {
-  position: relative;
   z-index: 5;
   outline: 3px solid var(--c-gold-fill);
   outline-offset: 3px;

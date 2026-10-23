@@ -8,6 +8,8 @@ import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
 import MenuPanel from './components/MenuPanel'
+import ProfileEditModal from './components/ProfileEditModal'
+import GiftModal from './components/GiftModal'
 import ProfileSidebar from './components/ProfileSidebar'
 import StatusPanel from './components/StatusPanel'
 import Annex from './components/locations/Annex'
@@ -18,7 +20,6 @@ import MainHall from './components/locations/MainHall'
 import Shrine from './components/locations/Shrine'
 import {
   LOCATIONS,
-  SPIRIT_PER_AGILITY,
   STAT_META,
   STAT_UPGRADE_COST_PER_POINT,
 } from './game/constants'
@@ -37,8 +38,11 @@ import {
   startTraining,
   startWait,
   tickPlayer,
+  spiritPerMin,
+  startRest,
+  REST_KINDS,
 } from './game/progress'
-import { connect, disconnect } from './net/online'
+import { connect, disconnect, notify, onGift, sendGift } from './net/online'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
 function useDesktop() {
@@ -90,6 +94,8 @@ export default function Game({
   })
   const desktop = useDesktop()
   const [invOpen, setInvOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [giftTo, setGiftTo] = useState(null) // { id, name }
   const [battleActive, setBattleActive] = useState(false)
   const [reviveOn, setReviveOn] = useState(false)
   const [itemsUsed, setItemsUsed] = useState(0)
@@ -121,9 +127,9 @@ export default function Game({
 
   // 온라인 서버(채팅 · 파티 · 랭킹)에 접속한다. 서버가 없으면 조용히 오프라인으로 남는다.
   useEffect(() => {
-    connect(userId, character.name)
+    connect(userId, player.name)
     return () => disconnect()
-  }, [userId, character.name])
+  }, [userId, player.name])
 
   // 1초마다: 영력 자연 회복 / 수련 진행 / 수업 대기 종료.
   // 탭을 백그라운드에 두거나 창을 내려도 시계는 계속 간다. (수련·대기는 시각 기준으로 계산하고, 돌아오면 그 사이 분량이 반영된다.)
@@ -134,15 +140,20 @@ export default function Game({
       const now = Date.now()
       const dt = Math.max(0, (now - last) / 1000)
       last = now
-      const heal = locRef.current === 'infirmary'
-      const r = tickPlayer(playerRef.current, now, dt, heal)
+      const r = tickPlayer(playerRef.current, now, dt)
       playerRef.current = r.player
-      setPlayer((prev) => tickPlayer(prev, now, dt, heal).player)
+      setPlayer((prev) => tickPlayer(prev, now, dt).player)
       r.logs.forEach(addLog)
     }
     const timer = window.setInterval(tick, 1000)
     return () => window.clearInterval(timer)
   }, [addLog])
+
+  // 프로필을 고치면 저장되는 character 도 같이 바뀐다.
+  const charOut = useMemo(
+    () => ({ ...character, name: player.name, age: player.age, grade: player.grade ?? null, avatar: player.avatar }),
+    [character, player.name, player.age, player.grade, player.avatar],
+  )
 
   // 상태 변경 시 자동 저장 (약 0.8초 디바운스)
   useEffect(() => {
@@ -151,7 +162,7 @@ export default function Game({
       // 첫 마운트 시 player가 새로 만들어진 경우 즉시 저장
       if (!restored && onSave) {
         onSave({
-          character,
+          character: charOut,
           player,
           locationId,
           logs,
@@ -165,7 +176,7 @@ export default function Game({
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       onSave({
-        character,
+        character: charOut,
         player,
         locationId,
         logs,
@@ -175,11 +186,11 @@ export default function Game({
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
-  }, [player, locationId, logs, character, onSave, restored])
+  }, [player, locationId, logs, charOut, onSave, restored])
 
   const spiritRate = useMemo(
-    () => player.stats.agility * SPIRIT_PER_AGILITY,
-    [player.stats.agility],
+    () => spiritPerMin(player.stats.control),
+    [player.stats.control],
   )
 
   // ───────── 수련 · 대기: 다른 곳으로 이동하거나 새 동작을 시작하면 끊긴다 ─────────
@@ -190,7 +201,7 @@ export default function Game({
     const next = startTraining(playerRef.current, minutes)
     playerRef.current = next
     setPlayer((prev) => (prev.training ? prev : startTraining(prev, minutes)))
-    addLog(`기숙사에서 ${minutes}분 수련을 시작했다. (끝까지 마치면 영력 +${minutes / 5})`)
+    addLog(`기숙사에서 ${minutes}분 수련을 시작했다. (끝까지 마치면 영력 +${next.training.reward})`)
   }
 
   /** 수련을 끊는다. 끝까지 마치지 못했으니 보상은 없다. */
@@ -201,6 +212,27 @@ export default function Game({
       playerRef.current = { ...cur, training: null }
       setPlayer((prev) => (prev.training ? { ...prev, training: null } : prev))
       addLog(`${why} 수련을 포기했다. (보상 없음)`)
+    },
+    [addLog],
+  )
+
+  const beginRest = (kind, minutes) => {
+    if (playerRef.current.resting) return
+    endWaits('새 동작을 시작해')
+    const next = startRest(playerRef.current, kind, minutes)
+    playerRef.current = next
+    setPlayer((prev) => (prev.resting ? prev : startRest(prev, kind, minutes)))
+    addLog(`양호실에서 ${minutes}분 동안 ${REST_KINDS[kind].label}를 시작했다.`)
+  }
+
+  /** 휴식을 끊는다. 그때까지 찬 만큼은 그대로 남는다. */
+  const endRest = useCallback(
+    (why) => {
+      const cur = playerRef.current
+      if (!cur.resting) return
+      playerRef.current = { ...cur, resting: null }
+      setPlayer((prev) => (prev.resting ? { ...prev, resting: null } : prev))
+      addLog(`${why} 휴식을 마쳤다.`)
     },
     [addLog],
   )
@@ -220,15 +252,18 @@ export default function Game({
   const interruptAll = useCallback(
     (why, at) => {
       endTraining(why, at)
+      endRest(why)
       endWaits(why)
     },
-    [endTraining, endWaits],
+    [endTraining, endRest, endWaits],
   )
 
   // 수련 중에 다른 곳으로 가거나 다른 동작을 하려 하면 먼저 경고하고, 확인해야 진행한다.
   const [confirmQuit, setConfirmQuit] = useState(null) // { run }
   const guardTraining = (run) => {
-    if (playerRef.current.training) setConfirmQuit({ run })
+    const cur = playerRef.current
+    if (cur.training) setConfirmQuit({ run, kind: 'train' })
+    else if (cur.resting) setConfirmQuit({ run, kind: 'rest' })
     else run()
   }
 
@@ -248,6 +283,12 @@ export default function Game({
   }
 
   const closeCourse = () => setCourse(null)
+
+  const saveProfile = (v) => {
+    setPlayer((prev) => ({ ...prev, name: v.name, age: v.age, grade: v.grade, avatar: v.avatar }))
+    setProfileOpen(false)
+    addLog('프로필을 고쳤다.')
+  }
 
   const upgradeStat = (key) => {
     const current = player.stats[key]
@@ -322,6 +363,52 @@ export default function Game({
     playerRef.current = next
     setPlayer(next)
   }, [])
+
+  // ───────── 선물 ─────────
+  const itemList = (items) =>
+    Object.entries(items)
+      .map(([id, n]) => `${itemOf(id)?.name ?? id}${n > 1 ? ` ×${n}` : ''}`)
+      .join(', ')
+
+  // 받은 선물은 곧바로 소지품에 들어온다.
+  useEffect(
+    () =>
+      onGift((gift) => {
+        const cur = playerRef.current
+        const inv = { ...(cur.inventory ?? {}) }
+        for (const [id, n] of Object.entries(gift.items)) if (itemOf(id)) inv[id] = (inv[id] || 0) + n
+        const next = { ...cur, inventory: inv }
+        playerRef.current = next
+        setPlayer(next)
+        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}`)
+        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}`)
+      }),
+    [addLog],
+  )
+
+  const sendGiftTo = useCallback(
+    async (target, items) => {
+      const cur = playerRef.current
+      for (const [id, n] of Object.entries(items)) if ((cur.inventory?.[id] || 0) < n) return { ok: false, message: '갖고 있는 개수가 모자라다.' }
+      const r = await sendGift(target.id, items)
+      if (!r.ok) {
+        const msg = r.error === 'no-target' || r.status === 409 ? '상대가 접속 중이 아니다.' : r.error === 'slow-down' ? '너무 빨리 보내고 있다.' : '선물을 보내지 못했다.'
+        return { ok: false, message: msg }
+      }
+      const now = playerRef.current
+      const inv = { ...now.inventory }
+      for (const [id, n] of Object.entries(items)) {
+        inv[id] = (inv[id] || 0) - n
+        if (inv[id] <= 0) delete inv[id]
+      }
+      const next = { ...now, inventory: inv }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`${target.name}님에게 선물을 건넸다: ${itemList(items)}`)
+      return { ok: true }
+    },
+    [addLog],
+  )
 
   // 전투 중에도 턴·상황과 상관없이 쓸 수 있고, 써도 내 턴이 끝나지 않는다. (전투 중 사용 가능한 아이템만)
   const useItem = useCallback(
@@ -452,6 +539,7 @@ export default function Game({
         userId={userId}
         twitter={twitter}
         onOpenItems={() => setInvOpen(true)}
+        onEditProfile={() => setProfileOpen(true)}
         spotItems={spotItems}
       />
 
@@ -467,6 +555,7 @@ export default function Game({
             // 진행 중인 수련·대기를 보여 주는 화면(기숙사의 휴식·수련, 본관의 수업)으로 들어가는 건 '새 동작'이 아니다.
             const viewsRunning =
               (locationId === 'dorm' && id === 'rest' && !!playerRef.current.training) ||
+              (locationId === 'infirmary' && id === 'rest' && !!playerRef.current.resting) ||
               (locationId === 'mainHall' && id === 'class')
             if (id === activity) return
             if (viewsRunning) return setActivity(id)
@@ -481,13 +570,20 @@ export default function Game({
             {(
               <>
                 {locationId === 'mainHall' && <MainHall player={player} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} />}
-                {locationId === 'infirmary' && <Infirmary view={activity} player={player} />}
+                {locationId === 'infirmary' && (
+                  <Infirmary
+                    view={activity}
+                    player={player}
+                    onStartRest={beginRest}
+                    onStopRest={() => guardTraining(() => endRest('스스로 멈춰'))}
+                  />
+                )}
                 {locationId === 'annex' && <Annex view={activity} />}
                 {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} />}
                 {locationId === 'dorm' && activity !== 'store' && (
                   <Dormitory
                     view={activity}
-                    agility={player.stats.agility}
+                    control={player.stats.control}
                     spiritRate={spiritRate}
                     training={player.training ?? null}
                     onStartTraining={beginTraining}
@@ -555,24 +651,34 @@ export default function Game({
 
       <div className="order-2 flex shrink-0 flex-col gap-3 lg:order-3 lg:min-h-0 lg:w-80">
         <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} hideLog={desktop} />
-        {desktop && <ChatPanel docked logs={logs} />}
+        {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} />}
       </div>
 
       <GameModal
         course={course}
         onClose={closeCourse}
         playerKey={userId}
-        playerName={character.name}
+        playerName={player.name}
         stats={player.stats}
         lesson={course ? lessonOf(player, course.id) : null}
         actions={lessonActions}
       />
       {confirmQuit && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4">
-          <div role="alertdialog" aria-modal="true" aria-label="수련 포기 확인" className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
-            <p className="font-serif text-lg text-gold">현재 수련 중입니다.</p>
-            <p className="mt-2 text-sm text-paper/80">보상을 포기할까요?</p>
-            <p className="mt-1 text-[11px] text-paper/50">수련은 끝까지 마쳐야 영력이 들어옵니다.</p>
+          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' ? '휴식 종료 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
+            {confirmQuit.kind === 'rest' ? (
+              <>
+                <p className="font-serif text-lg text-gold">현재 휴식 중입니다.</p>
+                <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
+                <p className="mt-1 text-[11px] text-paper/50">그때까지 회복된 만큼은 그대로 남습니다.</p>
+              </>
+            ) : (
+              <>
+                <p className="font-serif text-lg text-gold">현재 수련 중입니다.</p>
+                <p className="mt-2 text-sm text-paper/80">보상을 포기할까요?</p>
+                <p className="mt-1 text-[11px] text-paper/50">수련은 끝까지 마쳐야 영력이 들어옵니다.</p>
+              </>
+            )}
             <div className="mt-4 flex justify-center gap-2">
               <button
                 type="button"
@@ -583,19 +689,21 @@ export default function Game({
                 }}
                 className="flat-btn justify-center !bg-crimson"
               >
-                포기한다
+                {confirmQuit.kind === 'rest' ? '나간다' : '포기한다'}
               </button>
               <button type="button" onClick={() => setConfirmQuit(null)} className="flat-btn justify-center">
-                계속 수련
+                {confirmQuit.kind === 'rest' ? '계속 쉬기' : '계속 수련'}
               </button>
             </div>
           </div>
         </div>
       )}
+      {profileOpen && <ProfileEditModal player={player} onSave={saveProfile} onClose={() => setProfileOpen(false)} />}
+      {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
         <InventoryModal player={player} inBattle={battleActive} reviveOn={reviveOn} onUse={useItem} onClose={() => setInvOpen(false)} />
       )}
-      {!desktop && <ChatPanel />}
+      {!desktop && <ChatPanel onGift={setGiftTo} />}
     </div>
   )
 }

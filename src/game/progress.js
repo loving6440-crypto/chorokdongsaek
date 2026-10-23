@@ -1,13 +1,26 @@
 // 시간이 흐르면서 바뀌는 상태(수련 · 수업 대기 · 일일 수업)를 다루는 순수 함수 모음.
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_DAILY_ATTEMPTS, LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
-import { MP_MAX, SPIRIT_PER_AGILITY } from './constants'
+import { MP_MAX } from './constants'
 import { START_MONEY } from './items'
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
 export const TRAIN_MAX = 300
-export const TRAIN_SPIRIT_PER_UNIT = 1
+export const REST_MIN = 1
+export const REST_MAX = 120
+export const REST_UNIT_MIN = 1
+export const REST_KINDS = {
+  bed: { label: '누워서 쉬기', stat: 'hp' },
+  counsel: { label: '선생님과 상담하기', stat: 'mp' },
+}
+
+/** 영력 자연 회복: 0.1 을 채우는 데 걸리는 초. 절제 10 마다 5초씩 빨라지고 30초(5분에 1)가 한계. */
+export const spiritIntervalSec = (control) => Math.max(30, 60 - 5 * Math.floor(control / 10))
+/** 1분당 영력 자연 회복량 */
+export const spiritPerMin = (control) => 6 / spiritIntervalSec(control)
+/** 수련은 자연 회복의 2배. 소수점은 내린다. */
+export const trainReward = (minutes, control) => Math.floor(2 * spiritPerMin(control) * minutes + 1e-9)
 
 export const dayKey = (now = Date.now()) => {
   const d = new Date(now)
@@ -106,32 +119,54 @@ export function pickFortuneStat(player, key, now = Date.now()) {
 
 export function startTraining(player, minutes, now = Date.now()) {
   const m = Math.min(TRAIN_MAX, Math.max(TRAIN_MIN, Math.round(minutes / TRAIN_UNIT_MIN) * TRAIN_UNIT_MIN))
-  return { ...player, training: { startedAt: now, minutes: m, credited: 0 } }
+  return { ...player, training: { startedAt: now, minutes: m, reward: trainReward(m, player.stats.control) } }
+}
+
+export function startRest(player, kind, minutes, now = Date.now()) {
+  const m = Math.min(REST_MAX, Math.max(REST_MIN, Math.round(minutes)))
+  return { ...player, resting: { kind, startedAt: now, minutes: m } }
 }
 
 /**
  * 1초마다(또는 복귀 시) 호출. 수련 중이면 끝났을 때 영력이 한 번에 오르고, 아니면 자연 회복.
  * 수업 대기가 끝났으면 수업을 마친 것으로 처리한다. 바뀐 게 없으면 같은 player 를 돌려준다.
  */
-export function tickPlayer(player, now, dtSec, healing = false) {
+export function tickPlayer(player, now, dtSec) {
   let p = player
   const logs = []
   const tr = p.training
   if (tr) {
     // 수련 보상은 끝까지 마쳐야 한 번에 들어온다. (중간에 나가면 받을 수 없다.)
-    const total = tr.minutes / TRAIN_UNIT_MIN
+    const total = tr.reward ?? tr.minutes / TRAIN_UNIT_MIN
     if (now >= tr.startedAt + tr.minutes * 60000) {
-      p = { ...p, spirit: p.spirit + total * TRAIN_SPIRIT_PER_UNIT, training: null }
-      logs.push(`수련을 마쳤다. (${tr.minutes}분 · 영력 +${total * TRAIN_SPIRIT_PER_UNIT})`)
+      p = { ...p, spirit: p.spirit + total, training: null }
+      logs.push(`수련을 마쳤다. (${tr.minutes}분 · 영력 +${total})`)
     }
   } else {
-    p = { ...p, spirit: p.spirit + (p.stats.agility * SPIRIT_PER_AGILITY * dtSec) / 60 }
+    p = { ...p, spirit: p.spirit + (spiritPerMin(p.stats.control) * dtSec) / 60 }
   }
 
-  // 체력 · 의지력은 저절로 차지 않는다. 양호실에 머무는 동안만 1분에 1씩 찬다.
-  if (healing && (p.hp < p.hpMax || p.mp < p.mpMax)) {
-    const d = dtSec / 60
-    p = { ...p, hp: Math.min(p.hpMax, p.hp + d), mp: Math.min(p.mpMax, p.mp + d) }
+  // 체력은 영력 자연 회복 속도의 2배로 저절로 찬다. 의지력은 저절로 차지 않는다.
+  // 양호실에서 쉬는 동안엔 1분에 1씩 찬다. (누워서 쉬기: 체력 / 선생님과 상담하기: 의지력)
+  const naturalHp = 2 * spiritPerMin(p.stats.control) // 분당
+  const dtMin = dtSec / 60
+  let dHp = naturalHp * dtMin
+  let dMp = 0
+  const rs = p.resting
+  if (rs) {
+    const end = rs.startedAt + rs.minutes * 60000
+    const from = Math.max(now - dtSec * 1000, rs.startedAt)
+    const eff = Math.max(0, Math.min(now, end) - from) / 60000 // 이 구간 중 실제로 쉰 분
+    // 누워서 쉬는 분 동안엔 자연 회복 대신 1분에 1씩, 나머지 시간엔 자연 회복.
+    if (REST_KINDS[rs.kind].stat === 'hp') dHp = naturalHp * Math.max(0, dtMin - eff) + eff
+    else dMp = eff
+    if (now >= end) {
+      p = { ...p, resting: null }
+      logs.push(`${REST_KINDS[rs.kind].label}를 마쳤다. (${rs.minutes}분)`)
+    }
+  }
+  if ((dHp > 0 && p.hp < p.hpMax) || (dMp > 0 && p.mp < p.mpMax)) {
+    p = { ...p, hp: Math.min(p.hpMax, p.hp + dHp), mp: Math.min(p.mpMax, p.mp + dMp) }
   }
 
   // 수업 대기 종료 / 지난 날짜의 찌꺼기 정리

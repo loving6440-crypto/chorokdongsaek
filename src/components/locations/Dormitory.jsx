@@ -4,8 +4,9 @@ import LocationIntro from '../LocationIntro'
 import {
   TRAIN_MAX,
   TRAIN_MIN,
-  TRAIN_SPIRIT_PER_UNIT,
   TRAIN_UNIT_MIN,
+  spiritIntervalSec,
+  trainReward,
 } from '../../game/progress'
 
 const fmtTime = (ms) => {
@@ -20,7 +21,7 @@ const fmtMin = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 
 
 const PRESETS = [5, 30, 60, 120, 300]
 
-export default function Dormitory({ view, agility, spiritRate, training, onStartTraining, onStopTraining }) {
+export default function Dormitory({ view, control, spiritRate, training, onStartTraining, onStopTraining }) {
   const [minutes, setMinutes] = useState(30)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function Dormitory({ view, agility, spiritRate, training, onStart
     return () => clearInterval(t)
   }, [training])
 
-  const total = training ? training.minutes / TRAIN_UNIT_MIN : 0
+  const total = training ? (training.reward ?? training.minutes / TRAIN_UNIT_MIN) : 0
   const endAt = training ? training.startedAt + training.minutes * 60000 : 0
   const progress = training ? Math.min(1, (now - training.startedAt) / (training.minutes * 60000)) : 0
 
@@ -46,8 +47,8 @@ export default function Dormitory({ view, agility, spiritRate, training, onStart
         {!training ? (
           <>
             <p className="mt-2 text-sm leading-relaxed text-paper/65">
-              가만히 있으면 신속 {agility}에 맞춰 1분에 영력 +{spiritRate.toFixed(1)}이 쌓인다.
-              수련을 시작하면 자연 회복은 멈추고, 끝까지 마쳤을 때 영력이 한 번에 들어온다. 중간에 나가면 보상은 없다.
+              가만히 있으면 절제 {control}에 맞춰 {spiritIntervalSec(control)}초에 영력 +0.1이 쌓인다.
+              수련은 자연 회복의 2배(소수점은 내림)로, 시작하면 자연 회복은 멈추고 끝까지 마쳤을 때 영력이 한 번에 들어온다. 중간에 나가면 보상은 없다.
               수련은 방치해도 된다. 탭을 백그라운드에 두거나 창을 내려 다른 프로그램을 봐도, 소지품·로그를 보거나 영력으로 스탯을 올려도 이어진다. 다만 다른 구역·활동으로 옮기거나 새 동작을 시작하면(확인 창이 뜬다) 수련을 포기하게 된다.
             </p>
 
@@ -59,7 +60,7 @@ export default function Dormitory({ view, agility, spiritRate, training, onStart
                 <span className="font-serif text-lg text-gold">
                   {fmtMin(minutes)}
                   <span className="ml-2 text-xs text-paper/55">
-                    영력 +{(minutes / TRAIN_UNIT_MIN) * TRAIN_SPIRIT_PER_UNIT}
+                    영력 +{trainReward(minutes, control)}
                   </span>
                 </span>
               </div>
@@ -104,7 +105,7 @@ export default function Dormitory({ view, agility, spiritRate, training, onStart
         ) : (
           <>
             <p className="mt-2 text-sm leading-relaxed text-paper/65">
-              {fmtMin(training.minutes)} 수련 중. 끝까지 마치면 영력 +{total * TRAIN_SPIRIT_PER_UNIT}이 한 번에 들어온다.
+              {fmtMin(training.minutes)} 수련 중. 끝까지 마치면 영력 +{total}이 한 번에 들어온다.
               자연 회복은 멈춰 있다. 중간에 나가면 보상은 없다.
             </p>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-shade/50" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
@@ -115,7 +116,7 @@ export default function Dormitory({ view, agility, spiritRate, training, onStart
             </div>
             <div className="mt-2 flex items-baseline justify-between text-xs text-paper/70">
               <span>
-                완료 시 영력 +{total * TRAIN_SPIRIT_PER_UNIT}
+                완료 시 영력 +{total}
               </span>
               <span className="font-serif text-lg text-gold">남은 시간 {fmtTime(endAt - now)}</span>
             </div>

@@ -27,7 +27,7 @@ export const ACTIVITIES = {
   ],
   infirmary: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },
-    { id: 'rest', label: '누워 쉬기', icon: BedDouble },
+    { id: 'rest', label: '휴식 · 상담', icon: BedDouble },
   ],
   shrine: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },

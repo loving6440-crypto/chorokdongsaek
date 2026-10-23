@@ -2,6 +2,7 @@ import { START_MONEY } from './items'
 import {
   AGE_MAX,
   AGE_MIN,
+  GRADES,
   HP_MAX,
   MP_MAX,
   NAME_MAX_LENGTH,
@@ -18,6 +19,12 @@ export function cleanName(raw) {
 
 export function isValidAge(age) {
   return Number.isInteger(age) && age >= AGE_MIN && age <= AGE_MAX
+}
+
+/** 학년. 고르지 않았으면(null) 나이로 정한다: 17세 1학년 · 18세 2학년 · 19세 3학년. */
+export function gradeOf({ age, grade }) {
+  if (GRADES.includes(grade)) return grade
+  return Math.min(3, Math.max(1, (age ?? AGE_MIN) - 16))
 }
 
 /** 모든 스탯이 최소값인 상태에서 시작하는 "투자량" 객체 (투자량 0 = 스탯 STAT_MIN). */
@@ -39,10 +46,11 @@ export function allocationToStats(allocation) {
  * 캐릭터 생성 결과로 플레이어 초기 상태를 만든다.
  * 모든 캐릭터는 영력 중앙값, 체력·의지력 100%로 시작한다.
  */
-export function createPlayer({ name, age, avatar, stats }) {
+export function createPlayer({ name, age, grade = null, avatar, stats }) {
   return {
     name,
     age,
+    grade,
     avatar,
     stats: { ...stats },
     spirit: SPIRIT_START,

@@ -1,12 +1,11 @@
-import { useId, useRef, useState } from 'react'
-import { Minus, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { useState } from 'react'
+import { Minus, Plus, RotateCcw } from 'lucide-react'
 import logo from '../assets/logo.png'
-import Avatar from './Avatar'
+import ProfileForm from './ProfileForm'
 import SoundToggle from './SoundToggle'
 import ThemeToggle from './ThemeToggle'
 import StatTooltip from './StatTooltip'
 import { STAT_ICONS } from './statIcons'
-import { fileToAvatarDataUrl, normalizeHex } from '../game/avatarImage'
 import {
   allocationToStats,
   cleanName,
@@ -14,10 +13,8 @@ import {
   remainingPoints,
 } from '../game/character'
 import {
-  AGE_MAX,
   AGE_MIN,
   DEFAULT_AVATAR_COLOR,
-  NAME_MAX_LENGTH,
   SPIRIT_START,
   STAT_KEYS,
   STAT_META,
@@ -25,37 +22,22 @@ import {
   STAT_START_POINTS,
 } from '../game/constants'
 
-const AGES = Array.from({ length: AGE_MAX - AGE_MIN + 1 }, (_, i) => AGE_MIN + i)
-
 const sectionLabel = 'font-serif text-xs tracking-[0.2em] text-gold/80'
 const stepButton =
   'grid size-7 place-items-center rounded border border-gold/30 text-gold transition enabled:hover:bg-gold/10 disabled:cursor-not-allowed disabled:border-edge/10 disabled:text-paper/30'
 const subtleButton =
   'inline-flex items-center gap-1.5 rounded border border-gold/30 px-3 py-1.5 text-xs text-gold transition hover:bg-gold/10'
 
-function swatchClass(selected) {
-  return `size-10 shrink-0 overflow-hidden rounded-full border transition ${
-    selected
-      ? 'border-transparent outline-2 outline-offset-2 outline-gold'
-      : 'border-edge/30 hover:border-edge/60'
-  }`
-}
-
 export default function CharacterCreation({ theme, onToggleTheme, onComplete }) {
-  const nameId = useId()
-  const hexId = useId()
-  const fileRef = useRef(null)
-
-  const [name, setName] = useState('')
-  const [age, setAge] = useState(AGE_MIN)
-  const [avatar, setAvatar] = useState({ kind: 'color', color: DEFAULT_AVATAR_COLOR })
-  const [color, setColor] = useState(DEFAULT_AVATAR_COLOR) // 마지막으로 유효했던 단색
-  const [hexText, setHexText] = useState(DEFAULT_AVATAR_COLOR.slice(1)) // '#' 없이 입력창에 보이는 값
-  const [uploaded, setUploaded] = useState(null) // 업로드한 이미지(data URL)
-  const [uploadError, setUploadError] = useState('')
+  const [profile, setProfile] = useState({
+    name: '',
+    age: AGE_MIN,
+    grade: null, // null = 나이에 맞춰 자동
+    avatar: { kind: 'color', color: DEFAULT_AVATAR_COLOR },
+  })
   const [allocation, setAllocation] = useState(emptyAllocation)
 
-  const cleanedName = cleanName(name)
+  const cleanedName = cleanName(profile.name)
   const remaining = remainingPoints(allocation)
   const nameOk = cleanedName.length > 0
   const canStart = nameOk && remaining === 0
@@ -69,56 +51,10 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete }) 
   const changeStat = (key, delta) => {
     setAllocation((prev) => {
       const next = prev[key] + delta
-      if (next < 0) return prev // 스탯은 최소값(STAT_MIN) 아래로 내릴 수 없다.
-      if (delta > 0 && remainingPoints(prev) <= 0) return prev // 최대값은 없지만 포인트는 한정되어 있다.
+      if (next < 0) return prev
+      if (delta > 0 && remainingPoints(prev) <= 0) return prev
       return { ...prev, [key]: next }
     })
-  }
-
-  const handleUpload = async (event) => {
-    const file = event.target.files?.[0]
-    event.target.value = '' // 같은 파일을 다시 골라도 change 가 발생하도록
-    if (!file) return
-    try {
-      const src = await fileToAvatarDataUrl(file)
-      setUploaded(src)
-      setAvatar({ kind: 'image', src })
-      setUploadError('')
-    } catch (err) {
-      setUploadError(err.message)
-    }
-  }
-
-  const removeUpload = () => {
-    setUploaded(null)
-    setUploadError('')
-    if (avatar.kind === 'image') setAvatar({ kind: 'color', color })
-  }
-
-  const hexValid = normalizeHex(hexText) !== null
-
-  // #코드 입력: '#' 은 붙여넣어도 되고, 유효한 값이면 바로 미리보기에 반영한다.
-  const handleHexChange = (event) => {
-    const value = event.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
-    setHexText(value)
-    const next = normalizeHex(value)
-    if (next) {
-      setColor(next)
-      setAvatar({ kind: 'color', color: next })
-    }
-  }
-
-  const handleHexBlur = () => {
-    const next = normalizeHex(hexText)
-    if (next) setHexText(next.slice(1)) // 3자리 → 6자리로 정리
-  }
-
-  const handlePickColor = (event) => {
-    const next = normalizeHex(event.target.value)
-    if (!next) return
-    setColor(next)
-    setHexText(next.slice(1))
-    setAvatar({ kind: 'color', color: next })
   }
 
   const handleSubmit = (event) => {
@@ -126,8 +62,9 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete }) 
     if (!canStart) return
     onComplete({
       name: cleanedName,
-      age,
-      avatar,
+      age: profile.age,
+      grade: profile.grade,
+      avatar: profile.avatar,
       stats: allocationToStats(allocation),
     })
   }
@@ -157,148 +94,7 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete }) 
           className="grid gap-4 md:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]"
         >
           {/* ───── 인적 사항 ───── */}
-          <section className="ink-panel space-y-5 rounded-md p-5">
-            <p className={sectionLabel}>인적 사항</p>
-
-            <div className="flex items-center gap-4">
-              <Avatar avatar={avatar} name={cleanedName} size={84} />
-              <div className="min-w-0">
-                <p className="truncate font-serif text-lg text-paper">
-                  {cleanedName || <span className="text-paper/45">이름 미정</span>}
-                </p>
-                <p className="mt-0.5 text-xs text-paper/65">창록고 1학년 · {age}세</p>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor={nameId} className="mb-1.5 flex justify-between text-xs text-paper/70">
-                <span>이름</span>
-                <span className="text-paper/45">
-                  {name.length} / {NAME_MAX_LENGTH}
-                </span>
-              </label>
-              <input
-                id={nameId}
-                type="text"
-                value={name}
-                maxLength={NAME_MAX_LENGTH}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="이름을 입력하세요"
-                autoComplete="off"
-                className="w-full rounded border border-edge/20 bg-shade/20 px-3 py-2 text-sm text-paper placeholder:text-paper/70 focus-visible:border-gold focus-visible:outline-none"
-              />
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-xs text-paper/70">나이</p>
-              <div role="radiogroup" aria-label="나이" className="flex gap-2">
-                {AGES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={age === value}
-                    onClick={() => setAge(value)}
-                    className={`flex-1 rounded border py-1.5 text-sm transition ${
-                      age === value
-                        ? 'border-gold bg-gold text-ink'
-                        : 'border-gold/30 text-paper/80 hover:bg-gold/10'
-                    }`}
-                  >
-                    {value}세
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-xs text-paper/70">모습</p>
-              <div className="flex flex-wrap gap-2.5 p-1">
-                {uploaded && (
-                  <button
-                    type="button"
-                    aria-label="업로드한 이미지"
-                    aria-pressed={avatar.kind === 'image'}
-                    onClick={() => setAvatar({ kind: 'image', src: uploaded })}
-                    className={swatchClass(avatar.kind === 'image')}
-                  >
-                    <img src={uploaded} alt="" className="size-full object-cover" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  aria-label="단색 프로필"
-                  aria-pressed={avatar.kind === 'color'}
-                  onClick={() => setAvatar({ kind: 'color', color })}
-                  className={swatchClass(avatar.kind === 'color')}
-                  style={{ backgroundColor: color }}
-                />
-              </div>
-              <div className="mt-2">
-                <label htmlFor={hexId} className="mb-1.5 block text-[11px] text-paper/55">
-                  단색 코드 (#코드)
-                </label>
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`flex flex-1 items-center rounded border bg-shade/20 px-3 py-2 text-sm text-paper focus-within:border-gold ${
-                      hexValid ? 'border-edge/20' : 'border-red-400/60 light:border-red-700/60'
-                    }`}
-                  >
-                    <span className="mr-0.5 text-paper/50 select-none">#</span>
-                    <input
-                      id={hexId}
-                      type="text"
-                      value={hexText}
-                      onChange={handleHexChange}
-                      onBlur={handleHexBlur}
-                      spellCheck={false}
-                      autoComplete="off"
-                      placeholder="1f7a4d"
-                      aria-invalid={!hexValid}
-                      className="w-full bg-transparent font-mono uppercase outline-none placeholder:text-paper/35"
-                    />
-                  </div>
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={handlePickColor}
-                    aria-label="색상 선택기"
-                    title="색상 선택기"
-                    className="size-9 shrink-0 cursor-pointer rounded border border-gold/30 bg-transparent p-0.5"
-                  />
-                </div>
-                {!hexValid && (
-                  <p role="alert" className="mt-1.5 text-xs text-red-400 light:text-red-700">
-                    3자리 또는 6자리 16진수 코드를 입력해 주세요. (예: #1f7a4d)
-                  </p>
-                )}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" onClick={() => fileRef.current?.click()} className={subtleButton}>
-                  <Upload size={13} />
-                  이미지 업로드
-                </button>
-                {uploaded && (
-                  <button type="button" onClick={removeUpload} className={subtleButton}>
-                    <Trash2 size={13} />
-                    이미지 제거
-                  </button>
-                )}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleUpload}
-                  className="hidden"
-                />
-              </div>
-              {uploadError && (
-                <p role="alert" className="mt-2 text-xs text-red-400 light:text-red-700">
-                  {uploadError}
-                </p>
-              )}
-            </div>
-          </section>
+          <ProfileForm value={profile} onChange={(patch) => setProfile((p) => ({ ...p, ...patch }))} />
 
           {/* ───── 스탯 ───── */}
           <section className="ink-panel rounded-md p-5">

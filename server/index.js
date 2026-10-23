@@ -9,8 +9,10 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ITEMS } from '../src/game/items.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const GIFT_MAX = 5
 const PORT = Number(process.env.PORT) || 8787
 const DIST = process.env.CHOROK_DIST ? path.resolve(process.env.CHOROK_DIST) : path.resolve(__dirname, '../dist')
 const DATA_FILE = process.env.CHOROK_DATA || path.join(__dirname, 'data.json')
@@ -270,6 +272,28 @@ async function handleApi(req, res, url) {
       return json(res, 200, { ok: true })
     }
     return json(res, 400, { error: 'bad-channel' })
+  }
+
+  // 선물: 접속 중인 다른 사람에게 아이템을 합쳐 최대 GIFT_MAX 개까지. 돈(냥)은 보낼 수 없다.
+  if (route === '/api/gift') {
+    const target = clients.get(cleanId(body.to))
+    if (!target || target.id === me.id) return json(res, 400, { error: 'no-target' })
+    const given = body.items
+    if (!given || typeof given !== 'object' || Array.isArray(given)) return json(res, 400, { error: 'bad-items' })
+    const ids = new Set(ITEMS.map((i) => i.id))
+    const clean = {}
+    let total = 0
+    for (const [k, v] of Object.entries(given)) {
+      if (!ids.has(k)) return json(res, 400, { error: 'items-only' }) // money 를 포함해 아이템이 아닌 건 모두 거절
+      if (!Number.isInteger(v) || v < 1) return json(res, 400, { error: 'bad-items' })
+      clean[k] = v
+      total += v
+    }
+    if (total < 1 || total > GIFT_MAX) return json(res, 400, { error: 'too-many' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, at: Date.now() }
+    send(target, { t: 'gift', gift })
+    return json(res, 200, { ok: true, giftId: gift.id, to: { id: target.id, name: target.name } })
   }
 
   if (route === '/api/party/invite') {

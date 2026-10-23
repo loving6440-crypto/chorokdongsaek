@@ -52,10 +52,10 @@ export const STAT_META = {
   control: {
     label: '절제',
     en: 'Control',
-    hint: 'TP/MP/HP 일반 소모 영향',
-    detail: '일반적인 TP, MP, HP 소모량에 영향을 준다.',
+    hint: '체력/영력/의지력의 활용이 효율적으로 변한다.',
+    detail: '체력/영력/의지력의 활용이 효율적으로 변한다.',
     tip: {
-      head: 'TP · MP · HP 일반 소모량이 줄어든다.',
+      head: '체력/영력/의지력의 활용이 효율적으로 변한다.',
       paras: [
         '가시밭길을 걸을 것을 각오하는 게 아닌, 그 통증을 소리 내지 않는 것이 미덕. 자신의 신체를 어디까지 다룰 수 있나?',
         '자기 자신을 다룰 수 있음이란 자연의 일부를 거느린다는 뜻. 세상 만물이 한 개인을 위해 흐를 수 있게끔 끌어온다.',
@@ -66,7 +66,7 @@ export const STAT_META = {
     label: '신속',
     en: 'Agility',
     hint: '수련 · 채집 속도',
-    detail: '전체적으로 수련과 채집의 속도가 빨라진다. (영력이 쌓이는 속도에 바로 반영)',
+    detail: '전체적으로 수련과 채집의 속도가 빨라진다.',
     tip: {
       head: '전체적으로 수련 및 채집의 속도가 빨라진다.',
       paras: [
@@ -93,6 +93,7 @@ export const STAT_META = {
 // ───────── 캐릭터 생성 규칙 ─────────
 export const AGE_MIN = 17
 export const AGE_MAX = 19
+export const GRADES = [1, 2, 3]
 export const NAME_MAX_LENGTH = 12
 export const STAT_MIN = 1 // 스탯 최소값 (최대값은 없다)
 export const STAT_START_POINTS = 10 // 캐릭터 생성 시 자유롭게 투자할 수 있는 포인트

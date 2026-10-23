@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MessageCircle, Send, UserPlus, Users, X } from 'lucide-react'
+import { Gift, MessageCircle, Send, UserPlus, Users, X } from 'lucide-react'
 import {
   dismissNotice,
   inviteToParty,
@@ -20,7 +20,7 @@ const TABS = [
 const timeOf = (at) =>
   new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export default function ChatPanel({ docked = false, logs = null }) {
+export default function ChatPanel({ docked = false, logs = null, onGift = null }) {
   const net = useOnline()
   const [openState, setOpen] = useState(false)
   const open = docked || openState
@@ -194,6 +194,17 @@ export default function ChatPanel({ docked = false, logs = null }) {
                           {mine && <span className="ml-1 text-[10px] text-gold">나</span>}
                           {mate && !mine && <span className="ml-1 text-[10px] text-gold">일행</span>}
                         </span>
+                        {!mine && onGift && (
+                          <button
+                            type="button"
+                            onClick={() => onGift({ id: p.id, name: p.name })}
+                            aria-label={`${p.name}에게 선물`}
+                            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded border border-gold/40 px-2 py-0.5 text-[11px] text-gold hover:bg-gold/10"
+                          >
+                            <Gift size={11} />
+                            선물
+                          </button>
+                        )}
                         {!mine && !mate && !p.partyId && (
                           <button
                             type="button"
