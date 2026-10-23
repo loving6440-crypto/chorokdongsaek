@@ -425,7 +425,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
       <div className="ink-panel order-first mt-3 flex items-end gap-3 rounded-2xl p-3 sm:p-4 md:order-none" aria-live="polite" aria-label="바리의 말">
         <BariPortrait mood={moodOf(node, line)} className="size-28 shrink-0 sm:size-36" />
         <div className="min-w-0 flex-1">
-          <p className="inline-block rounded-full bg-gold-fill px-3 py-0.5 text-xs font-medium text-ink light:text-paper">{BARI}</p>
+          <p className="inline-block rounded-full bg-gold-fill px-3 py-0.5 text-xs font-medium text-ink light:text-ink">{BARI}</p>
           {node.fx === 'fire' && (
             <p className="mt-2 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
               🔥 도깨비불 — 기 모으기 ×3턴(행동 없음) → 일반 공격 ×4 (막아도 1/2 피해)

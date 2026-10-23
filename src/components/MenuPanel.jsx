@@ -20,10 +20,10 @@ export default function MenuPanel({ current, onSelect, unreadLog, hideLog = fals
             aria-pressed={active}
             onClick={() => onSelect(id)}
             className={`ink-panel tilt relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-3 text-left text-sm ${
-              active ? '!border-transparent !bg-gold-fill !text-ink light:!text-paper' : 'text-paper/75 hover:text-paper'
+              active ? '!border-transparent !bg-gold-fill !text-ink light:!text-ink' : 'text-paper/75 hover:text-paper'
             }`}
           >
-            <Icon size={16} className={active ? 'text-ink light:text-paper' : 'text-paper/55'} />
+            <Icon size={16} className={active ? 'text-ink light:text-ink' : 'text-paper/55'} />
             <span className="font-serif">{label}</span>
             {id === 'log' && unreadLog && (
               <span className="absolute top-2 right-2 size-2 rounded-full bg-crimson" aria-label="새 기록" />

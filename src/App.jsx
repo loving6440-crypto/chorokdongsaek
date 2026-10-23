@@ -150,6 +150,7 @@ export default function App() {
       onLogout={handleLogout}
       userId={user.id}
       twitter={user.twitter}
+      joinedAt={user.createdAt}
     />
   )
 }

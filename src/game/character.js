@@ -56,6 +56,7 @@ export function createPlayer({ name, age, grade = null, avatar, stats }) {
     spirit: SPIRIT_START,
     money: START_MONEY,
     inventory: {},
+    createdAt: Date.now(), // 캐릭터를 만든 시각 (업적 '신의 주시' 기준)
     hp: HP_MAX,
     hpMax: HP_MAX,
     mp: MP_MAX,

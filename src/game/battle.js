@@ -39,7 +39,7 @@ export const ENEMIES = [
     spirit: 13,
     special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' },
   },
-].map((e) => ({ ...e, reward: e.spirit }))
+].map((e, i) => ({ ...e, tier: i + 1, reward: e.spirit }))
 
 /** 전투 교육 과정용 연습 상대. 쓰러지지 않도록 체력이 넉넉하고 공격은 약하다. */
 export const TUTOR_ENEMY = {

@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react'
-import { STAT_KEYS, STAT_META, STAT_UPGRADE_COST_PER_POINT } from '../game/constants'
+import { STAT_KEYS, STAT_MAX, STAT_META, STAT_UPGRADE_COST_PER_POINT } from '../game/constants'
 import { STAT_ICONS } from './statIcons'
 import StatTooltip from './StatTooltip'
 
@@ -10,7 +10,7 @@ export default function StatusPanel({ player, onUpgrade }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-serif text-lg text-gold">육조 스탯</h2>
         <p className="text-[11px] text-paper/55">
-          영력으로 스탯을 1씩 강화 (비용 = 현재 수치 × {STAT_UPGRADE_COST_PER_POINT})
+          영력으로 스탯을 1씩 강화 (비용 = 현재 수치 × {STAT_UPGRADE_COST_PER_POINT} · 최대 {STAT_MAX})
         </p>
         <p className="inline-flex items-center gap-1.5 rounded-full bg-edge/[0.08] px-3 py-1 text-xs text-paper/80">
           <Sparkles size={12} className="text-gold-fill" />
@@ -22,7 +22,8 @@ export default function StatusPanel({ player, onUpgrade }) {
           const meta = STAT_META[key]
           const value = player.stats[key]
           const cost = value * STAT_UPGRADE_COST_PER_POINT
-          const canAfford = player.spirit >= cost
+          const maxed = value >= STAT_MAX
+          const canAfford = !maxed && player.spirit >= cost
           const Icon = STAT_ICONS[key]
           return (
             <div key={key} className="rounded-xl bg-[var(--c-ink-muted)] p-2.5">
@@ -41,7 +42,7 @@ export default function StatusPanel({ player, onUpgrade }) {
                 disabled={!canAfford}
                 className="mt-2 w-full rounded-lg bg-edge/[0.09] py-1.5 text-[11px] text-gold transition enabled:hover:bg-gold-fill/25 disabled:cursor-not-allowed disabled:text-paper/30"
               >
-                강화 · 영력 {cost}
+                {maxed ? '최대치' : `강화 · 영력 ${cost}`}
               </button>
             </div>
           )

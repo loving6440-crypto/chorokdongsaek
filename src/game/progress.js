@@ -1,8 +1,9 @@
 // 시간이 흐르면서 바뀌는 상태(수련 · 수업 대기 · 일일 수업)를 다루는 순수 함수 모음.
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_DAILY_ATTEMPTS, LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
-import { MP_MAX } from './constants'
+import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
 import { START_MONEY } from './items'
+import { checkAchievements } from './achievements'
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
@@ -10,6 +11,13 @@ export const TRAIN_MAX = 300
 export const REST_MIN = 1
 export const REST_MAX = 120
 export const REST_UNIT_MIN = 1
+// 기숙사 휴식(취침): 무조건 6시간. 일어나면 체력·의지력이 가득 차고, 영력이 +100 (게이지 최댓값까지만) 오른다.
+export const SLEEP_MIN = 360
+export const SLEEP_SPIRIT = 100
+/** 영력 게이지의 최댓값. 기본 200이고, 영력이 그보다 커지면 100 단위로 늘어난다. */
+export const spiritGaugeMax = (spirit) => Math.max(SPIRIT_BASELINE_MAX, Math.ceil(spirit / 100) * 100)
+/** 푹 자고 일어났을 때 오르는 영력. +100, 단 게이지 최댓값을 넘기지 않는다. */
+export const sleepSpiritGain = (spirit) => Math.max(0, Math.min(SLEEP_SPIRIT, spiritGaugeMax(spirit) - spirit))
 export const REST_KINDS = {
   bed: { label: '누워서 쉬기', stat: 'hp' },
   counsel: { label: '선생님과 상담하기', stat: 'mp' },
@@ -100,17 +108,45 @@ export function cancelWaits(player) {
  * 저장해 둔 수련·대기는 그대로 이어 간다. 새로고침하거나 탭을 닫았다 열어도 시각 기준으로 계산되므로,
  * 다시 열면 그 사이 흐른 시간만큼(수련은 5분 단위, 대기는 종료 시각)이 곧바로 반영된다.
  */
-export function sanitizeRestored(player) {
+export function sanitizeRestored(player, joinedAt) {
   // 의지력 최대치가 100으로 늘었다: 예전 저장분도 최대치만 올려 준다.
   let p = player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
   if (p.money == null) p = { ...p, money: START_MONEY }
   if (!p.inventory) p = { ...p, inventory: {} }
-  return p
+  // 캐릭터를 만든 시각(업적 기준). 예전 저장분엔 없으니 계정을 만든 시각으로 대신한다.
+  if (!p.createdAt) p = { ...p, createdAt: joinedAt ?? Date.now() }
+  // 모든 스탯의 최대치는 50.
+  if (STAT_KEYS.some((k) => p.stats[k] > STAT_MAX)) {
+    p = { ...p, stats: Object.fromEntries(STAT_KEYS.map((k) => [k, Math.min(STAT_MAX, p.stats[k])])) }
+  }
+  return syncCodex(p)
+}
+
+/** 도감: 한 번이라도 손에 넣은 아이템·만난 NPC 를 기록한다. 바뀐 게 없으면 같은 player 를 돌려준다. */
+export function syncCodex(player) {
+  const codex = player.codex ?? { items: {}, npcs: {} }
+  const fresh = Object.keys(player.inventory ?? {}).filter((id) => player.inventory[id] > 0 && !codex.items?.[id])
+  const bari = player.tutorialDone && !codex.npcs?.bari
+  if (!fresh.length && !bari && player.codex) return player
+  return {
+    ...player,
+    codex: {
+      items: { ...codex.items, ...Object.fromEntries(fresh.map((id) => [id, true])) },
+      npcs: { ...codex.npcs, ...(bari ? { bari: true } : {}) },
+    },
+  }
+}
+
+export function markNpc(player, id) {
+  if (player.codex?.npcs?.[id]) return player
+  const codex = player.codex ?? { items: {}, npcs: {} }
+  return { ...player, codex: { ...codex, npcs: { ...codex.npcs, [id]: true } } }
 }
 
 export function pickFortuneStat(player, key, now = Date.now()) {
   const st = lessonOf(player, 'divination-fortune', now)
   if (!st.pendingStat) return null
+  if (player.stats[key] >= STAT_MAX) return null
   return {
     ...setLesson(player, 'divination-fortune', { ...st, pendingStat: false }),
     stats: { ...player.stats, [key]: player.stats[key] + 1 },
@@ -120,6 +156,11 @@ export function pickFortuneStat(player, key, now = Date.now()) {
 export function startTraining(player, minutes, now = Date.now()) {
   const m = Math.min(TRAIN_MAX, Math.max(TRAIN_MIN, Math.round(minutes / TRAIN_UNIT_MIN) * TRAIN_UNIT_MIN))
   return { ...player, training: { startedAt: now, minutes: m, reward: trainReward(m, player.stats.control) } }
+}
+
+/** 기숙사에서 자기 시작. 6시간 뒤에 한꺼번에 회복된다. (끝까지 자야 한다.) */
+export function startSleep(player, now = Date.now()) {
+  return { ...player, sleeping: { startedAt: now, minutes: SLEEP_MIN } }
 }
 
 export function startRest(player, kind, minutes, now = Date.now()) {
@@ -142,8 +183,16 @@ export function tickPlayer(player, now, dtSec) {
       p = { ...p, spirit: p.spirit + total, training: null }
       logs.push(`수련을 마쳤다. (${tr.minutes}분 · 영력 +${total})`)
     }
-  } else {
+  } else if (!p.sleeping) {
     p = { ...p, spirit: p.spirit + (spiritPerMin(p.stats.control) * dtSec) / 60 }
+  }
+
+  // 취침: 6시간을 다 자면 체력·의지력이 가득 차고 영력이 오른다. (자는 동안 영력 자연 회복은 멈춘다.)
+  const sl = p.sleeping
+  if (sl && now >= sl.startedAt + sl.minutes * 60000) {
+    const gain = sleepSpiritGain(p.spirit)
+    p = { ...p, sleeping: null, hp: p.hpMax, mp: p.mpMax, spirit: p.spirit + gain }
+    logs.push(`푹 자고 일어났다. 체력과 의지력이 가득 찼다.${gain ? ` (영력 +${Math.round(gain * 10) / 10})` : ' (영력은 이미 가득 차 있었다)'}`)
   }
 
   // 체력은 영력 자연 회복 속도의 2배로 저절로 찬다. 의지력은 저절로 차지 않는다.
@@ -183,6 +232,11 @@ export function tickPlayer(player, now, dtSec) {
       p = { ...p, lessons: rest }
     }
   }
+  // 도감 · 업적
+  p = syncCodex(p)
+  const ach = checkAchievements(p, now)
+  p = ach.player
+  logs.push(...ach.logs)
   return { player: p, logs }
 }
 

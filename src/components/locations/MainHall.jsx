@@ -8,7 +8,7 @@ import Explore from './Explore'
 export default function MainHall({ player, view, onOpenCourse, onInvestigate, onEnter }) {
 
   if (view === 'intro') return <LocationIntro id="mainHall" />
-  if (view === 'explore') return <Explore onInvestigate={onInvestigate} onEnter={onEnter} />
+  if (view === 'explore') return <Explore stats={player.stats} onInvestigate={onInvestigate} onEnter={onEnter} />
 
   return (
     <section>

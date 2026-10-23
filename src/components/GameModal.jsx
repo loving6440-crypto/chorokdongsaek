@@ -10,7 +10,7 @@ import Tetris from './minigames/Tetris'
 import TypingGame from './minigames/TypingGame'
 import { STAT_ICONS } from './statIcons'
 import StatTooltip from './StatTooltip'
-import { STAT_KEYS, STAT_META } from '../game/constants'
+import { STAT_KEYS, STAT_MAX, STAT_META } from '../game/constants'
 import {
   COURSE_INFO,
   LESSON_DAILY_ATTEMPTS,
@@ -233,7 +233,8 @@ export default function GameModal({
                     key={key}
                     type="button"
                     onClick={() => actions.pickStat(key)}
-                    className="tilt flex items-center justify-between gap-2 rounded border border-gold/40 bg-shade/30 px-3 py-1.5 text-sm text-paper hover:bg-gold/15"
+                    disabled={stats[key] >= STAT_MAX}
+                    className="tilt flex disabled:cursor-not-allowed disabled:opacity-40 items-center justify-between gap-2 rounded border border-gold/40 bg-shade/30 px-3 py-1.5 text-sm text-paper hover:bg-gold/15"
                   >
                     <span className="flex items-center gap-1.5">
                       <Icon size={13} className="text-gold" />
@@ -242,7 +243,7 @@ export default function GameModal({
                       </StatTooltip>
                     </span>
                     <span className="font-serif text-gold">
-                      {stats[key]} → {stats[key] + 1}
+                      {stats[key] >= STAT_MAX ? '최대' : `${stats[key]} → ${stats[key] + 1}`}
                     </span>
                   </button>
                 )

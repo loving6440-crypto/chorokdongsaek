@@ -38,7 +38,7 @@ function Channel({ label, store, icons: [On, Off] }) {
               data-sfx="none"
               onClick={() => store.setMuted(!muted)}
               aria-pressed={muted}
-              className={`rounded-full px-3 py-0.5 text-[11px] ${muted ? 'bg-edge/15 text-paper/70' : 'bg-gold-fill text-ink light:text-paper'}`}
+              className={`rounded-full px-3 py-0.5 text-[11px] ${muted ? 'bg-edge/15 text-paper/70' : 'bg-gold-fill text-ink light:text-ink'}`}
             >
               {muted ? '꺼짐' : '켜짐'}
             </button>

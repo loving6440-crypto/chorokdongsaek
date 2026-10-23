@@ -81,7 +81,7 @@
   --c-ink-muted: #e8eed2;
   --c-gold: #36503c;
   --c-gold-dim: #a9cfa8;
-  --c-gold-fill: #6fa676;
+  --c-gold-fill: #4f7a58;     /* 진하고 탁한 녹색: 크림 배경과 또렷이 구분된다 */
   --c-crimson: #d8506a;
   --c-paper: #213427;
   --c-mana: #2f86c0;
@@ -501,7 +501,7 @@ input[type="range"].flat-range:focus-visible { outline: 2px solid var(--c-gold-f
 }
 .flat-chip:hover { color: var(--c-paper); }
 .flat-chip[aria-pressed="true"] { background: var(--c-gold-fill); color: var(--c-ink); }
-[data-theme="light"] .flat-chip[aria-pressed="true"] { color: var(--c-paper); }
+[data-theme="light"] .flat-chip[aria-pressed="true"] { color: var(--c-ink); }
 
 /* 주 버튼 · 보조 버튼 */
 .flat-btn {
@@ -515,7 +515,7 @@ input[type="range"].flat-range:focus-visible { outline: 2px solid var(--c-gold-f
   background: var(--c-gold-fill);
   color: var(--c-ink);
 }
-[data-theme="light"] .flat-btn { color: var(--c-paper); }
+[data-theme="light"] .flat-btn { color: var(--c-ink); }
 .flat-btn-ghost {
   display: inline-flex;
   align-items: center;

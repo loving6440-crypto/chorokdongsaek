@@ -1,7 +1,11 @@
+import { LogOut } from 'lucide-react'
 import { ACTIVITIES } from '../game/activities'
 import { LOCATIONS } from '../game/constants'
 import LocationTabs from './LocationTabs'
 import LogView from './LogView'
+
+// 구역 안에서 바로 나갈 수 있는 곳: 구역 id → 나가서 도착할 구역 id
+const EXITS = { infirmary: 'mainHall' }
 
 // 위쪽 칸은 높이를 고정한다. 안의 내용만 메뉴에 따라 바뀌고, 넘치면 칸 안에서 스크롤된다.
 const BOX = 'ink-panel shrink-0 overflow-auto rounded-2xl p-3 sm:p-4 max-lg:max-h-[24rem] lg:h-[17rem] xl:h-[9.75rem]'
@@ -40,7 +44,7 @@ export default function ActivityBar({ panel, locationId, onMove, activity, onSel
               onClick={() => onSelect(id, action)}
               className={`tilt inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm ${
                 active
-                  ? 'bg-gold-fill text-ink light:text-paper'
+                  ? 'bg-gold-fill text-ink light:text-ink'
                   : 'bg-edge/[0.07] text-paper/85 hover:bg-edge/[0.14]'
               }`}
             >
@@ -49,6 +53,17 @@ export default function ActivityBar({ panel, locationId, onMove, activity, onSel
             </button>
           )
         })}
+        {EXITS[locationId] && (
+          <button
+            type="button"
+            data-sfx="nav"
+            onClick={() => onMove(EXITS[locationId])}
+            className="tilt ml-auto inline-flex items-center gap-1.5 rounded-lg border border-edge/25 px-4 py-2 text-sm text-paper/85 hover:bg-edge/[0.1]"
+          >
+            <LogOut size={15} aria-hidden />
+            나가기
+          </button>
+        )}
       </div>
     </header>
   )

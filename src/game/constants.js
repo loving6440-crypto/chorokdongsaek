@@ -219,3 +219,8 @@ export const GYM_DC = 12
 // 신속 1당 1분에 영력 +0.1 (= 10분에 1). 실제 반영은 1초마다 /60 씩.
 export const SPIRIT_PER_AGILITY = 0.1
 export const STAT_UPGRADE_COST_PER_POINT = 10
+export const STAT_MAX = 50 // 모든 스탯의 최대치. 이 이상은 오르지 않는다.
+
+// 퇴마 실습의 단계(난이도): 一 ~ 十. 숫자가 클수록 어렵다. 지금 퇴마 실습은 一~三단계를 맡는다.
+export const TIER_HANJA = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+export const tierLabel = (n) => `${TIER_HANJA[n - 1] ?? n}단계`

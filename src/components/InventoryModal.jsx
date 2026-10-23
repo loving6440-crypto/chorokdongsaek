@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Backpack, X } from 'lucide-react'
-import { ITEMS, canUseItem, countOf } from '../game/items'
+import { ITEMS, canUseItem, countOf, isMaterial } from '../game/items'
+import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. X 로 닫는다. */
 export default function InventoryModal({ player, inBattle, reviveOn, onUse, onClose }) {
@@ -41,22 +42,34 @@ export default function InventoryModal({ player, inBattle, reviveOn, onUse, onCl
                 const use = canUseItem(item, { inBattle, countNow: n, reviveOn })
                 return (
                   <li key={item.id} className="rounded-xl bg-edge/[0.07] p-3" data-item={item.id}>
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-serif text-base text-paper">
-                        {item.name} <span className="text-sm text-gold">×{n}</span>
-                      </p>
-                      <button
-                        type="button"
-                        disabled={!use.ok}
-                        onClick={() => onUse(item.id)}
-                        className="flat-btn shrink-0 !py-1 text-xs disabled:opacity-40"
-                      >
-                        사용
-                      </button>
+                    <div className="flex items-start gap-3">
+                      <ItemIcon item={item} size={44} className="shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-serif text-base text-paper">
+                            {item.name} <span className="text-sm text-gold">×{n}</span>
+                            {(item.tags ?? []).map((t) => (
+                              <span key={t} className="ml-1.5 rounded-full border border-edge/25 px-1.5 py-px align-middle font-sans text-[10px] text-paper/60">
+                                {t}
+                              </span>
+                            ))}
+                          </p>
+                          {!isMaterial(item) && (
+                            <button
+                              type="button"
+                              disabled={!use.ok}
+                              onClick={() => onUse(item.id)}
+                              className="flat-btn shrink-0 !py-1 text-xs disabled:opacity-40"
+                            >
+                              사용
+                            </button>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-paper/75">{item.desc}</p>
+                        {item.effectText && <p className="mt-1 text-xs leading-relaxed text-gold">{item.effectText}</p>}
+                        {!use.ok && !isMaterial(item) && <p className="mt-1 text-[11px] text-paper/45">{use.why}</p>}
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-paper/75">{item.desc}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-gold">{item.effectText}</p>
-                    {!use.ok && <p className="mt-1 text-[11px] text-paper/45">{use.why}</p>}
                   </li>
                 )
               })}

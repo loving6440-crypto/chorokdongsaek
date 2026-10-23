@@ -45,7 +45,7 @@ const STYLE = {
   italic: { max: 34, cls: 'font-myeongjo italic tracking-wide' },
 }
 
-export default function Intro({ onDone, onLeaveStart }) {
+export default function Intro({ onDone, onLeaveStart, replay = false }) {
   const instant = useRef(reducedMotion()).current
   const fadeMs = instant ? 1 : FADE_MS
   const titleMs = instant ? 0 : TITLE_MS
@@ -201,7 +201,7 @@ export default function Intro({ onDone, onLeaveStart }) {
 
           <div className="pointer-events-none absolute inset-x-0 bottom-8 flex flex-col items-center gap-3">
             <p className="text-[11px] tracking-widest text-[#f4efdc]/40">
-              {isLast ? '클릭하면 신입생 등록으로' : '클릭하면 다음으로'}
+              {isLast ? (replay ? '클릭하면 게임으로 돌아가요' : '클릭하면 신입생 등록으로') : '클릭하면 다음으로'}
               <span className="mx-2">·</span>
               {index + 1} / {INTRO_PARAGRAPHS.length}
             </p>

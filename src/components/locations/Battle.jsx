@@ -20,6 +20,7 @@ const ENEMY_DELAY = 900
 
 import { Bar, vague } from './battleUi'
 import Tutorial from './Tutorial'
+import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
 export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onSpecialSeen, onTutorialStart, onTutorialDone, reviveOn, onReviveUsed, onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems }) {
@@ -227,7 +228,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     return (
       <section>
         <p className="text-sm leading-relaxed text-paper/75">
-          붉은 마루 위에서 10면체 주사위로 퇴마 실전을 흉내 낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
+          붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
           오늘 영력을 얻는 승리는 <b className="text-gold">{rewardLeft}회</b> 남았다. 지면 영력을 조금 잃는다. 체력과 의지력은 전투가 끝나도 그대로 이어지고, 양호실에서만 찬다.
         </p>
         <button
@@ -254,7 +255,10 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             const q = (ok, v) => (ok ? v : '???')
             return (
               <li key={e.id} className="ink-panel tilt flex flex-col rounded-xl p-4">
-                <p className="font-serif text-lg text-paper">{e.name}</p>
+                <p className="font-serif text-lg text-paper">
+                  <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 align-middle font-sans text-[11px] text-gold" aria-label={`${e.tier}단계`}>{tierLabel(e.tier)}</span>
+                  {e.name}
+                </p>
                 <p className="mt-1 flex-1 text-xs leading-relaxed text-paper/60">{e.blurb}</p>
                 <p className="mt-2 grid grid-cols-2 gap-x-3 text-[11px] tabular-nums text-paper/70">
                   <span>체력 {q(rv.hp, e.hp)}</span>
@@ -290,7 +294,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         <span>
           라운드 <b className="font-serif text-base text-paper">{b.round}</b>
         </span>
-        <span className={`rounded-full px-3 py-0.5 ${b.over ? 'bg-edge/10' : myTurn ? 'bg-gold-fill text-ink light:text-paper' : 'bg-edge/10'}`} aria-live="polite">
+        <span className={`rounded-full px-3 py-0.5 ${b.over ? 'bg-edge/10' : myTurn ? 'bg-gold-fill text-ink light:text-ink' : 'bg-edge/10'}`} aria-live="polite">
           {b.over ? '전투 종료' : b.pendingDeath ? '쓰러지는 중…' : myTurn ? '내 턴' : '상대의 턴…'}
         </span>
       </div>
@@ -298,7 +302,10 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="ink-panel rounded-xl p-4">
           <div className="flex items-baseline justify-between">
-            <p className="font-serif text-lg text-paper">{b.enemy.name}</p>
+            <p className="font-serif text-lg text-paper">
+              {b.enemy.tier && <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 align-middle font-sans text-[11px] text-gold">{tierLabel(b.enemy.tier)}</span>}
+              {b.enemy.name}
+            </p>
             <p className="text-xs tabular-nums text-paper/70">{rv.hp ? `${b.ehp} / ${b.enemy.hp}` : '체력 ???'}</p>
           </div>
           <div className="mt-2">
@@ -354,7 +361,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
               style={{ transform: 'rotate(45deg)' }}
               aria-label="마지막 주사위"
             >
-              <span className="-rotate-45 font-serif text-xl text-ink light:text-paper">{dice ? dice.n : <Dices size={18} aria-hidden />}</span>
+              <span className="-rotate-45 font-serif text-xl text-ink light:text-ink">{dice ? dice.n : <Dices size={18} aria-hidden />}</span>
             </div>
             <p className="text-[11px] leading-relaxed text-paper/60">d10 (10면체)<br />마지막 굴림</p>
           </div>

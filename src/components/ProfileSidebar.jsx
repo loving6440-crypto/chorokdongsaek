@@ -1,6 +1,7 @@
-import { LogOut, Pencil } from 'lucide-react'
+import { LogOut, Pencil, RotateCcw, Trophy } from 'lucide-react'
 import logo from '../assets/logo.png'
-import { LOCATIONS, SPIRIT_BASELINE_MAX } from '../game/constants'
+import { LOCATIONS } from '../game/constants'
+import { spiritGaugeMax } from '../game/progress'
 import Avatar from './Avatar'
 import { gradeOf } from '../game/character'
 import SoundToggle from './SoundToggle'
@@ -69,14 +70,14 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onReplayIntro }) {
   const location = LOCATIONS[locationId]
-  const spiritMax = Math.max(SPIRIT_BASELINE_MAX, Math.ceil(player.spirit / 100) * 100)
+  const spiritMax = spiritGaugeMax(player.spirit)
 
   return (
     <aside className="order-1 shrink-0 lg:w-[22rem] lg:overflow-x-hidden lg:overflow-y-auto" aria-label="프로필">
       {/* 352 × 640 고정 구도: 같은 모양의 정마름모를 격자로 맞물려 쌓는다. */}
-      <div className="sidebar-canvas relative mx-auto h-[748px] w-[352px]">
+      <div className="sidebar-canvas relative mx-auto h-[804px] w-[352px]">
         <div aria-hidden className="absolute top-3 left-3 h-[72px] w-[200px] rounded-[50%] border-2 border-gold/35" />
         <div className="logo-tag absolute top-0 left-0 grid h-[72px] w-[200px] place-items-center !rounded-[50%]">
           <img src={logo} alt="草綠同色 초록동색" className="block h-12 w-auto select-none" draggable={false} />
@@ -162,15 +163,15 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         </Facet>
 
         {/* 체력 · 영력 · 의지력: 같은 높이의 세 막대를 가지런히 */}
-        <div className="absolute bottom-[112px] left-1/2 flex -translate-x-1/2 items-end gap-8" aria-label="자원">
-          <VBar label="체력" value={player.hp} max={player.hpMax} height={150} fill="bg-crimson" />
-          <VBar label="영력" value={player.spirit} max={spiritMax} height={150} fill="bg-gold-fill" />
-          <VBar label="의지력" value={player.mp} max={player.mpMax} height={150} fill="bg-mana" />
+        <div className="absolute bottom-[208px] left-1/2 flex -translate-x-1/2 items-end gap-8" aria-label="자원">
+          <VBar label="체력" value={player.hp} max={player.hpMax} height={126} fill="bg-crimson" />
+          <VBar label="영력" value={player.spirit} max={spiritMax} height={126} fill="bg-gold-fill" />
+          <VBar label="의지력" value={player.mp} max={player.mpMax} height={126} fill="bg-mana" />
         </div>
 
         {/* 소지금 + 소지품 버튼 */}
         <div
-          className="absolute bottom-[58px] left-1/2 flex h-[44px] w-[248px] -translate-x-1/2 items-center gap-3 rounded-2xl bg-shade/50 px-4 ring-1 ring-edge/15"
+          className="absolute bottom-[154px] left-1/2 flex h-[44px] w-[248px] -translate-x-1/2 items-center gap-3 rounded-2xl bg-shade/50 px-4 ring-1 ring-edge/15"
           aria-label="소지금"
         >
           <Pouch />
@@ -182,9 +183,26 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         <button
           type="button"
           onClick={onOpenItems}
-          className={`flat-btn absolute bottom-0 left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center ${spotItems ? 'spot' : ''}`}
+          className={`flat-btn absolute bottom-[96px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center ${spotItems ? 'spot' : ''}`}
         >
           내 소지품 확인하기
+        </button>
+        <button
+          type="button"
+          onClick={onOpenCodex}
+          className="flat-btn absolute bottom-[40px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center"
+        >
+          <Trophy size={15} aria-hidden />
+          업적/도감 확인하기
+        </button>
+        {/* 맨 왼쪽 아래: 인트로 다시보기 */}
+        <button
+          type="button"
+          onClick={onReplayIntro}
+          className="tilt absolute bottom-0 left-0 inline-flex h-8 items-center gap-1.5 rounded-lg border border-edge/25 px-3 text-xs text-paper/70 hover:bg-edge/[0.1] hover:text-paper"
+        >
+          <RotateCcw size={13} aria-hidden />
+          인트로 다시보기
         </button>
       </div>
     </aside>
