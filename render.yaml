@@ -6,3 +6,7 @@ services:
     plan: free
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
+    envVars:
+      # 관리자 키: Render 대시보드 > Environment 에서 직접 값을 넣는다. (저장소에 올리지 않는다)
+      - key: CHOROK_ADMIN_KEY
+        sync: false

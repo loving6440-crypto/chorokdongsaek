@@ -1,4 +1,4 @@
-import { LogOut, Pencil, RotateCcw, Trophy } from 'lucide-react'
+import { LogOut, Pencil, RotateCcw, Shield, Trophy, Users } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -70,14 +70,14 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onReplayIntro }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onReplayIntro, admin = false, onSwitchProfile, onOpenAdmin }) {
   const location = LOCATIONS[locationId]
   const spiritMax = spiritGaugeMax(player.spirit)
 
   return (
     <aside className="order-1 shrink-0 lg:w-[22rem] lg:overflow-x-hidden lg:overflow-y-auto" aria-label="프로필">
       {/* 352 × 640 고정 구도: 같은 모양의 정마름모를 격자로 맞물려 쌓는다. */}
-      <div className="sidebar-canvas relative mx-auto h-[804px] w-[352px]">
+      <div className="sidebar-canvas relative mx-auto mb-9 h-[804px] w-[352px]">
         <div aria-hidden className="absolute top-3 left-3 h-[72px] w-[200px] rounded-[50%] border-2 border-gold/35" />
         <div className="logo-tag absolute top-0 left-0 grid h-[72px] w-[200px] place-items-center !rounded-[50%]">
           <img src={logo} alt="草綠同色 초록동색" className="block h-12 w-auto select-none" draggable={false} />
@@ -101,7 +101,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         </div>
 
         {/* 프로필: 큰 정마름모 (중심 176,196) */}
-        <Facet label="캐릭터" border="var(--panel-border)" className="top-[84px] left-[48px] size-[256px]">
+        <Facet label="캐릭터" border="var(--facet-main)" className="top-[84px] left-[48px] size-[256px]">
           <div className="flex size-full flex-col items-center pt-[56px]">
             <Avatar avatar={player.avatar} size={72} />
             <p className="mt-2 max-w-[150px] truncate font-serif text-lg tracking-wide text-gold">{player.name}</p>
@@ -122,6 +122,18 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
             className="absolute top-[118px] left-[238px] z-10 grid size-7 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
           >
             <Pencil size={13} />
+          </button>
+        )}
+
+        {admin && onSwitchProfile && (
+          <button
+            type="button"
+            onClick={onSwitchProfile}
+            title="프로필 바꾸기"
+            aria-label="프로필 바꾸기"
+            className="absolute top-[118px] left-[86px] z-10 grid size-7 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
+          >
+            <Users size={13} />
           </button>
         )}
 
@@ -151,7 +163,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         <Facet
           label="기르는 신수"
          
-          border="color-mix(in srgb, var(--c-gold) 55%, transparent)"
+          border="var(--facet-beast)"
           className="top-[252px] left-[212px] size-[132px]"
         >
           <div className="grid size-full place-items-center">
@@ -176,8 +188,8 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         >
           <Pouch />
           <span className="text-[11px] tracking-wide text-paper/65">소지금</span>
-          <span className="ml-auto font-serif text-lg leading-none text-gold tabular-nums" data-money={Math.floor(player.money)}>
-            {Math.floor(player.money)}냥
+          <span className="ml-auto font-serif text-lg leading-none text-gold tabular-nums" data-money={admin ? 'inf' : Math.floor(player.money)}>
+            {admin ? '∞' : Math.floor(player.money)}냥
           </span>
         </div>
         <button
@@ -199,11 +211,21 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         <button
           type="button"
           onClick={onReplayIntro}
-          className="tilt absolute bottom-0 left-0 inline-flex h-8 items-center gap-1.5 rounded-lg border border-edge/25 px-3 text-xs text-paper/70 hover:bg-edge/[0.1] hover:text-paper"
+          className="tilt absolute -bottom-8 left-0 inline-flex h-8 items-center gap-1.5 rounded-lg border border-edge/25 px-3 text-xs text-paper/70 hover:bg-edge/[0.1] hover:text-paper"
         >
           <RotateCcw size={13} aria-hidden />
           인트로 다시보기
         </button>
+        {admin && (
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="tilt absolute -bottom-8 right-0 inline-flex h-8 items-center gap-1.5 rounded-lg border border-crimson/50 px-3 text-xs text-crimson hover:bg-crimson/10"
+          >
+            <Shield size={13} aria-hidden />
+            관리자 도구
+          </button>
+        )}
       </div>
     </aside>
   )

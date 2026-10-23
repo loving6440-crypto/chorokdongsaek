@@ -108,15 +108,15 @@ export function cancelWaits(player) {
  * 저장해 둔 수련·대기는 그대로 이어 간다. 새로고침하거나 탭을 닫았다 열어도 시각 기준으로 계산되므로,
  * 다시 열면 그 사이 흐른 시간만큼(수련은 5분 단위, 대기는 종료 시각)이 곧바로 반영된다.
  */
-export function sanitizeRestored(player, joinedAt) {
+export function sanitizeRestored(player, joinedAt, admin = false) {
   // 의지력 최대치가 100으로 늘었다: 예전 저장분도 최대치만 올려 준다.
-  let p = player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
+  let p = !admin && player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
   if (p.money == null) p = { ...p, money: START_MONEY }
   if (!p.inventory) p = { ...p, inventory: {} }
   // 캐릭터를 만든 시각(업적 기준). 예전 저장분엔 없으니 계정을 만든 시각으로 대신한다.
   if (!p.createdAt) p = { ...p, createdAt: joinedAt ?? Date.now() }
   // 모든 스탯의 최대치는 50.
-  if (STAT_KEYS.some((k) => p.stats[k] > STAT_MAX)) {
+  if (!admin && STAT_KEYS.some((k) => p.stats[k] > STAT_MAX)) {
     p = { ...p, stats: Object.fromEntries(STAT_KEYS.map((k) => [k, Math.min(STAT_MAX, p.stats[k])])) }
   }
   return syncCodex(p)
@@ -175,19 +175,20 @@ export function startRest(player, kind, minutes, now = Date.now()) {
 export function tickPlayer(player, now, dtSec) {
   let p = player
   const logs = []
+  // 대기(수련·취침·휴식·수업 대기) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
+  const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
+  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting)
+
   const tr = p.training
   if (tr) {
-    // 수련 보상은 끝까지 마쳐야 한 번에 들어온다. (중간에 나가면 받을 수 없다.)
     const total = tr.reward ?? tr.minutes / TRAIN_UNIT_MIN
     if (now >= tr.startedAt + tr.minutes * 60000) {
       p = { ...p, spirit: p.spirit + total, training: null }
       logs.push(`수련을 마쳤다. (${tr.minutes}분 · 영력 +${total})`)
     }
-  } else if (!p.sleeping) {
-    p = { ...p, spirit: p.spirit + (spiritPerMin(p.stats.control) * dtSec) / 60 }
   }
 
-  // 취침: 6시간을 다 자면 체력·의지력이 가득 차고 영력이 오른다. (자는 동안 영력 자연 회복은 멈춘다.)
+  // 취침: 6시간을 다 자면 체력·의지력이 가득 차고 영력이 오른다.
   const sl = p.sleeping
   if (sl && now >= sl.startedAt + sl.minutes * 60000) {
     const gain = sleepSpiritGain(p.spirit)
@@ -195,27 +196,22 @@ export function tickPlayer(player, now, dtSec) {
     logs.push(`푹 자고 일어났다. 체력과 의지력이 가득 찼다.${gain ? ` (영력 +${Math.round(gain * 10) / 10})` : ' (영력은 이미 가득 차 있었다)'}`)
   }
 
-  // 체력은 영력 자연 회복 속도의 2배로 저절로 찬다. 의지력은 저절로 차지 않는다.
-  // 양호실에서 쉬는 동안엔 1분에 1씩 찬다. (누워서 쉬기: 체력 / 선생님과 상담하기: 의지력)
-  const naturalHp = 2 * spiritPerMin(p.stats.control) // 분당
-  const dtMin = dtSec / 60
-  let dHp = naturalHp * dtMin
-  let dMp = 0
+  // 양호실 휴식: 끝까지 쉬어야 분당 1씩(누워서 쉬기: 체력 / 상담: 의지력) 한꺼번에 들어온다.
   const rs = p.resting
-  if (rs) {
-    const end = rs.startedAt + rs.minutes * 60000
-    const from = Math.max(now - dtSec * 1000, rs.startedAt)
-    const eff = Math.max(0, Math.min(now, end) - from) / 60000 // 이 구간 중 실제로 쉰 분
-    // 누워서 쉬는 분 동안엔 자연 회복 대신 1분에 1씩, 나머지 시간엔 자연 회복.
-    if (REST_KINDS[rs.kind].stat === 'hp') dHp = naturalHp * Math.max(0, dtMin - eff) + eff
-    else dMp = eff
-    if (now >= end) {
-      p = { ...p, resting: null }
-      logs.push(`${REST_KINDS[rs.kind].label}를 마쳤다. (${rs.minutes}분)`)
-    }
+  if (rs && now >= rs.startedAt + rs.minutes * 60000) {
+    const k = REST_KINDS[rs.kind]
+    p =
+      k.stat === 'hp'
+        ? { ...p, resting: null, hp: Math.min(p.hpMax, p.hp + rs.minutes) }
+        : { ...p, resting: null, mp: Math.min(p.mpMax, p.mp + rs.minutes) }
+    logs.push(`${k.label}를 마쳤다. (${rs.minutes}분 · ${k.stat === 'hp' ? '체력' : '의지력'} +${rs.minutes})`)
   }
-  if ((dHp > 0 && p.hp < p.hpMax) || (dMp > 0 && p.mp < p.mpMax)) {
-    p = { ...p, hp: Math.min(p.hpMax, p.hp + dHp), mp: Math.min(p.mpMax, p.mp + dMp) }
+
+  // 대기 중이 아닐 때만 자연 회복. 영력은 절제에 따라, 체력은 그 2배 속도. 의지력은 저절로 차지 않는다.
+  if (!waiting) {
+    p = { ...p, spirit: p.spirit + (spiritPerMin(p.stats.control) * dtSec) / 60 }
+    const dHp = (2 * spiritPerMin(p.stats.control) * dtSec) / 60
+    if (p.hp < p.hpMax) p = { ...p, hp: Math.min(p.hpMax, p.hp + dHp) }
   }
 
   // 수업 대기 종료 / 지난 날짜의 찌꺼기 정리

@@ -16,6 +16,20 @@ const GIFT_MAX = 5
 const PORT = Number(process.env.PORT) || 8787
 const DIST = process.env.CHOROK_DIST ? path.resolve(process.env.CHOROK_DIST) : path.resolve(__dirname, '../dist')
 const DATA_FILE = process.env.CHOROK_DATA || path.join(__dirname, 'data.json')
+// 관리자: 환경변수 CHOROK_ADMIN_KEY 를 아는 계정만 관리자가 된다. (키가 없으면 관리자 기능은 꺼진다.)
+//  - 접속할 때 키를 보내 서버가 확인하면 채팅에 [관리자] 직함이 붙는다.
+//  - 관리자 계정은 마음대로 스탯을 조절하므로 랭킹에는 오르지 않는다.
+const ADMIN_KEY = process.env.CHOROK_ADMIN_KEY || ''
+const ADMIN_TITLE = '관리자'
+let keyFails = [] // 틀린 키 시도 시각 (무차별 대입 방지: 10분에 20번을 넘으면 잠시 막는다)
+const keyBlocked = () => (keyFails = keyFails.filter((t) => Date.now() - t < 600_000)).length >= 20
+const adminOk = (key) => {
+  if (!ADMIN_KEY || typeof key !== 'string' || !key || keyBlocked()) return false
+  const ok = key.length === ADMIN_KEY.length && key === ADMIN_KEY
+  if (!ok) keyFails.push(Date.now())
+  return ok
+}
+const admins = new Set() // 키로 확인된 관리자 id (접속할 때마다 다시 채워진다)
 
 const COURSES = ['talisman-2048', 'spell-typing', 'ward-tetris', 'folklore-spot', 'exorcism-space']
 const HISTORY_MAX = 100
@@ -66,11 +80,11 @@ const sendTo = (id, payload) => {
 }
 const broadcast = (payload) => clients.forEach((c) => send(c, payload))
 const onlineList = () =>
-  [...clients.values()].map((c) => ({ id: c.id, name: c.name, partyId: partyOf.get(c.id) ?? null }))
+  [...clients.values()].map((c) => ({ id: c.id, name: c.name, title: c.title, partyId: partyOf.get(c.id) ?? null }))
 const partyView = (p) =>
   p && {
     id: p.id,
-    members: p.members.map((id) => ({ id, name: clients.get(id)?.name ?? id, online: clients.has(id) })),
+    members: p.members.map((id) => ({ id, name: clients.get(id)?.name ?? id, title: clients.get(id)?.title, online: clients.has(id) })),
   }
 const pushParty = (p) => p.members.forEach((id) => sendTo(id, { t: 'party', party: partyView(p), log: p.log }))
 const pushPresence = () => broadcast({ t: 'presence', online: onlineList() })
@@ -78,7 +92,7 @@ const pushPresence = () => broadcast({ t: 'presence', online: onlineList() })
 const makeMsg = (from, text, extra = {}) => ({
   id: seq++,
   at: Date.now(),
-  from: from ? { id: from.id, name: from.name } : null,
+  from: from ? { id: from.id, name: from.name, title: from.title } : null,
   text,
   ...extra,
 })
@@ -170,6 +184,8 @@ async function handleApi(req, res, url) {
     const id = cleanId(url.searchParams.get('id'))
     const name = cleanName(url.searchParams.get('name')) || id
     if (!id) return json(res, 400, { error: 'bad-id' })
+    const isAdmin = adminOk(url.searchParams.get('key') ?? '')
+    if (isAdmin) admins.add(id)
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
@@ -185,13 +201,13 @@ async function handleApi(req, res, url) {
         /* 이미 닫힘 */
       }
     }
-    const client = { id, name, res, joinedAt: Date.now() }
+    const client = { id, name, res, joinedAt: Date.now(), title: isAdmin ? ADMIN_TITLE : undefined }
     clients.set(id, client)
     const pid = partyOf.get(id)
     const party = pid ? parties.get(pid) : null
     send(client, {
       t: 'hello',
-      you: { id, name },
+      you: { id, name, title: client.title },
       online: onlineList(),
       history,
       party: partyView(party),
@@ -233,6 +249,18 @@ async function handleApi(req, res, url) {
   const body = await readBody(req)
   if (!body) return json(res, 400, { error: 'bad-json' })
 
+  // 관리자 키 확인 (로그인 화면에서 한 번). 맞으면 클라이언트가 그 계정을 관리자로 표시한다.
+  if (route === '/api/admin/verify') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (keyBlocked()) return json(res, 429, { error: 'slow-down' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    admins.add(id)
+    return json(res, 200, { ok: true })
+  }
+
   if (route === '/api/ranking') {
     const id = cleanId(body.id)
     const course = body.course
@@ -240,6 +268,7 @@ async function handleApi(req, res, url) {
     if (!id || !COURSES.includes(course) || !Number.isFinite(score) || score < 0 || score > 1e9) {
       return json(res, 400, { error: 'bad-score' })
     }
+    if (admins.has(id)) return json(res, 200, { ok: true, ignored: 'admin' }) // 관리자는 랭킹에 오르지 않는다
     const name = cleanName(body.name) || id
     const prev = ranking[course][id]
     const best = !prev || score > prev.score

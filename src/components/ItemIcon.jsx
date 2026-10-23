@@ -159,7 +159,7 @@ const CUSTOM_ICONS = {
       </>
     ),
   },
-  // 여우 고리털: 폭신한 꼬리
+  // 여우 꼬리털: 폭신한 꼬리
   'fox-fur': {
     bg: 'blue',
     art: (

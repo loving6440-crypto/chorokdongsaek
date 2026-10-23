@@ -155,7 +155,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
 
             <p className="px-3 pt-1.5 text-[10px] text-paper/45">
               {isLog ? '교내에서 있었던 일이 최근 순으로 기록된다.' : TABS.find((t) => t.id === tab).hint}
-              {!isLog && tab === 'party' && inParty && ` · ${net.party.members.map((m) => m.name).join(', ')}`}
+              {!isLog && tab === 'party' && inParty && ` · ${net.party.members.map((m) => (m.title ? `[${m.title}] ${m.name}` : m.name)).join(', ')}`}
             </p>
 
             {isLog ? (
@@ -189,6 +189,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
                     return (
                       <li key={p.id} className="flex items-center justify-between gap-2 rounded bg-shade/20 px-2 py-1.5 text-xs">
                         <span className="truncate text-paper">
+                          {p.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px text-[10px] font-medium text-white" data-title>[{p.title}]</span>}
                           {p.name}
                           <span className="ml-1 text-[10px] text-paper/40">@{p.id}</span>
                           {mine && <span className="ml-1 text-[10px] text-gold">나</span>}
@@ -243,6 +244,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
                   ) : (
                     <p key={m.id} className="text-[13px] leading-snug break-words text-paper">
                       <span className="mr-1 text-[10px] text-paper/40">{timeOf(m.at)}</span>
+                      {m.from?.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px align-middle text-[10px] font-medium text-white" data-title>[{m.from.title}]</span>}
                       <b className={m.from?.id === net.me?.id ? 'text-gold' : 'text-paper/90'}>{m.from?.name}</b>
                       <span className="text-paper/50"> : </span>
                       {m.text}

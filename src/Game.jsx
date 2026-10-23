@@ -12,6 +12,8 @@ import ProfileEditModal from './components/ProfileEditModal'
 import GiftModal from './components/GiftModal'
 import CodexModal from './components/CodexModal'
 import Intro from './components/Intro'
+import AdminPanel from './components/AdminPanel'
+import ProfileSwitchModal from './components/ProfileSwitchModal'
 import ProfileSidebar from './components/ProfileSidebar'
 import StatusPanel from './components/StatusPanel'
 import Annex from './components/locations/Annex'
@@ -20,6 +22,7 @@ import Gym from './components/locations/Gym'
 import Infirmary from './components/locations/Infirmary'
 import MainHall from './components/locations/MainHall'
 import Shrine from './components/locations/Shrine'
+import { markLineSeen } from './game/npcLines'
 import {
   LOCATIONS,
   STAT_META,
@@ -79,10 +82,13 @@ export default function Game({
   userId,
   twitter,
   joinedAt,
+  admin = false,
+  adminKey = '',
+  onProfileAction,
 }) {
   const restored = initialSave?.player
 
-  const [player, setPlayer] = useState(() => (restored ? sanitizeRestored(restored, joinedAt) : createPlayer(character)))
+  const [player, setPlayer] = useState(() => (restored ? sanitizeRestored(restored, joinedAt, admin) : createPlayer(character)))
   const [locationId, setLocationId] = useState(() => initialSave?.locationId || 'dorm')
   const battleRef = useRef(false)
   const reviveRef = useRef(false)
@@ -103,6 +109,8 @@ export default function Game({
   const [profileOpen, setProfileOpen] = useState(false)
   const [giftTo, setGiftTo] = useState(null) // { id, name }
   const [codexOpen, setCodexOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
+  const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
   const [battleActive, setBattleActive] = useState(false)
   const [reviveOn, setReviveOn] = useState(false)
@@ -135,9 +143,9 @@ export default function Game({
 
   // 온라인 서버(채팅 · 파티 · 랭킹)에 접속한다. 서버가 없으면 조용히 오프라인으로 남는다.
   useEffect(() => {
-    connect(userId, player.name)
+    connect(userId, player.name, admin ? adminKey : '')
     return () => disconnect()
-  }, [userId, player.name])
+  }, [userId, player.name, admin, adminKey])
 
   // 1초마다: 영력 자연 회복 / 수련 진행 / 수업 대기 종료.
   // 탭을 백그라운드에 두거나 창을 내려도 시계는 계속 간다. (수련·대기는 시각 기준으로 계산하고, 돌아오면 그 사이 분량이 반영된다.)
@@ -228,14 +236,14 @@ export default function Game({
     addLog(`양호실에서 ${minutes}분 동안 ${REST_KINDS[kind].label}를 시작했다.`)
   }
 
-  /** 휴식을 끊는다. 그때까지 찬 만큼은 그대로 남는다. */
+  /** 휴식을 끊는다. 끝까지 쉬지 못했으니 회복은 없다. */
   const endRest = useCallback(
     (why) => {
       const cur = playerRef.current
       if (!cur.resting) return
       playerRef.current = { ...cur, resting: null }
       setPlayer((prev) => (prev.resting ? { ...prev, resting: null } : prev))
-      addLog(`${why} 휴식을 마쳤다.`)
+      addLog(`${why} 휴식을 그만뒀다. (회복 없음)`)
     },
     [addLog],
   )
@@ -375,13 +383,13 @@ export default function Game({
     (id) => {
       const item = itemOf(id)
       const cur = playerRef.current
-      if (!item || item.price == null || cur.money < item.price || !isStoreOpen()) return
-      const next = { ...cur, money: cur.money - item.price, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + 1 } }
+      if (!item || item.price == null || (!admin && cur.money < item.price) || !isStoreOpen()) return
+      const next = { ...cur, money: admin ? cur.money : cur.money - item.price, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + 1 } }
       playerRef.current = next
       setPlayer(next)
-      addLog(`매점에서 ${item.name}을(를) 샀다. (-${item.price}냥)`)
+      addLog(`매점에서 ${item.name}을(를) 샀다. (${admin ? '관리자: 무료' : `-${item.price}냥`})`)
     },
-    [addLog],
+    [addLog, admin],
   )
 
   // 도감: 처음 만난 NPC 를 기록한다.
@@ -390,6 +398,14 @@ export default function Game({
     if (next === playerRef.current) return
     playerRef.current = next
     setPlayer((prev) => markNpc(prev, id))
+  }, [])
+
+  // 특수 상황 대사: 그 조건으로 처음 본 대사를 기록한다. (이후엔 평소 대사와 섞여 랜덤)
+  const lineSeen = useCallback((npcId, cond) => {
+    const next = markLineSeen(playerRef.current, npcId, cond)
+    if (next === playerRef.current) return
+    playerRef.current = next
+    setPlayer((prev) => markLineSeen(prev, npcId, cond))
   }, [])
 
   const giveItem = useCallback((id, n = 1) => {
@@ -547,6 +563,24 @@ export default function Game({
     addLog('사당 아래로 한 걸음을 내디뎠다. 귀문의 공기가 뼈를 적신다. (탐사 모듈 준비 중)')
   }
 
+  // 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 곧바로 고친다.
+  const applyAdmin = useCallback(
+    (v) => {
+      const next = { ...playerRef.current, stats: { ...v.stats }, hpMax: v.hpMax, mpMax: v.mpMax, hp: v.hp, mp: v.mp, spirit: v.spirit }
+      playerRef.current = next
+      setPlayer(next)
+      addLog('관리자 도구로 수치를 조정했다.')
+    },
+    [addLog],
+  )
+
+  // 프로필을 바꾸기 전에 지금까지의 진행을 바로 저장한다. (자동 저장은 0.8초 늦게 돈다)
+  const profileAction = (action) => {
+    onSave?.({ character: charOut, player: playerRef.current, locationId, logs })
+    setProfilesOpen(false)
+    onProfileAction?.(action)
+  }
+
   const latestLog = logs[0]
   const unreadLog = panel !== 'log' && latestLog && latestLog.id !== seenLog
   const selectPanel = (id) => {
@@ -575,6 +609,9 @@ export default function Game({
         twitter={twitter}
         onOpenItems={() => setInvOpen(true)}
         onEditProfile={() => setProfileOpen(true)}
+        admin={admin}
+        onSwitchProfile={() => setProfilesOpen(true)}
+        onOpenAdmin={() => setAdminOpen(true)}
         onOpenCodex={() => setCodexOpen(true)}
         onReplayIntro={() => setIntroReplay(true)}
         spotItems={spotItems}
@@ -617,7 +654,7 @@ export default function Game({
                   />
                 )}
                 {locationId === 'annex' && <Annex view={activity} />}
-                {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} />}
+                {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} />}
                 {locationId === 'dorm' && activity !== 'store' && (
                   <Dormitory
                     view={activity}
@@ -672,7 +709,7 @@ export default function Game({
                   />
                 )}
                 {locationId === 'shrine' && (
-                  <Shrine view={activity} insight={player.stats.insight} onExplore={exploreShrine} />
+                  <Shrine view={activity} player={player} onExplore={exploreShrine} onMeet={meetNpc} onLineSeen={lineSeen} />
                 )}
               </>
             )}
@@ -714,7 +751,7 @@ export default function Game({
               <>
                 <p className="font-serif text-lg text-gold">현재 수업 중입니다.</p>
                 <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
-                <p className="mt-1 text-[11px] text-paper/50">나가면 수업을 기다리던 시간이 끊깁니다.</p>
+                <p className="mt-1 text-[11px] text-paper/50">끝까지 기다려야 보상이 들어옵니다. 나가면 기다리던 시간이 끊깁니다.</p>
               </>
             ) : confirmQuit.kind === 'sleep' ? (
               <>
@@ -726,7 +763,7 @@ export default function Game({
               <>
                 <p className="font-serif text-lg text-gold">현재 휴식 중입니다.</p>
                 <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
-                <p className="mt-1 text-[11px] text-paper/50">그때까지 회복된 만큼은 그대로 남습니다.</p>
+                <p className="mt-1 text-[11px] text-paper/50">끝까지 쉬어야 회복됩니다. 중간에 나가면 회복은 없습니다.</p>
               </>
             ) : (
               <>
@@ -755,6 +792,16 @@ export default function Game({
         </div>
       )}
       {profileOpen && <ProfileEditModal player={player} onSave={saveProfile} onClose={() => setProfileOpen(false)} />}
+      {adminOpen && <AdminPanel player={player} onApply={applyAdmin} onClose={() => setAdminOpen(false)} />}
+      {profilesOpen && (
+        <ProfileSwitchModal
+          userId={userId}
+          onSwitch={(pid) => profileAction({ type: 'switch', pid })}
+          onCreate={() => profileAction({ type: 'create' })}
+          onDelete={(pid) => onProfileAction?.({ type: 'delete', pid })}
+          onClose={() => setProfilesOpen(false)}
+        />
+      )}
       {codexOpen && <CodexModal player={player} onClose={() => setCodexOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}

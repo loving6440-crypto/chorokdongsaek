@@ -55,7 +55,7 @@ function Entry({ e }) {
         </p>
         {e.where && <p className="text-[11px] text-paper/50">{e.where}</p>}
         {e.from && <p className="text-[11px] text-paper/50">{e.from}의 특수 행동</p>}
-        <p className={`mt-1 text-xs leading-relaxed ${e.desc ? 'text-paper/75' : 'text-paper/40'}`}>{e.desc || EMPTY_DESC}</p>
+        <p className={`mt-1 whitespace-pre-line text-xs leading-relaxed ${e.desc ? 'text-paper/75' : 'text-paper/40'}`}>{e.desc || EMPTY_DESC}</p>
         {e.extra && <p className="mt-1 text-xs leading-relaxed text-gold">{e.extra}</p>}
       </div>
     </li>

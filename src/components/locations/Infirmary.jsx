@@ -26,8 +26,8 @@ const fmtMin = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 
 const PRESETS = [5, 10, 30, 60, 100]
 
 const KIND_INFO = {
-  bed: { icon: BedDouble, gain: '체력', note: '1분마다 체력이 1씩 찬다.', doing: '이불을 끌어당기고 가만히 누워 있다…' },
-  counsel: { icon: MessageCircle, gain: '의지력', note: '1분마다 의지력이 1씩 찬다.', doing: '선생님과 마주 앉아 오래 이야기를 나누고 있다…' },
+  bed: { icon: BedDouble, gain: '체력', note: '끝까지 쉬면 1분에 1씩, 한꺼번에 체력이 찬다.', doing: '이불을 끌어당기고 가만히 누워 있다…' },
+  counsel: { icon: MessageCircle, gain: '의지력', note: '끝까지 쉬면 1분에 1씩, 한꺼번에 의지력이 찬다.', doing: '선생님과 마주 앉아 오래 이야기를 나누고 있다…' },
 }
 
 export default function Infirmary({ view, player, onStartRest, onStopRest }) {
@@ -87,7 +87,7 @@ export default function Infirmary({ view, player, onStartRest, onStopRest }) {
             </div>
             <p className="mt-2 text-sm leading-relaxed text-paper/65">
               {kind === 'bed' ? '체력을 회복한다. ' : '의지력을 회복한다. '}
-              {info.note} 쉬는 동안엔 탭을 닫아도 이어지고, 중간에 나가면 그때까지 찬 만큼만 남는다.
+              {info.note} 쉬는 동안엔 탭을 닫아도 이어지지만, 끝나기 전까지는 아무것도 들어오지 않고 중간에 나가면 받을 수 없다.
             </p>
 
             <div className="mt-4">
@@ -132,9 +132,9 @@ export default function Infirmary({ view, player, onStartRest, onStopRest }) {
         ) : (
           <>
             <p className="mt-4 text-sm leading-relaxed text-paper/65">
-              {fmtMin(resting.minutes)} 동안 {REST_KINDS[k].label} 중. {info.note} 중간에 나가면 그때까지 찬 만큼만 남는다.
+              {fmtMin(resting.minutes)} 동안 {REST_KINDS[k].label} 중. {info.note} 끝나기 전까지는 아무것도 들어오지 않고, 중간에 나가면 받을 수 없다.
             </p>
-            <p className="mt-1 text-[11px] text-paper/55">{full ? '몸과 마음이 가뿐하다.' : info.doing}</p>
+            <p className="mt-1 text-[11px] text-paper/55">{info.doing}</p>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-shade/50" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
               <div className="h-full bg-gold-fill transition-[width] duration-1000" style={{ width: `${progress * 100}%` }} />
             </div>

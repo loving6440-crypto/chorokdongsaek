@@ -28,7 +28,7 @@ const stepButton =
 const subtleButton =
   'inline-flex items-center gap-1.5 rounded border border-gold/30 px-3 py-1.5 text-xs text-gold transition hover:bg-gold/10'
 
-export default function CharacterCreation({ theme, onToggleTheme, onComplete }) {
+export default function CharacterCreation({ theme, onToggleTheme, onComplete, onCancel }) {
   const [profile, setProfile] = useState({
     name: '',
     age: AGE_MIN,
@@ -84,6 +84,11 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete }) 
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {onCancel && (
+              <button type="button" onClick={onCancel} className="rounded border border-edge/25 px-3 py-1.5 text-xs text-paper/80 hover:bg-edge/10">
+                돌아가기
+              </button>
+            )}
             <SoundToggle />
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>

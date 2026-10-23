@@ -5,7 +5,19 @@ import Intro from './components/Intro'
 import Game from './Game'
 import { hasSeenIntro, markIntroSeen } from './game/intro'
 import { sfx } from './game/sfx'
-import { getCurrentUser, loadGameState, logout as authLogout, saveGameState } from './game/auth'
+import {
+  activeProfileId,
+  cancelNewProfile,
+  createProfile,
+  deleteProfile,
+  getAdminKey,
+  getCurrentUser,
+  isAdminUser,
+  loadGameState,
+  logout as authLogout,
+  saveGameState,
+  switchProfile,
+} from './game/auth'
 import { useTheme } from './hooks/useTheme'
 
 /**
@@ -100,6 +112,40 @@ export default function App() {
     [user],
   )
 
+  // 관리자 프로필 전환: 바꾸기 · 새로 만들기 · 지우기
+  const handleProfileAction = useCallback(
+    (action) => {
+      if (!user) return
+      if (action.type === 'switch') {
+        const r = switchProfile(user.id, action.pid)
+        if (r.ok) {
+          setUser(r.user)
+          setCreating(false)
+        }
+      } else if (action.type === 'create') {
+        const r = createProfile(user.id)
+        if (r.ok) {
+          setUser(r.user)
+          setIntroPlaying(false)
+          setCreating(true)
+        }
+      } else if (action.type === 'delete') {
+        const r = deleteProfile(user.id, action.pid)
+        if (r.ok) setUser(r.user)
+      }
+    },
+    [user],
+  )
+
+  const handleCancelCreate = useCallback(() => {
+    if (!user) return
+    const r = cancelNewProfile(user.id)
+    if (r.ok) {
+      setUser(r.user)
+      setCreating(false)
+    }
+  }, [user])
+
   const handleLogout = useCallback(() => {
     authLogout()
     setUser(null)
@@ -130,6 +176,7 @@ export default function App() {
             theme={theme}
             onToggleTheme={toggleTheme}
             onComplete={handleCharacterComplete}
+            onCancel={isAdminUser(user) && user.profiles && Object.keys(user.profiles).length > 1 ? handleCancelCreate : undefined}
           />
         )}
         {introPlaying && <Intro onDone={handleIntroDone} onLeaveStart={() => setIntroLeaving(true)} />}
@@ -142,6 +189,7 @@ export default function App() {
 
   return (
     <Game
+      key={activeProfileId(user)}
       character={saved.character}
       initialSave={saved}
       theme={theme}
@@ -151,6 +199,9 @@ export default function App() {
       userId={user.id}
       twitter={user.twitter}
       joinedAt={user.createdAt}
+      admin={isAdminUser(user)}
+      adminKey={getAdminKey()}
+      onProfileAction={handleProfileAction}
     />
   )
 }

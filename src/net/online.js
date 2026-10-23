@@ -74,12 +74,12 @@ function handle(ev) {
   }
 }
 
-export function connect(id, name) {
+export function connect(id, name, key = '') {
   if (typeof EventSource === 'undefined') return
   if (source && state.me?.id === id && state.me?.name === name && state.status !== 'offline') return
   disconnect()
   set({ status: 'connecting', me: { id, name } })
-  const es = new EventSource(`/api/events?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`)
+  const es = new EventSource(`/api/events?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
   source = es
   es.onmessage = (e) => {
     try {
@@ -190,4 +190,19 @@ export function useOnline() {
     },
     () => state,
   )
+}
+
+/** 관리자 키를 서버에 확인한다. { ok, error } — error: bad-key | admin-disabled | slow-down | network */
+export async function verifyAdminKey(id, key) {
+  try {
+    const r = await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, key }),
+    })
+    const data = await r.json().catch(() => ({}))
+    return { ok: r.ok && !!data.ok, error: data.error ?? (r.ok ? undefined : 'network') }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
 }

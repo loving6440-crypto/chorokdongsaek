@@ -1,4 +1,4 @@
-import { Mountain, ShoppingBag, BedDouble, BookOpen, Compass, Swords, GraduationCap, Library, Moon, Signpost } from 'lucide-react'
+import { Mountain, ShoppingBag, BedDouble, BookOpen, Compass, Swords, GraduationCap, Library, Moon, Signpost, MessageCircle } from 'lucide-react'
 
 /**
  * 구역별 활동 목록. 화면 위쪽 '활동' 칸에 버튼으로 나오고,
@@ -33,5 +33,6 @@ export const ACTIVITIES = {
   shrine: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },
     { id: 'sign', label: '표지판', icon: Signpost },
+    { id: 'guard', label: '문지기와 대화', icon: MessageCircle },
   ],
 }

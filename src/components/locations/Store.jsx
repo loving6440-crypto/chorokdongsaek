@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { ShoppingBag } from 'lucide-react'
 import { STORE_HOURS, STORE_ITEMS, countOf, isStoreOpen } from '../../game/items'
 import { STORE_INFO, YUMIN } from '../../game/store'
+import { pickNpcLine } from '../../game/npcLines'
 import ItemIcon from '../ItemIcon'
+import NpcDialog from '../NpcDialog'
 
 /** 기숙사 매점. 아래쪽에서 점원 강유민이 들어올 때마다 대사를 하나씩 한다. */
-export default function Store({ player, onBuy, onMeet }) {
+export default function Store({ player, onBuy, onMeet, onLineSeen, admin = false }) {
   const [now, setNow] = useState(() => Date.now())
-  const [line] = useState(() => YUMIN.lines[Math.floor(Math.random() * YUMIN.lines.length)])
+  const [{ line, firstOf }] = useState(() => pickNpcLine(YUMIN.id, YUMIN.lines, player, player.lineSeen))
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 20000)
     return () => clearInterval(t)
@@ -15,6 +17,9 @@ export default function Store({ player, onBuy, onMeet }) {
   useEffect(() => {
     onMeet?.('yumin')
   }, [onMeet])
+  useEffect(() => {
+    if (firstOf) onLineSeen?.('yumin', firstOf)
+  }, [firstOf, onLineSeen])
   const open = isStoreOpen(now)
 
   return (
@@ -33,7 +38,7 @@ export default function Store({ player, onBuy, onMeet }) {
       </div>
 
       <p className="mt-4 text-sm text-paper/65">
-        소지금 <b className="text-gold">{Math.floor(player.money)}냥</b>
+        소지금 <b className="text-gold">{admin ? '∞' : Math.floor(player.money)}냥</b>
         <span
           data-store-open={open ? '1' : '0'}
           className={`ml-3 rounded-full px-2.5 py-0.5 text-[11px] ${open ? 'bg-gold-fill/25 text-gold' : 'bg-crimson/25 text-crimson'}`}
@@ -48,7 +53,7 @@ export default function Store({ player, onBuy, onMeet }) {
       )}
       <ul className="mt-3 grid gap-3 md:grid-cols-2">
         {STORE_ITEMS.map((item) => {
-          const can = open && player.money >= item.price
+          const can = open && (admin || player.money >= item.price)
           return (
             <li key={item.id} className="ink-panel flex flex-col rounded-xl p-4" data-item={item.id}>
               <div className="flex items-start gap-3">
@@ -73,22 +78,10 @@ export default function Store({ player, onBuy, onMeet }) {
         })}
       </ul>
 
-      {/* 점원 강유민: 미연시풍 대화창 */}
-      <div className="ink-panel mt-4 flex items-end gap-3 rounded-2xl p-3 sm:p-4" aria-live="polite" aria-label="강유민의 말" data-npc="yumin">
-        <img
-          src={YUMIN.faces[line.face]}
-          alt={YUMIN.name}
-          data-face={line.face}
-          className="size-28 shrink-0 rounded-2xl bg-edge/10 object-cover object-top sm:size-36"
-          draggable={false}
-        />
-        <div className="min-w-0 flex-1">
-          <p className="inline-block rounded-full bg-gold-fill px-3 py-0.5 text-xs font-medium text-ink light:text-ink">{YUMIN.name}</p>
-          <p className="mt-2 text-sm leading-[1.85] break-keep text-paper/95" data-npc-line>
-            {line.text}
-          </p>
-        </div>
-      </div>
+      {/* 점원 강유민: 미연시풍 대화창 (이름·대사는 바리와 같이 초상화 위쪽에 놓는다) */}
+      <NpcDialog npc={YUMIN.name} src={YUMIN.faces[line.face ?? 'plain']} face={line.face} dataNpc="yumin">
+        {line.text}
+      </NpcDialog>
     </section>
   )
 }

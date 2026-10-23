@@ -128,7 +128,7 @@ export const ITEMS = [
     id: 'fox-fur',
     kind: 'material',
     tags: ['재료'],
-    name: '여우 고리털',
+    name: '여우 꼬리털',
     price: null,
     desc: '부드럽고 폭신하다. 뒷산에 여우도 나온다고?',
     effectText: '',

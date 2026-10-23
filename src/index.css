@@ -47,6 +47,8 @@
   --c-crimson: #f26b5e;
   --c-paper: #f7ecd0;         /* 크림 */
   --c-mana: #2aa6b8;          /* 청록 */
+  --facet-main: #ffd426;      /* 프로필 마름모 테두리: 어두운 모드는 노랑 */
+  --facet-beast: #e5483c;     /* 기르는 신수 마름모 테두리: 어두운 모드는 붉은색 */
   --c-shade: #030817;
   --c-edge: #ffffff;
 
@@ -75,6 +77,8 @@
  */
 [data-theme="light"] {
   color-scheme: light;
+  --facet-main: var(--panel-border);
+  --facet-beast: color-mix(in srgb, var(--c-gold) 55%, transparent);
 
   --c-ink: #f6f1dc;
   --c-ink-raised: #fffbea;

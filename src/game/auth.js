@@ -99,6 +99,19 @@ export function login({ id, password }) {
   return { ok: true, user }
 }
 
+const normTwitter = (t) => String(t ?? '').trim().replace(/^@/, '').toLowerCase()
+
+/** 아이디 찾기: 가입할 때 적은 트위터 아이디로 계정 아이디를 찾는다. (대소문자·@ 무시, 비밀번호 찾기는 지원하지 않는다.) */
+export function findIdsByTwitter(twitter) {
+  const t = normTwitter(twitter)
+  if (!t) return { ok: false, error: '트위터 아이디를 입력해 주세요.' }
+  const ids = Object.values(loadUsers())
+    .filter((u) => normTwitter(u.twitter) === t)
+    .map((u) => u.id)
+  if (!ids.length) return { ok: false, error: '이 트위터 아이디로 가입한 계정을 찾지 못했습니다.' }
+  return { ok: true, ids }
+}
+
 export function getCurrentUser() {
   const session = getSession()
   if (!session) return null
@@ -124,4 +137,113 @@ export function loadGameState(userId) {
 
 export function logout() {
   clearSession()
+}
+
+// ───────── 관리자 · 멀티 프로필 ─────────
+// 관리자 계정(users[id].admin)만 캐릭터를 여러 명 둘 수 있다. 일반 계정은 한 계정에 한 캐릭터.
+// user.save 는 지금 쓰는 프로필의 저장이고, 쓰고 있지 않은 프로필은 user.profiles[pid] 에 맡겨 둔다.
+const FIRST_PID = 'p1'
+const ADMIN_KEY_STORE = 'chorok-admin-key'
+
+export const isAdminUser = (user) => !!user?.admin
+
+/** 관리자 키는 이 브라우저에만 저장한다. (접속할 때 서버로 보내 [관리자] 직함을 확인받는다.) */
+export function getAdminKey() {
+  try {
+    return localStorage.getItem(ADMIN_KEY_STORE) || ''
+  } catch {
+    return ''
+  }
+}
+
+/** 서버가 키를 확인해 준 뒤 이 계정을 관리자로 표시한다. */
+export function markAdmin(userId, key) {
+  const users = loadUsers()
+  if (!users[userId]) return null
+  users[userId].admin = true
+  try {
+    localStorage.setItem(ADMIN_KEY_STORE, key)
+  } catch {
+    /* 저장 불가면 다음 접속 때 다시 입력 */
+  }
+  saveUsers(users)
+  return users[userId]
+}
+
+export const activeProfileId = (user) => user?.activeProfile ?? FIRST_PID
+
+const profilesOf = (u) => u.profiles ?? { [FIRST_PID]: u.save ?? null }
+
+/** 이 계정의 프로필 목록: [{ pid, name, age, grade, avatar, active, empty }] */
+export function listProfiles(userId) {
+  const u = loadUsers()[userId]
+  if (!u) return []
+  const active = activeProfileId(u)
+  const ps = profilesOf(u)
+  return Object.keys(ps).map((pid) => {
+    const save = pid === active ? u.save : ps[pid]
+    const c = save?.character
+    return { pid, name: c?.name ?? '(만드는 중)', age: c?.age, grade: c?.grade ?? null, avatar: c?.avatar, active: pid === active, empty: !c }
+  })
+}
+
+function stash(u) {
+  u.profiles = { ...profilesOf(u), [activeProfileId(u)]: u.save ?? null }
+}
+
+export function switchProfile(userId, pid) {
+  const users = loadUsers()
+  const u = users[userId]
+  if (!u || !u.admin) return { ok: false }
+  stash(u)
+  if (!(pid in u.profiles) || pid === activeProfileId(u)) return { ok: false }
+  u.save = u.profiles[pid]
+  u.activeProfile = pid
+  saveUsers(users)
+  return { ok: true, user: u }
+}
+
+/** 새 프로필을 만든다 (관리자만). 저장이 비어 있는 상태가 되어, 캐릭터 생성 화면으로 이어진다. */
+export function createProfile(userId) {
+  const users = loadUsers()
+  const u = users[userId]
+  if (!u || !u.admin) return { ok: false }
+  stash(u)
+  let pid = `p${Date.now().toString(36)}`
+  while (pid in u.profiles) pid += 'x'
+  u.profiles[pid] = null
+  u.save = null
+  u.activeProfile = pid
+  saveUsers(users)
+  return { ok: true, user: u, pid }
+}
+
+/** 아직 캐릭터를 만들지 않은 새 프로필을 접고, 직전 프로필로 돌아간다. */
+export function cancelNewProfile(userId) {
+  const users = loadUsers()
+  const u = users[userId]
+  if (!u || !u.admin || u.save) return { ok: false }
+  const cur = activeProfileId(u)
+  const rest = Object.keys(profilesOf(u)).filter((p) => p !== cur)
+  if (!rest.length) return { ok: false }
+  const profiles = { ...u.profiles }
+  delete profiles[cur]
+  u.profiles = profiles
+  u.activeProfile = rest[rest.length - 1]
+  u.save = profiles[u.activeProfile]
+  saveUsers(users)
+  return { ok: true, user: u }
+}
+
+/** 지금 쓰지 않는 프로필을 지운다 (관리자만). */
+export function deleteProfile(userId, pid) {
+  const users = loadUsers()
+  const u = users[userId]
+  if (!u || !u.admin || pid === activeProfileId(u)) return { ok: false }
+  stash(u)
+  const profiles = { ...u.profiles }
+  delete profiles[pid]
+  u.profiles = profiles
+  saveUsers(users)
+  return { ok: true, user: u }
 }
