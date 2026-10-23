@@ -27,6 +27,14 @@ export default function ActivityBar({ panel, locationId, onMove, activity, onSel
       </header>
     )
   }
+  if (panel === 'market') {
+    return (
+      <header className={BOX} aria-label="활동 선택">
+        <h2 className="font-serif text-base text-gold">벼룩시장</h2>
+        <p className="mt-2 text-sm text-paper/70">아래 화면에서 물건을 사고팔 수 있다. 다른 곳으로 가려면 ‘학교 구역’을 누르자.</p>
+      </header>
+    )
+  }
   const list = ACTIVITIES[locationId]
   return (
     <header className={`${BOX} space-y-3`} aria-label="활동 선택">

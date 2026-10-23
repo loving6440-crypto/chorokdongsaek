@@ -25,17 +25,20 @@ const write = (k, v) => {
 let muted = read(MUTE_KEY, '0') === '1'
 let volume = Math.min(1, Math.max(0, parseFloat(read(VOL_KEY, DEFAULT_VOLUME)) || 0))
 let state = { muted, volume }
-let audio = null
+const TRACKS = { main: '/bgm.mp3', battle: '/bgm-battle.mp3' }
+const audios = {}
+let track = 'main' // 지금 틀어야 하는 곡. 전투에 들어가면 'battle'
 let wanted = false // 게임 화면에 있는가
 const listeners = new Set()
 
-function ensure() {
-  if (audio || typeof Audio === 'undefined') return audio
-  audio = new Audio('/bgm.mp3')
-  audio.loop = true
-  audio.preload = 'auto'
-  audio.volume = volume
-  return audio
+function ensure(name) {
+  if (audios[name] || typeof Audio === 'undefined') return audios[name]
+  const a = new Audio(TRACKS[name])
+  a.loop = true
+  a.preload = name === 'main' ? 'auto' : 'metadata'
+  a.volume = volume
+  audios[name] = a
+  return a
 }
 
 function retryOnInput() {
@@ -49,11 +52,14 @@ function retryOnInput() {
 }
 
 function sync() {
-  const a = ensure()
-  if (!a) return
-  a.volume = volume
-  if (!wanted || muted || volume <= 0) a.pause()
-  else a.play().catch(retryOnInput)
+  const cur = ensure(track)
+  if (!cur) return
+  for (const n of Object.keys(audios)) {
+    audios[n].volume = volume
+    if (n !== track) audios[n].pause()
+  }
+  if (!wanted || muted || volume <= 0) cur.pause()
+  else cur.play().catch(retryOnInput)
 }
 
 const emit = () => {
@@ -70,6 +76,15 @@ export const bgm = {
     wanted = false
     sync()
   },
+  /** 곡을 바꾼다: 'main' 평소 / 'battle' 전투. 전투가 끝나면 평소 곡이 멈췄던 데서 이어진다. */
+  setTrack(next) {
+    if (!TRACKS[next] || next === track) return
+    track = next
+    const a = audios[next]
+    if (a && next === 'battle') a.currentTime = 0
+    sync()
+  },
+  getTrack: () => track,
   getState: () => state,
   setMuted(next) {
     muted = !!next

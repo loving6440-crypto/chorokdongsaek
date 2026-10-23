@@ -9,19 +9,20 @@
  *
  * price: 숫자이면 기숙사 매점에서 판다. 없으면(null) 아직 파는 곳이 정해지지 않은 아이템.
  * kind: 'food' 먹는 것 · 'drink' 마시는 것 · 'material' 재료 · 'tool' 도구
- * tags: 화면에 칩으로 붙는 분류. ('재료', '선물' ...)
- * battle: 전투 중 사용 가능하다고 명시된 것만 true. (전투 중엔 턴·상황과 상관없이 언제든 쓸 수 있고, 써도 내 턴이 끝나지 않는다.)
+ * tags: 화면에 칩으로 붙는 분류. ('재료', '완성품', '선물' ...) 재료/완성품은 아래 ITEMS 에서 자동으로 붙는다.
+ * battle: 전투 중 사용 가능하다고 명시된 것만 true. (tags 에 '전투 중 사용 가능' 칩도 함께 붙인다.) (전투 중엔 턴·상황과 상관없이 언제든 쓸 수 있고, 써도 내 턴이 끝나지 않는다.)
  * only: 'battle' 이면 전투 중에만 쓸 수 있다.  party: 일행(파티) 상태에서만 쓸 수 있다.
  */
 export const START_MONEY = 50
 
-export const ITEMS = [
+const RAW_ITEMS = [
   {
     id: 'picnic',
     kind: 'drink',
     name: '사과맛 피크닉',
     price: 5,
     desc: '평범한 사과맛 피크닉, 독은 들어있지 않다. 전투중에 마셔도 목에 걸리지 않는다.',
+    tags: ['전투 중 사용 가능'],
     effectText: '의지력 +10',
     effect: { mp: 10 },
     battle: true,
@@ -62,9 +63,10 @@ export const ITEMS = [
     name: '마이쭈',
     price: 5,
     desc: '친해지고 싶은 친구에게 나눠주자. 혼자 먹어도 좋고.',
-    effectText: '일행(파티) 상태일 때 파티원에게 나눠주면 일시적으로 공격력을 올려준다. 1턴에 한해 2배.',
-    effect: {},
-    battle: false,
+    tags: ['전투 중 사용 가능'],
+    effectText: '일행(파티) 상태일 때 파티원에게 나눠주면 일시적으로 공격력을 올려준다. 1턴에 한해 2배. (전투 중에 직접 먹으면 내 다음 행동의 피해가 1턴 동안 2배가 된다.)',
+    effect: { boost: true },
+    battle: true,
     party: true,
   },
   {
@@ -73,6 +75,7 @@ export const ITEMS = [
     name: '에너지드링크',
     price: 20,
     desc: '날개를 달아줘요. 어쩐지 죽어도 죽지 않을 것 같다.',
+    tags: ['전투 중 사용 가능'],
     effectText:
       '1회에 한하여 전투불능 패널티 없이, 또한 전투를 종료하지 않고 HP1로 부활시킨다. 의지력은 회복되지 않는다. 전투불능이 되기 전 미리 먹어둬야 효과가 바로 발휘되며, 전투불능 이후에는 사용할 수 없다.',
     effect: { revive: true },
@@ -236,6 +239,18 @@ export const ITEMS = [
   },
 ]
 
+/**
+ * 분류 태그: [완성품] 바로 사용할 수 있는 아이템 / [재료] 다른 것의 재료로 쓰이는 것. 둘 다 붙을 수도 있다.
+ * tags 에 둘 중 하나라도 직접 적어 두면 그대로 따르고, 안 적으면 kind 로 정한다. (재료 kind → [재료], 그 밖 → [완성품])
+ */
+export const CAT_ITEM = '완성품'
+export const CAT_MATERIAL = '재료'
+export const ITEMS = RAW_ITEMS.map((it) => {
+  const tags = it.tags ?? []
+  if (tags.includes(CAT_ITEM) || tags.includes(CAT_MATERIAL)) return it
+  return { ...it, tags: [it.kind === 'material' ? CAT_MATERIAL : CAT_ITEM, ...tags] }
+})
+
 export const itemOf = (id) => ITEMS.find((i) => i.id === id)
 /** 매점에서 파는 아이템 (price 가 있는 것) */
 export const STORE_ITEMS = ITEMS.filter((i) => i.price != null)
@@ -252,12 +267,13 @@ export const isStoreOpen = (now = Date.now()) => {
 export const countOf = (player, id) => player.inventory?.[id] || 0
 
 /** 지금 이 아이템을 쓸 수 있는가. { ok, why } */
-export function canUseItem(item, { inBattle, countNow, reviveOn }) {
+export function canUseItem(item, { inBattle, countNow, reviveOn, boostOn }) {
   if (!countNow) return { ok: false, why: '갖고 있지 않다' }
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
-  if (item.party) return { ok: false, why: '일행(파티) 상태에서만 쓸 수 있다' }
+  if (item.party && !inBattle) return { ok: false, why: '일행(파티) 상태에서만 쓸 수 있다' }
   if (inBattle && !item.battle) return { ok: false, why: '전투 중에는 쓸 수 없다' }
   if (item.only === 'battle' && !inBattle) return { ok: false, why: '전투 중에만 쓸 수 있다' }
   if (item.effect.revive && reviveOn) return { ok: false, why: '이미 효과가 걸려 있다' }
+  if (item.effect.boost && boostOn) return { ok: false, why: '이미 효과가 걸려 있다' }
   return { ok: true }
 }

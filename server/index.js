@@ -38,11 +38,18 @@ const RATE_WINDOW_MS = 5000
 const RATE_MAX = 6
 const INVITE_TTL_MS = 60_000
 
-// ───────── 영속 데이터(랭킹) ─────────
+// 벼룩시장: 누가 올렸는지는 손님에게 보이지 않는다. (판매자는 서버만 안다.) 팔린 대금은 판매자가 받아 갈 때까지 맡아 둔다.
+const MARKET_MAX_PER_SELLER = 10
+const MARKET_QTY_MAX = 99
+const MARKET_PRICE_MAX = 99999
+let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
+
+// ───────── 영속 데이터(랭킹 · 벼룩시장) ─────────
 let ranking = Object.fromEntries(COURSES.map((c) => [c, {}])) // { course: { [playerId]: { id, name, score, at } } }
 try {
   const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
+  if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
 } catch {
   /* 첫 실행이면 빈 랭킹으로 시작 */
 }
@@ -51,7 +58,7 @@ function scheduleSave() {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking }, null, 1))
+      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market }, null, 1))
     } catch (e) {
       console.error('랭킹 저장 실패:', e.message)
     }
@@ -180,6 +187,17 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET' && route === '/api/health') return json(res, 200, { ok: true, online: clients.size })
 
+  // 벼룩시장 목록: 물건 종류별로(상점 순서) 1개당 값이 싼 것부터. 올린 사람은 알려 주지 않고, 본인 것만 mine 으로 표시한다.
+  if (req.method === 'GET' && route === '/api/market') {
+    const id = cleanId(url.searchParams.get('id'))
+    if (!id || !clients.get(id)) return json(res, 409, { error: 'not-connected' })
+    const order = new Map(ITEMS.map((it, i) => [it.id, i]))
+    const list = [...market.listings]
+      .sort((a, b) => order.get(a.item) - order.get(b.item) || a.price - b.price || a.at - b.at)
+      .map((l) => ({ id: l.id, item: l.item, qty: l.qty, price: l.price, total: l.price * l.qty, mine: l.seller === id }))
+    return json(res, 200, { ok: true, listings: list })
+  }
+
   if (req.method === 'GET' && route === '/api/events') {
     const id = cleanId(url.searchParams.get('id'))
     const name = cleanName(url.searchParams.get('name')) || id
@@ -301,6 +319,50 @@ async function handleApi(req, res, url) {
       return json(res, 200, { ok: true })
     }
     return json(res, 400, { error: 'bad-channel' })
+  }
+
+  // ───────── 벼룩시장 ─────────
+  if (route === '/api/market/list') {
+    const item = ITEMS.find((i) => i.id === body.item)
+    const qty = body.qty
+    const price = body.price
+    if (!item || !Number.isInteger(qty) || qty < 1 || qty > MARKET_QTY_MAX) return json(res, 400, { error: 'bad-qty' })
+    if (!Number.isInteger(price) || price < 1 || price > MARKET_PRICE_MAX) return json(res, 400, { error: 'bad-price' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    if (market.listings.filter((l) => l.seller === me.id).length >= MARKET_MAX_PER_SELLER) return json(res, 400, { error: 'too-many-listings' })
+    const l = { id: `m${market.seq++}`, seller: me.id, item: item.id, qty, price, at: Date.now() }
+    market.listings.push(l)
+    scheduleSave()
+    return json(res, 200, { ok: true, id: l.id })
+  }
+  if (route === '/api/market/buy') {
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const i = market.listings.findIndex((l) => l.id === body.listing)
+    if (i < 0) return json(res, 404, { error: 'gone' }) // 이미 팔렸거나 내려갔다
+    const l = market.listings[i]
+    if (l.seller === me.id) return json(res, 400, { error: 'own' })
+    market.listings.splice(i, 1)
+    const total = l.price * l.qty
+    market.proceeds[l.seller] = (market.proceeds[l.seller] || 0) + total
+    scheduleSave()
+    const seller = clients.get(l.seller)
+    if (seller) send(seller, { t: 'market-sold' })
+    return json(res, 200, { ok: true, item: l.item, qty: l.qty, total })
+  }
+  if (route === '/api/market/cancel') {
+    const i = market.listings.findIndex((l) => l.id === body.listing && l.seller === me.id)
+    if (i < 0) return json(res, 404, { error: 'gone' })
+    const [l] = market.listings.splice(i, 1)
+    scheduleSave()
+    return json(res, 200, { ok: true, item: l.item, qty: l.qty })
+  }
+  if (route === '/api/market/claim') {
+    const amount = market.proceeds[me.id] || 0
+    if (amount > 0) {
+      delete market.proceeds[me.id]
+      scheduleSave()
+    }
+    return json(res, 200, { ok: true, amount })
   }
 
   // 선물: 접속 중인 다른 사람에게 아이템을 합쳐 최대 GIFT_MAX 개까지. 돈(냥)은 보낼 수 없다.

@@ -111,6 +111,11 @@ export function cancelWaits(player) {
 export function sanitizeRestored(player, joinedAt, admin = false) {
   // 의지력 최대치가 100으로 늘었다: 예전 저장분도 최대치만 올려 준다.
   let p = !admin && player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
+  // 전투 교육 도중에 닫았다면 맡아 둔 체력·의지력을 돌려준다.
+  if (p.tutorialSnap) {
+    const { tutorialSnap: snap, ...rest } = p
+    p = { ...rest, hp: Math.min(p.hpMax, snap.hp), mp: Math.min(p.mpMax, snap.mp) }
+  }
   if (p.money == null) p = { ...p, money: START_MONEY }
   if (!p.inventory) p = { ...p, inventory: {} }
   // 캐릭터를 만든 시각(업적 기준). 예전 저장분엔 없으니 계정을 만든 시각으로 대신한다.
@@ -135,6 +140,12 @@ export function syncCodex(player) {
       npcs: { ...codex.npcs, ...(bari ? { bari: true } : {}) },
     },
   }
+}
+
+/** 영능력(스킬)을 새로 익힌다. 전투의 '영능력' 탭에 자동으로 들어간다. 이미 있으면 같은 player 를 돌려준다. */
+export function acquirePsychic(player, id) {
+  if (player.psychics?.includes(id)) return player
+  return { ...player, psychics: [...(player.psychics ?? []), id] }
 }
 
 export function markNpc(player, id) {

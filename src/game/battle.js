@@ -8,6 +8,9 @@
  * 간파로 몇 턴 앞의 행동을 미리 본다. 모든 판정은 주사위(rng 는 0 이상 1 미만).
  */
 
+/** 전투 보상 = 상대 영력의 2배 */
+export const REWARD_MULT = 2
+
 export const ENEMIES = [
   {
     id: 'scarecrow',
@@ -39,7 +42,7 @@ export const ENEMIES = [
     spirit: 13,
     special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' },
   },
-].map((e, i) => ({ ...e, tier: i + 1, reward: e.spirit }))
+].map((e, i) => ({ ...e, tier: i + 1, reward: e.spirit * REWARD_MULT }))
 
 /** 전투 교육 과정용 연습 상대. 쓰러지지 않도록 체력이 넉넉하고 공격은 약하다. */
 export const TUTOR_ENEMY = {
@@ -59,7 +62,7 @@ export const INTENTS = {
   smash: { label: '강공', note: '기를 모아 내리치는 일격!' },
   charge: { label: '기 모으기', note: '다음 턴에 강공이 온다.' },
   guard: { label: '방어 태세', note: '이번 턴 내 공격 피해가 절반이 된다.' },
-  special: { label: '특수 행동', note: '상대마다 다른 비기.' },
+  special: { label: '영능력', note: '상대마다 다른 비기.' },
 }
 
 export const ACTIONS = {
@@ -68,7 +71,16 @@ export const ACTIONS = {
   charm: { label: '부적', note: '빗나감 없는 2배 피해, 방어 무시. 한 판 3장 · 의지력 소모.' },
   scan: { label: '간파', note: '의지력 1. 상대의 다음 행동을 2턴(안목이 높으면 3턴) 앞서 본다.' },
   buff: { label: '효험', note: '의지력 10(모자라면 0까지). 공격을 두 번 굴려 더 나은 쪽을 고른다.' },
+  psychic: { label: '영능력', note: '지금까지 익힌 영능력(스킬)을 확인하고 쓴다.' },
 }
+
+/**
+ * 영능력(= 특수 행동 = 스킬) 도감. 내가 익힐 수 있는 영능력을 여기에 정의한다. (아직 없음)
+ * 항목 예: { id: 'dokkaebi-fire', label: '도깨비불', note: '설명', cost: 0 }
+ * 익히는 과정을 만들면 progress.js 의 acquirePsychic(player, id) 로 player.psychics 에 넣으면 되고,
+ * 전투 '영능력' 탭에는 그 목록이 자동으로 나타난다.
+ */
+export const PSYCHICS = []
 
 export const CHARMS = 3
 export const BASE_HP = 24
@@ -81,8 +93,16 @@ const die = (n, rng) => 1 + Math.floor(rng() * Math.max(1, Math.floor(n)))
 const d10 = (rng) => die(10, rng)
 
 export const maxHp = (stats) => BASE_HP + HP_PER_ENDURANCE * stats.endurance
-/** 돌발 행동 확률(%). 호전이 절제보다 높을수록 커진다. 막기·부적·간파·효험을 고르면 이 확률로 '무작정 공격'이 된다. */
-export const rashPercent = (stats) => Math.max(0, Math.min(40, (stats.aggression - stats.control - 3) * 8))
+/** 돌발 행동 확률(%) = 호전 − 절제 (0 미만이면 0). 호전 30 · 절제 17 이면 13%, 호전 5 · 절제 1 이면 4%. */
+export const rashPercent = (stats) => Math.max(0, Math.min(100, Math.floor(stats.aggression - stats.control)))
+/**
+ * 내 턴이 시작될 때마다 항상 굴리는 돌발 판정(1d100). 굴림이 확률 이하이면 hit — 그 턴엔 어떤 조건이든 상대에게 무조건 일반 공격을 한다.
+ */
+export function rollRash(stats, rng = Math.random) {
+  const percent = rashPercent(stats)
+  const roll = die(100, rng)
+  return { percent, roll, hit: roll <= percent }
+}
 export const charmDie = (stats) => Math.max(1, CHARM_DIE - stats.control)
 export const scanTurns = (stats, enemy) => (stats.insight > enemy.spirit ? 3 : 2)
 
@@ -163,19 +183,16 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   const s = { ...state, guard: false }
   const ev = []
   let mpCost = 0
-  let act = action
+  const act = action
 
-  const rash = rashPercent(stats)
-  if (!ctx.noRash && act !== 'attack' && rash > 0 && rng() * 100 < rash) {
-    ev.push({ kind: 'rash', text: '호전이 앞서 몸이 멋대로 튀어 나갔다! (돌발 행동: 무작정 공격)' })
-    act = 'attack'
-  }
   // 의지력이 0이면 의지력을 쓰는 행동은 할 수 없다. 모자랄 뿐이면 0까지 쓰고 그 행동을 한다.
   if ((act === 'charm' || act === 'scan' || act === 'buff') && mp < 1) {
     ev.push({ kind: 'warn', text: '의지력이 0이라 쓸 수 없다!' })
     return { state: state, events: ev, mpCost: 0, invalid: true }
   }
   const braced = s.queue[0] === 'guard'
+  const mult = ctx.boost ? 2 : 1 // 마이쭈: 이번 턴 피해 2배
+  const bn = ctx.boost ? ' (마이쭈 ×2)' : ''
 
   const strike = (r, label = '공격') => {
     if (r.miss) return `${label}이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]`
@@ -184,9 +201,9 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
 
   if (act === 'attack') {
     const r = attackRoll(stats, rng)
-    let dmg = r.dmg
-    let note = ''
-    if (!r.miss && braced) { dmg = Math.ceil(dmg / 2); note = ' (방어에 절반으로 막힘)' }
+    let dmg = r.dmg * mult
+    let note = r.miss ? '' : bn
+    if (!r.miss && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
     s.ehp = Math.max(0, s.ehp - dmg)
     ev.push({ kind: 'player', roll: r.hit, dmg, text: `${strike(r)}${r.miss ? '' : ` ${dmg} 피해${note}`}` })
   } else if (act === 'buff') {
@@ -194,9 +211,9 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
     const r1 = attackRoll(stats, rng)
     const r2 = attackRoll(stats, rng)
     const best = r1.dmg >= r2.dmg ? r1 : r2
-    let dmg = best.dmg
-    let note = ''
-    if (dmg > 0 && braced) { dmg = Math.ceil(dmg / 2); note = ' (방어에 절반으로 막힘)' }
+    let dmg = best.dmg * mult
+    let note = dmg > 0 ? bn : ''
+    if (dmg > 0 && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
     s.ehp = Math.max(0, s.ehp - dmg)
     ev.push({ kind: 'player', text: `효험! 의지력 ${mpCost}을 쏟아 두 번 굴린다. 첫 번째 ${r1.miss ? '빗나감' : `${r1.dmg}`}, 두 번째 ${r2.miss ? '빗나감' : `${r2.dmg}`}` })
     ev.push({ kind: 'player', roll: best.hit, dmg, text: `${dmg > 0 ? `더 나은 쪽을 골랐다. ${dmg} 피해${note}` : '두 번 다 빗나갔다…'}` })
@@ -208,9 +225,9 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
       const costRoll = die(charmDie(stats), rng)
       mpCost = Math.min(costRoll, mp)
       const r = attackRoll(stats, rng, true)
-      const dmg = r.dmg * 2
+      const dmg = r.dmg * 2 * mult
       s.ehp = Math.max(0, s.ehp - dmg)
-      ev.push({ kind: 'player', roll: r.hit, dmg, text: `부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2 = ${dmg} 피해 (의지력 -${mpCost}, 남은 부적 ${s.charms}장)` })
+      ev.push({ kind: 'player', roll: r.hit, dmg, text: `부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해 (의지력 -${mpCost}, 남은 부적 ${s.charms}장)` })
     }
   } else if (act === 'scan') {
     mpCost = SCAN_COST
@@ -231,7 +248,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
     s.over = 'win'
     ev.push({ kind: 'end', text: `${s.enemy.name}이(가) 쓰러졌다.` })
   }
-  return { state: s, events: ev, mpCost }
+  return { state: s, events: ev, mpCost, boostUsed: !!ctx.boost }
 }
 
 /**

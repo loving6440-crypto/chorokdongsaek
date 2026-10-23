@@ -76,9 +76,9 @@ export const FLOORS = [
       { id: 'class1', name: '교실(1학년)' },
       { id: 'class2', name: '교실(2학년)' },
       { id: 'class3', name: '교실(3학년)' },
-      { id: 'locker1', name: '물품보관함(1학년)' },
-      { id: 'locker2', name: '물품보관함(2학년)' },
-      { id: 'locker3', name: '물품보관함(3학년)' },
+      { id: 'locker1', name: '물품보관함(1학년)', locker: 1 },
+      { id: 'locker2', name: '물품보관함(2학년)', locker: 2 },
+      { id: 'locker3', name: '물품보관함(3학년)', locker: 3 },
     ],
   },
   {

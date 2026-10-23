@@ -23,6 +23,7 @@ import Infirmary from './components/locations/Infirmary'
 import MainHall from './components/locations/MainHall'
 import Shrine from './components/locations/Shrine'
 import { markLineSeen } from './game/npcLines'
+import { deposit, withdraw } from './game/locker'
 import {
   LOCATIONS,
   STAT_META,
@@ -50,7 +51,8 @@ import {
   markNpc,
   REST_KINDS,
 } from './game/progress'
-import { connect, disconnect, notify, onGift, sendGift } from './net/online'
+import { connect, disconnect, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline } from './net/online'
+import Market from './components/Market'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
 function useDesktop() {
@@ -113,7 +115,14 @@ export default function Game({
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
   const [battleActive, setBattleActive] = useState(false)
+  // 전투에 들어가면 전투 BGM, 끝나면 평소 BGM
+  useEffect(() => {
+    bgm.setTrack(battleActive ? 'battle' : 'main')
+  }, [battleActive])
   const [reviveOn, setReviveOn] = useState(false)
+  const [boostOn, setBoostOn] = useState(false)
+  const boostRef = useRef(false)
+  boostRef.current = boostOn
   const [itemsUsed, setItemsUsed] = useState(0)
   const [spotItems, setSpotItems] = useState(false)
   battleRef.current = battleActive
@@ -138,7 +147,10 @@ export default function Game({
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
   useEffect(() => {
     bgm.start()
-    return () => bgm.stop()
+    return () => {
+      bgm.setTrack('main')
+      bgm.stop()
+    }
   }, [])
 
   // 온라인 서버(채팅 · 파티 · 랭킹)에 접속한다. 서버가 없으면 조용히 오프라인으로 남는다.
@@ -380,14 +392,16 @@ export default function Game({
 
   // ───────── 매점 · 아이템 ─────────
   const buyItem = useCallback(
-    (id) => {
+    (id, qty = 1) => {
       const item = itemOf(id)
       const cur = playerRef.current
-      if (!item || item.price == null || (!admin && cur.money < item.price) || !isStoreOpen()) return
-      const next = { ...cur, money: admin ? cur.money : cur.money - item.price, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + 1 } }
+      const n = Math.max(1, Math.min(99, Math.floor(qty)))
+      if (!item || item.price == null || (!admin && cur.money < item.price * n) || !isStoreOpen()) return
+      const cost = item.price * n
+      const next = { ...cur, money: admin ? cur.money : cur.money - cost, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + n } }
       playerRef.current = next
       setPlayer(next)
-      addLog(`매점에서 ${item.name}을(를) 샀다. (${admin ? '관리자: 무료' : `-${item.price}냥`})`)
+      addLog(`매점에서 ${item.name} ${n}개를 샀다. (${admin ? '관리자: 무료' : `-${cost}냥`})`)
     },
     [addLog, admin],
   )
@@ -414,6 +428,86 @@ export default function Game({
     playerRef.current = next
     setPlayer(next)
   }, [])
+
+  // ───────── 벼룩시장 ─────────
+  const online = useOnline()
+  const claimProceeds = useCallback(async () => {
+    const r = await marketClaim()
+    if (!r.ok || !r.amount) return
+    const cur = playerRef.current
+    const next = { ...cur, money: cur.money + r.amount }
+    playerRef.current = next
+    setPlayer(next)
+    addLog(`벼룩시장에서 물건이 팔렸다. (+${r.amount}냥)`)
+    notify(`벼룩시장에서 물건이 팔렸다: +${r.amount}냥`)
+  }, [addLog])
+  useEffect(() => onMarketSold(claimProceeds), [claimProceeds])
+  useEffect(() => {
+    if (online.status === 'online') claimProceeds()
+  }, [online.status, claimProceeds])
+
+  const marketSell = useCallback(
+    async (id, qty, price) => {
+      const cur = playerRef.current
+      if ((cur.inventory?.[id] || 0) < qty) return { ok: false, message: '가진 개수가 모자란다.' }
+      const r = await marketList(id, qty, price)
+      if (!r.ok) {
+        const msg = r.error === 'too-many-listings' ? '한 사람이 올릴 수 있는 매물은 최대 10개다.' : r.error === 'slow-down' ? '너무 빨리 올리고 있다.' : r.error === 'bad-price' ? '가격은 1~99999냥으로 정해 주세요.' : '매물을 올리지 못했다.'
+        return { ok: false, message: msg }
+      }
+      const now = playerRef.current
+      const inv = { ...now.inventory, [id]: (now.inventory?.[id] || 0) - qty }
+      if (inv[id] <= 0) delete inv[id]
+      const next = { ...now, inventory: inv }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`벼룩시장에 ${itemOf(id)?.name} ${qty}개를 개당 ${price}냥에 올렸다.`)
+      return { ok: true, message: `${itemOf(id)?.name} ${qty}개를 개당 ${price}냥(합계 ${price * qty}냥)에 올렸다.` }
+    },
+    [addLog],
+  )
+  const marketBuyIt = useCallback(
+    async (l) => {
+      const cur = playerRef.current
+      if (!admin && cur.money < l.total) return { ok: false, message: '냥이 모자란다.' }
+      const r = await marketBuy(l.id)
+      if (!r.ok) return { ok: false, message: r.status === 404 ? '이미 팔렸거나 내려간 매물이다.' : r.error === 'own' ? '내가 올린 매물은 살 수 없다.' : '구매하지 못했다.' }
+      const now = playerRef.current
+      const next = { ...now, money: admin ? now.money : now.money - r.total, inventory: { ...now.inventory, [r.item]: (now.inventory?.[r.item] || 0) + r.qty } }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`벼룩시장에서 ${itemOf(r.item)?.name} ${r.qty}개를 샀다. (${admin ? '관리자: 무료' : `-${r.total}냥`})`)
+      return { ok: true, message: `${itemOf(r.item)?.name} ${r.qty}개를 샀다.` }
+    },
+    [addLog, admin],
+  )
+  const marketCancelIt = useCallback(
+    async (l) => {
+      const r = await marketCancel(l.id)
+      if (!r.ok) return { ok: false, message: '이미 팔렸거나 내려간 매물이다.' }
+      const now = playerRef.current
+      const next = { ...now, inventory: { ...now.inventory, [r.item]: (now.inventory?.[r.item] || 0) + r.qty } }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`벼룩시장에서 ${itemOf(r.item)?.name} ${r.qty}개를 내렸다.`)
+      return { ok: true, message: '매물을 내렸다. 소지품으로 돌아왔다.' }
+    },
+    [addLog],
+  )
+
+  // ───────── 물품보관함 ─────────
+  const lockerMove = useCallback(
+    (mode, grade, id, n) => {
+      const cur = playerRef.current
+      const r = mode === 'in' ? deposit(cur, grade, id, n) : withdraw(cur, grade, id, n)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`${grade}학년 물품보관함에 ${itemOf(id)?.name} ${n}개를 ${mode === 'in' ? '맡겼다' : '꺼냈다'}.`)
+      return {}
+    },
+    [addLog],
+  )
 
   // ───────── 선물 ─────────
   const itemList = (items) =>
@@ -467,7 +561,7 @@ export default function Game({
       const item = itemOf(id)
       const cur = playerRef.current
       if (!item) return
-      const ok = canUseItem(item, { inBattle: battleRef.current, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current })
+      const ok = canUseItem(item, { inBattle: battleRef.current, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current, boostOn: boostRef.current })
       if (!ok.ok) return
       const e = item.effect
       const next = {
@@ -482,8 +576,12 @@ export default function Game({
         reviveRef.current = true
         setReviveOn(true)
       }
+      if (e.boost) {
+        boostRef.current = true
+        setBoostOn(true)
+      }
       setItemsUsed((n) => n + 1)
-      addLog(`${item.name}을(를) 사용했다. (${e.revive ? '전투불능 시 1회 부활 대기' : item.effectText})`)
+      addLog(`${item.name}을(를) 사용했다. (${e.revive ? '전투불능 시 1회 부활 대기' : e.boost ? '다음 행동의 피해 2배 (1턴)' : item.effectText})`)
     },
     [addLog],
   )
@@ -516,14 +614,29 @@ export default function Game({
     setPlayer(next)
   }, [])
 
-  // 전투 교육 과정을 마치면 체력과 의지력이 모두 회복된다.
-  const tutorialDone = useCallback(() => {
+  // 전투 교육 과정: 들어온 시점의 체력·의지력을 맡아 두고 가득 찬 상태로 연습한다. 끝나면(중간에 나가도) 원래대로 돌려놓는다.
+  const tutorialStart = useCallback(() => {
     const cur = playerRef.current
-    const next = { ...cur, hp: cur.hpMax, mp: cur.mpMax, tutorialDone: true }
+    if (cur.tutorialSnap) return
+    const next = { ...cur, tutorialSnap: { hp: cur.hp, mp: cur.mp }, hp: cur.hpMax, mp: cur.mpMax }
     playerRef.current = next
     setPlayer(next)
-    addLog('전투 교육 과정을 마쳤다. 바리가 체력과 의지력을 모두 채워 주었다.')
-  }, [addLog])
+  }, [])
+
+  const tutorialEnd = useCallback(
+    (done) => {
+      const cur = playerRef.current
+      const snap = cur.tutorialSnap
+      if (!snap && !done) return
+      const { tutorialSnap: _s, ...rest } = cur
+      const next = { ...rest, hp: snap ? Math.min(cur.hpMax, snap.hp) : cur.hp, mp: snap ? Math.min(cur.mpMax, snap.mp) : cur.mp, ...(done ? { tutorialDone: true } : {}) }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(done ? '전투 교육 과정을 마쳤다. 체력과 의지력이 들어오기 전 상태로 돌아왔다.' : '전투 교육 과정에서 나왔다. 체력과 의지력이 들어오기 전 상태로 돌아왔다.')
+    },
+    [addLog],
+  )
+  const tutorialDone = useCallback(() => tutorialEnd(true), [tutorialEnd])
 
   const changeMp = useCallback((delta) => {
     const cur = playerRef.current
@@ -641,10 +754,12 @@ export default function Game({
           }}
         />
         <main className="ink-panel flex min-h-[16rem] min-w-0 flex-1 lg:min-h-0 flex-col overflow-hidden rounded-2xl" aria-label="활동 화면">
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={`${locationId}-${activity}`}>
-            {(
+          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' ? 'market' : `${locationId}-${activity}`}>
+            {panel === 'market' ? (
+              <Market player={player} admin={admin} online={online.status === 'online'} onSell={marketSell} onBuy={marketBuyIt} onCancel={marketCancelIt} onOpen={claimProceeds} />
+            ) : (
               <>
-                {locationId === 'mainHall' && <MainHall player={player} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} />}
+                {locationId === 'mainHall' && <MainHall player={player} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} />}
                 {locationId === 'infirmary' && (
                   <Infirmary
                     view={activity}
@@ -686,6 +801,7 @@ export default function Game({
                     onSpecialSeen={seeSpecial}
                     onTutorialStart={() => {
                       interruptAll('새 동작을 시작해')
+                      tutorialStart()
                       meetNpc('bari')
                     }}
                     onTutorialDone={tutorialDone}
@@ -694,10 +810,19 @@ export default function Game({
                       reviveRef.current = false
                       setReviveOn(false)
                     }}
+                    psychics={player.psychics ?? []}
+                    boostOn={boostOn}
+                    onBoostUsed={() => {
+                      boostRef.current = false
+                      setBoostOn(false)
+                    }}
+                    onTutorialEnd={tutorialEnd}
                     onActive={(on) => {
                       setBattleActive(on)
                       battleRef.current = on
                       if (!on) {
+                        boostRef.current = false
+                        setBoostOn(false)
                         reviveRef.current = false
                         setReviveOn(false)
                       }
@@ -806,7 +931,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={player} inBattle={battleActive} reviveOn={reviveOn} onUse={useItem} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={player} inBattle={battleActive} reviveOn={reviveOn} boostOn={boostOn} onUse={useItem} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} />}
     </div>

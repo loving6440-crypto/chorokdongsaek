@@ -23,6 +23,7 @@ const set = (patch) => {
 
 const seenGifts = new Set()
 const giftListeners = new Set()
+const soldListeners = new Set()
 let source = null
 let noticeSeq = 1
 let activeChannel = null // 지금 화면에 열려 있는 채팅 탭 (안 읽음 계산용)
@@ -69,6 +70,9 @@ function handle(ev) {
         seenGifts.add(ev.gift.id)
         giftListeners.forEach((l) => l(ev.gift))
       }
+      break
+    case 'market-sold':
+      soldListeners.forEach((l) => l())
       break
     default:
   }
@@ -155,6 +159,26 @@ export function onGift(cb) {
 
 /** 선물 보내기. 상대가 접속 중이어야 하고, 아이템만 합쳐 최대 5개. (돈은 서버가 거절한다.) */
 export const sendGift = (toId, items) => post('/api/gift', { to: toId, items })
+
+// ───────── 벼룩시장 ─────────
+/** 내 물건이 팔렸다는 알림이 오면 cb() 를 부른다. */
+export function onMarketSold(cb) {
+  soldListeners.add(cb)
+  return () => soldListeners.delete(cb)
+}
+export async function marketFetch() {
+  try {
+    const r = await fetch(`/api/market?id=${encodeURIComponent(state.me?.id ?? '')}`)
+    if (!r.ok) return { ok: false, status: r.status }
+    return await r.json()
+  } catch {
+    return { ok: false, status: 0 }
+  }
+}
+export const marketList = (item, qty, price) => post('/api/market/list', { item, qty, price })
+export const marketBuy = (listing) => post('/api/market/buy', { listing })
+export const marketCancel = (listing) => post('/api/market/cancel', { listing })
+export const marketClaim = () => post('/api/market/claim', {})
 
 export const leaveParty = () => post('/api/party/leave', {})
 

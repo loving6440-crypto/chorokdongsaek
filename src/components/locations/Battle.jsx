@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dices, Eye, Flame, Shield, Sparkles, Swords } from 'lucide-react'
+import { Dices, Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import {
   ACTIONS,
   ENEMIES,
@@ -7,6 +7,8 @@ import {
   enemyTurn,
   newBattle,
   playerTurn,
+  PSYCHICS,
+  rollRash,
   rashPercent,
   resolveSurvive,
   revealOf,
@@ -14,8 +16,8 @@ import {
   scanTurns,
 } from '../../game/battle'
 
-const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame }
-const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff']
+const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
+const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
 const ENEMY_DELAY = 900
 
 import { Bar, vague } from './battleUi'
@@ -23,13 +25,15 @@ import Tutorial from './Tutorial'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onSpecialSeen, onTutorialStart, onTutorialDone, reviveOn, onReviveUsed, onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [b, setB] = useState(null)
   const [fights, setFights] = useState(0)
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
   const [dice, setDice] = useState(null)
+  const [psyOpen, setPsyOpen] = useState(false) // 영능력 탭
+  const beginRef = useRef(null)
   const timer = useRef(null)
   const reported = useRef(false)
   const bRef = useRef(null)
@@ -41,6 +45,14 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   mpRef.current = mp // 의지력은 항상 바깥(게임)의 값을 따른다. 아이템으로 바뀔 수 있다.
   const reviveRef = useRef(false)
   reviveRef.current = reviveOn
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
+  const endRef = useRef(onTutorialEnd)
+  endRef.current = onTutorialEnd
+  // 교육 중에 다른 곳으로 가 버려도 원래의 체력·의지력으로 돌려 놓는다.
+  useEffect(() => () => { if (phaseRef.current === 'tutorial') endRef.current?.(false) }, [])
+  const boostRef = useRef(false)
+  boostRef.current = boostOn
 
   const activeCb = useRef(onActive)
   activeCb.current = onActive
@@ -90,9 +102,9 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (first) {
         knownSp.current = { ...knownSp.current, [e.enemyId]: true }
         onSpecialSeen?.(e.enemyId)
-        return { ...e, text: `✦ 특수 행동 《${e.label}》 — ${e.note} (처음 본 비기는 이렇게 설명이 붙는다.)` }
+        return { ...e, text: `✦ 영능력 《${e.label}》 — ${e.note} (처음 본 비기는 이렇게 설명이 붙는다.)` }
       }
-      return { ...e, text: `✦ 특수 행동 《${e.label}》` }
+      return { ...e, text: `✦ 영능력 《${e.label}》` }
     })
     setLog((l) => [...events.map((e) => ({ ...e, id: Math.random() })), ...l].slice(0, 40))
     const last = [...events].reverse().find((e) => e.roll)
@@ -130,6 +142,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         push(evs)
         setBusy(false)
         if (st.over) finish(st)
+        else if (!st.pendingDeath) beginRef.current?.(st)
       }, delay)
     },
     [stats, push, finish, spend, onReviveUsed],
@@ -137,6 +150,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   const start = (enemyId) => {
     onStart?.(enemyId)
+    setPsyOpen(false)
     onActive?.(true)
     reported.current = false
     fightingRef.current = true
@@ -161,23 +175,57 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     setPhase('fight')
     push(lines.reverse())
     if (!init.playerFirst) runEnemy(s)
+    else beginTurn(s)
   }
 
-  const act = useCallback(
-    (action) => {
-      const cur = bRef.current
-      if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
-      const have = Math.floor(mpRef.current)
-      if (action === 'charm' && cur.charms <= 0) return
-      if ((action === 'buff' || action === 'scan' || action === 'charm') && have < 1) return
-      const r = playerTurn(cur, action, { stats, mp: mpRef.current })
+  // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
+  const resolve = useCallback(
+    (cur, action) => {
+      const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true })
+      if (r.boostUsed) {
+        boostRef.current = false
+        onBoostUsed?.()
+      }
       spend(-r.mpCost)
       setB(r.state)
       push(r.events)
       if (r.state.over) finish(r.state)
       else runEnemy(r.state)
     },
-    [busy, phase, stats, push, finish, runEnemy, spend],
+    [stats, push, finish, runEnemy, spend, onBoostUsed],
+  )
+
+  // 내 턴이 돌아오는 시작 시점마다 돌발 판정(1d100)을 항상 굴린다. 터지면 이번 턴은 무조건 일반 공격.
+  const beginTurn = useCallback(
+    (state) => {
+      const rr = rollRash(stats)
+      if (rr.percent > 0) {
+        push([{ kind: rr.hit ? 'rash' : 'info', text: `돌발 판정 d100 = ${rr.roll} (확률 ${rr.percent}%) → ${rr.hit ? '돌발 행동 발생!' : '이상 없음'}` }])
+      }
+      if (!rr.hit) return
+      setBusy(true)
+      push([{ kind: 'rash', text: '호전이 앞서 몸이 멋대로 튀어 나갔다! 이번 턴엔 무조건 일반 공격을 한다.' }])
+      timer.current = setTimeout(() => {
+        setBusy(false)
+        resolve(state, 'attack')
+      }, 800)
+    },
+    [stats, push, resolve],
+  )
+  beginRef.current = beginTurn
+
+  const act = useCallback(
+    (action) => {
+      if (action === 'psychic') return setPsyOpen((o) => !o)
+      const cur = bRef.current
+      if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
+      const have = Math.floor(mpRef.current)
+      if (action === 'charm' && cur.charms <= 0) return
+      if ((action === 'buff' || action === 'scan' || action === 'charm') && have < 1) return
+      setPsyOpen(false)
+      resolve(cur, action)
+    },
+    [busy, phase, resolve],
   )
 
   const survive = (accept) => {
@@ -188,13 +236,14 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     setB(r.state)
     push(r.events)
     if (r.state.over) finish(r.state)
+    else beginTurn(r.state)
   }
 
   useEffect(() => {
     if (phase !== 'fight') return
     const onKey = (e) => {
       if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return
-      const i = ['1', '2', '3', '4', '5'].indexOf(e.key)
+      const i = ['1', '2', '3', '4', '5', '6'].indexOf(e.key)
       if (i >= 0) act(ACTION_ORDER[i])
     }
     window.addEventListener('keydown', onKey)
@@ -215,7 +264,10 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         itemsUsed={itemsUsed}
         onSpotItems={onSpotItems}
         onGiveItem={onGiveItem}
-        onExit={() => setPhase('pick')}
+        onExit={() => {
+          onTutorialEnd?.(false)
+          setPhase('pick')
+        }}
         onDone={() => {
           onTutorialDone?.()
           setPhase('pick')
@@ -275,7 +327,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
           })}
         </ul>
         <p className="mt-4 text-[11px] leading-relaxed text-paper/50">
-          내 상태 · 체력 {Math.floor(hp)} / {hpMax} · 의지력 {Math.floor(mp)} · 돌발 행동 확률 {rash}% (호전이 절제보다 높을수록 커진다)
+          내 상태 · 체력 {Math.floor(hp)} / {hpMax} · 의지력 {Math.floor(mp)} · 돌발 행동 확률 {rash}% (호전 − 절제)
         </p>
       </section>
     )
@@ -378,11 +430,12 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       )}
 
       {!b.over && (
-        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-5" role="group" aria-label="행동 선택">
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" role="group" aria-label="행동 선택">
           {ACTION_ORDER.map((id, i) => {
             const Icon = ACTION_ICONS[id]
             const off =
-              !myTurn ||
+              (id !== 'psychic' && !myTurn) ||
+              (id === 'psychic' && (!!b.over || b.pendingDeath)) ||
               (id === 'charm' && (b.charms <= 0 || have < 1)) ||
               (id === 'buff' && have < 1) ||
               (id === 'scan' && have < 1) ||
@@ -393,6 +446,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                 type="button"
                 disabled={off}
                 onClick={() => act(id)}
+                aria-pressed={id === 'psychic' ? psyOpen : undefined}
                 className="tilt flex flex-col items-start gap-1 rounded-xl bg-edge/[0.07] p-3 text-left enabled:hover:bg-gold-fill/20 disabled:opacity-40"
               >
                 <span className="flex items-center gap-1.5 text-sm font-medium text-paper">
@@ -406,6 +460,26 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
               </button>
             )
           })}
+        </div>
+      )}
+
+      {psyOpen && !b.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
+          <p className="font-serif text-base text-gold">영능력</p>
+          {(() => {
+            const mine = PSYCHICS.filter((s) => psychics.includes(s.id))
+            if (!mine.length) return <p className="mt-2 text-sm text-paper/65" data-psychic-empty>획득한 영능력이 없습니다.</p>
+            return (
+              <ul className="mt-2 space-y-2">
+                {mine.map((s) => (
+                  <li key={s.id} data-psychic={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
+                    <p className="text-sm text-paper">{s.label}</p>
+                    <p className="text-[11px] text-paper/60">{s.note}</p>
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
         </div>
       )}
 
@@ -426,7 +500,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       {phase === 'result' && b.over && (
         <div className="ink-panel mt-3 rounded-xl p-4 text-center">
           <p className={`font-serif text-2xl ${b.over === 'win' ? 'text-gold' : 'text-crimson'}`}>{b.over === 'win' ? '승리' : '패배'}</p>
-          {b.over === 'win' && <p className="mt-1 text-xs text-paper/70">쓰러진 {b.enemy.name}의 영력 {b.enemy.spirit}이(가) 흘러든다. (하루 {rewardLeft <= 0 ? '보상 소진' : '보상 한도 내'})</p>}
+          {b.over === 'win' && <p className="mt-1 text-xs text-paper/70">쓰러진 {b.enemy.name}의 영력이 흘러든다. (영력 +{b.enemy.reward}) (하루 {rewardLeft <= 0 ? '보상 소진' : '보상 한도 내'})</p>}
           <button type="button" onClick={() => setPhase('pick')} className="flat-btn mt-3 justify-center">
             상대 고르기
           </button>

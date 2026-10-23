@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { FLOORS, introOf, scriptOfDay } from '../../game/explore'
+import { LOCKED_TEXT, canOpenLocker } from '../../game/locker'
+import Locker from '../Locker'
 
 /** **굵게**(눌러볼 수 있는 단서) / *기울임*(강조) 표기를 꾸밈으로 바꾼다. */
 function Rich({ text }) {
@@ -18,7 +20,7 @@ const Paras = ({ list }) =>
   ))
 
 /** 본관 탐사: 층 → 구역 → 세부 조사 순으로 살핀다. 누를 때마다 그 자리의 스크립트가 나온다. */
-export default function Explore({ stats, onInvestigate, onEnter }) {
+export default function Explore({ stats, player, onInvestigate, onEnter, onLockerMove }) {
   const [floorId, setFloorId] = useState(null)
   const [areaId, setAreaId] = useState(null)
   const [detailId, setDetailId] = useState(null)
@@ -41,6 +43,11 @@ export default function Explore({ stats, onInvestigate, onEnter }) {
     if (a.goto) return onEnter?.(a.goto)
     setAreaId(a.id)
     setDetailId(null)
+    if (a.locker) {
+      // 물품보관함: 자기 학년의 것만 열린다.
+      setShown(canOpenLocker(player, a.locker) ? { label: a.name, paras: [], locker: a.locker } : { label: a.name, paras: [LOCKED_TEXT], locked: true })
+      return
+    }
     show(a.name, floor.name, a.id)
   }
   const lookDetail = (d) => {
@@ -113,6 +120,7 @@ export default function Explore({ stats, onInvestigate, onEnter }) {
               <div className="mt-2">
                 <Paras list={shown.paras} />
               </div>
+              {shown.locker && <Locker player={player} grade={shown.locker} onMove={onLockerMove} />}
             </div>
           )}
         </div>

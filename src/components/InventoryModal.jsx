@@ -4,7 +4,7 @@ import { ITEMS, canUseItem, countOf, isMaterial } from '../game/items'
 import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. X 로 닫는다. */
-export default function InventoryModal({ player, inBattle, reviveOn, onUse, onClose }) {
+export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -39,7 +39,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, onUse, onCl
             <ul className="space-y-2">
               {owned.map((item) => {
                 const n = countOf(player, item.id)
-                const use = canUseItem(item, { inBattle, countNow: n, reviveOn })
+                const use = canUseItem(item, { inBattle, countNow: n, reviveOn, boostOn })
                 return (
                   <li key={item.id} className="rounded-xl bg-edge/[0.07] p-3" data-item={item.id}>
                     <div className="flex items-start gap-3">
