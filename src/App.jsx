@@ -1,0 +1,155 @@
+import { useCallback, useEffect, useState } from 'react'
+import AuthScreen from './components/AuthScreen'
+import CharacterCreation from './components/CharacterCreation'
+import Intro from './components/Intro'
+import Game from './Game'
+import { hasSeenIntro, markIntroSeen } from './game/intro'
+import { sfx } from './game/sfx'
+import { getCurrentUser, loadGameState, logout as authLogout, saveGameState } from './game/auth'
+import { useTheme } from './hooks/useTheme'
+
+/**
+ * 흐름:
+ * 1. 세션 없음 → AuthScreen (로그인/회원가입)
+ * 2. 로그인 됐는데 저장 데이터 없음 → (처음이면 Intro) → CharacterCreation
+ * 3. 저장 데이터 있음 → Game (이어서 플레이)
+ */
+export default function App() {
+  const { theme, toggleTheme } = useTheme()
+  const [user, setUser] = useState(null) // { id, twitter, save, ... }
+  const [ready, setReady] = useState(false) // 초기 세션 확인 완료 여부
+  const [creating, setCreating] = useState(false) // 캐릭터 생성 중
+  const [introPlaying, setIntroPlaying] = useState(false) // 첫 캐릭터 생성 전 인트로 재생 중
+  const [introLeaving, setIntroLeaving] = useState(false) // 인트로가 끝나가는 중 (뒤에 생성 화면을 미리 깐다)
+
+  // 효과음: 첫 입력에서 오디오를 깨우고, 모든 버튼 클릭에 공통 클릭음을 낸다.
+  // 버튼에 data-sfx="none" 을 달면 소리를 끄고, data-sfx="nav" 처럼 다른 소리 이름을 줄 수도 있다.
+  useEffect(() => {
+    const unlock = () => sfx.unlock()
+    const onClick = (e) => {
+      const el = e.target instanceof Element ? e.target.closest('button, a, [role="radio"], [role="switch"]') : null
+      if (!el || el.disabled || el.dataset.sfx === 'none') return
+      sfx.play(el.dataset.sfx || 'click')
+    }
+    document.addEventListener('pointerdown', unlock, true)
+    document.addEventListener('keydown', unlock, true)
+    document.addEventListener('click', onClick, true)
+    return () => {
+      document.removeEventListener('pointerdown', unlock, true)
+      document.removeEventListener('keydown', unlock, true)
+      document.removeEventListener('click', onClick, true)
+    }
+  }, [])
+
+  // 앱 시작 시 세션 복원
+  useEffect(() => {
+    const current = getCurrentUser()
+    if (current) {
+      setUser(current)
+      // 저장 데이터가 없으면 생성 화면으로 (처음이면 인트로부터)
+      if (!current.save) {
+        setCreating(true)
+        setIntroPlaying(!hasSeenIntro(current.id))
+      }
+    }
+    setReady(true)
+  }, [])
+
+  const handleAuthSuccess = useCallback((loggedInUser) => {
+    setUser(loggedInUser)
+    if (!loggedInUser.save) {
+      setCreating(true)
+      setIntroPlaying(!hasSeenIntro(loggedInUser.id))
+    } else {
+      setCreating(false)
+      setIntroPlaying(false)
+    }
+  }, [])
+
+  const handleIntroDone = useCallback(() => {
+    if (user) markIntroSeen(user.id)
+    setIntroPlaying(false)
+    setIntroLeaving(false)
+  }, [user])
+
+  const handleCharacterComplete = useCallback(
+    (character) => {
+      if (!user) return
+      // 초기 저장 데이터 구성
+      const initialSave = {
+        character,
+        player: null, // Game 이 생성 후 채움
+        locationId: 'dorm',
+        logs: null,
+      }
+      saveGameState(user.id, initialSave)
+      setUser((prev) => (prev ? { ...prev, save: { ...initialSave, savedAt: Date.now() } } : prev))
+      setCreating(false)
+    },
+    [user],
+  )
+
+  const handleSave = useCallback(
+    (saveData) => {
+      if (!user) return
+      saveGameState(user.id, saveData)
+      setUser((prev) =>
+        prev ? { ...prev, save: { ...saveData, savedAt: Date.now() } } : prev,
+      )
+    },
+    [user],
+  )
+
+  const handleLogout = useCallback(() => {
+    authLogout()
+    setUser(null)
+    setCreating(false)
+    setIntroPlaying(false)
+  }, [])
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-ink text-paper/50">
+        불러오는 중…
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <AuthScreen theme={theme} onToggleTheme={toggleTheme} onSuccess={handleAuthSuccess} />
+    )
+  }
+
+  if (creating || !user.save?.character) {
+    // 인트로 위에서 빛이 번지는 동안 생성 화면이 뒤에서 올라오도록, 같은 자리(첫 번째 자식)를 유지한다.
+    return (
+      <>
+        {(!introPlaying || introLeaving) && (
+          <CharacterCreation
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onComplete={handleCharacterComplete}
+          />
+        )}
+        {introPlaying && <Intro onDone={handleIntroDone} onLeaveStart={() => setIntroLeaving(true)} />}
+      </>
+    )
+  }
+
+  // 저장된 상태가 있으면 그대로 복원
+  const saved = loadGameState(user.id) || user.save
+
+  return (
+    <Game
+      character={saved.character}
+      initialSave={saved}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+      onSave={handleSave}
+      onLogout={handleLogout}
+      userId={user.id}
+      twitter={user.twitter}
+    />
+  )
+}

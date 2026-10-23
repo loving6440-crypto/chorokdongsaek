@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <!-- 획으로만 그린 나무: 둥근 수관 + 갈라지는 가지 + 줄기 + 땅 -->
+  <g stroke="#3fae78" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 36c-7-1-9-11-3-15-1-9 9-14 16-9 6-6 18-3 19 7 7 3 7 14-1 16"/>
+    <path d="M32 58V30"/>
+    <path d="M32 45c-5-1-9-4-11-9"/>
+    <path d="M32 39c5-1 9-4 11-10"/>
+    <path d="M32 30V19"/>
+    <path d="M21 58h22"/>
+  </g>
+</svg>

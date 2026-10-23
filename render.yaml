@@ -1,0 +1,8 @@
+# Render 블루프린트(무료 플랜). GitHub 저장소 루트에 두고 Render 에서 'New > Blueprint' 로 연결한다.
+services:
+  - type: web
+    name: chorokdongsaek
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
