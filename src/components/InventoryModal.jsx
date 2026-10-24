@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Backpack, X } from 'lucide-react'
-import { EQUIP_SLOTS, ITEMS, canUseItem, countOf, equipOf, isGear, isMaterial, itemOf } from '../game/items'
+import { STAT_META } from '../game/constants'
+import { ENH_STATS, EQUIP_SLOTS, ITEMS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf } from '../game/items'
 import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
@@ -147,6 +148,11 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
             </p>
             <p className="mt-2 text-xs leading-relaxed text-paper/75">{shown.desc}</p>
             {shown.effectText && <p className="mt-1 text-xs leading-relaxed text-gold">{shown.effectText}</p>}
+            {shown.slot === 'weapon' && enhTotal(player, shown.id) > 0 && (
+              <p className="mt-1 text-[11px] leading-relaxed text-paper/70" data-enh-summary>
+                강화: {ENH_STATS.filter((s) => enhLevel(player, shown.id, s) > 0).map((s) => `${STAT_META[s].label} +${enhLevel(player, shown.id, s)}`).join(' · ')}
+              </p>
+            )}
             {picked && !pu.ok && !isMaterial(picked) && !isGear(picked) && <p className="mt-1 text-[11px] text-paper/45">{pu.why}</p>}
             {err && <p className="mt-1 text-[11px] text-crimson" role="alert">{err}</p>}
 

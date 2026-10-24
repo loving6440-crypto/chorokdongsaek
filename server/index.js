@@ -263,7 +263,8 @@ function mbAfter(g) {
 }
 function mbStep(g) {
   if (g.phase !== 'fight' || g.mb.phase !== 'input') return
-  MB.resolveRound(g.mb)
+  // 한 사람씩 차례대로: 행동이 정해진 사람(돌발 포함)은 바로 해결하고 다음 사람으로 넘어간다.
+  for (let i = 0; i < 40 && g.mb.phase === 'input' && MB.ready(g.mb); i++) MB.resolveTurn(g.mb)
   mbAfter(g)
 }
 function mbStart(g) {
@@ -283,7 +284,7 @@ function mbStart(g) {
   g.phase = 'fight'
   g.mb = MB.createMB(g.enemyId, infos)
   MB.openingInitiative(g.mb)
-  if (g.mb.phase === 'input' && !g.mb.members.some((m) => m.act)) MB.beginRound(g.mb)
+  if (g.mb.phase === 'input' && !g.mb.turn) MB.beginRound(g.mb)
   mbAfter(g)
 }
 function mbLobbyCheck(g) {
@@ -293,7 +294,7 @@ function mbLobbyCheck(g) {
     for (const id of [g.host]) sendTo(id, { t: 'mb', ev: 'lobby', bid: g.id, enemyId: g.enemyId, waiting: Object.keys(g.invited).filter((i) => g.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i), joined: Object.keys(g.joins).map((i) => clients.get(i)?.name ?? i) })
   }
 }
-const mbInfo = (c, me) => ({ id: c.id, name: c.name, stats: me?.stats, hp: me?.hp, hpMax: me?.hpMax, mp: me?.mp, mpMax: me?.mpMax, revive: !!me?.revive, boost: !!me?.boost })
+const mbInfo = (c, me) => ({ id: c.id, name: c.name, stats: me?.stats, fx: me?.fx, hp: me?.hp, hpMax: me?.hpMax, mp: me?.mp, mpMax: me?.mpMax, revive: !!me?.revive, boost: !!me?.boost })
 function mbDisconnect(id) {
   const bid = mbOf.get(id)
   const g = bid && mbs.get(bid)

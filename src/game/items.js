@@ -287,6 +287,203 @@ const RAW_ITEMS = [
     bonus: { aggression: 1, control: 1 },
     battle: false,
   },
+  // ───────── 무구 (처음엔 육조 스탯 보정이 없다. 대신 특수 효과 · 무구보관소에서 강화) ─────────
+  {
+    id: 'w-fan',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'fan',
+    tags: ['완성품', '무구'],
+    name: '부채',
+    price: null,
+    desc: '옛 선조들의 바람 같은 성정을 그대로 담은, 한지로 만든 줄부채. 학생에 따라 다른 그림이 그려져 있다. 부적처럼 한자를 적는 사람도 적지 않다.',
+    effectText: '전투에 돌입할 때 무조건 나 또는 나의 일행이 선공을 가져온다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-spear',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'spear',
+    tags: ['완성품', '무구'],
+    name: '창',
+    price: null,
+    desc: '삼지창 등 기다란 봉 끝에 날이 달려 앞으로 쭉 내지를 수 있는 무기. 장창의 관통력은 타의 추종을 불허한다.',
+    effectText: '매 공격마다 (1d10 + 1d호전)% 확률로 치명타. 공격력이 적용되는 영능력·일반 공격·부적·효험에 적용되며, 치명타가 나면 그 공격이 1.5배로 들어간다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-dagger',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'dagger',
+    tags: ['완성품', '무구'],
+    name: '단검',
+    price: null,
+    desc: '호신도, 은장도 등 손에 붙는 짧은 날붙이. 비록 길이는 짧지만 그 존재를 무시해서는 순식간에 목숨이 끊기고 말 것이다.',
+    effectText: '상대의 체력이 30% 미만으로 떨어지면 기본 공격력이 1.2배(내림)가 된다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-sword',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'sword',
+    tags: ['완성품', '무구'],
+    name: '칼',
+    price: null,
+    desc: '기본형은 허리춤에 차는 환도가 권장되나 언월도, 망나니칼 등 날이 크고 기다란 것을 위험천만하게 다루는 담력 있는 이들도 적지 않다.',
+    effectText: '모든 방어에 반격이 적용된다. (내 호전이 상대의 공격력보다 낮더라도)',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-bow',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'bow',
+    tags: ['완성품', '무구'],
+    name: '활',
+    price: null,
+    desc: '한민족의 영혼을 내려받은 국궁용 활. 자유롭게 다룰 수 있도록 탄력이 좋은 소재로 다루어져 있는 것이 기본이나, 다루는 사람에 따라 자유롭게 꾸미기도 한다.',
+    effectText: '모든 공격이 반드시 명중한다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-bell',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'bell',
+    tags: ['완성품', '무구'],
+    name: '무당방울',
+    price: null,
+    desc: '무당들이 굿을 할 때 쓰는 방울. 방울은 신을 부르기도 쫓기도 다루기도 하며 인간과 삶의 다리를 잇는 무당들의 삶을 그대로 드러내었다.',
+    effectText: '버티기를 시도할 수 있는 횟수가 1회 늘어난다. (0이 된 의지력은 자동으로 채워지지 않으며, 의지력이 0이면 두 번째 버티기도 할 수 없다.)',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-instrument',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'instrument',
+    tags: ['완성품', '무구'],
+    name: '악기',
+    price: null,
+    desc: '예나 지금이나 사람의 마음을 움직일 수 있는 가장 좋은 무구. 꽹과리나 가야금, 장구, 단소 등 그 종류는 다양하다.',
+    effectText: '악기를 든 사람의 [이해] 값을 한계로, 같은 파티원(본인 포함)의 모든 공격 행동에 1d(이해)만큼의 공격력 보정이 붙는다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-sickle',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'sickle',
+    tags: ['완성품', '무구'],
+    name: '낫',
+    price: null,
+    desc: '원래는 풀을 베는 도구였다. 식물의 목숨이나 뺏어야 했을 날붙이가 사람을 향하게 된 역사는 생각 이상으로 복잡하고 길다고 한다.',
+    effectText: '전투를 마치고 받는 보상이 1.5배(올림)로 늘어난다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-staff',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'staff',
+    tags: ['완성품', '무구'],
+    name: '석장',
+    price: null,
+    desc: '불교에서 수행자들이 사용하는 의식 도구. 깊은 불심을 가진 사람이 주술을 시전하는 데에 도움을 주거나 영능력을 보조하는 데에 쓰인다.',
+    effectText: '전투 중 모든 의지력 소모가 50%로 줄어든다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'w-mace',
+    kind: 'gear',
+    slot: 'weapon',
+    fx: 'mace',
+    tags: ['완성품', '무구'],
+    name: '철퇴',
+    price: null,
+    desc: '막대 끝에 무게추가 달린 형태의 무기. 다양한 형태가 하나같이 뛰어난 파괴력을 가졌으나, 그 파괴력을 제어하지 못하면 스스로가 크게 다칠 수 있다.',
+    effectText: '모든 기본 공격력이 1.5배(내림)가 된다. 단, 적에게서 받는 모든 공격도 1.2배가 된다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  // ───────── 무구 강화 재료(완성품): 스탯 0→1 숫돌 · 1→2 기름 먹인 천 · 2→3 오색 매듭 · 3→4 주사 호신부 · 4→5 은입사 장식 ─────────
+  {
+    id: 'whetstone',
+    kind: 'tool',
+    tags: ['완성품', '무구 강화'],
+    name: '숫돌',
+    price: null,
+    desc: '날을 세우는 데 쓰는 곱게 갈린 숫돌. 무구에 처음 손을 대는 사람이 가장 먼저 찾는다.',
+    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effect: {},
+    battle: false,
+  },
+  {
+    id: 'oil-cloth',
+    kind: 'tool',
+    tags: ['완성품', '무구 강화'],
+    name: '기름 먹인 천',
+    price: null,
+    desc: '무구의 날과 자루를 닦아 윤을 내는 천. 손에 쥐는 맛이 달라진다.',
+    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effect: {},
+    battle: false,
+  },
+  {
+    id: 'five-knot',
+    kind: 'tool',
+    tags: ['완성품', '무구 강화'],
+    name: '오색 매듭',
+    price: null,
+    desc: '무구의 자루에 다는 오방색 매듭. 눈에 익은 장식이 쥔 사람의 마음가짐까지 가다듬는다.',
+    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effect: {},
+    battle: false,
+  },
+  {
+    id: 'cinnabar-charm',
+    kind: 'tool',
+    tags: ['완성품', '무구 강화'],
+    name: '주사 호신부',
+    price: null,
+    desc: '붉은 주사로 한 획 한 획 써 내린 작은 부적. 무구에 붙여 두면 쓰는 이의 기운이 한결 안정된다.',
+    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effect: {},
+    battle: false,
+  },
+  {
+    id: 'silver-inlay',
+    kind: 'tool',
+    tags: ['완성품', '무구 강화'],
+    name: '은입사 장식',
+    price: null,
+    desc: '무구에 은실을 박아 넣는 장인의 장식. 이 단계까지 오른 무구는 더 손댈 곳이 없다고들 한다.',
+    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effect: {},
+    battle: false,
+  },
 ]
 
 /**
@@ -326,8 +523,42 @@ export function gearBonus(player) {
   for (const id of Object.values(equipOf(player))) {
     const it = id && itemOf(id)
     for (const [k, v] of Object.entries(it?.bonus ?? {})) out[k] = (out[k] || 0) + v
+    for (const [k, v] of Object.entries(player.enh?.[id] ?? {})) out[k] = (out[k] || 0) + v // 강화로 얻은 보정
   }
   return out
+}
+/** 지금 든 무구의 특수 효과 id (없으면 null) */
+export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
+
+// ───────── 무구 강화 ─────────
+export const ENH_MAX = 5 // 육조 스탯 하나당 최대 +5
+export const ENH_ITEMS = ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'] // 현재 수치 0·1·2·3·4 → 다음 단계에 쓰는 재료
+export const ENH_STATS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
+export const WEAPONS = ITEMS.filter((i) => i.kind === 'gear' && i.slot === 'weapon')
+export const enhLevel = (player, weaponId, stat) => player.enh?.[weaponId]?.[stat] || 0
+export const enhTotal = (player, weaponId) => Object.values(player.enh?.[weaponId] ?? {}).reduce((a, b) => a + b, 0)
+/** 이 무구를 지금 갖고(들고) 있는가 */
+export const ownsWeapon = (player, id) => countOf(player, id) > 0 || equipOf(player).weapon === id
+/**
+ * 강화 한 번: 무구의 육조 스탯 하나를 +1. 재료는 그 스탯의 현재 수치에 맞는 완성품 1개. (관리자는 재료를 쓰지 않는다)
+ * 반환 { player, from, to, material } 또는 { error }
+ */
+export function enhanceWeapon(player, weaponId, stat, admin = false) {
+  const w = itemOf(weaponId)
+  if (!w || w.slot !== 'weapon') return { error: '무구가 아니다.' }
+  if (!ownsWeapon(player, weaponId)) return { error: '그 무구를 갖고 있지 않다.' }
+  if (!ENH_STATS.includes(stat)) return { error: '올릴 수 없는 스탯이다.' }
+  const from = enhLevel(player, weaponId, stat)
+  if (from >= ENH_MAX) return { error: '이 스탯은 이미 최대(+5)까지 강화했다.' }
+  const material = ENH_ITEMS[from]
+  let inventory = player.inventory ?? {}
+  if (!admin) {
+    if (!countOf(player, material)) return { error: `${itemOf(material).name}이(가) 필요하다.` }
+    inventory = { ...inventory, [material]: inventory[material] - 1 }
+    if (inventory[material] <= 0) delete inventory[material]
+  }
+  const enh = { ...(player.enh ?? {}), [weaponId]: { ...(player.enh?.[weaponId] ?? {}), [stat]: from + 1 } }
+  return { player: { ...player, inventory, enh }, from, to: from + 1, material }
 }
 /** 착용. 같은 부위에 입고 있던 건 소지품으로 돌아온다. { player } 또는 { error } */
 export function equipItem(player, id) {

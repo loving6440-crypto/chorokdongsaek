@@ -9,6 +9,7 @@
 import { ENEMIES, PSYCHICS, LENT_FIRE, specialEffects, SPECIAL_PERCENT } from './battle'
 import { ITEMS } from './items'
 import { ISHI } from './shrine'
+import { SHINAH } from './armory'
 
 export const CODEX_CHAPTERS = [
   { id: 'items', no: 1, title: '재료 및 아이템' },
@@ -21,6 +22,7 @@ export const CODEX_CHAPTERS = [
 export const NPC_ENTRIES = [
   { id: 'bari', name: '바리', portrait: '/bari.png', where: '뒷산 · 퇴마 실습 교육', desc: '' },
   { id: 'yumin', name: '강유민', portrait: '/yumin-smile.webp', where: '기숙사 · 매점', desc: '' },
+  { id: 'shinah', name: SHINAH.name, portrait: SHINAH.portrait, where: SHINAH.where, desc: SHINAH.codex },
   { id: 'ishi', name: ISHI.name, portrait: ISHI.portrait, where: '사당 · 문지기', desc: ISHI.codex },
 ]
 

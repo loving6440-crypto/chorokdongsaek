@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
-import { specialSummary, ACTIONS, ENEMIES, INTENTS, PSYCHICS, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, PSYCHICS, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 import { Bar, vague } from './battleUi'
@@ -60,7 +60,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     setSending(false)
     setPsyOpen(false)
     setScanOpen(false)
-  }, [view.round, view.phase])
+  }, [view.round, view.phase, view.turn])
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(t)
@@ -70,7 +70,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const fighting = me?.status === 'alive'
   const inputPhase = view.phase === 'input' && fighting && !view.over
   const acted = !!me?.acted || sending
-  const canAct = inputPhase && !acted
+  const myTurn = !!me && view.turn === me.id
+  const canAct = inputPhase && !acted && myTurn // 한 사람씩 차례대로: 내 차례일 때만
+  const turnName = view.members.find((m) => m.id === view.turn)?.name
   const rv = revealOf(enemy, stats, seen?.[enemy.id] || 0)
   const q = (ok, v) => (ok ? v : '???')
   const left = view.deadline ? Math.max(0, Math.ceil((view.deadline - now) / 1000)) : null
@@ -92,13 +94,13 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       return setPsyOpen((o) => !o)
     }
     if (id === 'scan') {
-      if (!canAct || have < 1) return
+      if (!canAct || have < mpCostOf(stats, 1)) return
       setPsyOpen(false)
       setScanN((n) => Math.max(1, Math.min(have, n)))
       return setScanOpen((o) => !o)
     }
-    if (id === 'charm' && (me.charms <= 0 || have < 1)) return
-    if (id === 'buff' && have < 1) return
+    if (id === 'charm' && me.charms <= 0) return // 의지력이 모자라도 부적은 쓸 수 있다
+    if (id === 'buff' && have < mpCostOf(stats, BUFF_COST)) return
     if (id === 'guard' && me.bound) return
     send({ action: id })
   }
@@ -133,9 +135,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               ? '쓰러지는 중…'
               : !fighting
                 ? '관전 중'
-                : acted
-                  ? `다른 일행을 기다리는 중 (${waiting.length}명)`
-                  : `내 행동을 고른다${left != null ? ` · ${left}초` : ''}`}
+                : canAct
+                  ? `내 차례 — 행동을 고른다${left != null ? ` · ${left}초` : ''}`
+                  : `${turnName ? `${turnName} 님의 차례` : '상대의 차례'}를 기다리는 중${left != null && turnName ? ` · ${left}초` : ''}`}
         </span>
       </div>
 
@@ -173,7 +175,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               ) : (
                 <p className="mt-1 text-xs text-paper/60">알 수 없다. 간파로 읽을 수 있다.</p>
               )}
-              <p className="mt-1 text-[11px] text-paper/50">상대는 일행 중 체력이 가장 많은 사람을 노린다.</p>
+              <p className="mt-1 text-[11px] text-paper/50">상대는 일행 중 체력이 가장 많은 사람을 노린다. (단체 공격이면 일행 전원)</p>
             </div>
           )}
         </div>
@@ -189,7 +191,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                     {m.id === meId && <span className="ml-1 text-gold">(나)</span>}
                     {STATUS_LABEL[m.status] && <span className="ml-1.5 rounded-full bg-crimson/25 px-1.5 text-[10px] text-crimson">{STATUS_LABEL[m.status]}</span>}
                     {m.pendingDeath && <span className="ml-1.5 text-[10px] text-crimson">쓰러지는 중</span>}
-                    {m.status === 'alive' && view.phase === 'input' && !view.over && <span className={`ml-1.5 text-[10px] ${m.acted ? 'text-gold' : 'text-paper/45'}`}>{m.acted ? '행동 완료' : '고르는 중…'}</span>}
+                    {m.status === 'alive' && view.phase === 'input' && !view.over && <span className={`ml-1.5 text-[10px] ${m.id === view.turn ? 'text-gold' : 'text-paper/45'}`} data-turn-mark={m.id === view.turn ? '1' : '0'}>{m.id === view.turn ? '▶ 지금 차례' : `${(view.order ?? []).indexOf(m.id) + 1 > 0 ? `${(view.order ?? []).indexOf(m.id) + 1}번째` : ''}`}</span>}
                   </span>
                   <span className="tabular-nums text-paper/70">
                     {m.php} / {m.phpMax}
@@ -242,7 +244,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                 ? true
                 : id === 'psychic'
                   ? !canAct
-                  : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'buff' && have < 1) || (id === 'scan' && have < 1) || (id === 'guard' && me.bound)
+                  : (id === 'charm' && me.charms <= 0) || (id === 'buff' && have < mpCostOf(stats, BUFF_COST)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
             return (
               <button
                 key={id}

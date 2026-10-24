@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import {
   specialSummary,
+  mpCostOf,
+  BUFF_COST,
   LENT_FIRE,
   ACTIONS,
   ENEMIES,
@@ -243,7 +245,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (action === 'scan') {
         const c0 = bRef.current
         if (!c0 || c0.over || c0.pendingDeath || busy || phase !== 'fight') return
-        if (Math.floor(mpRef.current) < 1) return
+        if (Math.floor(mpRef.current) < mpCostOf(stats, 1)) return
         setPsyOpen(false)
         setScanN((n) => Math.max(1, Math.min(Math.floor(mpRef.current), n)))
         return setScanOpen((o) => !o)
@@ -252,7 +254,8 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
       const have = Math.floor(mpRef.current)
       if (action === 'charm' && cur.charms <= 0) return
-      if ((action === 'buff' || action === 'scan' || action === 'charm') && have < 1) return
+      if (action === 'buff' && have < mpCostOf(stats, BUFF_COST)) return // 의지력이 모자라면 부적만 쓸 수 있다
+      if (action === 'scan' && have < mpCostOf(stats, 1)) return
       setPsyOpen(false)
       resolve(cur, action)
     },
@@ -552,9 +555,9 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             const off =
               (id !== 'psychic' && !myTurn) ||
               (id === 'psychic' && (!!b.over || b.pendingDeath)) ||
-              (id === 'charm' && (b.charms <= 0 || have < 1)) ||
-              (id === 'buff' && have < 1) ||
-              (id === 'scan' && have < 1) ||
+              (id === 'charm' && b.charms <= 0) ||
+              (id === 'buff' && have < mpCostOf(stats, BUFF_COST)) ||
+              (id === 'scan' && have < mpCostOf(stats, 1)) ||
               (id === 'guard' && b.bound)
             return (
               <button

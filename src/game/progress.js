@@ -2,7 +2,7 @@
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
-import { START_MONEY, equipOf, gearBonus } from './items'
+import { START_MONEY, equipOf, gearBonus, weaponFx } from './items'
 import { checkAchievements } from './achievements'
 
 export const TRAIN_UNIT_MIN = 5
@@ -153,10 +153,14 @@ export const isWeak = (player, now = Date.now()) => !!player.weakUntil && now < 
 export function effectiveStats(player, now = Date.now()) {
   const bonus = gearBonus(player)
   const hasBonus = Object.keys(bonus).length > 0
-  if (!isWeak(player, now) && !hasBonus) return player.stats
+  const fx = weaponFx(player)
+  if (!isWeak(player, now) && !hasBonus && !fx) return player.stats
   const weak = isWeak(player, now)
   // 쇠약으로 5할이 된 뒤에 장비 보정이 더해진다.
-  return Object.fromEntries(Object.entries(player.stats).map(([k, v]) => [k, (weak ? Math.max(1, Math.floor(v / 2)) : v) + (bonus[k] || 0)]))
+  const out = Object.fromEntries(Object.entries(player.stats).map(([k, v]) => [k, (weak ? Math.max(1, Math.floor(v / 2)) : v) + (bonus[k] || 0)]))
+  // 무구의 특수 효과 id. 스탯 목록에는 나타나지 않도록(열거되지 않게) 붙인다.
+  if (fx) Object.defineProperty(out, 'fx', { value: fx, enumerable: false })
+  return out
 }
 export const weakLeftText = (player, now = Date.now()) => {
   const m = Math.max(0, Math.ceil(((player.weakUntil || 0) - now) / 60000))
@@ -283,8 +287,9 @@ export function gymToday(player, now = Date.now()) {
   return g && g.day === dayKey(now) ? g : { day: dayKey(now), wins: 0 }
 }
 
-export function applyBattleResult(player, win, reward, now = Date.now()) {
+export function applyBattleResult(player, win, reward0, now = Date.now()) {
   const g = gymToday(player, now)
+  const reward = weaponFx(player) === 'sickle' ? Math.ceil(reward0 * 1.5) : reward0 // 낫: 보상 1.5배(올림)
   if (!win) {
     const lost = Math.min(GYM_LOSS_PENALTY, Math.floor(player.spirit))
     // 전투불능: [쇠약] 24시간(다시 쓰러지면 그때부터 24시간으로 갱신).

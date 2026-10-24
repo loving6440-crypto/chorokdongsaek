@@ -7,7 +7,7 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot } from './game/items'
+import { START_MONEY, canUseItem, enhanceWeapon, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -173,7 +173,7 @@ export default function Game({
   playerRef.current = player
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
   // 장비 보정(무복 등)도 여기서 더해진다.
-  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.weakUntil])
+  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weakUntil])
   const viewPlayer = useMemo(() => (effStats === player.stats ? player : { ...player, stats: effStats }), [player, effStats])
 
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
@@ -601,6 +601,30 @@ export default function Game({
     [addLog],
   )
 
+  // 무구 강화 (무구보관소). 관리자는 재료를 쓰지 않는다.
+  const enhance = useCallback(
+    (weaponId, stat) => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const r = enhanceWeapon(playerRef.current, weaponId, stat, admin)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`${itemOf(weaponId).name}을(를) 강화했다. (${STAT_META[stat].label} +${r.to})`)
+      return r
+    },
+    [addLog, admin],
+  )
+  const adminGive = useCallback(
+    (id) => {
+      if (!admin) return
+      const cur = playerRef.current
+      const next = { ...cur, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + 1 } }
+      playerRef.current = next
+      setPlayer(next)
+    },
+    [admin],
+  )
+
   // NPC 에게 마이쮸를 건네 호감도를 올린다. (전투 중엔 불가)
   const giveNpc = useCallback(
     (npcId, itemId = 'chewy') => {
@@ -787,7 +811,7 @@ export default function Game({
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
   const mbSnapshot = () => {
     const cur = playerRef.current
-    return { stats: effectiveStats(cur), hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { stats: effectiveStats(cur), fx: weaponFx(cur), hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const mbLive = !!online.mb && !online.mb.view.over
   const mbLiveRef = useRef(false)
@@ -1021,6 +1045,11 @@ export default function Game({
                 {locationId === 'gym' && (
                   <Gym
                     view={activity}
+                    player={player}
+                    admin={admin}
+                    onMeet={meetNpc}
+                    onEnhance={enhance}
+                    onAdminGive={adminGive}
                     stats={effStats}
                     mp={player.mp}
                     hp={player.hp}

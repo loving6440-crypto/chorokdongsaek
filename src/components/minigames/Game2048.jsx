@@ -81,7 +81,7 @@ export default function Game2048() {
         started.current = true
         run.start()
       }
-      run.metric(Math.max(...next.tiles.map((t) => t.v))) // 최소 조건: 가장 큰 수
+      run.metric(next.score) // 최소 조건: 3000점 넘기기
       if (next.over) {
         started.current = false
         run.finish(next.score, { dead: true, metric: null })

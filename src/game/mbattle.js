@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, enemyTurn, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp } from './battle.js'
+import { ENEMIES, BUFF_COST, auraOf, enemyTurn, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp } from './battle.js'
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -23,8 +23,13 @@ export function cleanStats(raw = {}) {
   return out
 }
 
-export function makeMember({ id, name, stats, hp, hpMax, mp, mpMax, revive, boost }) {
+export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
+
+export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, boost }) {
   const st = cleanStats(stats)
+  // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
+  const fxId = FX_IDS.includes(fx) ? fx : null
+  if (fxId) Object.defineProperty(st, 'fx', { value: fxId, enumerable: false })
   const phpMax = Math.round(clampNum(hpMax ?? maxHp(st), 1, 9999))
   return {
     id,
@@ -38,7 +43,8 @@ export function makeMember({ id, name, stats, hp, hpMax, mp, mpMax, revive, boos
     guard: false,
     bound: false,
     curse: 0,
-    survived: false,
+    survived: 0,
+    fx: fxId,
     status: 'alive', // alive | down | fled
     pendingDeath: false,
     revive: !!revive,
@@ -53,12 +59,16 @@ const tag = (events, by) => events.map((e) => ({ ...e, by, id: logSeq++ }))
 export function createMB(enemyId, rawMembers, rng = Math.random) {
   const enemy = ENEMIES.find((e) => e.id === enemyId)
   const members = rawMembers.map(makeMember)
-  const base = newBattle(enemy, members[0].stats, rng) // 상대의 행동 큐(여럿이 함께 본다)
+  const base = newBattle(enemy, members[0].stats, rng, undefined, undefined, { party: true }) // 상대의 행동 큐(여럿이 함께 본다) — 일행을 상대하는 판
   const mb = {
     enemy,
     ehp: enemy.hp,
+    party: true,
     queue: base.queue,
     known: 0,
+    order: [],
+    turn: null,
+    turnIdx: -1,
     round: 1,
     phase: 'input', // input | survive | over
     members,
@@ -91,14 +101,18 @@ const viewOfMember = (mb, m) => ({
   curse: m.curse,
   pendingDeath: false,
   survived: m.survived,
+  party: true,
   over: null,
 })
 
 /** 시작 선공 판정: 일행에서 가장 신속한 사람의 굴림. 상대가 먼저면 첫 라운드 앞에 상대가 한 번 움직인다. */
 export function openingInitiative(mb, rng = Math.random) {
   const lead = [...mb.members].sort((a, b) => b.stats.agility - a.stats.agility)[0]
-  const init = rollInitiative(mb.enemy, lead.stats, rng)
-  const text = init.auto
+  const fanner = mb.members.find((m) => m.fx === 'fan')
+  const init = fanner ? rollInitiative(mb.enemy, fanner.stats, rng) : rollInitiative(mb.enemy, lead.stats, rng)
+  const text = fanner
+    ? `선공 판정: ${fanner.name}의 부채 덕에 일행이 무조건 먼저 움직인다.`
+    : init.auto
     ? `선공 판정: ${lead.name}의 신속 ${lead.stats.agility} ≥ 행동력이라 일행이 먼저 움직인다.`
     : `선공 판정(${lead.name}): d10 ${init.a} + d${lead.stats.agility} ${init.b} = ${init.total} → ${init.playerFirst ? '일행이 먼저 움직인다.' : '상대가 먼저 움직인다!'}`
   const evs = addLog(mb, [{ kind: 'info', text, roll: init.auto ? undefined : init.a }])
@@ -106,34 +120,65 @@ export function openingInitiative(mb, rng = Math.random) {
   return evs
 }
 
-/** 라운드 시작: 돌발 판정을 굴리고, 돌발이 터진 사람은 이번 턴 행동이 일반 공격으로 정해진다. */
+/** 라운드 시작: 행동 순서를 정한다(일행 안에서 신속이 높은 순서). 이어서 첫 사람의 차례가 시작된다. */
 export function beginRound(mb, rng = Math.random) {
   mb.phase = 'input'
   const evs = []
-  for (const m of aliveOf(mb)) {
+  for (const m of mb.members) m.act = null
+  mb.order = [...aliveOf(mb)].sort((a, b) => b.stats.agility - a.stats.agility || (a.id < b.id ? -1 : 1)).map((m) => m.id)
+  mb.turnIdx = -1
+  mb.turn = null
+  evs.push(...addLog(mb, [{ kind: 'info', text: `── 라운드 ${mb.round} · 일행 차례: ${mb.order.map((id) => mb.members.find((m) => m.id === id).name).join(' → ')} (신속 순) ──` }]))
+  evs.push(...nextActor(mb, rng))
+  return evs
+}
+
+/** 다음 사람의 차례로 넘긴다. 돌발 판정도 그 사람 차례가 시작될 때 굴린다. 더 없으면 turn 이 null. */
+function nextActor(mb, rng = Math.random) {
+  const evs = []
+  while (true) {
+    mb.turnIdx += 1
+    if (mb.turnIdx >= mb.order.length) {
+      mb.turn = null
+      return evs
+    }
+    const m = mb.members.find((x) => x.id === mb.order[mb.turnIdx])
+    if (!m || m.status !== 'alive') continue
+    mb.turn = m.id
     m.act = null
     const rr = rollRash(m.stats, rng)
     if (rr.percent > 0) {
       evs.push(...addLog(mb, [{ kind: rr.hit ? 'rash' : 'info', text: `[${m.name}] 돌발 판정 d100 = ${rr.roll} (확률 ${rr.percent}%) → ${rr.hit ? '돌발 행동 발생! 이번 턴엔 무조건 일반 공격.' : '이상 없음'}` }], m.id))
     }
     if (rr.hit) m.act = { action: 'attack', forced: true }
+    return evs
   }
-  return evs
 }
 
-/** 아직 행동을 고르지 않은 살아 있는 사람 */
-export const waitingOn = (mb) => (mb.phase === 'input' ? aliveOf(mb).filter((m) => !m.act) : [])
-export const ready = (mb) => mb.phase === 'input' && waitingOn(mb).length === 0
+/** 지금 행동을 골라야 하는 사람(없거나 이미 골랐으면 빈 목록) */
+export const waitingOn = (mb) => {
+  if (mb.phase !== 'input' || !mb.turn) return []
+  const m = mb.members.find((x) => x.id === mb.turn)
+  return m && m.status === 'alive' && !m.act ? [m] : []
+}
+export const ready = (mb) => {
+  if (mb.phase !== 'input' || !mb.turn) return false
+  const m = mb.members.find((x) => x.id === mb.turn)
+  return !!m && !!m.act
+}
 
-/** 행동 제출. 반환 { ok } 또는 { error } */
+/** 행동 제출 — 자기 차례인 사람만. 반환 { ok } 또는 { error } */
 export function submit(mb, id, act) {
   const m = mb.members.find((x) => x.id === id)
   if (!m || m.status !== 'alive') return { error: 'not-fighting' }
   if (mb.phase !== 'input') return { error: 'wrong-phase' }
+  if (mb.turn !== id) return { error: 'not-your-turn' }
   if (m.act) return { error: 'already' }
   const a = act?.action
   if (!['attack', 'guard', 'charm', 'scan', 'buff', 'psychic'].includes(a)) return { error: 'bad-action' }
-  if ((a === 'charm' || a === 'scan' || a === 'buff') && m.mp < 1) return { error: 'no-mp' }
+  // 의지력이 모자라면 부적 말고는 쓸 수 없다.
+  if (a === 'buff' && m.mp < mpCostOf(m.stats, BUFF_COST)) return { error: 'no-mp' }
+  if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
   if (a === 'psychic' && act.psychic !== 'survival') return { error: 'bad-psychic' }
@@ -141,7 +186,7 @@ export function submit(mb, id, act) {
   return { ok: true }
 }
 
-/** 시간이 다 되었을 때: 고르지 않은 사람은 막기(막을 수 없으면 일반 공격). */
+/** 시간이 다 되었을 때: 지금 차례인 사람이 고르지 않았으면 막기(막을 수 없으면 일반 공격). */
 export function autoFill(mb) {
   for (const m of waitingOn(mb)) m.act = { action: m.bound ? 'attack' : 'guard', auto: true }
 }
@@ -186,56 +231,53 @@ function finishIfOver(mb) {
   return !!mb.over
 }
 
-/** 라운드 해결: 각자 행동 → 상대 한 번. 이어서 다음 라운드(또는 버티기 대기/종료)까지 만든다. 반환: 이번에 생긴 로그 */
-export function resolveRound(mb, rng = Math.random) {
+/** 지금 차례인 사람의 행동을 해결하고 다음 사람에게 넘긴다. 모두 마쳤으면 상대가 움직인다. 반환: 이번에 생긴 로그 */
+export function resolveTurn(mb, rng = Math.random) {
   const evs = []
-  const order = [...aliveOf(mb)].sort((a, b) => b.stats.agility - a.stats.agility || (a.id < b.id ? -1 : 1))
-  for (const m of order) {
-    if (m.status !== 'alive') continue
-    const act = m.act ?? { action: 'guard' }
-    const v = viewOfMember(mb, m)
-    let r
-    if (act.action === 'psychic') {
-      r = psychicTurn(v, act.psychic ?? 'survival', { stats: m.stats, mp: m.mp, boost: m.boost }, rng)
-      if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: '쓸 수 없는 영능력이다.' }], mpCost: 0 }
-    } else {
-      r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true }, rng)
-      if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: `[${m.name}] 의지력이 모자라 행동하지 못했다.` }], mpCost: 0 }
-    }
-    if (r.boostUsed) m.boost = false
-    m.mp = Math.max(0, m.mp - (r.mpCost || 0))
-    mb.ehp = r.state.ehp
-    mb.queue = r.state.queue
-    mb.known = r.state.known
-    m.guard = r.state.guard
-    m.charms = r.state.charms
-    m.bound = r.state.bound
-    const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
-    evs.push(...addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}${forced}] ${e.text}` })), m.id))
-    if (r.state.over === 'fled') {
-      m.status = 'fled'
-      continue
-    }
-    if (mb.ehp <= 0) {
-      mb.over = 'win'
-      break
-    }
-  }
-  if (mb.over !== 'win') {
-    for (const m of mb.members) m.act = null
-    if (!aliveOf(mb).length) {
-      finishIfOver(mb)
-      return evs
-    }
-    evs.push(...enemyPhase(mb, rng))
+  const m = mb.members.find((x) => x.id === mb.turn)
+  if (!m || m.status !== 'alive' || mb.phase !== 'input') return evs
+  const act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
+  const v = viewOfMember(mb, m)
+  const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격에 붙는 보정
+  let r
+  if (act.action === 'psychic') {
+    r = psychicTurn(v, act.psychic ?? 'survival', { stats: m.stats, mp: m.mp, boost: m.boost, aura }, rng)
+    if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: '쓸 수 없는 영능력이다.' }], mpCost: 0 }
   } else {
+    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura }, rng)
+    if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: `[${m.name}] 의지력이 모자라 행동하지 못했다.` }], mpCost: 0 }
+  }
+  if (r.boostUsed) m.boost = false
+  m.mp = Math.max(0, m.mp - (r.mpCost || 0))
+  mb.ehp = r.state.ehp
+  mb.queue = r.state.queue
+  mb.known = r.state.known
+  m.guard = r.state.guard
+  m.charms = r.state.charms
+  m.bound = r.state.bound
+  const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
+  evs.push(...addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}${forced}] ${e.text}` })), m.id))
+  m.act = null
+  if (r.state.over === 'fled') m.status = 'fled'
+  if (mb.ehp <= 0) {
+    mb.over = 'win'
     mb.phase = 'over'
+    mb.turn = null
     return evs
   }
+  evs.push(...nextActor(mb, rng))
+  if (mb.turn) return evs // 다음 사람의 차례
+  // 일행 차례가 모두 끝났다 → 상대의 차례
+  if (!aliveOf(mb).length) {
+    finishIfOver(mb)
+    return evs
+  }
+  evs.push(...enemyPhase(mb, rng))
   return evs
 }
+export const resolveRound = resolveTurn
 
-/** 상대가 한 번 움직인다. 반환: 로그. 끝나면 다음 라운드 준비(또는 버티기 대기). */
+/** 상대의 차례. 단체 공격이면 일행 전원, 아니면 체력이 가장 많은 한 명. 끝나면 다음 라운드 준비(또는 버티기 대기). 반환: 로그 */
 function enemyPhase(mb, rng) {
   const evs = []
   const alive = aliveOf(mb).filter((m) => m.php > 0)
@@ -243,37 +285,53 @@ function enemyPhase(mb, rng) {
     finishIfOver(mb)
     return evs
   }
+  mb.turn = null
   const intent = mb.queue[0]
+  const group = intent === 'group'
   const hits = intent === 'jab' || intent === 'smash' || intent === 'special'
-  const pick = pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
-  const t = mb.members.find((m) => m.id === pick.id)
-  if (hits) evs.push(...addLog(mb, [{ kind: 'info', text: `▶ ${mb.enemy.name}이(가) ${t.name}을(를) 노린다! (체력이 가장 많은 사람)` }], 'enemy'))
-  const v = { ...viewOfMember(mb, t), guard: t.guard }
-  const r = enemyTurn(v, { stats: t.stats, mp: t.mp }, rng)
-  mb.queue = r.state.queue
-  mb.known = r.state.known
-  mb.round = r.state.round
-  mb.ehp = r.state.ehp // 막기 반격으로 쓰러질 수도 있다
-  t.php = r.state.php
-  t.curse = r.state.curse
-  t.bound = r.state.bound || t.bound
-  t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
-  for (const m of mb.members) m.guard = false
-  let tevs = r.events.map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : e))
-  const downed = r.state.pendingDeath || r.state.over === 'lose'
-  if (downed && t.revive) {
-    t.revive = false
-    t.php = 1
-    tevs = [...tevs.filter((e) => !/버티기를 쓸 수 있다|쓰러졌다|버티지 못/.test(e.text || '')), { kind: 'warn', text: `[${t.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!` }]
-    t.reviveUsed = true
-  } else if (r.state.pendingDeath) {
-    t.pendingDeath = true
-    t.php = 0
-  } else if (r.state.over === 'lose') {
-    t.status = 'down'
-    t.php = 0
+  let targets
+  if (group) {
+    targets = alive
+    evs.push(...addLog(mb, [{ kind: 'info', text: `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+  } else {
+    const pick = pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
+    targets = [mb.members.find((m) => m.id === pick.id)]
+    if (hits) evs.push(...addLog(mb, [{ kind: 'info', text: `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)` }], 'enemy'))
   }
-  evs.push(...addLog(mb, tevs, 'enemy'))
+  targets.forEach((t, i) => {
+    if (mb.ehp <= 0) return
+    const last = i === targets.length - 1
+    const q = [...mb.queue]
+    if (group) q[0] = 'jab'
+    const v = { ...viewOfMember(mb, t), guard: t.guard, queue: q }
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp }, rng)
+    if (last) {
+      mb.queue = r.state.queue
+      mb.known = r.state.known
+      mb.round = r.state.round
+    }
+    mb.ehp = r.state.ehp // 막기 반격으로 쓰러질 수도 있다
+    t.php = r.state.php
+    t.curse = r.state.curse
+    t.bound = r.state.bound || t.bound
+    t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
+    let tevs = r.events.map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : group && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
+    const downed = r.state.pendingDeath || r.state.over === 'lose'
+    if (downed && t.revive) {
+      t.revive = false
+      t.php = 1
+      tevs = [...tevs.filter((e) => !/버티기를 쓸 수 있다|쓰러졌다|버티지 못/.test(e.text || '')), { kind: 'warn', text: `[${t.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!` }]
+      t.reviveUsed = true
+    } else if (r.state.pendingDeath) {
+      t.pendingDeath = true
+      t.php = 0
+    } else if (r.state.over === 'lose') {
+      t.status = 'down'
+      t.php = 0
+    }
+    evs.push(...addLog(mb, tevs, 'enemy'))
+  })
+  for (const m of mb.members) m.guard = false
   if (mb.ehp <= 0) {
     mb.over = 'win'
     mb.phase = 'over'
@@ -308,7 +366,7 @@ export function survive(mb, id, accept, rng = Math.random) {
     m.php = 0
   } else {
     m.php = r.state.php
-    m.survived = true
+    m.survived = r.state.survived
   }
   const evs = addLog(mb, r.events.map((e) => ({ ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${m.name}] ${e.text}` })), m.id)
   if (!pendingSurvivors(mb).length) evs.push(...afterEnemy(mb, rng))
@@ -322,8 +380,13 @@ export function dropMember(mb, id) {
   m.status = 'fled'
   m.pendingDeath = false
   m.act = null
+  const wasTurn = mb.phase === 'input' && mb.turn === id
   const evs = addLog(mb, [{ kind: 'warn', text: `[${m.name}] 전투에서 이탈했다.` }], m.id)
-  if (!pendingSurvivors(mb).length && mb.phase === 'survive') evs.push(...afterEnemy(mb))
+  if (wasTurn && !finishIfOver(mb)) {
+    // 이탈한 사람의 차례였다 → 다음 사람에게 넘기고, 더 없으면 상대의 차례
+    evs.push(...nextActor(mb))
+    if (!mb.turn) evs.push(...enemyPhase(mb))
+  } else if (!pendingSurvivors(mb).length && mb.phase === 'survive') evs.push(...afterEnemy(mb))
   else finishIfOver(mb)
   return evs
 }
@@ -345,6 +408,8 @@ export function viewOf(mb, extra = {}) {
     queue: mb.queue.slice(0, mb.over ? 0 : mb.known),
     known: mb.over ? 0 : mb.known,
     round: mb.round,
+    turn: mb.turn,
+    order: mb.order,
     phase: mb.phase,
     over: mb.over,
     members: mb.members.map((m) => ({
@@ -359,6 +424,7 @@ export function viewOf(mb, extra = {}) {
       status: m.status,
       pendingDeath: m.pendingDeath,
       survived: m.survived,
+      fx: m.fx,
       boost: m.boost,
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,

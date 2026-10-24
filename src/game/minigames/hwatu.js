@@ -31,7 +31,8 @@ export function stageConfig(stage) {
     months,
     cards,
     cols: cards <= 16 ? 4 : cards <= 20 ? 5 : 6,
-    chances: Math.ceil(months * 0.9) + 2, // 틀려도 되는 횟수
+    // 틀려도 되는 횟수: 5판까지는 월 수에 맞춰 늘고, 6판부터는 판이 올라갈 때마다 하나씩 줄어든다(최소 1).
+    chances: Math.max(1, Math.ceil(months * 0.9) + 2 - Math.max(0, stage - 5)),
     peekSeconds: 5, // 패를 펼쳐 보여 주는 시간: 판이 올라가도 5초로 그대로
     parSeconds: months * 7, // 보너스 기준 시간
   }

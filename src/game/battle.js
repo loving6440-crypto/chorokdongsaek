@@ -105,6 +105,7 @@ export const INTENTS = {
   charge: { label: '기 모으기', note: '다음 턴에 강공이 온다.' },
   guard: { label: '방어 태세', note: '이번 턴 내 공격 피해가 절반이 된다.' },
   special: { label: '영능력', note: '상대마다 다른 비기.' },
+  group: { label: '단체 공격', note: '약공이 일행 전원에게 들어온다.' },
 }
 
 export const ACTIONS = {
@@ -196,13 +197,15 @@ export function fireTurn(state, ctx, rng = Math.random) {
   const braced = s.queue[0] === 'guard'
   const r = attackRoll(stats, rng)
   const mult = ctx.boost ? 2 : 1
-  let dmg = r.dmg * 4 * mult
+  const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
+  const cr = fxCrit(fb.base * 4 * mult, stats, rng)
+  let dmg = cr.dmg
   if (!r.miss && braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
     r.miss
       ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발… 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` }
-      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${braced ? ' (방어에 절반으로 막힘)' : ''}` },
+      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'
@@ -277,27 +280,29 @@ export function specialSummary(ev) {
 }
 
 /** 상대가 다음에 할 행동을 한 번 굴린다. 기 모으기 다음은 반드시 강공. */
-function rollIntent(prev, rng) {
+function rollIntent(prev, rng, party = false) {
   if (prev === 'charge') return 'smash'
   const r = d10(rng)
   if (r <= 2) return 'charge'
   if (r <= 7) return 'jab' // (7 은 기획에 빠져 있어 약공으로 둔다)
+  if (party) return r === 8 ? 'guard' : r === 9 ? 'group' : 'special' // 일행을 상대하는 적: 방어는 8 하나, 9 는 단체 공격
   if (r <= 9) return 'guard'
   return 'special'
 }
 
-export function newBattle(enemyId, stats, rng = Math.random, startHp, hpCap) {
+export function newBattle(enemyId, stats, rng = Math.random, startHp, hpCap, opts = {}) {
   const enemy = typeof enemyId === 'object' ? enemyId : ENEMIES.find((e) => e.id === enemyId)
   const queue = []
   let prev = null
   for (let i = 0; i < 5; i++) {
-    prev = rollIntent(prev, rng)
+    prev = rollIntent(prev, rng, !!opts.party)
     queue.push(prev)
   }
   const hp = hpCap ?? maxHp(stats)
   const cur = startHp == null ? hp : Math.max(1, Math.min(hp, Math.round(startHp)))
   return {
     enemy,
+    party: !!opts.party, // 일행을 상대하는 판(방어 확률이 줄고 단체 공격이 생긴다)
     ehp: enemy.hp,
     php: cur,
     phpMax: hp,
@@ -309,13 +314,14 @@ export function newBattle(enemyId, stats, rng = Math.random, startHp, hpCap) {
     bound: false, // 휘감겨서 이번 내 턴엔 막기 불가
     curse: 0, // 남은 저주 턴
     pendingDeath: false,
-    survived: false, // 버티기는 한 전투에 한 번만
+    survived: 0, // 버티기를 쓴 횟수 (한 전투에 한 번. 무당방울이 있으면 두 번)
     over: null, // 'win' | 'lose' | 'fled'
   }
 }
 
 /** 선공 판정: 1d10 + 1d(신속) 이 상대의 행동력 이상이면 내가 먼저. 신속이 행동력 이상이면 무조건 선공. */
 export function rollInitiative(enemy, stats, rng = Math.random) {
+  if (stats.fx === 'fan') return { playerFirst: true, auto: true, fan: true, a: 0, b: 0, total: 0 } // 부채: 무조건 선공
   if (stats.agility >= enemy.act) return { playerFirst: true, auto: true, a: 0, b: 0, total: 0 }
   const a = d10(rng)
   const b = die(stats.agility, rng)
@@ -324,6 +330,7 @@ export function rollInitiative(enemy, stats, rng = Math.random) {
 
 /** 일반 공격 한 번의 굴림. noMiss 면 명중 굴림 1도 2로 친다(부적). */
 function attackRoll(stats, rng, noMiss = false) {
+  if (stats.fx === 'bow') noMiss = true // 활: 모든 공격이 반드시 명중
   let hit = die(stats.insight + 1, rng)
   const raw = hit
   if (noMiss && hit < 2) hit = 2
@@ -331,6 +338,42 @@ function attackRoll(stats, rng, noMiss = false) {
   const power = die(stats.aggression, rng)
   return { hit: raw, power, dmg: power * 2 + hit, miss: false }
 }
+
+// ───────── 무구 효과(stats.fx) ─────────
+/** 석장: 전투 중 의지력 소모가 절반(올림) */
+export const mpCostOf = (stats, cost) => (stats.fx === 'staff' ? Math.ceil(cost / 2) : cost)
+/** 악기 보정의 한계: 악기를 든 사람의 [이해] */
+export const auraOf = (stats) => (stats.fx === 'instrument' ? Math.max(0, Math.floor(stats.comprehension || 0)) : 0)
+/** 버티기를 쓸 수 있는 최대 횟수 (무당방울이 있으면 2) */
+export const maxSurvives = (stats) => (stats.fx === 'bell' ? 2 : 1)
+
+/** 굴림으로 나온 기본 공격력(base)에 악기 · 단검 · 철퇴가 얹힌다. 반환 { base, notes[] } */
+function fxBase(base, stats, ehp, enemyHp, aura, rng) {
+  const notes = []
+  if (aura > 0) {
+    const a = die(aura, rng)
+    base += a
+    notes.push(`악기 +${a}`)
+  }
+  if (stats.fx === 'dagger' && ehp < enemyHp * 0.3) {
+    base = Math.floor(base * 1.2)
+    notes.push('단검 ×1.2')
+  }
+  if (stats.fx === 'mace') {
+    base = Math.floor(base * 1.5)
+    notes.push('철퇴 ×1.5')
+  }
+  return { base, notes }
+}
+/** 창: (1d10 + 1d호전)% 확률로 치명타 — 그 공격이 1.5배 */
+function fxCrit(dmg, stats, rng) {
+  if (stats.fx !== 'spear' || dmg <= 0) return { dmg, note: '' }
+  const chance = d10(rng) + die(stats.aggression, rng)
+  const roll = die(100, rng)
+  if (roll <= chance) return { dmg: Math.floor(dmg * 1.5), note: ` 치명타! (창 ${chance}%, d100 = ${roll}) ×1.5` }
+  return { dmg, note: '' }
+}
+const noteOf = (notes) => (notes.length ? ` (${notes.join(', ')})` : '')
 
 /**
  * 내 턴. ctx = { stats, mp }. 반환: { state, events, mpCost }
@@ -344,11 +387,13 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   let mpCost = 0
   const act = action
 
-  // 의지력이 0이면 의지력을 쓰는 행동은 할 수 없다. 모자랄 뿐이면 0까지 쓰고 그 행동을 한다.
-  if ((act === 'charm' || act === 'scan' || act === 'buff') && mp < 1) {
-    ev.push({ kind: 'warn', text: '의지력이 0이라 쓸 수 없다!' })
+  // 의지력이 모자라면 그 행동은 할 수 없다. 단 부적만은 모자라도 쓸 수 있다(있는 만큼만 쓰고 터진다).
+  const needMp = act === 'buff' ? mpCostOf(stats, BUFF_COST) : act === 'scan' ? mpCostOf(stats, 1) : 0
+  if (needMp > mp) {
+    ev.push({ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${needMp}, 지금 ${mp})` })
     return { state: state, events: ev, mpCost: 0, invalid: true }
   }
+  const aura = ctx.aura ?? auraOf(stats)
   const braced = s.queue[0] === 'guard'
   const mult = ctx.boost ? 2 : 1 // 마이쭈: 이번 턴 피해 2배
   const bn = ctx.boost ? ' (마이쭈 ×2)' : ''
@@ -360,18 +405,22 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
 
   if (act === 'attack') {
     const r = attackRoll(stats, rng)
-    let dmg = r.dmg * mult
-    let note = r.miss ? '' : bn
+    const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
+    const cr = fxCrit(fb.base * mult, stats, rng)
+    let dmg = cr.dmg
+    let note = r.miss ? '' : `${bn}${noteOf(fb.notes)}${cr.note}`
     if (!r.miss && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
     s.ehp = Math.max(0, s.ehp - dmg)
     ev.push({ kind: 'player', roll: r.hit, dmg, text: `${strike(r)}${r.miss ? '' : ` ${dmg} 피해${note}`}` })
   } else if (act === 'buff') {
-    mpCost = Math.min(BUFF_COST, mp)
+    mpCost = mpCostOf(stats, BUFF_COST)
     const r1 = attackRoll(stats, rng)
     const r2 = attackRoll(stats, rng)
     const best = r1.dmg >= r2.dmg ? r1 : r2
-    let dmg = best.dmg * mult
-    let note = dmg > 0 ? bn : ''
+    const fb = best.miss ? { base: 0, notes: [] } : fxBase(best.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
+    const cr = fxCrit(fb.base * mult, stats, rng)
+    let dmg = cr.dmg
+    let note = dmg > 0 ? `${bn}${noteOf(fb.notes)}${cr.note}` : ''
     if (dmg > 0 && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
     s.ehp = Math.max(0, s.ehp - dmg)
     ev.push({ kind: 'player', text: `효험! 의지력 ${mpCost}을 쏟아 두 번 굴린다. 첫 번째 ${r1.miss ? '빗나감' : `${r1.dmg}`}, 두 번째 ${r2.miss ? '빗나감' : `${r2.dmg}`}` })
@@ -382,15 +431,17 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
     } else {
       s.charms -= 1
       const costRoll = die(charmDie(stats), rng)
-      mpCost = Math.min(costRoll, mp)
+      mpCost = Math.min(mpCostOf(stats, costRoll), mp)
       const r = attackRoll(stats, rng, true)
-      const dmg = r.dmg * 2 * mult
+      const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
+      const cr = fxCrit(fb.base * 2 * mult, stats, rng)
+      const dmg = cr.dmg
       s.ehp = Math.max(0, s.ehp - dmg)
-      ev.push({ kind: 'player', roll: r.hit, dmg, text: `부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해 (의지력 -${mpCost}, 남은 부적 ${s.charms}장)` })
+      ev.push({ kind: 'player', roll: r.hit, dmg, text: `부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)` })
     }
   } else if (act === 'scan') {
     const amount = Math.max(1, Math.min(mp, Math.floor(ctx.scanAmount ?? 1)))
-    mpCost = amount
+    mpCost = mpCostOf(stats, amount)
     const n = scanTurns(stats, s.enemy, amount)
     s.queue = [...s.queue]
     while (s.queue.length < n + 1) s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng))
@@ -424,19 +475,21 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   const ev = []
   let mpDrain = 0
   const { enemy } = s
-  const intent = s.queue[0]
+  const intent0 = s.queue[0]
+  const intent = intent0 === 'group' ? 'jab' : intent0 // 단체 공격은 다인 전투에서 일행 한 명씩 약공으로 풀어낸다
   const hurt = (raw, label, { blockable = true, kind } = {}) => {
-    let dmg = raw
+    let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.2) : raw // 철퇴: 받는 피해 ×1.2
     if (blockable && s.guard) {
       const reduced = Math.ceil(dmg / (kind === 'smash' ? 3 : 2))
       const extra = die(stats.aggression, rng)
       dmg = Math.max(0, reduced - extra)
       const strong = stats.aggression > enemy.atk
       const crit = extra === stats.aggression
-      if (strong || crit) {
+      const sword = stats.fx === 'sword' // 칼: 모든 방어에 반격
+      if (strong || crit || sword) {
         const counter = extra * 2
         s.ehp = Math.max(0, s.ehp - counter)
-        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해!${strong ? '' : ' (최대 굴림)'}` })
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해!${strong ? '' : sword && !crit ? ' (칼의 반격)' : ' (최대 굴림)'}` })
       } else {
         ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다. [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받았다.` })
       }
@@ -513,18 +566,18 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   s.guard = false
   s.round += 1
   s.queue.shift()
-  s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng))
+  s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng, s.party))
   s.known = Math.max(0, s.known - 1)
-  if (intent === 'charge') s.known = Math.max(s.known, 1) // 기 모으기 다음은 강공이라는 건 누구나 안다.
+  if (intent0 === 'charge') s.known = Math.max(s.known, 1) // 기 모으기 다음은 강공이라는 건 누구나 안다.
 
   if (s.php <= 0) {
     s.php = 0
-    if (!s.survived && mp - mpDrain >= 2) {
+    if ((s.survived | 0) < maxSurvives(stats) && mp - mpDrain >= 2) {
       s.pendingDeath = true
       ev.push({ kind: 'warn', text: '체력이 바닥났다…! 버티기를 쓸 수 있다.' })
     } else {
       s.over = 'lose'
-      ev.push({ kind: 'end', text: s.survived ? '이미 한 번 버텼다. 더는 버티지 못하고 그대로 쓰러졌다.' : '더는 버티지 못하고 쓰러졌다.' })
+      ev.push({ kind: 'end', text: (s.survived | 0) >= maxSurvives(stats) ? '이미 버틸 만큼 버텼다. 더는 버티지 못하고 그대로 쓰러졌다.' : mp - mpDrain < 2 ? '의지력이 바닥나 버티지 못하고 쓰러졌다.' : '더는 버티지 못하고 쓰러졌다.' })
     }
   }
   return { state: s, events: ev, mpDrain }
@@ -537,22 +590,24 @@ export function enemyTurn(state, ctx, rng = Math.random) {
 export function resolveSurvive(state, accept, mp, stats = { endurance: 0 }, rng = Math.random) {
   const s = { ...state, pendingDeath: false }
   const have = Math.floor(mp)
-  if (accept && have >= 2 && !state.survived) {
+  if (accept && have >= 2 && (state.survived | 0) < maxSurvives(stats)) {
     s.php = 1
-    s.survived = true
+    s.survived = (state.survived | 0) + 1
     const pct = Math.max(0, Math.min(100, stats.endurance || 0))
     const d = Math.floor(rng() * 100) + 1
     const free = d <= pct
+    const cost = free ? 0 : mpCostOf(stats, have - 1)
+    const more = s.survived < maxSurvives(stats)
     return {
       state: s,
-      mpCost: free ? 0 : have - 1,
+      mpCost: cost,
       free,
       events: [
         {
           kind: 'warn',
           text: free
             ? `버티기! [인내 ${pct}%, d100 = ${d}] 의지력을 쓰지 않고 체력 1로 일어섰다!`
-            : `버티기! [인내 ${pct}%, d100 = ${d}] 의지력 ${have - 1}을 모두 쏟아 체력 1로 일어섰다. (이번 전투에선 더 못 버틴다)`,
+            : `버티기! [인내 ${pct}%, d100 = ${d}] 의지력 ${cost}을 쏟아 체력 1로 일어섰다. (${more ? '무당방울 덕에 한 번 더 버틸 수 있지만, 의지력이 2 이상 남아 있어야 한다' : '이번 전투에선 더 못 버틴다'})`,
         },
       ],
     }
