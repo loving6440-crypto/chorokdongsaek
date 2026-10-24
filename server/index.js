@@ -16,6 +16,10 @@ import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
 import * as A from './accounts.js'
 import { CLUB_IDS, CLUB_JOIN_LOCK_MS, CLUB_REJOIN_WAIT_MS } from '../src/game/clubs.js'
+import { OMOK_SIZE, emptyBoard, placeStone } from '../src/game/omok.js'
+import { START as YUT_START, branchOptions as yutBranchOptions, resumeWalk as yutResumeWalk, rollYut, walk as yutWalk } from '../src/game/yut.js'
+import { FIRST_MELD_MIN, freshDeck as rummiFreshDeck, shuffle as rummiShuffle, validateMeld as rummiValidateMeld } from '../src/game/rummikub.js'
+import { CATEGORIES as YACHT_CATEGORIES, isCategory as yachtIsCategory, isFull as yachtIsFull, MAX_ROLLS as YACHT_MAX_ROLLS, rollDice as yachtRollDice, scoreFor as yachtScoreFor, totalScore as yachtTotalScore } from '../src/game/yacht.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GIFT_MAX = 5
@@ -387,6 +391,497 @@ function mbDisconnect(id) {
   }
 }
 
+// ───────── 오목 ─────────
+// 일행(파티) 안의 두 사람이 신청 → 수락하면 바로 시작. 판은 서버가 들고 있고(재시작하면 사라진다), 매 수를 서버가 판정한다.
+const omoks = new Map() // gid → { id, players: [idA, idB], board, turn, winner, win, phase: 'play'|'over' }
+const omokOf = new Map() // playerId → gid
+const omokInvites = new Map() // inviteeId → { from, at }
+let omokSeq = 1
+
+const omokView = (g) => ({
+  gid: g.id,
+  size: OMOK_SIZE,
+  board: g.board,
+  turn: g.turn,
+  players: g.players.map((id) => ({ id, name: clients.get(id)?.name ?? id })),
+  winner: g.winner,
+  win: g.win ?? null,
+})
+const omokPush = (g) => g.players.forEach((id) => sendTo(id, { t: 'omok', ev: 'state', ...omokView(g) }))
+function omokEnd(g, winner, noticeToOther) {
+  g.phase = 'over'
+  g.winner = winner
+  for (const id of g.players) omokOf.delete(id)
+  omokPush(g)
+  if (noticeToOther) for (const id of g.players) if (id !== winner) sendTo(id, { t: 'notice', text: noticeToOther })
+  setTimeout(() => omoks.delete(g.id), 60_000)
+}
+function omokDisconnect(id) {
+  omokInvites.delete(id)
+  for (const [to, inv] of omokInvites) if (inv.from === id) {
+    omokInvites.delete(to)
+    sendTo(to, { t: 'omok', ev: 'closed' })
+  }
+  const g = omoks.get(omokOf.get(id))
+  if (!g || g.phase !== 'play') return
+  setTimeout(() => {
+    if (clients.has(id) || g.phase !== 'play') return
+    const other = g.players.find((p) => p !== id)
+    omokEnd(g, other, `${clients.get(id)?.name ?? id}님이 접속을 종료해 오목이 끝났다.`)
+  }, 30_000)
+}
+
+// ───────── 윷놀이 ─────────
+// 일행(파티) 안의 2~4명이 신청(여러 명 동시 초대) → 모두 수락하면 시작. 판은 서버가 들고 있고(재시작하면 사라진다).
+const yutGames = new Map() // gid → game
+const yutOf = new Map() // playerId → gid (게임이 시작된 뒤)
+const yutLobbies = new Map() // lid → { id, host, invited: {id:'wait'|'yes'|'no'}, timer }
+const yutLobbyOf = new Map() // playerId → lid (로비 응답 대기 중)
+let yutSeq = 1
+const YUT_LOBBY_MS = 30_000
+const yutBusy = (id) => yutOf.has(id) || yutLobbyOf.has(id)
+
+function yutView(g) {
+  return {
+    gid: g.id,
+    players: g.players,
+    pieces: g.pieces,
+    left: [...(g.left ?? [])],
+    turn: g.turn,
+    phase: g.phase,
+    throws: g.throws,
+    pendingBranch: g.pendingBranch ? { at: g.pendingBranch.at, options: yutBranchOptions(g.pendingBranch.at) } : null,
+    lastRoll: g.lastRoll,
+    winner: g.winner,
+    log: g.log.slice(-8),
+  }
+}
+const yutPush = (g) => g.players.forEach((p) => sendTo(p.id, { t: 'yut', ev: 'state', ...yutView(g) }))
+function yutLog(g, text) {
+  g.log.push(text)
+  if (g.log.length > 30) g.log.shift()
+}
+function yutEnd(g, winnerId, notice) {
+  g.phase = 'over'
+  g.winner = winnerId ?? null
+  if (notice) yutLog(g, notice)
+  yutPush(g)
+  for (const p of g.players) yutOf.delete(p.id)
+  setTimeout(() => yutGames.delete(g.id), 60_000)
+}
+function yutNextTurn(g) {
+  const n = g.players.length
+  for (let k = 1; k <= n; k++) {
+    const t = (g.turn + k) % n
+    if (!g.left.has(g.players[t].id)) {
+      g.turn = t
+      return
+    }
+  }
+}
+function yutResolve(g, idxs, r) {
+  if (r.error) return r
+  if (r.pending) {
+    g.pendingBranch = { idxs, at: r.at, remaining: r.remaining }
+    g.phase = 'branch'
+    return { ok: true, pending: true }
+  }
+  g.pendingBranch = null
+  const pIdx = g.turn
+  if (r.finished) {
+    for (const i of idxs) g.pieces[pIdx][i].pos = 'done'
+    yutLog(g, `${g.players[pIdx].name}의 말이 완주했다.`)
+    if (g.pieces[pIdx].every((p) => p.pos === 'done')) {
+      yutEnd(g, g.players[pIdx].id, `${g.players[pIdx].name}님이 윷놀이에서 이겼다!`)
+      return { ok: true, finished: true, over: true }
+    }
+    return { ok: true, finished: true }
+  }
+  let captured = false
+  for (let op = 0; op < g.players.length; op++) {
+    if (op === pIdx) continue
+    for (const piece of g.pieces[op]) if (piece.pos === r.pos) {
+      piece.pos = YUT_START
+      captured = true
+    }
+  }
+  for (const i of idxs) g.pieces[pIdx][i].pos = r.pos
+  if (captured) yutLog(g, `${g.players[pIdx].name}이(가) 상대 말을 잡았다! (한 번 더)`)
+  return { ok: true, captured }
+}
+function yutApply(g, selector, steps) {
+  const mine = g.pieces[g.turn]
+  let idxs
+  let from
+  if (selector === 'start') {
+    const i = mine.findIndex((p) => p.pos === YUT_START)
+    if (i < 0) return { error: 'no-piece' }
+    idxs = [i]
+    from = YUT_START
+  } else {
+    const pos = Number(selector)
+    idxs = mine.map((p, i) => i).filter((i) => mine[i].pos === pos)
+    if (!idxs.length) return { error: 'no-piece' }
+    from = pos
+  }
+  return yutResolve(g, idxs, yutWalk(from, steps))
+}
+// apply · choose 가 끝난 뒤 공통으로 하는 일: 분기 대기면 그대로 두고, 아니면 한 번 더 던질지/다음 차례로 넘길지 정한다.
+function yutAfter(g, r) {
+  if (r.error || g.phase === 'over') return
+  if (r.pending) return yutPush(g)
+  if (r.captured) {
+    g.phase = 'roll'
+  } else {
+    yutPruneDeadThrows(g)
+    if (g.throws.length === 0) {
+      yutNextTurn(g)
+      g.phase = 'roll'
+    } else g.phase = 'apply'
+  }
+  yutPush(g)
+}
+// 정식 규칙: 던진 수를 쓸 수 있는 말이 하나도 없으면(예: 아직 낸 말이 없는데 빽도가 나온 경우) 그 던지기는 버려진다.
+function yutHasLegalMove(g, steps) {
+  const froms = new Set()
+  for (const p of g.pieces[g.turn]) if (p.pos !== 'done') froms.add(p.pos)
+  for (const from of froms) if (!yutWalk(from, steps).error) return true
+  return false
+}
+function yutPruneDeadThrows(g) {
+  const before = g.throws.length
+  g.throws = g.throws.filter((s) => yutHasLegalMove(g, s))
+  if (g.throws.length < before) yutLog(g, `${g.players[g.turn].name} : 쓸 수 없는 던지기는 버려졌다.`)
+}
+function yutResign(g, id) {
+  if (g.phase === 'over' || g.left.has(id)) return
+  g.left.add(id)
+  const name = g.players.find((p) => p.id === id)?.name ?? id
+  const active = g.players.filter((p) => !g.left.has(p.id))
+  if (active.length <= 1) return yutEnd(g, active[0]?.id, `${name}님이 윷놀이를 포기했다.`)
+  yutLog(g, `${name}님이 윷놀이에서 빠졌다.`)
+  if (g.players[g.turn].id === id) {
+    yutNextTurn(g)
+    g.phase = 'roll'
+    g.throws = []
+    g.pendingBranch = null
+  }
+  yutPush(g)
+}
+function yutLobbyCancel(lobby, reason) {
+  clearTimeout(lobby.timer)
+  yutLobbies.delete(lobby.id)
+  yutLobbyOf.delete(lobby.host)
+  sendTo(lobby.host, { t: 'yut', ev: 'lobby-cancel', lid: lobby.id, reason })
+  for (const id of Object.keys(lobby.invited)) {
+    yutLobbyOf.delete(id)
+    sendTo(id, { t: 'yut', ev: 'closed', lid: lobby.id })
+  }
+}
+function yutLobbyStart(lobby) {
+  clearTimeout(lobby.timer)
+  const ids = [lobby.host, ...Object.keys(lobby.invited)]
+  yutLobbies.delete(lobby.id)
+  for (const id of ids) yutLobbyOf.delete(id)
+  const gid = 'yg' + yutSeq++
+  const g = {
+    id: gid,
+    players: ids.map((id) => ({ id, name: clients.get(id)?.name ?? id })),
+    pieces: ids.map(() => Array.from({ length: 4 }, () => ({ pos: YUT_START }))),
+    left: new Set(),
+    turn: 0,
+    phase: 'roll',
+    throws: [],
+    pendingBranch: null,
+    lastRoll: null,
+    winner: null,
+    log: [],
+  }
+  yutGames.set(gid, g)
+  for (const id of ids) yutOf.set(id, gid)
+  yutPush(g)
+}
+function yutLobbyCheck(lobby) {
+  const vals = Object.values(lobby.invited)
+  if (vals.some((v) => v === 'no')) return yutLobbyCancel(lobby, '누군가 윷놀이 신청을 거절해 취소되었다.')
+  if (vals.every((v) => v === 'yes')) return yutLobbyStart(lobby)
+  sendTo(lobby.host, {
+    t: 'yut',
+    ev: 'lobby',
+    lid: lobby.id,
+    waiting: Object.keys(lobby.invited).filter((i) => lobby.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i),
+  })
+}
+function yutDisconnect(id) {
+  const lid = yutLobbyOf.get(id)
+  if (lid) {
+    const lobby = yutLobbies.get(lid)
+    if (lobby) yutLobbyCancel(lobby, '접속이 끊겨 윷놀이 신청이 취소되었다.')
+  }
+  const g = yutGames.get(yutOf.get(id))
+  if (!g || g.phase === 'over') return
+  setTimeout(() => {
+    if (clients.has(id) || g.phase === 'over') return
+    yutResign(g, id)
+  }, 30_000)
+}
+
+// ───────── 루미큐브 ─────────
+const rummiGames = new Map() // gid → game
+const rummiOf = new Map() // playerId → gid
+const rummiLobbies = new Map() // lid → { id, host, invited: {id:'wait'|'yes'|'no'}, timer }
+const rummiLobbyOf = new Map()
+let rummiSeq = 1
+const RUMMI_LOBBY_MS = 30_000
+const RUMMI_HAND_START = 14
+const rummiBusy = (id) => rummiOf.has(id) || rummiLobbyOf.has(id)
+
+function rummiLog(g, text) {
+  g.log.push(text)
+  if (g.log.length > 30) g.log.shift()
+}
+function rummiViewFor(g, id) {
+  const myIdx = g.players.findIndex((p) => p.id === id)
+  return {
+    gid: g.id,
+    players: g.players,
+    counts: g.hands.map((h) => h.length),
+    hand: myIdx >= 0 ? g.hands[myIdx] : [],
+    poolLeft: g.pool.length,
+    table: g.table,
+    turn: g.turn,
+    hasPlayed: g.hasPlayedThisTurn,
+    firstMeld: [...g.firstMeld],
+    left: [...g.left],
+    winner: g.winner,
+    log: g.log.slice(-8),
+  }
+}
+const rummiPush = (g) => g.players.forEach((p) => sendTo(p.id, { t: 'rummi', ev: 'state', ...rummiViewFor(g, p.id) }))
+function rummiEnd(g, winnerId, notice) {
+  g.phase = 'over'
+  g.winner = winnerId ?? null
+  if (notice) rummiLog(g, notice)
+  rummiPush(g)
+  for (const p of g.players) rummiOf.delete(p.id)
+  setTimeout(() => rummiGames.delete(g.id), 60_000)
+}
+function rummiNextTurn(g) {
+  const n = g.players.length
+  for (let k = 1; k <= n; k++) {
+    const t = (g.turn + k) % n
+    if (!g.left.has(g.players[t].id)) {
+      g.turn = t
+      return
+    }
+  }
+}
+function rummiEndByScore(g) {
+  const scores = g.hands.map((h) => h.reduce((s, t) => s + (t.joker ? 30 : t.num), 0))
+  let best = -1
+  for (let i = 0; i < scores.length; i++) if (!g.left.has(g.players[i].id) && (best < 0 || scores[i] < scores[best])) best = i
+  rummiEnd(g, best >= 0 ? g.players[best].id : null, '더 낼 수 있는 조합이 없어 남은 패가 가장 적은 사람이 이겼다.')
+}
+function rummiResign(g, id) {
+  if (g.phase === 'over' || g.left.has(id)) return
+  g.left.add(id)
+  const name = g.players.find((p) => p.id === id)?.name ?? id
+  const active = g.players.filter((p) => !g.left.has(p.id))
+  if (active.length <= 1) return rummiEnd(g, active[0]?.id, `${name}님이 루미큐브를 포기했다.`)
+  rummiLog(g, `${name}님이 루미큐브에서 빠졌다.`)
+  if (g.players[g.turn].id === id) {
+    rummiNextTurn(g)
+    g.hasPlayedThisTurn = false
+  }
+  rummiPush(g)
+}
+function rummiLobbyCancel(lobby, reason) {
+  clearTimeout(lobby.timer)
+  rummiLobbies.delete(lobby.id)
+  rummiLobbyOf.delete(lobby.host)
+  sendTo(lobby.host, { t: 'rummi', ev: 'lobby-cancel', lid: lobby.id, reason })
+  for (const id of Object.keys(lobby.invited)) {
+    rummiLobbyOf.delete(id)
+    sendTo(id, { t: 'rummi', ev: 'closed', lid: lobby.id })
+  }
+}
+function rummiLobbyStart(lobby) {
+  clearTimeout(lobby.timer)
+  const ids = [lobby.host, ...Object.keys(lobby.invited)]
+  rummiLobbies.delete(lobby.id)
+  for (const id of ids) rummiLobbyOf.delete(id)
+  const gid = 'rg' + rummiSeq++
+  const deck = rummiShuffle(rummiFreshDeck())
+  const hands = ids.map(() => deck.splice(0, RUMMI_HAND_START))
+  const g = {
+    id: gid,
+    players: ids.map((id) => ({ id, name: clients.get(id)?.name ?? id })),
+    hands,
+    pool: deck,
+    table: [],
+    turn: 0,
+    phase: 'play',
+    hasPlayedThisTurn: false,
+    passStreak: 0,
+    firstMeld: new Set(),
+    left: new Set(),
+    winner: null,
+    log: [],
+    meldSeq: 1,
+  }
+  rummiGames.set(gid, g)
+  for (const id of ids) rummiOf.set(id, gid)
+  rummiPush(g)
+}
+function rummiLobbyCheck(lobby) {
+  const vals = Object.values(lobby.invited)
+  if (vals.some((v) => v === 'no')) return rummiLobbyCancel(lobby, '누군가 루미큐브 신청을 거절해 취소되었다.')
+  if (vals.every((v) => v === 'yes')) return rummiLobbyStart(lobby)
+  sendTo(lobby.host, {
+    t: 'rummi',
+    ev: 'lobby',
+    lid: lobby.id,
+    waiting: Object.keys(lobby.invited).filter((i) => lobby.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i),
+  })
+}
+function rummiDisconnect(id) {
+  const lid = rummiLobbyOf.get(id)
+  if (lid) {
+    const lobby = rummiLobbies.get(lid)
+    if (lobby) rummiLobbyCancel(lobby, '접속이 끊겨 루미큐브 신청이 취소되었다.')
+  }
+  const g = rummiGames.get(rummiOf.get(id))
+  if (!g || g.phase === 'over') return
+  setTimeout(() => {
+    if (clients.has(id) || g.phase === 'over') return
+    rummiResign(g, id)
+  }, 30_000)
+}
+
+// ───────── 요트 다이스 ─────────
+const yachtGames = new Map() // gid → game
+const yachtOf = new Map() // playerId → gid
+const yachtLobbies = new Map() // lid → { id, host, invited: {id:'wait'|'yes'|'no'}, timer }
+const yachtLobbyOf = new Map()
+let yachtSeq = 1
+const YACHT_LOBBY_MS = 30_000
+const yachtBusy = (id) => yachtOf.has(id) || yachtLobbyOf.has(id)
+
+function yachtLog(g, text) {
+  g.log.push(text)
+  if (g.log.length > 30) g.log.shift()
+}
+function yachtViewFor(g) {
+  return {
+    gid: g.id,
+    players: g.players,
+    scorecards: g.scorecards,
+    dice: g.dice,
+    rollsLeft: g.rollsLeft,
+    turn: g.turn,
+    left: [...g.left],
+    winner: g.winner,
+    tie: g.tie ?? null,
+    log: g.log.slice(-8),
+  }
+}
+const yachtPush = (g) => { const v = yachtViewFor(g); g.players.forEach((p) => sendTo(p.id, { t: 'yacht', ev: 'state', ...v })) }
+function yachtEnd(g, winnerId, notice, tie) {
+  g.phase = 'over'
+  g.winner = winnerId ?? null
+  g.tie = tie ?? null
+  if (notice) yachtLog(g, notice)
+  yachtPush(g)
+  for (const p of g.players) yachtOf.delete(p.id)
+  setTimeout(() => yachtGames.delete(g.id), 60_000)
+}
+function yachtEndByScore(g) {
+  const active = g.players.filter((p) => !g.left.has(p.id))
+  const totals = active.map((p) => yachtTotalScore(g.scorecards[g.players.findIndex((pp) => pp.id === p.id)]))
+  const best = Math.max(...totals)
+  const winners = active.filter((_, i) => totals[i] === best)
+  if (winners.length > 1) yachtEnd(g, null, `${winners.map((p) => p.name).join(', ')}님이 ${best}점으로 동점 우승!`, winners.map((p) => p.id))
+  else yachtEnd(g, winners[0]?.id, `${winners[0]?.name}님이 ${best}점으로 이겼다!`)
+}
+function yachtNextTurn(g) {
+  const n = g.players.length
+  for (let k = 1; k <= n; k++) {
+    const t = (g.turn + k) % n
+    if (!g.left.has(g.players[t].id)) { g.turn = t; return }
+  }
+}
+function yachtResign(g, id) {
+  if (g.phase === 'over' || g.left.has(id)) return
+  g.left.add(id)
+  const name = g.players.find((p) => p.id === id)?.name ?? id
+  const active = g.players.filter((p) => !g.left.has(p.id))
+  if (active.length <= 1) return yachtEnd(g, active[0]?.id, `${name}님이 요트 다이스를 포기했다.`)
+  yachtLog(g, `${name}님이 요트 다이스에서 빠졌다.`)
+  if (g.players[g.turn].id === id) {
+    yachtNextTurn(g)
+    g.dice = [0, 0, 0, 0, 0]
+    g.rollsLeft = YACHT_MAX_ROLLS
+  }
+  yachtPush(g)
+}
+function yachtLobbyCancel(lobby, reason) {
+  clearTimeout(lobby.timer)
+  yachtLobbies.delete(lobby.id)
+  yachtLobbyOf.delete(lobby.host)
+  sendTo(lobby.host, { t: 'yacht', ev: 'lobby-cancel', lid: lobby.id, reason })
+  for (const id of Object.keys(lobby.invited)) {
+    yachtLobbyOf.delete(id)
+    sendTo(id, { t: 'yacht', ev: 'closed', lid: lobby.id })
+  }
+}
+function yachtLobbyStart(lobby) {
+  clearTimeout(lobby.timer)
+  const ids = [lobby.host, ...Object.keys(lobby.invited)]
+  yachtLobbies.delete(lobby.id)
+  for (const id of ids) yachtLobbyOf.delete(id)
+  const gid = 'yg2' + yachtSeq++
+  const g = {
+    id: gid,
+    players: ids.map((id) => ({ id, name: clients.get(id)?.name ?? id })),
+    scorecards: ids.map(() => ({})),
+    dice: [0, 0, 0, 0, 0],
+    rollsLeft: YACHT_MAX_ROLLS,
+    turn: 0,
+    phase: 'play',
+    left: new Set(),
+    winner: null,
+    tie: null,
+    log: [],
+  }
+  yachtGames.set(gid, g)
+  for (const id of ids) yachtOf.set(id, gid)
+  yachtPush(g)
+}
+function yachtLobbyCheck(lobby) {
+  const vals = Object.values(lobby.invited)
+  if (vals.some((v) => v === 'no')) return yachtLobbyCancel(lobby, '누군가 요트 다이스 신청을 거절해 취소되었다.')
+  if (vals.every((v) => v === 'yes')) return yachtLobbyStart(lobby)
+  sendTo(lobby.host, {
+    t: 'yacht',
+    ev: 'lobby',
+    lid: lobby.id,
+    waiting: Object.keys(lobby.invited).filter((i) => lobby.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i),
+  })
+}
+function yachtDisconnect(id) {
+  const lid = yachtLobbyOf.get(id)
+  if (lid) {
+    const lobby = yachtLobbies.get(lid)
+    if (lobby) yachtLobbyCancel(lobby, '접속이 끊겨 요트 다이스 신청이 취소되었다.')
+  }
+  const g = yachtGames.get(yachtOf.get(id))
+  if (!g || g.phase === 'over') return
+  setTimeout(() => {
+    if (clients.has(id) || g.phase === 'over') return
+    yachtResign(g, id)
+  }, 30_000)
+}
+
 // ───────── HTTP 유틸 ─────────
 const json = (res, status, body) => {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
@@ -542,6 +1037,22 @@ async function handleApi(req, res, url) {
         const g = mbs.get(mbOf.get(id))
         return g?.mb && g.phase === 'fight' ? { bid: g.id, view: MB.viewOf(g.mb, { deadline: g.deadline }) } : null
       })(),
+      omok: (() => {
+        const g = omoks.get(omokOf.get(id))
+        return g && g.phase === 'play' ? omokView(g) : null
+      })(),
+      yut: (() => {
+        const g = yutGames.get(yutOf.get(id))
+        return g && g.phase !== 'over' ? yutView(g) : null
+      })(),
+      rummi: (() => {
+        const g = rummiGames.get(rummiOf.get(id))
+        return g && g.phase !== 'over' ? rummiViewFor(g, id) : null
+      })(),
+      yacht: (() => {
+        const g = yachtGames.get(yachtOf.get(id))
+        return g && g.phase !== 'over' ? yachtViewFor(g) : null
+      })(),
     })
     if (party) pushParty(party)
     pushPresence()
@@ -552,6 +1063,10 @@ async function handleApi(req, res, url) {
         clients.delete(id)
         invites.delete(id)
         mbDisconnect(id)
+        omokDisconnect(id)
+        yutDisconnect(id)
+        rummiDisconnect(id)
+        yachtDisconnect(id)
         // 잠깐의 재연결은 일행을 유지하고, 오래 안 돌아오면 일행에서 뺀다.
         setTimeout(() => {
           if (!clients.has(id)) leaveParty(id, 'drop')
@@ -1115,6 +1630,363 @@ async function handleApi(req, res, url) {
     if (clubChat[clubId].length > CLUB_CHAT_CAP) clubChat[clubId].shift()
     scheduleSave()
     for (const pid of Object.keys(clubs[clubId].members)) sendTo(pid, { t: 'clubChat', club: clubId, msg })
+    return json(res, 200, { ok: true })
+  }
+
+  // ───────── 윷놀이 ─────────
+  if (route === '/api/yut/invite') {
+    const targets = Array.isArray(body.to) ? [...new Set(body.to.map(cleanId).filter(Boolean))].slice(0, 3) : []
+    if (!targets.length || targets.includes(me.id)) return json(res, 400, { error: 'bad-target' })
+    const myParty = partyOf.get(me.id)
+    if (!myParty) return json(res, 403, { error: 'not-party' })
+    for (const t of targets) if (!clients.has(t) || partyOf.get(t) !== myParty) return json(res, 403, { error: 'not-party' })
+    if (yutBusy(me.id)) return json(res, 409, { error: 'already-in-game' })
+    for (const t of targets) if (yutBusy(t)) return json(res, 409, { error: 'target-busy' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const lid = 'yl' + yutSeq++
+    const lobby = { id: lid, host: me.id, invited: Object.fromEntries(targets.map((t) => [t, 'wait'])) }
+    yutLobbies.set(lid, lobby)
+    yutLobbyOf.set(me.id, lid)
+    for (const t of targets) {
+      yutLobbyOf.set(t, lid)
+      sendTo(t, { t: 'yut', ev: 'invite', lid, from: { id: me.id, name: me.name } })
+    }
+    lobby.timer = setTimeout(() => {
+      if (yutLobbies.has(lid)) yutLobbyCancel(lobby, '응답이 없어 윷놀이 신청이 취소되었다.')
+    }, YUT_LOBBY_MS)
+    return json(res, 200, { ok: true, lid })
+  }
+  if (route === '/api/yut/respond') {
+    const lid = typeof body.lid === 'string' ? body.lid : ''
+    const lobby = yutLobbies.get(lid)
+    if (!lobby || lobby.invited[me.id] === undefined) return json(res, 400, { error: 'no-invite' })
+    lobby.invited[me.id] = body.accept ? 'yes' : 'no'
+    yutLobbyCheck(lobby)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yut/roll') {
+    const g = yutGames.get(yutOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    if (g.players[g.turn].id !== me.id) return json(res, 403, { error: 'not-your-turn' })
+    if (g.phase !== 'roll') return json(res, 400, { error: 'not-roll-phase' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const r = rollYut()
+    g.throws.push(r.steps)
+    g.lastRoll = { name: r.name, steps: r.steps }
+    yutLog(g, `${me.name} : ${r.name}`)
+    yutPruneDeadThrows(g)
+    if (g.throws.length === 0 && !r.extra) {
+      yutNextTurn(g)
+      g.phase = 'roll'
+    } else {
+      g.phase = r.extra ? 'roll' : 'apply'
+    }
+    yutPush(g)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yut/apply') {
+    const g = yutGames.get(yutOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    if (g.players[g.turn].id !== me.id) return json(res, 403, { error: 'not-your-turn' })
+    if (g.phase !== 'apply') return json(res, 400, { error: 'not-apply-phase' })
+    const steps = Number(body.steps)
+    const i = g.throws.indexOf(steps)
+    if (i < 0) return json(res, 400, { error: 'bad-throw' })
+    const selector = body.target === 'start' ? 'start' : Number(body.target)
+    const r = yutApply(g, selector, steps)
+    if (r.error) return json(res, 400, { error: r.error })
+    g.throws.splice(i, 1)
+    yutAfter(g, r)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yut/choose') {
+    const g = yutGames.get(yutOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    if (g.players[g.turn].id !== me.id) return json(res, 403, { error: 'not-your-turn' })
+    if (g.phase !== 'branch' || !g.pendingBranch) return json(res, 400, { error: 'no-pending' })
+    const pb = g.pendingBranch
+    const walked = yutResumeWalk(pb.at, pb.remaining, body.choice)
+    if (walked.error) return json(res, 400, { error: walked.error })
+    const r = yutResolve(g, pb.idxs, walked)
+    yutAfter(g, r)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yut/resign') {
+    const g = yutGames.get(yutOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    yutResign(g, me.id)
+    return json(res, 200, { ok: true })
+  }
+
+  // ───────── 루미큐브 ─────────
+  if (route === '/api/rummi/invite') {
+    const targets = Array.isArray(body.to) ? [...new Set(body.to.map(cleanId).filter(Boolean))].slice(0, 3) : []
+    if (!targets.length || targets.includes(me.id)) return json(res, 400, { error: 'bad-target' })
+    const myParty = partyOf.get(me.id)
+    if (!myParty) return json(res, 403, { error: 'not-party' })
+    for (const t of targets) if (!clients.has(t) || partyOf.get(t) !== myParty) return json(res, 403, { error: 'not-party' })
+    if (rummiBusy(me.id)) return json(res, 409, { error: 'already-in-game' })
+    for (const t of targets) if (rummiBusy(t)) return json(res, 409, { error: 'target-busy' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const lid = 'rl' + rummiSeq++
+    const lobby = { id: lid, host: me.id, invited: Object.fromEntries(targets.map((t) => [t, 'wait'])) }
+    rummiLobbies.set(lid, lobby)
+    rummiLobbyOf.set(me.id, lid)
+    for (const t of targets) {
+      rummiLobbyOf.set(t, lid)
+      sendTo(t, { t: 'rummi', ev: 'invite', lid, from: { id: me.id, name: me.name } })
+    }
+    lobby.timer = setTimeout(() => {
+      if (rummiLobbies.has(lid)) rummiLobbyCancel(lobby, '응답이 없어 루미큐브 신청이 취소되었다.')
+    }, RUMMI_LOBBY_MS)
+    return json(res, 200, { ok: true, lid })
+  }
+  if (route === '/api/rummi/respond') {
+    const lid = typeof body.lid === 'string' ? body.lid : ''
+    const lobby = rummiLobbies.get(lid)
+    if (!lobby || lobby.invited[me.id] === undefined) return json(res, 400, { error: 'no-invite' })
+    lobby.invited[me.id] = body.accept ? 'yes' : 'no'
+    rummiLobbyCheck(lobby)
+    return json(res, 200, { ok: true })
+  }
+  // 테이블 전체를 통째로 다시 제출받는다 — 쪼개기·합치기·끼워 넣기·조커 빼내 쓰기까지 여기서 전부 검증한다.
+  // body.table: [ { tiles: [tileId,...], assign?: {tileId:{color,num}} }, ... ]  (턴이 끝났을 때 테이블의 전체 모습)
+  if (route === '/api/rummi/commit') {
+    const g = rummiGames.get(rummiOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    const pIdx = g.players.findIndex((p) => p.id === me.id)
+    if (g.turn !== pIdx) return json(res, 403, { error: 'not-your-turn' })
+    const reqTable = Array.isArray(body.table) ? body.table.slice(0, 40) : []
+    if (!reqTable.length && !g.table.length) return json(res, 400, { error: 'empty' })
+
+    const hand = g.hands[pIdx]
+    const handMap = new Map(hand.map((t) => [t.id, t]))
+    const oldFlat = new Map()
+    for (const m of g.table) for (const t of m.tiles) oldFlat.set(t.id, t)
+
+    const usedIds = new Set()
+    const resolvedMelds = []
+    for (const entry of reqTable) {
+      const ids = Array.isArray(entry?.tiles) ? entry.tiles.slice(0, 20) : []
+      if (ids.length < 3) return json(res, 400, { error: 'bad-size' })
+      const tiles = []
+      let bad = false
+      for (const tid of ids) {
+        if (typeof tid !== 'string' || usedIds.has(tid)) { bad = true; break }
+        const base = handMap.get(tid) ?? oldFlat.get(tid)
+        if (!base) { bad = true; break }
+        usedIds.add(tid)
+        tiles.push(base)
+      }
+      if (bad) return json(res, 400, { error: 'bad-tile' })
+      const r = rummiValidateMeld(tiles, entry?.assign || {})
+      if (r.error) return json(res, 400, { error: r.error })
+      resolvedMelds.push({ idSet: new Set(ids), tiles: r.tiles, kind: r.kind, value: r.value })
+    }
+
+    // 보존 확인: 그 전까지 테이블에 있던 타일은 하나도 빠짐없이(손패로 되돌릴 수 없다) 어딘가에 다시 들어 있어야 한다.
+    for (const tid of oldFlat.keys()) if (!usedIds.has(tid)) return json(res, 400, { error: 'missing-tile' })
+
+    const firstMeldDone = g.firstMeld.has(me.id)
+    let newValue = 0
+    if (!firstMeldDone) {
+      // 첫 조합을 내기 전에는 기존 조합을 손댈 수 없다 — 전부 그대로 재등장해야 하고, 나머지(새 조합)는
+      // 전부 손패에서만 와야 하며 합이 30점 이상이어야 한다.
+      const oldMeldSets = g.table.map((m) => new Set(m.tiles.map((t) => t.id)))
+      const matched = new Array(oldMeldSets.length).fill(false)
+      const extras = []
+      for (const rm of resolvedMelds) {
+        const idx = oldMeldSets.findIndex((s, i) => !matched[i] && s.size === rm.idSet.size && [...s].every((x) => rm.idSet.has(x)))
+        if (idx >= 0) matched[idx] = true
+        else extras.push(rm)
+      }
+      if (matched.includes(false) || extras.some((rm) => [...rm.idSet].some((id) => oldFlat.has(id)))) {
+        return json(res, 400, { error: 'need-first-meld' })
+      }
+      newValue = extras.reduce((s, rm) => s + rm.value, 0)
+      if (newValue < FIRST_MELD_MIN) return json(res, 400, { error: 'need-30', value: newValue })
+    }
+
+    for (const tid of usedIds) {
+      if (oldFlat.has(tid)) continue
+      const i = hand.findIndex((h) => h.id === tid)
+      if (i >= 0) hand.splice(i, 1)
+    }
+    g.table = resolvedMelds.map((rm) => ({ id: 'm' + g.meldSeq++, kind: rm.kind, tiles: rm.tiles }))
+    if (!firstMeldDone) g.firstMeld.add(me.id)
+    g.hasPlayedThisTurn = true
+    g.passStreak = 0
+    rummiLog(g, `${me.name} : 테이블을 정리했다.`)
+    if (hand.length === 0) {
+      rummiEnd(g, me.id, `${me.name}님이 루미큐브에서 패를 다 내고 이겼다!`)
+      return json(res, 200, { ok: true })
+    }
+    rummiPush(g)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/rummi/end-turn') {
+    const g = rummiGames.get(rummiOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    const pIdx = g.players.findIndex((p) => p.id === me.id)
+    if (g.turn !== pIdx) return json(res, 403, { error: 'not-your-turn' })
+    if (!g.hasPlayedThisTurn) {
+      if (g.pool.length > 0) {
+        g.hands[pIdx].push(g.pool.pop())
+        rummiLog(g, `${me.name} : 패를 한 장 더 가져왔다.`)
+      } else {
+        rummiLog(g, `${me.name} : 낼 수 있는 조합이 없어 차례를 넘겼다.`)
+      }
+      g.passStreak++
+    } else {
+      g.passStreak = 0
+    }
+    const activeCount = g.players.filter((p) => !g.left.has(p.id)).length
+    if (g.pool.length === 0 && g.passStreak >= activeCount) {
+      rummiEndByScore(g)
+      return json(res, 200, { ok: true })
+    }
+    rummiNextTurn(g)
+    g.hasPlayedThisTurn = false
+    rummiPush(g)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/rummi/resign') {
+    const g = rummiGames.get(rummiOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    rummiResign(g, me.id)
+    return json(res, 200, { ok: true })
+  }
+
+  // ───────── 요트 다이스 ─────────
+  if (route === '/api/yacht/invite') {
+    const targets = Array.isArray(body.to) ? [...new Set(body.to.map(cleanId).filter(Boolean))].slice(0, 3) : []
+    if (!targets.length || targets.includes(me.id)) return json(res, 400, { error: 'bad-target' })
+    const myParty = partyOf.get(me.id)
+    if (!myParty) return json(res, 403, { error: 'not-party' })
+    for (const t of targets) if (!clients.has(t) || partyOf.get(t) !== myParty) return json(res, 403, { error: 'not-party' })
+    if (yachtBusy(me.id)) return json(res, 409, { error: 'already-in-game' })
+    for (const t of targets) if (yachtBusy(t)) return json(res, 409, { error: 'target-busy' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const lid = 'ylb' + yachtSeq++
+    const lobby = { id: lid, host: me.id, invited: Object.fromEntries(targets.map((t) => [t, 'wait'])) }
+    yachtLobbies.set(lid, lobby)
+    yachtLobbyOf.set(me.id, lid)
+    for (const t of targets) {
+      yachtLobbyOf.set(t, lid)
+      sendTo(t, { t: 'yacht', ev: 'invite', lid, from: { id: me.id, name: me.name } })
+    }
+    lobby.timer = setTimeout(() => {
+      if (yachtLobbies.has(lid)) yachtLobbyCancel(lobby, '응답이 없어 요트 다이스 신청이 취소되었다.')
+    }, YACHT_LOBBY_MS)
+    return json(res, 200, { ok: true, lid })
+  }
+  if (route === '/api/yacht/respond') {
+    const lid = typeof body.lid === 'string' ? body.lid : ''
+    const lobby = yachtLobbies.get(lid)
+    if (!lobby || lobby.invited[me.id] === undefined) return json(res, 400, { error: 'no-invite' })
+    lobby.invited[me.id] = body.accept ? 'yes' : 'no'
+    yachtLobbyCheck(lobby)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yacht/roll') {
+    const g = yachtGames.get(yachtOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    if (g.players[g.turn].id !== me.id) return json(res, 403, { error: 'not-your-turn' })
+    if (g.rollsLeft <= 0) return json(res, 400, { error: 'no-rolls-left' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const keep = Array.isArray(body.keep) ? body.keep.slice(0, 5).map(Boolean) : []
+    g.dice = yachtRollDice(g.dice, keep)
+    g.rollsLeft--
+    yachtLog(g, `${me.name} : ${g.dice.join(' ')}`)
+    yachtPush(g)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yacht/score') {
+    const g = yachtGames.get(yachtOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    const pIdx = g.players.findIndex((p) => p.id === me.id)
+    if (g.turn !== pIdx) return json(res, 403, { error: 'not-your-turn' })
+    if (g.rollsLeft >= 3) return json(res, 400, { error: 'must-roll-first' })
+    const cat = typeof body.category === 'string' ? body.category : ''
+    if (!yachtIsCategory(cat)) return json(res, 400, { error: 'bad-category' })
+    if (g.scorecards[pIdx][cat] != null) return json(res, 400, { error: 'already-filled' })
+    const score = yachtScoreFor(cat, g.dice)
+    g.scorecards[pIdx][cat] = score
+    yachtLog(g, `${me.name} : ${YACHT_CATEGORIES.find((c) => c.id === cat)?.label ?? cat} = ${score}점`)
+    g.dice = [0, 0, 0, 0, 0]
+    g.rollsLeft = YACHT_MAX_ROLLS
+    const allFull = g.players.every((p) => g.left.has(p.id) || yachtIsFull(g.scorecards[g.players.findIndex((pp) => pp.id === p.id)]))
+    if (allFull) {
+      yachtEndByScore(g)
+      return json(res, 200, { ok: true })
+    }
+    yachtNextTurn(g)
+    yachtPush(g)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/yacht/resign') {
+    const g = yachtGames.get(yachtOf.get(me.id))
+    if (!g || g.phase === 'over') return json(res, 400, { error: 'no-game' })
+    yachtResign(g, me.id)
+    return json(res, 200, { ok: true })
+  }
+
+  // ───────── 오목 ─────────
+  if (route === '/api/omok/invite') {
+    const to = cleanId(body.to)
+    if (!to || to === me.id) return json(res, 400, { error: 'bad-target' })
+    if (!clients.has(to)) return json(res, 404, { error: 'offline' })
+    const myParty = partyOf.get(me.id)
+    if (!myParty || partyOf.get(to) !== myParty) return json(res, 403, { error: 'not-party' })
+    if (omokOf.has(me.id)) return json(res, 409, { error: 'already-in-game' })
+    if (omokOf.has(to)) return json(res, 409, { error: 'target-busy' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    omokInvites.set(to, { from: me.id, at: Date.now() })
+    sendTo(to, { t: 'omok', ev: 'invite', from: { id: me.id, name: me.name } })
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/omok/respond') {
+    const fromId = cleanId(body.from)
+    const inv = omokInvites.get(me.id)
+    if (!inv || inv.from !== fromId) return json(res, 400, { error: 'no-invite' })
+    omokInvites.delete(me.id)
+    if (!body.accept) {
+      sendTo(fromId, { t: 'omok', ev: 'declined', from: { id: me.id, name: me.name } })
+      return json(res, 200, { ok: true })
+    }
+    if (!clients.has(fromId) || omokOf.has(me.id) || omokOf.has(fromId)) return json(res, 409, { error: 'unavailable' })
+    const gid = 'om' + omokSeq++
+    const g = { id: gid, players: [fromId, me.id], board: emptyBoard(OMOK_SIZE), turn: 0, winner: null, win: null, phase: 'play' }
+    omoks.set(gid, g)
+    omokOf.set(fromId, gid)
+    omokOf.set(me.id, gid)
+    for (const id of g.players) sendTo(id, { t: 'omok', ev: 'start', ...omokView(g) })
+    return json(res, 200, { ok: true, gid })
+  }
+  if (route === '/api/omok/move') {
+    const g = omoks.get(omokOf.get(me.id))
+    if (!g || g.phase !== 'play') return json(res, 400, { error: 'no-game' })
+    const turnIdx = g.players.indexOf(me.id)
+    if (g.turn !== turnIdx) return json(res, 403, { error: 'not-your-turn' })
+    const x = Math.floor(Number(body.x))
+    const y = Math.floor(Number(body.y))
+    const r = placeStone(g.board, OMOK_SIZE, x, y, turnIdx)
+    if (r.error) return json(res, 400, { error: r.error })
+    g.board = r.board
+    if (r.win) {
+      g.win = r.win
+      omokEnd(g, me.id)
+      return json(res, 200, { ok: true })
+    }
+    g.turn = 1 - g.turn
+    omokPush(g)
+    return json(res, 200, { ok: true })
+  }
+  if (route === '/api/omok/resign') {
+    const g = omoks.get(omokOf.get(me.id))
+    if (!g || g.phase !== 'play') return json(res, 400, { error: 'no-game' })
+    const other = g.players.find((p) => p !== me.id)
+    omokEnd(g, other, `${me.name}님이 오목을 포기했다.`)
     return json(res, 200, { ok: true })
   }
 

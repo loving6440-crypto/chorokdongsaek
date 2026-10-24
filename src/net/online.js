@@ -21,6 +21,17 @@ let state = {
   editReq: null, // 관리자의 스탯 · 디버프 수정 요청(동의 대기) { rid, adminName, changes, expires }
   editResult: null, // 내가 관리자일 때 받은 결과 { rid, status, targetName }
   club: null, // 내가 속한 동아리 { id, joinedAt, log: [...] } (없으면 null)
+  omok: null, // 진행 중인 오목 { gid, size, board, turn, players, winner, win }
+  omokInvite: null, // { from: { id, name } } — 오목 신청을 받았다
+  yut: null, // 진행 중인 윷놀이 { gid, players, pieces, left, turn, phase, throws, pendingBranch, lastRoll, winner, log }
+  yutInvite: null, // { lid, from: { id, name } } — 윷놀이 신청을 받았다
+  yutLobby: null, // { lid, waiting: [names] } — 내가 건 윷놀이 신청에서 응답을 기다리는 중
+  rummi: null, // 진행 중인 루미큐브 { gid, players, counts, hand, poolLeft, table, turn, hasPlayed, firstMeld, left, winner, log }
+  rummiInvite: null, // { lid, from: { id, name } } — 루미큐브 신청을 받았다
+  rummiLobby: null, // { lid, waiting: [names] } — 내가 건 루미큐브 신청에서 응답을 기다리는 중
+  yacht: null, // 진행 중인 요트 다이스 { gid, players, scorecards, dice, rollsLeft, turn, left, winner, tie, log }
+  yachtInvite: null, // { lid, from: { id, name } } — 요트 다이스 신청을 받았다
+  yachtLobby: null, // { lid, waiting: [names] } — 내가 건 요트 다이스 신청에서 응답을 기다리는 중
 }
 const listeners = new Set()
 const emit = () => listeners.forEach((l) => l())
@@ -53,6 +64,10 @@ function handle(ev) {
         mb: ev.mb ?? null,
         mailUnread: ev.mailUnread ?? 0,
         club: ev.club ?? null,
+        omok: ev.omok ?? null,
+        yut: ev.yut ?? null,
+        rummi: ev.rummi ?? null,
+        yacht: ev.yacht ?? null,
       })
       break
     case 'presence':
@@ -93,6 +108,54 @@ function handle(ev) {
       break
     case 'clubChat':
       if (state.club?.id === ev.club) set({ club: { ...state.club, log: [...state.club.log, ev.msg].slice(-200) } })
+      break
+    case 'omok':
+      if (ev.ev === 'invite') set({ omokInvite: { from: ev.from } })
+      else if (ev.ev === 'start' || ev.ev === 'state') set({ omok: { gid: ev.gid, size: ev.size, board: ev.board, turn: ev.turn, players: ev.players, winner: ev.winner, win: ev.win }, omokInvite: null })
+      else if (ev.ev === 'declined') pushNotice(`${ev.from.name}님이 오목 신청을 거절했다.`)
+      else if (ev.ev === 'closed') set({ omokInvite: null })
+      break
+    case 'yut':
+      if (ev.ev === 'invite') set({ yutInvite: { lid: ev.lid, from: ev.from } })
+      else if (ev.ev === 'state')
+        set({
+          yut: { gid: ev.gid, players: ev.players, pieces: ev.pieces, left: ev.left, turn: ev.turn, phase: ev.phase, throws: ev.throws, pendingBranch: ev.pendingBranch, lastRoll: ev.lastRoll, winner: ev.winner, log: ev.log },
+          yutInvite: null,
+          yutLobby: null,
+        })
+      else if (ev.ev === 'lobby') set({ yutLobby: { lid: ev.lid, waiting: ev.waiting } })
+      else if (ev.ev === 'lobby-cancel') {
+        pushNotice(ev.reason)
+        set({ yutLobby: null })
+      } else if (ev.ev === 'closed') set({ yutInvite: null })
+      break
+    case 'rummi':
+      if (ev.ev === 'invite') set({ rummiInvite: { lid: ev.lid, from: ev.from } })
+      else if (ev.ev === 'state')
+        set({
+          rummi: { gid: ev.gid, players: ev.players, counts: ev.counts, hand: ev.hand, poolLeft: ev.poolLeft, table: ev.table, turn: ev.turn, hasPlayed: ev.hasPlayed, firstMeld: ev.firstMeld, left: ev.left, winner: ev.winner, log: ev.log },
+          rummiInvite: null,
+          rummiLobby: null,
+        })
+      else if (ev.ev === 'lobby') set({ rummiLobby: { lid: ev.lid, waiting: ev.waiting } })
+      else if (ev.ev === 'lobby-cancel') {
+        pushNotice(ev.reason)
+        set({ rummiLobby: null })
+      } else if (ev.ev === 'closed') set({ rummiInvite: null })
+      break
+    case 'yacht':
+      if (ev.ev === 'invite') set({ yachtInvite: { lid: ev.lid, from: ev.from } })
+      else if (ev.ev === 'state')
+        set({
+          yacht: { gid: ev.gid, players: ev.players, scorecards: ev.scorecards, dice: ev.dice, rollsLeft: ev.rollsLeft, turn: ev.turn, left: ev.left, winner: ev.winner, tie: ev.tie, log: ev.log },
+          yachtInvite: null,
+          yachtLobby: null,
+        })
+      else if (ev.ev === 'lobby') set({ yachtLobby: { lid: ev.lid, waiting: ev.waiting } })
+      else if (ev.ev === 'lobby-cancel') {
+        pushNotice(ev.reason)
+        set({ yachtLobby: null })
+      } else if (ev.ev === 'closed') set({ yachtInvite: null })
       break
     case 'mail':
       set({ mailUnread: state.mailUnread + 1, mailTick: state.mailTick + 1 })
@@ -234,6 +297,83 @@ export const leaveClub = async () => {
 }
 export const fetchClubMembers = (club) => post('/api/club/members', { club })
 export const sendClubChat = (text) => post('/api/club/chat', { text })
+
+// ───────── 오목 ─────────
+export const inviteOmok = (to) => post('/api/omok/invite', { to })
+export const respondOmok = async (from, accept) => {
+  const r = await post('/api/omok/respond', { from, accept })
+  if (!accept) set({ omokInvite: null })
+  return r
+}
+export const moveOmok = (x, y) => post('/api/omok/move', { x, y })
+export const closeOmok = () => set({ omok: null }) // 끝난 판 화면을 닫는다(서버는 이미 정리했다)
+export const resignOmok = async () => {
+  const r = await post('/api/omok/resign', {})
+  if (r?.ok) set({ omok: null })
+  return r
+}
+
+// ───────── 윷놀이 ─────────
+export const inviteYut = async (to) => {
+  const r = await post('/api/yut/invite', { to })
+  if (r?.ok) set({ yutLobby: { lid: r.lid, waiting: to.map((id) => state.party?.members.find((m) => m.id === id)?.name ?? id) } })
+  return r
+}
+export const respondYut = async (lid, accept) => {
+  const r = await post('/api/yut/respond', { lid, accept })
+  if (!accept) set({ yutInvite: null })
+  return r
+}
+export const rollYutDice = () => post('/api/yut/roll', {})
+export const applyYutThrow = (steps, target) => post('/api/yut/apply', { steps, target })
+export const chooseYutBranch = (choice) => post('/api/yut/choose', { choice })
+export const resignYut = async () => {
+  const r = await post('/api/yut/resign', {})
+  if (r?.ok) set({ yut: null })
+  return r
+}
+export const closeYut = () => set({ yut: null })
+
+// ───────── 루미큐브 ─────────
+export const inviteRummi = async (to) => {
+  const r = await post('/api/rummi/invite', { to })
+  if (r?.ok) set({ rummiLobby: { lid: r.lid, waiting: to.map((id) => state.party?.members.find((m) => m.id === id)?.name ?? id) } })
+  return r
+}
+export const respondRummi = async (lid, accept) => {
+  const r = await post('/api/rummi/respond', { lid, accept })
+  if (!accept) set({ rummiInvite: null })
+  return r
+}
+/** table: [{tiles:[tileId,...], assign:{tileId:{color,num}}}, ...] — 내 턴이 끝났을 때 테이블의 전체 모습. */
+export const commitRummi = (table) => post('/api/rummi/commit', { table: table ?? [] })
+export const endRummiTurn = () => post('/api/rummi/end-turn', {})
+export const resignRummi = async () => {
+  const r = await post('/api/rummi/resign', {})
+  if (r?.ok) set({ rummi: null })
+  return r
+}
+export const closeRummi = () => set({ rummi: null })
+
+// ───────── 요트 다이스 ─────────
+export const inviteYacht = async (to) => {
+  const r = await post('/api/yacht/invite', { to })
+  if (r?.ok) set({ yachtLobby: { lid: r.lid, waiting: to.map((id) => state.party?.members.find((m) => m.id === id)?.name ?? id) } })
+  return r
+}
+export const respondYacht = async (lid, accept) => {
+  const r = await post('/api/yacht/respond', { lid, accept })
+  if (!accept) set({ yachtInvite: null })
+  return r
+}
+export const rollYacht = (keep) => post('/api/yacht/roll', { keep: keep ?? [false, false, false, false, false] })
+export const scoreYacht = (category) => post('/api/yacht/score', { category })
+export const resignYacht = async () => {
+  const r = await post('/api/yacht/resign', {})
+  if (r?.ok) set({ yacht: null })
+  return r
+}
+export const closeYacht = () => set({ yacht: null })
 
 // ───────── 벼룩시장 ─────────
 /** 내 물건이 팔렸다는 알림이 오면 cb() 를 부른다. */

@@ -203,19 +203,19 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
           <button
             type="button"
             onClick={onOpenCodex}
-            className="flat-btn flex-1 justify-center !px-1 text-xs sm:text-sm"
+            className="flat-btn flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
           >
-            <Trophy size={15} aria-hidden />
-            업적/도감
+            <Trophy size={13} aria-hidden />
+            업적/도감 확인하기
           </button>
           <button
             type="button"
             onClick={onOpenClub}
-            className="flat-btn relative flex-1 justify-center !px-1 text-xs sm:text-sm"
+            className="flat-btn relative flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
           >
-            <UsersRound size={15} aria-hidden />
-            동아리
-            {inClub && <span className="absolute top-1.5 right-2.5 size-1.5 rounded-full bg-gold" aria-hidden />}
+            <UsersRound size={13} aria-hidden />
+            동아리 확인하기
+            {inClub && <span className="absolute top-1 right-1.5 size-1.5 rounded-full bg-gold" aria-hidden />}
           </button>
         </div>
         {/* 맨 왼쪽 아래: 인트로 다시보기 */}
