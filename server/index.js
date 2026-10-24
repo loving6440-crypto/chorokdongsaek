@@ -6,6 +6,7 @@
 // 개발:  npm run server  +  npm run dev  (vite 가 /api 를 이 서버로 프록시한다)
 
 import http from 'node:http'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -644,7 +645,22 @@ async function handleApi(req, res, url) {
     if (body.adminKey && adminOk(body.adminKey)) acc.admin = true
     loginFails.delete(id)
     await accounts.put(acc)
-    return json(res, 200, { ok: true, migrated, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+    return json(res, 200, { ok: true, migrated, mustReset: !!acc.mustReset, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+  }
+
+  // 비밀번호 바꾸기(로그인 토큰 필요). 관리자가 임시 비밀번호를 발급한 뒤, 본인이 로그인해서 새 비밀번호로 바꿀 때 쓴다.
+  if (route === '/api/account/password') {
+    const id = bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    const acc = await accounts.get(id)
+    if (!acc) return json(res, 401, { error: 'no-account' })
+    const password = typeof body.password === 'string' ? body.password : ''
+    if (password.length < 4) return json(res, 400, { error: 'bad-password' })
+    if (rateLimited(`auth:${id}`)) return json(res, 429, { error: 'slow-down' })
+    acc.passwordHash = A.hashPassword(password)
+    delete acc.mustReset
+    await accounts.put(acc)
+    return json(res, 200, { ok: true })
   }
 
   // 자동 이전: 서버 저장이 생기기 전부터 로그인해 있던 브라우저가 접속하자마자 자기 기록을 올린다. (비밀번호 입력 없이)
@@ -689,6 +705,25 @@ async function handleApi(req, res, url) {
     if (rateLimited('auth:find')) return json(res, 429, { error: 'slow-down' })
     const ids = await accounts.idsByTwitter(body.twitter)
     return json(res, 200, { ok: true, ids })
+  }
+
+  // 관리자: 계정 문제(비밀번호를 잊음 등)가 생긴 사람에게 임시 비밀번호를 발급한다.
+  // 본인이 그 임시 비밀번호로 로그인하면 곧바로 새 비밀번호를 정해야 한다(mustReset). 관리자는 원래 비밀번호를 알 수도, 볼 수도 없다.
+  if (route === '/api/admin/account/reset') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    const target = typeof body.target === 'string' ? body.target.trim() : ''
+    if (!ID_RULE.test(target)) return json(res, 400, { error: 'bad-target' })
+    const acc = await accounts.get(target)
+    if (!acc) return json(res, 404, { error: 'no-account' })
+    const temp = crypto.randomBytes(5).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8)
+    acc.passwordHash = A.hashPassword(temp)
+    acc.mustReset = true
+    await accounts.put(acc)
+    return json(res, 200, { ok: true, target, tempPassword: temp })
   }
 
   // 관리자 키 확인 (로그인 화면에서 한 번). 맞으면 클라이언트가 그 계정을 관리자로 표시한다.

@@ -78,7 +78,7 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
           setLoading(false)
           return
         }
-        onSuccess(key ? markAdmin(result.user.id, key) ?? result.user : result.user)
+        onSuccess(key ? markAdmin(result.user.id, key) ?? result.user : result.user, { mustReset: result.mustReset })
       }
     } catch {
       setError('처리 중 오류가 발생했습니다.')

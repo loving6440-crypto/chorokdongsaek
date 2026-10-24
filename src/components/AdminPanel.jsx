@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
 import { STAT_KEYS, STAT_META } from '../game/constants'
 import { clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
+import { adminResetPassword } from '../game/auth'
 import { itemsText } from './MailboxPanel'
 
 const fmtAt = (t) => {
@@ -152,6 +153,39 @@ function EditOther({ userId, adminKey, online }) {
         <button type="button" data-edit-send disabled={!to || busy} onClick={send} className="flat-btn disabled:cursor-not-allowed disabled:opacity-40">수정 요청 보내기</button>
         <span className={`text-xs ${msg.ok ? 'text-gold/80' : 'text-crimson'}`} aria-live="polite" data-edit-msg>{msg.text}</span>
       </div>
+    </section>
+  )
+}
+
+/** 계정 문제(비밀번호를 잊음 등)를 겪는 사람에게 임시 비밀번호를 발급한다. */
+function PasswordReset({ userId, adminKey }) {
+  const [target, setTarget] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState(null)
+  const issue = async () => {
+    const id = target.trim()
+    if (!id || busy) return
+    setBusy(true)
+    setRes(null)
+    const r = await adminResetPassword(userId, adminKey, id)
+    setBusy(false)
+    setRes(r.ok ? { ok: true, target: r.target, temp: r.tempPassword } : { ok: false, text: r.error === 'no-account' ? '그런 아이디의 계정이 없다.' : r.error === 'bad-target' ? '아이디 형식이 올바르지 않다.' : '발급하지 못했다.' })
+  }
+  return (
+    <section data-pw-reset>
+      <p className="mb-1.5 text-xs tracking-widest text-paper/55">비밀번호를 잊은 계정에 임시 비밀번호 발급</p>
+      <p className="mb-2 text-[11px] text-paper/50">원래 비밀번호는 서버도 알 수 없다. 대신 임시 비밀번호를 새로 만들어 준다. 본인이 그걸로 로그인하면 곧바로 새 비밀번호를 정해야 한다.</p>
+      <div className="flex gap-1.5">
+        <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && issue()} placeholder="대상 아이디" aria-label="대상 아이디" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper outline-none focus:border-gold/50" />
+        <button type="button" data-pw-reset-go disabled={!target.trim() || busy} onClick={issue} className="rounded border border-edge/25 px-3 text-xs text-paper/80 hover:bg-edge/10 disabled:opacity-40">발급</button>
+      </div>
+      {res?.ok && (
+        <p className="mt-2 rounded-lg bg-shade/25 px-3 py-2 text-sm text-paper" data-pw-reset-result>
+          <b className="text-paper">{res.target}</b>의 임시 비밀번호: <span className="font-mono text-gold" data-temp-password>{res.temp}</span>
+          <br /><span className="text-[11px] text-paper/55">이 비밀번호를 본인에게 전해 주면, 로그인한 뒤 새 비밀번호를 정하게 된다. (지금 한 번만 보인다)</span>
+        </p>
+      )}
+      {res && !res.ok && <p className="mt-2 text-xs text-crimson" role="alert">{res.text}</p>}
     </section>
   )
 }
@@ -310,6 +344,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
               체력·의지력 가득 채우기
             </button>
           </section>
+          <PasswordReset userId={userId} adminKey={adminKey} />
           <EditOther userId={userId} adminKey={adminKey} online={online} />
           <MailAudit userId={userId} adminKey={adminKey} />
           <StoryReview userId={userId} adminKey={adminKey} />

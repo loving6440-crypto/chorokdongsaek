@@ -417,7 +417,33 @@ export async function serverLogin({ id, password, adminKey }) {
   setToken(r.data.token)
   const user = adoptServerUser(r.data.user, simpleHash(password + cleanId + 'changnok'))
   setSession(cleanId)
-  return { ok: true, user, migrated: !!r.data.migrated }
+  return { ok: true, user, migrated: !!r.data.migrated, mustReset: !!r.data.mustReset }
+}
+
+/** 로그인한 채로 비밀번호를 새로 정한다. 관리자가 임시 비밀번호를 발급해 줬을 때 등. */
+export async function setNewPassword(password) {
+  const r = await api('/api/account/password', { body: { password }, auth: true })
+  if (r.offline) return { ok: false, error: '서버에 연결할 수 없습니다.' }
+  if (!r.ok) return authError(r)
+  // 이 브라우저의 오프라인 로그인용 해시도 같이 바꿔 둔다.
+  const session = getSession()
+  if (session) {
+    const users = loadUsers()
+    const u = users[session.id]
+    if (u) {
+      u.passwordHash = simpleHash(password + session.id + 'changnok')
+      saveUsers(users, { fromServer: true })
+    }
+  }
+  return { ok: true }
+}
+
+/** 관리자: 계정 문제(비밀번호를 잊음 등)를 겪는 사람에게 임시 비밀번호를 발급한다. 본인이 로그인하면 새 비밀번호를 정해야 한다. */
+export async function adminResetPassword(adminId, adminKey, targetId) {
+  const r = await api('/api/admin/account/reset', { body: { id: adminId, key: adminKey, target: targetId } })
+  if (r.offline) return { ok: false, error: 'network' }
+  if (!r.ok) return { ok: false, error: r.data?.error ?? 'failed' }
+  return { ok: true, target: r.data.target, tempPassword: r.data.tempPassword }
 }
 
 /** 아이디 찾기 (서버). 서버에 연결할 수 없으면 이 브라우저의 기록에서 찾는다. */

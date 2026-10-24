@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import AuthScreen from './components/AuthScreen'
+import ForcePasswordReset from './components/ForcePasswordReset'
 import CharacterCreation from './components/CharacterCreation'
 import Intro from './components/Intro'
 import Game from './Game'
@@ -34,6 +35,7 @@ export default function App() {
   const [creating, setCreating] = useState(false) // 캐릭터 생성 중
   const [introPlaying, setIntroPlaying] = useState(false) // 첫 캐릭터 생성 전 인트로 재생 중
   const [introLeaving, setIntroLeaving] = useState(false) // 인트로가 끝나가는 중 (뒤에 생성 화면을 미리 깐다)
+  const [mustReset, setMustReset] = useState(false)
   const [relogin, setRelogin] = useState(null) // 서버 저장으로 바뀌어 다시 로그인해야 하는 아이디
   const [syncKey, setSyncKey] = useState(0) // 다른 기기의 최신 기록을 받으면 올려서 게임 화면을 새로 그린다
 
@@ -89,8 +91,9 @@ export default function App() {
     [],
   )
 
-  const handleAuthSuccess = useCallback((loggedInUser) => {
+  const handleAuthSuccess = useCallback((loggedInUser, opts) => {
     setRelogin(null)
+    setMustReset(!!opts?.mustReset)
     setUser(loggedInUser)
     if (!loggedInUser.save) {
       setCreating(true)
@@ -182,6 +185,10 @@ export default function App() {
         불러오는 중…
       </div>
     )
+  }
+
+  if (user && mustReset) {
+    return <ForcePasswordReset onDone={() => setMustReset(false)} />
   }
 
   if (!user) {
