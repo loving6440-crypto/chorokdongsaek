@@ -164,7 +164,15 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
 
             <p className="px-3 pt-1.5 text-[10px] text-paper/45">
               {isLog ? '교내에서 있었던 일이 최근 순으로 기록된다.' : TABS.find((t) => t.id === tab).hint}
-              {!isLog && tab === 'party' && inParty && ` · ${net.party.members.map((m) => (m.title ? `[${m.title}] ${m.name}` : m.name)).join(', ')}`}
+              {!isLog &&
+                tab === 'party' &&
+                inParty &&
+                ` · ${net.party.members
+                  .map((m, i) => {
+                    const tag = [i === 0 ? '파티장' : null, m.title].filter(Boolean)
+                    return tag.length ? `[${tag.join(' · ')}] ${m.name}` : m.name
+                  })
+                  .join(', ')}`}
             </p>
 
             {isLog ? (
@@ -256,6 +264,9 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
                     <p key={m.id} className="text-[13px] leading-snug break-words text-paper">
                       <span className="mr-1 text-[10px] text-paper/40">{timeOf(m.at)}</span>
                       {m.from?.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px align-middle text-[10px] font-medium text-white" data-title>[{m.from.title}]</span>}
+                      {tab === 'party' && m.from?.id && net.party?.members?.[0]?.id === m.from.id && (
+                        <span className="mr-1 rounded bg-gold/80 px-1 py-px align-middle text-[10px] font-medium text-ink" data-leader>파티장</span>
+                      )}
                       {m.from?.id && onProfile ? (
                         <button type="button" data-sfx="none" onClick={() => onProfile({ id: m.from.id, name: m.from.name })} aria-label={`${m.from.name}의 인적사항 보기`} className={`font-bold underline-offset-2 hover:underline ${m.from.id === net.me?.id ? 'text-gold' : 'text-paper/90'}`}>
                           {m.from.name}

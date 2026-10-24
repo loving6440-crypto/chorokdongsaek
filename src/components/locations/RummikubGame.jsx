@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Flag, Layers, Swords } from 'lucide-react'
 import { closeRummi, commitRummi, endRummiTurn, inviteRummi, resignRummi, respondRummi, useOnline } from '../../net/online'
 import { COLOR_LABEL, COLORS } from '../../game/rummikub'
+import RulesButton from '../RulesButton'
+import RummikubRules from './RummikubRules'
+import { useTurnPing } from '../../game/useTurnPing'
 
 const COLOR_CLASS = {
   red: 'bg-red-600 text-white',
@@ -57,16 +60,19 @@ function autoSortHand(hand) {
   return [...melds.flat(), ...leftover, ...jokers]
 }
 
-function Tile({ tile, selected, onClick, small }) {
+/** 타일 하나. draggable 이면 마우스/터치로 눌러서 바로 끌 수 있다(onDragStart(e, tile)). */
+function Tile({ tile, small, draggable, onDragStart, hidden }) {
   const cls = tile.color ? COLOR_CLASS[tile.color] : 'bg-edge/30 text-paper'
   return (
-    <button
-      type="button"
+    <div
       data-tile={tile.id}
-      aria-pressed={!!selected}
-      onClick={onClick}
+      role={draggable ? 'button' : undefined}
+      tabIndex={draggable ? 0 : undefined}
+      aria-label={draggable ? `${tile.joker ? '조커' : tile.num} 타일, 끌어서 옮기기` : undefined}
+      onMouseDown={draggable ? (e) => onDragStart(e, tile) : undefined}
+      onTouchStart={draggable ? (e) => onDragStart(e, tile) : undefined}
       title={tile.joker ? '조커' : undefined}
-      className={`relative flex items-center justify-center rounded-md font-serif ${small ? 'size-7 text-xs' : 'size-9 text-sm'} ${cls} ${selected ? 'ring-2 ring-gold' : ''} ${onClick ? '' : 'cursor-default'}`}
+      className={`relative flex items-center justify-center rounded-md font-serif select-none ${small ? 'size-7 text-xs' : 'size-9 text-sm'} ${cls} ${draggable ? 'touch-none cursor-grab active:cursor-grabbing' : 'cursor-default'} ${hidden ? 'opacity-0' : ''}`}
     >
       {tile.joker && (
         <span className={`absolute ${small ? '-top-1.5 -right-1.5 text-[8px]' : '-top-2 -right-2 text-[10px]'} leading-none text-gold drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]`} aria-hidden>
@@ -74,7 +80,7 @@ function Tile({ tile, selected, onClick, small }) {
         </span>
       )}
       {tile.joker ? (tile.num ?? '★') : tile.num}
-    </button>
+    </div>
   )
 }
 
@@ -98,9 +104,14 @@ export default function RummikubGame() {
   return (
     <div className="mt-3" data-game="rummikub">
       <div className="ink-panel rounded-xl p-4">
-        <p className="flex items-center gap-1.5 font-serif text-base text-paper">
-          <Layers size={15} className="text-gold" aria-hidden />
-          루미큐브
+        <p className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 font-serif text-base text-paper">
+            <Layers size={15} className="text-gold" aria-hidden />
+            루미큐브
+          </span>
+          <RulesButton title="루미큐브 규칙">
+            <RummikubRules />
+          </RulesButton>
         </p>
         <p className="mt-1 text-xs leading-relaxed text-paper/65">같은 일행의 1~3명을 골라 신청한다(2~4인). 모두 수락하면 시작한다.</p>
 
@@ -157,6 +168,7 @@ function RummiBoard({ game, me }) {
   const { gid, players, counts, hand, poolLeft, table, turn, hasPlayed, firstMeld = [], left = [], winner, log } = game
   const myIdx = players.findIndex((p) => p.id === me?.id)
   const myTurn = myIdx === turn && !winner
+  const turnPulse = useTurnPing(myTurn, `${gid}:${turn}`)
   const iHaveFirstMeld = firstMeld.includes(me?.id)
 
   const [ws, setWs] = useState(() => freshWorkspace(table, hand))
@@ -166,18 +178,14 @@ function RummiBoard({ game, me }) {
   const [touched, setTouched] = useState(false)
   const oldMeldKeys = useMemo(() => new Set(table.map((m) => m.id)), [gid, myTurn]) // eslint-disable-line react-hooks/exhaustive-deps
   const originalTableIds = useMemo(() => new Set(table.flatMap((m) => m.tiles.map((t) => t.id))), [gid, myTurn]) // eslint-disable-line react-hooks/exhaustive-deps
-  const [selected, setSelected] = useState([])
   const [jokerAssign, setJokerAssign] = useState({})
-  const [extendTarget, setExtendTarget] = useState('')
   const [err, setErr] = useState('')
 
   // 내 턴이 새로 시작할 때(혹은 새 판일 때)만 작업대를 서버 상태로 다시 맞춘다. 편집 중엔 그대로 둔다.
   useEffect(() => {
     setWs(freshWorkspace(table, hand))
     setTouched(false)
-    setSelected([])
     setJokerAssign({})
-    setExtendTarget('')
     setErr('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid, myTurn])
@@ -188,80 +196,115 @@ function RummiBoard({ game, me }) {
   // (내 턴일 때만 로컬 작업대 ws 를 보여 주고 편집한다).
   const view = myTurn ? ws : freshWorkspace(table, hand)
 
-  const toggleSelect = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  // ── 드래그로 타일 옮기기 ──
+  // 네이티브 HTML5 드래그는 터치에서 믿을 수 없어서, 포인터 좌표를 직접 추적해
+  // 손을 떼는 지점이 어느 영역(손패·조합·새 조합 칸) 위인지로 판정한다.
+  const guard = useRef({ editable, oldMeldKeys, canEditOldMelds })
+  guard.current = { editable, oldMeldKeys, canEditOldMelds }
+  const dragRef = useRef(null)
+  const [dragVisual, setDragVisual] = useState(null)
+  const zoneRefs = useRef(new Map())
+  const setZoneRef = (id) => (el) => {
+    if (el) zoneRefs.current.set(id, el)
+    else zoneRefs.current.delete(id)
+  }
 
-  const pullFromMeld = (meldKey, tileId) => {
+  const beginDrag = (e, tile) => {
     if (!editable) return
-    setErr('')
-    setWs((w) => {
-      const melds = []
-      let pulled = null
-      for (const m of w.melds) {
-        if (m.key !== meldKey) { melds.push(m); continue }
-        const tiles = m.tiles.filter((t) => {
-          if (t.id === tileId) { pulled = t; return false }
-          return true
-        })
-        if (tiles.length > 0) melds.push({ ...m, tiles })
+    e.preventDefault()
+    const p = e.touches ? e.touches[0] : e
+    dragRef.current = { id: tile.id }
+    setDragVisual({ tile, x: p.clientX, y: p.clientY })
+  }
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!dragRef.current) return
+      e.preventDefault()
+      const p = e.touches ? e.touches[0] : e
+      setDragVisual((d) => d && { ...d, x: p.clientX, y: p.clientY })
+    }
+    const onUp = (e) => {
+      if (!dragRef.current) return
+      const p = e.changedTouches ? e.changedTouches[0] : e
+      const { id } = dragRef.current
+      dragRef.current = null
+      setDragVisual(null)
+      if (!guard.current.editable) return
+      let target = null
+      for (const [zid, el] of zoneRefs.current) {
+        const r = el.getBoundingClientRect()
+        if (p.clientX >= r.left && p.clientX <= r.right && p.clientY >= r.top && p.clientY <= r.bottom) {
+          target = zid
+          break
+        }
       }
-      if (!pulled) return w
-      return { melds, hand: [...w.hand, pulled] }
-    })
-    setTouched(true)
-  }
+      if (!target) return
+      setErr('')
+      setWs((w) => {
+        let tile = null
+        let hand = w.hand
+        let melds = w.melds
+        const fromHand = w.hand.find((t) => t.id === id)
+        if (fromHand) {
+          tile = fromHand
+          hand = w.hand.filter((t) => t.id !== id)
+        } else {
+          melds = []
+          for (const m of w.melds) {
+            const found = m.tiles.find((t) => t.id === id)
+            if (!found) { melds.push(m); continue }
+            tile = found
+            const tiles = m.tiles.filter((t) => t.id !== id)
+            if (tiles.length > 0) melds.push({ ...m, tiles })
+          }
+        }
+        if (!tile) return w
+        if (target === 'hand') return { hand: [...hand, tile], melds }
+        if (target === 'new') return { hand, melds: [...melds, { key: 'new' + Date.now() + Math.random(), origin: null, tiles: [tile] }] }
+        const { oldMeldKeys: ok, canEditOldMelds: cem } = guard.current
+        if (ok.has(target) && !cem) return w // 아직 손댈 수 없는(첫 조합 전) 기존 조합
+        const exists = melds.some((m) => m.key === target)
+        const next = exists
+          ? melds.map((m) => (m.key === target ? { ...m, tiles: [...m.tiles, tile] } : m))
+          : [...melds, { key: target, origin: null, tiles: [tile] }]
+        return { hand, melds: next }
+      })
+      setTouched(true)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [])
 
-  // 조커를 골랐는데 색·숫자를 한 번도 고르지 않았다면(처음 손에 든 조커) 묵묵히 빨강 1로 떨어뜨리지 않고 먼저 고르게 한다.
-  // 이전 턴에 테이블에서 쓰던 값이 있던 조커(테이블에서 꺼내 온 경우)는 그 값을 그대로 이어받은 걸로 친다.
-  const jokerNeedsAssign = (id) => {
-    const t = ws.hand.find((h) => h.id === id)
-    return !!t?.joker && !jokerAssign[id]?.color && t.color == null
-  }
+  // 조커는 테이블에 낼 때 무엇을 대신하는지(색·숫자) 정해야 한다. 한 번 정했거나(이전 턴에 이미 쓰던 값)
+  // jokerAssign 에 골라 둔 값이 있으면 그 값을, 둘 다 없으면 "아직 못 정함"으로 본다.
+  const resolveTile = (t) => (t.joker ? { ...t, color: jokerAssign[t.id]?.color ?? t.color, num: jokerAssign[t.id]?.num ?? t.num } : t)
+  const meldUnassignedJokers = (m) => m.tiles.filter((t) => t.joker && resolveTile(t).color == null)
 
-  const resolvedSelected = () =>
-    selected
-      .map((id) => ws.hand.find((h) => h.id === id))
-      .filter(Boolean)
-      .map((t) => (t.joker ? { ...t, color: jokerAssign[t.id]?.color ?? t.color ?? 'red', num: jokerAssign[t.id]?.num ?? t.num ?? 1 } : t))
-
-  const addNewMeld = () => {
-    setErr('')
-    if (selected.length < 3) return setErr('3장 이상 골라야 조합이 된다.')
-    if (selected.some(jokerNeedsAssign)) return setErr('조커로 쓸 색과 숫자를 먼저 골라야 한다(아래 조커 칸에서 고른다).')
-    const tiles = resolvedSelected()
-    setWs((w) => ({ melds: [...w.melds, { key: 'new' + Date.now() + Math.random(), origin: null, tiles }], hand: w.hand.filter((t) => !selected.includes(t.id)) }))
-    setTouched(true)
-    setSelected([])
-  }
-  const addToMeld = () => {
-    setErr('')
-    if (!extendTarget) return setErr('어느 조합에 더할지 골라야 한다.')
-    if (!ws.melds.some((m) => m.key === extendTarget)) return setErr('그 조합은 더 이상 없다.')
-    if (!selected.length) return setErr('더할 패를 먼저 골라야 한다.')
-    if (selected.some(jokerNeedsAssign)) return setErr('조커로 쓸 색과 숫자를 먼저 골라야 한다(아래 조커 칸에서 고른다).')
-    const tiles = resolvedSelected()
-    setWs((w) => ({
-      melds: w.melds.map((m) => (m.key === extendTarget ? { ...m, tiles: [...m.tiles, ...tiles] } : m)),
-      hand: w.hand.filter((t) => !selected.includes(t.id)),
-    }))
-    setTouched(true)
-    setSelected([])
-  }
   const revert = () => {
     setWs(freshWorkspace(table, hand))
     setTouched(false)
-    setSelected([])
     setJokerAssign({})
     setErr('')
   }
 
   const incompleteMeld = ws.melds.some((m) => m.tiles.length < 3)
   const strandedTable = ws.hand.some((t) => originalTableIds.has(t.id))
+  const needsJokerAssign = ws.melds.some((m) => meldUnassignedJokers(m).length > 0)
 
   const submit = async () => {
     setErr('')
     const payload = ws.melds.map((m) => ({
       tiles: m.tiles.map((t) => t.id),
-      assign: Object.fromEntries(m.tiles.filter((t) => t.joker).map((t) => [t.id, { color: t.color, num: t.num }])),
+      assign: Object.fromEntries(m.tiles.filter((t) => t.joker).map((t) => [t.id, { color: resolveTile(t).color, num: resolveTile(t).num }])),
     }))
     const r = await commitRummi(payload)
     if (!r?.ok) {
@@ -278,8 +321,6 @@ function RummiBoard({ game, me }) {
     // "손댄 상태"를 풀어서 턴 마치기를 다시 누를 수 있게 한다. (서버가 새 모습을 push 하면 위쪽 view 에도 반영된다)
     setTouched(false)
   }
-
-  const extendOptions = ws.melds.filter((m) => !oldMeldKeys.has(m.key) || canEditOldMelds)
 
   return (
     <div className="mt-3" data-rummi-gid={gid}>
@@ -300,7 +341,10 @@ function RummiBoard({ game, me }) {
           {players.find((p) => p.id === winner)?.name}님의 승리!
         </p>
       ) : (
-        <p className="mt-2 text-xs text-paper/60">
+        <p
+          key={myTurn ? turnPulse : 'wait'}
+          className={`mt-2 inline-block rounded px-1 text-xs text-paper/60 ${myTurn ? 'turn-ping' : ''}`}
+        >
           {myTurn ? '내 차례다.' : `${players[turn]?.name}님의 차례를 기다린다.`}
           {myTurn && !iHaveFirstMeld && ' · 첫 조합은 30점 이상이어야 한다.'}
           {myTurn && iHaveFirstMeld && ' · 테이블 조합을 자유롭게 손볼 수 있다.'}
@@ -308,29 +352,80 @@ function RummiBoard({ game, me }) {
       )}
 
       <div className="mt-3 space-y-2" data-rummi-table aria-label="테이블">
-        <p className="text-[11px] tracking-widest text-paper/50">테이블</p>
+        <p className="text-[11px] tracking-widest text-paper/50">테이블{editable && ' (타일을 끌어서 조합을 만든다)'}</p>
         {!view.melds.length && <p className="text-xs text-paper/40">아직 나온 조합이 없다.</p>}
         {view.melds.map((meld) => {
           const canPull = editable && (!oldMeldKeys.has(meld.key) || canEditOldMelds)
+          const unassigned = meldUnassignedJokers(meld)
           return (
-            <div
-              key={meld.key}
-              className={`flex flex-wrap items-center gap-1 rounded-lg p-1.5 ${meld.tiles.length < 3 ? 'bg-crimson/10 ring-1 ring-crimson/40' : 'bg-shade/20'}`}
-              data-meld={meld.key}
-            >
-              {sortMeldTiles(meld.tiles).map((t) => (
-                <Tile key={t.id} tile={t} small onClick={canPull ? () => pullFromMeld(meld.key, t.id) : undefined} />
-              ))}
-              {meld.tiles.length < 3 && <span className="text-[10px] text-crimson">미완성</span>}
+            <div key={meld.key}>
+              <div
+                ref={canPull ? setZoneRef(meld.key) : undefined}
+                className={`flex min-h-[2.25rem] flex-wrap items-center gap-1 rounded-lg p-1.5 ${meld.tiles.length < 3 ? 'bg-crimson/10 ring-1 ring-crimson/40' : 'bg-shade/20'} ${canPull ? 'ring-1 ring-dashed ring-gold/20' : ''}`}
+                data-meld={meld.key}
+              >
+                {sortMeldTiles(meld.tiles).map((t) => (
+                  <Tile key={t.id} tile={t} small draggable={canPull} onDragStart={beginDrag} hidden={dragVisual?.tile.id === t.id} />
+                ))}
+                {meld.tiles.length < 3 && <span className="text-[10px] text-crimson">미완성</span>}
+              </div>
+              {unassigned.length > 0 && (
+                <div className="mt-1 space-y-1">
+                  {unassigned.map((j) => (
+                    <div key={j.id} className="flex items-center gap-2 text-xs text-paper/70">
+                      <span>조커 →</span>
+                      <select
+                        value={jokerAssign[j.id]?.color ?? ''}
+                        onChange={(e) => setJokerAssign((a) => ({ ...a, [j.id]: { color: e.target.value, num: a[j.id]?.num ?? 1 } }))}
+                        aria-label={`${j.id} 색`}
+                        className="rounded-lg bg-shade/50 px-1.5 py-0.5 text-xs text-paper ring-1 ring-edge/20"
+                      >
+                        <option value="" disabled className="bg-ink text-paper">
+                          색
+                        </option>
+                        {COLORS.map((c) => (
+                          <option key={c} value={c} className="bg-ink text-paper">
+                            {COLOR_LABEL[c]}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={jokerAssign[j.id]?.num ?? ''}
+                        onChange={(e) => setJokerAssign((a) => ({ ...a, [j.id]: { color: a[j.id]?.color ?? 'red', num: Number(e.target.value) } }))}
+                        aria-label={`${j.id} 숫자`}
+                        className="rounded-lg bg-shade/50 px-1.5 py-0.5 text-xs text-paper ring-1 ring-edge/20"
+                      >
+                        <option value="" disabled className="bg-ink text-paper">
+                          숫자
+                        </option>
+                        {Array.from({ length: 13 }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n} className="bg-ink text-paper">
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
+        {editable && (
+          <div
+            ref={setZoneRef('new')}
+            data-rummi-newzone
+            className="flex h-10 items-center justify-center rounded-lg border border-dashed border-gold/25 text-[11px] text-paper/40"
+          >
+            여기로 끌어와 새 조합 만들기
+          </div>
+        )}
       </div>
 
       {!winner && (
         <>
           <div className="mt-3 flex items-center justify-between">
-            <p className="text-[11px] tracking-widest text-paper/50">내 패 (클릭으로 고르기)</p>
+            <p className="text-[11px] tracking-widest text-paper/50">내 패{editable && ' (끌어서 테이블에 올리기)'}</p>
             {editable && (
               <button type="button" onClick={() => setWs((w) => ({ ...w, hand: autoSortHand(w.hand) }))} className="flat-btn-ghost !py-0.5 text-[11px]">
                 <Layers size={11} aria-hidden />
@@ -338,85 +433,17 @@ function RummiBoard({ game, me }) {
               </button>
             )}
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-1" data-rummi-hand>
+          <div ref={editable ? setZoneRef('hand') : undefined} className="mt-1.5 flex min-h-[2.5rem] flex-wrap gap-1 rounded-lg p-1" data-rummi-hand>
             {view.hand.map((t) => (
-              <Tile key={t.id} tile={t} selected={selected.includes(t.id)} onClick={editable ? () => toggleSelect(t.id) : undefined} />
+              <Tile key={t.id} tile={t} draggable={editable} onDragStart={beginDrag} hidden={dragVisual?.tile.id === t.id} />
             ))}
           </div>
 
-          {selected.some((id) => ws.hand.find((h) => h.id === id)?.joker) && (
-            <div className="mt-2 space-y-1">
-              {selected
-                .map((id) => ws.hand.find((h) => h.id === id))
-                .filter((t) => t?.joker)
-                .map((j) => (
-                  <div key={j.id} className="flex items-center gap-2 text-xs text-paper/70">
-                    <span>조커 {j.id} →</span>
-                    <select
-                      value={jokerAssign[j.id]?.color ?? j.color ?? ''}
-                      onChange={(e) => setJokerAssign((a) => ({ ...a, [j.id]: { color: e.target.value, num: a[j.id]?.num ?? j.num ?? 1 } }))}
-                      aria-label={`${j.id} 색`}
-                      className="rounded-lg bg-shade/50 px-1.5 py-0.5 text-xs text-paper ring-1 ring-edge/20"
-                    >
-                      <option value="" disabled className="bg-ink text-paper">
-                        색
-                      </option>
-                      {COLORS.map((c) => (
-                        <option key={c} value={c} className="bg-ink text-paper">
-                          {COLOR_LABEL[c]}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={jokerAssign[j.id]?.num ?? j.num ?? ''}
-                      onChange={(e) => setJokerAssign((a) => ({ ...a, [j.id]: { color: a[j.id]?.color ?? j.color ?? 'red', num: Number(e.target.value) } }))}
-                      aria-label={`${j.id} 숫자`}
-                      className="rounded-lg bg-shade/50 px-1.5 py-0.5 text-xs text-paper ring-1 ring-edge/20"
-                    >
-                      <option value="" disabled className="bg-ink text-paper">
-                        숫자
-                      </option>
-                      {Array.from({ length: 13 }, (_, i) => i + 1).map((n) => (
-                        <option key={n} value={n} className="bg-ink text-paper">
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          {editable && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={addNewMeld} className="flat-btn !py-1 text-xs" disabled={selected.length < 3}>
-                새 조합으로 묶기
+          {touched && (
+            <div className="mt-2">
+              <button type="button" onClick={revert} className="flat-btn-ghost !py-1 text-xs">
+                되돌리기
               </button>
-              {extendOptions.length > 0 && (
-                <>
-                  <select
-                    value={extendTarget}
-                    onChange={(e) => setExtendTarget(e.target.value)}
-                    aria-label="더할 조합"
-                    className="rounded-lg bg-shade/50 px-1.5 py-0.5 text-xs text-paper ring-1 ring-edge/20"
-                  >
-                    <option value="" className="bg-ink text-paper">조합에 추가하기</option>
-                    {extendOptions.map((m) => (
-                      <option key={m.key} value={m.key} className="bg-ink text-paper">
-                        {m.tiles.map((t) => t.num ?? '★').join(',')}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" onClick={addToMeld} className="flat-btn !py-1 text-xs" disabled={!selected.length}>
-                    고른 패 추가
-                  </button>
-                </>
-              )}
-              {touched && (
-                <button type="button" onClick={revert} className="flat-btn-ghost !py-1 text-xs">
-                  되돌리기
-                </button>
-              )}
             </div>
           )}
 
@@ -428,7 +455,7 @@ function RummiBoard({ game, me }) {
           {strandedTable && <p className="mt-1 text-xs text-crimson">테이블에서 꺼낸 패가 아직 자리를 못 찾았다 — 다시 조합에 넣어야 한다.</p>}
 
           {editable && touched && (
-            <button type="button" onClick={submit} className="flat-btn mt-2 !py-1 text-xs" disabled={incompleteMeld || strandedTable}>
+            <button type="button" onClick={submit} className="flat-btn mt-2 !py-1 text-xs" disabled={incompleteMeld || strandedTable || needsJokerAssign}>
               제출하기
             </button>
           )}
@@ -438,6 +465,12 @@ function RummiBoard({ game, me }) {
             </button>
           )}
         </>
+      )}
+
+      {dragVisual && (
+        <div className="pointer-events-none fixed z-[90]" style={{ left: dragVisual.x - 18, top: dragVisual.y - 18 }}>
+          <Tile tile={dragVisual.tile} />
+        </div>
       )}
 
       {log?.length > 0 && (

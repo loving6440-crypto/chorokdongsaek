@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
-import { specialSummary, ACTIONS, INTENTS, LENT_FIRE, PSYCHICS, TUTOR_ENEMY, enemyTurn, fireTurn, newBattle, playerTurn, psychicTurn, scanTurns } from '../../game/battle'
+import { specialSummary, ACTIONS, INTENTS, LENT_FIRE, ownedPsychics, TUTOR_ENEMY, enemyTurn, fireTurn, newBattle, playerTurn, psychicTurn, scanTurns } from '../../game/battle'
 import SpBanner from '../SpBanner'
 import { Bar } from './battleUi'
 
@@ -401,8 +401,10 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
         mpNow = 10
         push([{ kind: 'warn', text: '(의지력이 0이라 바리가 연습용으로 조금 채워 주었다.)' }])
       }
-      const ctx = { stats, mp: mpNow, noRash: true, ...(n.scanAmount && action === 'scan' ? { scanAmount: n.scanAmount } : {}) }
-      const r = playerTurn(cur, action, ctx)
+      // '효험'은 이제 독립된 행동이 아니라 일반 공격에 거는 토글이지만, 연습에서는 누르면 바로 그 효과로 때린다.
+      const realAction = action === 'buff' ? 'attack' : action
+      const ctx = { stats, mp: mpNow, noRash: true, buff: action === 'buff', ...(n.scanAmount && action === 'scan' ? { scanAmount: n.scanAmount } : {}) }
+      const r = playerTurn(cur, realAction, ctx)
       onMp?.(-r.mpCost)
       mpNow -= r.mpCost
       mpRef.current = mpNow
@@ -610,7 +612,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록" data-tut-psychic>
           <p className="font-serif text-base text-gold">영능력</p>
           {(() => {
-            const mine = PSYCHICS.filter((x) => psychics.includes(x.id))
+            const mine = ownedPsychics(psychics)
             const list = [...(lent ? [{ ...LENT_FIRE, lentFrom: BARI }] : []), ...mine]
             if (!list.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
             return (

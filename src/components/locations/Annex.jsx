@@ -8,6 +8,7 @@ import NpcGift from '../NpcGift'
 import ClubRoomPanel from '../ClubRoomPanel'
 import BoardGames from './BoardGames'
 import Workshop from './Workshop'
+import Cooking from './Cooking'
 
 /** **굵게**(눌러볼 수 있는 단서) 표기를 꾸밈으로 바꾼다. (Explore.jsx 의 Rich 와 같은 규칙) */
 function Rich({ text }) {
@@ -98,13 +99,43 @@ function BoardRoom({ player, admin, onHoljjak, myClub, onApplyClub, onFetchMembe
   )
 }
 
-/** 동아리 부실만 있는 방(음악실 · 방송실 · 조리실 · 서적실 · 다도실): 방 소개 + 동아리. */
+/** 조리실: 조리하기 / 요리 동아리 */
+function CookRoom({ player, admin, onCook, myClub, onApplyClub, onFetchMembers }) {
+  const [tab, setTab] = useState('cook')
+  return (
+    <div className="mt-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="조리실 활동">
+        {[
+          ['cook', '조리하기'],
+          ['club', '요리 동아리'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={tab === id}
+            onClick={() => setTab(id)}
+            className={`tilt rounded-full px-4 py-1.5 text-sm ${tab === id ? 'bg-gold-fill text-ink' : 'bg-edge/[0.07] text-paper/85 hover:bg-gold-fill/20'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'cook' ? (
+        <Cooking player={player} admin={admin} onCook={onCook} />
+      ) : (
+        <ClubRoomPanel clubId="cook" myClub={myClub} onApply={onApplyClub} onFetchMembers={onFetchMembers} />
+      )}
+    </div>
+  )
+}
+
+/** 동아리 부실만 있는 방(음악실 · 방송실 · 서적실 · 다도실 · 정원): 방 소개 + 동아리. */
 function ClubOnlyRoom({ room, myClub, onApplyClub, onFetchMembers }) {
   return <ClubRoomPanel clubId={room.club} myClub={myClub} onApply={onApplyClub} onFetchMembers={onFetchMembers} />
 }
 
 /** 별관 탐사: 층 → 방 순으로 살핀다. 2층 공작소 · 패 놀이터는 전용 화면을, 그 외 동아리 방은 공용 동아리 화면을 더 보여 준다. */
-export default function Annex({ view, player, admin, onCraft, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers }) {
+export default function Annex({ view, player, admin, onCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers }) {
   const [floorId, setFloorId] = useState(null)
   const [roomId, setRoomId] = useState(null)
   const floor = ANNEX_FLOORS.find((f) => f.id === floorId)
@@ -175,7 +206,10 @@ export default function Annex({ view, player, admin, onCraft, onMeet, onLineSeen
               {room.id === 'board' && (
                 <BoardRoom player={player} admin={admin} onHoljjak={onHoljjak} myClub={myClub} onApplyClub={onApplyClub} onFetchMembers={onFetchMembers} />
               )}
-              {room.club && room.id !== 'craft' && room.id !== 'board' && (
+              {room.id === 'cook' && (
+                <CookRoom player={player} admin={admin} onCook={onCook} myClub={myClub} onApplyClub={onApplyClub} onFetchMembers={onFetchMembers} />
+              )}
+              {room.club && room.id !== 'craft' && room.id !== 'board' && room.id !== 'cook' && (
                 <ClubOnlyRoom room={room} myClub={myClub} onApplyClub={onApplyClub} onFetchMembers={onFetchMembers} />
               )}
             </div>

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
-import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, PSYCHICS, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, ownedPsychics, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 import { Bar, vague } from './battleUi'
 import SpBanner from '../SpBanner'
 
-const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
-const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
+const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
+const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
 const STATUS_LABEL = { alive: '', down: '전투불능', fled: '이탈' }
 
 /**
@@ -20,6 +20,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const [psyOpen, setPsyOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
+  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능에 적용)
   const [sending, setSending] = useState(false)
   const [spBanner, setSpBanner] = useState(null)
   const [dice, setDice] = useState(null)
@@ -60,6 +61,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     setSending(false)
     setPsyOpen(false)
     setScanOpen(false)
+    setBuffArmed(false)
   }, [view.round, view.phase, view.turn])
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500)
@@ -82,10 +84,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
 
   const send = async (act) => {
     if (!canAct) return
+    const buffed = buffArmed && (act.action === 'attack' || act.action === 'charm' || (act.action === 'psychic' && act.psychic === 'survival'))
     setSending(true)
     setPsyOpen(false)
     setScanOpen(false)
-    const r = await onAct(act)
+    if (buffed) setBuffArmed(false)
+    const r = await onAct(buffed ? { ...act, buff: true } : act)
     if (!r?.ok) setSending(false)
   }
   const pick = (id) => {
@@ -100,9 +104,14 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       return setScanOpen((o) => !o)
     }
     if (id === 'charm' && me.charms <= 0) return // 의지력이 모자라도 부적은 쓸 수 있다
-    if (id === 'buff' && have < mpCostOf(stats, BUFF_COST)) return
     if (id === 'guard' && me.bound) return
     send({ action: id })
+  }
+  // 효험(모두가 가진 영능력): 켜 두면 차례를 쓰지 않는다. 다음에 고르는 일반 공격·부적·생존본능이 두 번 굴러간다.
+  // 의지력이 모자라도(0까지) 발동하므로 토글 자체는 의지력으로 막지 않는다.
+  const toggleBuff = () => {
+    if (!canAct) return
+    setBuffArmed((v) => !v)
   }
   useEffect(() => {
     const onKey = (e) => {
@@ -266,7 +275,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                 ? true
                 : id === 'psychic'
                   ? !canAct
-                  : (id === 'charm' && me.charms <= 0) || (id === 'buff' && have < mpCostOf(stats, BUFF_COST)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
+                  : (id === 'charm' && me.charms <= 0) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
             return (
               <button
                 key={id}
@@ -287,6 +296,13 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
             )
           })}
         </div>
+      )}
+
+      {buffArmed && !view.over && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-gold" data-buff-armed>
+          <Flame size={12} aria-hidden />
+          효험이 켜져 있다 — 다음 일반 공격·부적·생존본능이 두 번 굴러 더 나은 쪽으로 들어간다.
+        </p>
       )}
 
       {scanOpen && !view.over && (
@@ -314,7 +330,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
           <p className="font-serif text-base text-gold">영능력</p>
           {(() => {
-            const mine = PSYCHICS.filter((s) => psychics.includes(s.id))
+            const mine = ownedPsychics(psychics)
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
             return (
               <ul className="mt-2 space-y-2">
@@ -323,10 +339,22 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                     <p className="text-sm text-paper">{s.label}</p>
                     <p className="text-[11px] text-paper/60">{s.note}</p>
                     {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
-                    {s.use && (
-                      <button type="button" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
-                        사용
+                    {s.toggle ? (
+                      <button
+                        type="button"
+                        aria-pressed={buffArmed}
+                        disabled={!canAct}
+                        onClick={toggleBuff}
+                        className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
+                      >
+                        {buffArmed ? '켜짐 (끄기)' : '켜기'}
                       </button>
+                    ) : (
+                      s.use && (
+                        <button type="button" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                          사용
+                        </button>
+                      )
                     )}
                   </li>
                 ))}

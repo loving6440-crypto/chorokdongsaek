@@ -20,6 +20,7 @@ import CodexModal from './components/CodexModal'
 import BringPicker from './components/BringPicker'
 import { ACHIEVEMENTS } from './game/achievements'
 import { craft } from './game/crafting'
+import { cook } from './game/cooking'
 import Intro from './components/Intro'
 import AdminPanel from './components/AdminPanel'
 import ProfileSwitchModal from './components/ProfileSwitchModal'
@@ -623,6 +624,20 @@ export default function Game({
     [addLog, admin],
   )
 
+  // 조리 (별관 조리실). 요리법이 없으면 만들 수 없다.
+  const cookItem = useCallback(
+    (recipeId) => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const r = cook(playerRef.current, recipeId, admin)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`조리실에서 ${r.item.name}을(를) 만들었다.`)
+      return r
+    },
+    [addLog, admin],
+  )
+
   // 무구 강화 (무구보관소). 관리자는 재료를 쓰지 않는다.
   const enhance = useCallback(
     (weaponId, stat) => {
@@ -1115,6 +1130,7 @@ export default function Game({
                     player={viewPlayer}
                     admin={admin}
                     onCraft={craftItem}
+                    onCook={cookItem}
                     onMeet={meetNpc}
                     onLineSeen={lineSeen}
                     onGiveNpc={giveNpc}

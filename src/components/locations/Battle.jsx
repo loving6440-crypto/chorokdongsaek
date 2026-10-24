@@ -3,7 +3,6 @@ import { Dices, Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import {
   specialSummary,
   mpCostOf,
-  BUFF_COST,
   LENT_FIRE,
   ACTIONS,
   ENEMIES,
@@ -11,7 +10,7 @@ import {
   enemyTurn,
   newBattle,
   playerTurn,
-  PSYCHICS,
+  ownedPsychics,
   rollRash,
   rashPercent,
   resolveSurvive,
@@ -23,8 +22,8 @@ import {
   partyLabel,
 } from '../../game/battle'
 
-const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
-const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
+const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
+const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
 const ENEMY_DELAY = 900
 
 import { Bar, vague } from './battleUi'
@@ -73,6 +72,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   useEffect(() => () => { bgmCb.current?.(false); if (phaseRef.current === 'tutorial') endRef.current?.(false) }, [])
   const boostRef = useRef(false)
   boostRef.current = boostOn
+  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능에 적용)
 
   const activeCb = useRef(onActive)
   activeCb.current = onActive
@@ -203,7 +203,9 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
   const resolve = useCallback(
     (cur, action, extra = {}) => {
-      const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true, ...extra })
+      const buffed = buffArmed && (action === 'attack' || action === 'charm')
+      const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
+      if (!r.invalid && buffed) setBuffArmed(false)
       if (r.boostUsed) {
         boostRef.current = false
         onBoostUsed?.()
@@ -214,7 +216,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (r.state.over) finish(r.state)
       else runEnemy(r.state)
     },
-    [stats, push, finish, runEnemy, spend, onBoostUsed],
+    [stats, push, finish, runEnemy, spend, onBoostUsed, buffArmed],
   )
 
   // 내 턴이 돌아오는 시작 시점마다 돌발 판정(1d100)을 항상 굴린다. 터지면 이번 턴은 무조건 일반 공격.
@@ -254,13 +256,20 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
       const have = Math.floor(mpRef.current)
       if (action === 'charm' && cur.charms <= 0) return
-      if (action === 'buff' && have < mpCostOf(stats, BUFF_COST)) return // 의지력이 모자라면 부적만 쓸 수 있다
       if (action === 'scan' && have < mpCostOf(stats, 1)) return
       setPsyOpen(false)
       resolve(cur, action)
     },
     [busy, phase, resolve],
   )
+
+  // 효험(모두가 가진 영능력): 켜 두면 턴을 쓰지 않는다. 다음에 고르는 일반 공격·부적·생존본능이 두 번 굴러간다.
+  // 의지력이 모자라도(0까지) 발동하므로 토글 자체는 의지력으로 막지 않는다.
+  const toggleBuff = () => {
+    const cur = bRef.current
+    if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight' || !myTurn) return
+    setBuffArmed((v) => !v)
+  }
 
   const doScan = () => {
     const cur = bRef.current
@@ -275,8 +284,10 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
     setPsyOpen(false)
-    const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current })
+    const buffed = buffArmed && id === 'survival'
+    const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current, buff: buffed })
     if (r.invalid) return
+    if (buffed) setBuffArmed(false)
     if (r.boostUsed) {
       boostRef.current = false
       onBoostUsed?.()
@@ -556,7 +567,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
               (id !== 'psychic' && !myTurn) ||
               (id === 'psychic' && (!!b.over || b.pendingDeath)) ||
               (id === 'charm' && b.charms <= 0) ||
-              (id === 'buff' && have < mpCostOf(stats, BUFF_COST)) ||
               (id === 'scan' && have < mpCostOf(stats, 1)) ||
               (id === 'guard' && b.bound)
             return (
@@ -580,6 +590,13 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             )
           })}
         </div>
+      )}
+
+      {buffArmed && !b.over && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-gold" data-buff-armed>
+          <Flame size={12} aria-hidden />
+          효험이 켜져 있다 — 다음 일반 공격·부적·생존본능이 두 번 굴러 더 나은 쪽으로 들어간다.
+        </p>
       )}
 
       {scanOpen && !b.over && (
@@ -617,7 +634,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
           <p className="font-serif text-base text-gold">영능력</p>
           {(() => {
-            const mine = PSYCHICS.filter((s) => psychics.includes(s.id))
+            const mine = ownedPsychics(psychics)
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65" data-psychic-empty>획득한 영능력이 없습니다.</p>
             return (
               <ul className="mt-2 space-y-2">
@@ -626,10 +643,23 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                     <p className="text-sm text-paper">{s.label}</p>
                     <p className="text-[11px] text-paper/60">{s.note}</p>
                     {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
-                    {s.use && (
-                      <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">
-                        사용
+                    {s.toggle ? (
+                      <button
+                        type="button"
+                        data-psychic-toggle={s.id}
+                        aria-pressed={buffArmed}
+                        disabled={!myTurn}
+                        onClick={toggleBuff}
+                        className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
+                      >
+                        {buffArmed ? '켜짐 (끄기)' : '켜기'}
                       </button>
+                    ) : (
+                      s.use && (
+                        <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                          사용
+                        </button>
+                      )
                     )}
                   </li>
                 ))}

@@ -271,10 +271,16 @@ const SOUNDS = {
     tone({ f: 82, f2: 46, d: 1.0, type: 'sawtooth', v: 0.06 })
     noise({ d: 0.9, v: 0.1, type: 'lowpass', f: 500, f2: 80 })
   },
+
+  // 오목·루미큐브·요트 다이스·윷놀이: 내 차례가 시작될 때 짧고 높지 않은 '삐롱' 알림
+  myTurn: () => {
+    tone({ f: midi(69), f2: midi(74), d: 0.1, type: 'sine', v: 0.09 })
+    tone({ f: midi(74), t: 0.08, d: 0.12, type: 'sine', v: 0.07 })
+  },
 }
 
 // 너무 자주 울리면 시끄러운 소리의 최소 간격(ms)
-const MIN_GAP = { hwatuFlip: 60, key: 22, tetrisMove: 28, g2048Move: 40, click: 30, point: 150 }
+const MIN_GAP = { hwatuFlip: 60, key: 22, tetrisMove: 28, g2048Move: 40, click: 30, point: 150, myTurn: 400 }
 
 export const sfx = {
   play(name, arg) {

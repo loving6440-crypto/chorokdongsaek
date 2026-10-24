@@ -135,17 +135,26 @@ export const ACTIONS = {
   guard: { label: '막기', note: '약공 절반 · 강공 1/3만 받고, 1d(호전)만큼 더 막는다.' },
   charm: { label: '부적', note: '빗나감 없는 2배 피해, 방어 무시. 한 판 3장 · 의지력 소모.' },
   scan: { label: '간파', note: '의지력 N을 쓰면 상대의 다음 행동을 (2+N)턴 앞서 본다. 안목이 상대 영력보다 높으면 (4+N)턴. 영능력은 ‘영능력’이라고만 보인다.' },
-  buff: { label: '효험', note: '의지력 10(모자라면 0까지). 공격을 두 번 굴려 더 나은 쪽을 고른다.' },
-  psychic: { label: '영능력', note: '지금까지 익힌 영능력(스킬)을 확인하고 쓴다.' },
+  buff: { label: '효험', note: '의지력 10(모자라면 0까지). 다음 일반 공격을 두 번 굴려 더 나은 쪽을 고른다. (교육용 데모 — 실전에서는 영능력 목록의 토글로 쓴다)' },
+  psychic: { label: '영능력', note: '지금까지 익힌 영능력(스킬)을 확인하고 쓴다. 모두가 처음부터 가진 효험도 여기 있다.' },
 }
 
 /**
- * 영능력(= 특수 행동 = 스킬) 도감. 내가 익힐 수 있는 영능력을 여기에 정의한다. (아직 없음)
+ * 영능력(= 특수 행동 = 스킬) 도감. 내가 익힐 수 있는 영능력을 여기에 정의한다.
  * 항목 예: { id: 'dokkaebi-fire', label: '도깨비불', note: '설명', cost: 0 }
  * 익히는 과정을 만들면 progress.js 의 acquirePsychic(player, id) 로 player.psychics 에 넣으면 되고,
- * 전투 '영능력' 탭에는 그 목록이 자동으로 나타난다.
+ * 전투 '영능력' 탭에는 그 목록이 자동으로 나타난다. default: true 인 항목은 익히지 않아도 모두가 처음부터 가지고 있다.
  */
 export const PSYCHICS = [
+  {
+    id: 'buff',
+    label: '효험',
+    note: '모두가 태어날 때부터 가지고 있는 영능력. 자신의 메인 턴에 앞서 켜 두면, 그 다음에 고르는 일반 공격·부적·영능력(생존본능)이 자동으로 두 번 굴러 더 나은 쪽으로 들어간다.',
+    detail: '토글을 켜도 턴을 쓰지 않는다. 실제로 공격을 고르는 순간 의지력 10(모자라면 0까지)이 들고, 토글은 그때 꺼진다.',
+    cond: '처음부터 가지고 있다.',
+    default: true,
+    toggle: true,
+  },
   {
     id: 'survival',
     label: '생존본능',
@@ -155,6 +164,9 @@ export const PSYCHICS = [
     use: true,
   },
 ]
+
+/** 효험 등 default 인 영능력을 포함해, 지금 쓸 수 있는 영능력 목록. psychics = player.psychics (익힌 id 배열). */
+export const ownedPsychics = (psychics = []) => PSYCHICS.filter((p) => p.default || psychics.includes(p.id))
 
 /**
  * 도깨비불 (바리의 영능력): 쓴 턴을 포함해 3턴 동안 아무 행동도 하지 않고 기를 모은 뒤,
@@ -184,23 +196,35 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     return { state: s, events: [{ kind: 'warn', text: `✦ 도깨비불! 푸른 불꽃에 기를 모은다… (1/${FIRE_TURNS}) 앞으로 ${FIRE_TURNS - 1}턴은 아무 행동도 할 수 없다.` }], mpCost: 0, fled: false, boostUsed: false }
   }
   if (id !== 'survival') return { state, events: [], mpCost: 0, invalid: true }
-  const roll = die(stats.agility, rng)
+  const buffed = !!ctx.buff
+  const mpNow = Math.floor(ctx.mp ?? 0)
+  // 효험은 부적처럼 의지력이 모자라도 있는 만큼만 쓰고(0까지) 그래도 발동한다.
+  const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mpNow) : 0
+  let roll, buffNote = ''
+  if (buffed) {
+    const roll1 = die(stats.agility, rng)
+    const roll2 = die(stats.agility, rng)
+    roll = Math.max(roll1, roll2)
+    buffNote = ` [효험: 두 번 굴림 — ${roll1}, ${roll2} 중 더 나은 ${roll}]`
+  } else {
+    roll = die(stats.agility, rng)
+  }
   const chance = fleeChance(roll, s.enemy)
   const d = Math.floor(rng() * 100) + 1
   if (d <= chance) {
     s.over = 'fled'
     return {
       state: s,
-      events: [{ kind: 'end', text: `✦ 생존본능! [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 적을 교란하고 전투에서 도망쳤다.` }],
-      mpCost: 0,
+      events: [{ kind: 'end', text: `✦ 생존본능!${buffed ? ' 효험!' : ''} [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 적을 교란하고 전투에서 도망쳤다.${buffNote}` }],
+      mpCost: buffCost,
       fled: true,
       boostUsed: !!ctx.boost,
     }
   }
   return {
     state: s,
-    events: [{ kind: 'warn', text: `✦ 생존본능… 실패! [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 도망치지 못했다.` }],
-    mpCost: 0,
+    events: [{ kind: 'warn', text: `✦ 생존본능… 실패!${buffed ? ' 효험!' : ''} [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 도망치지 못했다.${buffNote}` }],
+    mpCost: buffCost,
     fled: false,
     boostUsed: !!ctx.boost,
   }
@@ -384,9 +408,9 @@ function fxBase(base, stats, ehp, enemyHp, aura, rng) {
     base += a
     notes.push(`악기 +${a}`)
   }
-  if (stats.fx === 'dagger' && ehp < enemyHp * 0.3) {
-    base = Math.floor(base * 1.2)
-    notes.push('단검 ×1.2')
+  if (stats.fx === 'dagger' && ehp < enemyHp * 0.35) {
+    base = Math.floor(base * 1.5)
+    notes.push('단검 ×1.5')
   }
   if (stats.fx === 'mace') {
     base = Math.floor(base * 1.5)
@@ -394,12 +418,12 @@ function fxBase(base, stats, ehp, enemyHp, aura, rng) {
   }
   return { base, notes }
 }
-/** 창: (1d10 + 1d호전)% 확률로 치명타 — 그 공격이 1.5배 */
+/** 창: (10 + ⌊호전/2⌋)% 확률로 치명타 — 그 공격이 2배 */
 function fxCrit(dmg, stats, rng) {
   if (stats.fx !== 'spear' || dmg <= 0) return { dmg, note: '' }
-  const chance = d10(rng) + die(stats.aggression, rng)
+  const chance = 10 + Math.floor(stats.aggression / 2)
   const roll = die(100, rng)
-  if (roll <= chance) return { dmg: Math.floor(dmg * 1.5), note: ` 치명타! (창 ${chance}%, d100 = ${roll}) ×1.5` }
+  if (roll <= chance) return { dmg: dmg * 2, note: ` 치명타! (창 ${chance}%, d100 = ${roll}) ×2` }
   return { dmg, note: '' }
 }
 const noteOf = (notes) => (notes.length ? ` (${notes.join(', ')})` : '')
@@ -415,9 +439,13 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   const ev = []
   let mpCost = 0
   const act = action
+  // 효험: 메인 턴에 앞서 켜 둔 토글이 있으면, 일반 공격·부적에서 두 번 굴려 더 나은 쪽을 쓴다. (ctx.buff)
+  // 의지력 10이 기본이지만, 부적처럼 모자라면 있는 만큼만 쓰고(0까지) 그래도 발동한다.
+  const buffed = !!ctx.buff && (act === 'attack' || act === 'charm')
+  const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mp) : 0
 
-  // 의지력이 모자라면 그 행동은 할 수 없다. 단 부적만은 모자라도 쓸 수 있다(있는 만큼만 쓰고 터진다).
-  const needMp = act === 'buff' ? mpCostOf(stats, BUFF_COST) : act === 'scan' ? mpCostOf(stats, 1) : 0
+  // 의지력이 모자라면 그 행동은 할 수 없다. 단 부적·효험만은 모자라도 쓸 수 있다(있는 만큼만 쓰고 터진다).
+  const needMp = act === 'scan' ? mpCostOf(stats, 1) : 0
   if (needMp > mp) {
     ev.push({ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${needMp}, 지금 ${mp})` })
     return { state: state, events: ev, mpCost: 0, invalid: true }
@@ -433,40 +461,46 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   }
 
   if (act === 'attack') {
-    const r = attackRoll(stats, rng)
+    let r, buffNote = ''
+    if (buffed) {
+      mpCost += buffCost
+      const r1 = attackRoll(stats, rng)
+      const r2 = attackRoll(stats, rng)
+      r = r1.dmg >= r2.dmg ? r1 : r2
+      buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.miss ? '빗나감' : r1.dmg}, 두 번째 ${r2.miss ? '빗나감' : r2.dmg} 중 더 나은 쪽)`
+    } else {
+      r = attackRoll(stats, rng)
+    }
     const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
     const cr = fxCrit(fb.base * mult, stats, rng)
     let dmg = cr.dmg
     let note = r.miss ? '' : `${bn}${noteOf(fb.notes)}${cr.note}`
     if (!r.miss && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
     s.ehp = Math.max(0, s.ehp - dmg)
-    ev.push({ kind: 'player', roll: r.hit, dmg, text: `${strike(r)}${r.miss ? '' : ` ${dmg} 피해${note}`}` })
-  } else if (act === 'buff') {
-    mpCost = mpCostOf(stats, BUFF_COST)
-    const r1 = attackRoll(stats, rng)
-    const r2 = attackRoll(stats, rng)
-    const best = r1.dmg >= r2.dmg ? r1 : r2
-    const fb = best.miss ? { base: 0, notes: [] } : fxBase(best.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
-    const cr = fxCrit(fb.base * mult, stats, rng)
-    let dmg = cr.dmg
-    let note = dmg > 0 ? `${bn}${noteOf(fb.notes)}${cr.note}` : ''
-    if (dmg > 0 && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
-    s.ehp = Math.max(0, s.ehp - dmg)
-    ev.push({ kind: 'player', text: `효험! 의지력 ${mpCost}을 쏟아 두 번 굴린다. 첫 번째 ${r1.miss ? '빗나감' : `${r1.dmg}`}, 두 번째 ${r2.miss ? '빗나감' : `${r2.dmg}`}` })
-    ev.push({ kind: 'player', roll: best.hit, dmg, text: `${dmg > 0 ? `더 나은 쪽을 골랐다. ${dmg} 피해${note}` : '두 번 다 빗나갔다…'}` })
+    ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}${strike(r)}${r.miss ? '' : ` ${dmg} 피해${note}`}${buffNote}` })
   } else if (act === 'charm') {
     if (s.charms <= 0) {
       ev.push({ kind: 'player', text: '부적이 더는 없다!' })
     } else {
       s.charms -= 1
       const costRoll = die(charmDie(stats), rng)
-      mpCost = Math.min(mpCostOf(stats, costRoll), mp)
-      const r = attackRoll(stats, rng, true)
+      const avail = Math.max(0, mp - buffCost)
+      const charmCost = Math.min(mpCostOf(stats, costRoll), avail)
+      mpCost = charmCost + buffCost
+      let r, buffNote = ''
+      if (buffed) {
+        const r1 = attackRoll(stats, rng, true)
+        const r2 = attackRoll(stats, rng, true)
+        r = r1.dmg >= r2.dmg ? r1 : r2
+        buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.dmg}, 두 번째 ${r2.dmg} 중 더 나은 쪽)`
+      } else {
+        r = attackRoll(stats, rng, true)
+      }
       const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
       const cr = fxCrit(fb.base * 2 * mult, stats, rng)
       const dmg = cr.dmg
       s.ehp = Math.max(0, s.ehp - dmg)
-      ev.push({ kind: 'player', roll: r.hit, dmg, text: `부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)` })
+      ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)${buffNote}` })
     }
   } else if (act === 'scan') {
     const amount = Math.max(1, Math.min(mp, Math.floor(ctx.scanAmount ?? 1)))
@@ -507,7 +541,7 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   const intent0 = s.queue[0]
   const intent = intent0 === 'group' ? 'jab' : intent0 // 단체 공격은 다인 전투에서 일행 한 명씩 약공으로 풀어낸다
   const hurt = (raw, label, { blockable = true, kind } = {}) => {
-    let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.2) : raw // 철퇴: 받는 피해 ×1.2
+    let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.5) : raw // 철퇴: 받는 피해 ×1.5
     if (blockable && s.guard) {
       const reduced = Math.ceil(dmg / (kind === 'smash' ? 3 : 2))
       const extra = die(stats.aggression, rng)

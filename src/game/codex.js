@@ -67,14 +67,14 @@ export function codexEntries(chapterId, player, admin = false) {
       where: n.where,
     }))
   }
-  // 영능력(= 특수 행동 = 스킬)만 담는다. 일반 공격~효험은 그냥 '행동'이라 여기에 없다.
-  // 나의 영능력은 조건을 채워 익혀야 알고, 상대의 영능력은 실제로 당해 봐야 안다.
+  // 영능력(= 특수 행동 = 스킬)만 담는다. 일반 공격·막기·부적·간파는 그냥 '행동'이라 여기에 없다.
+  // 나의 영능력은 조건을 채워 익혀야 알고(단, '효험'처럼 default 로 표시된 건 모두가 처음부터 안다), 상대의 영능력은 실제로 당해 봐야 안다.
   return [
     ...PSYCHICS.map((x) => ({
       id: `my-${x.id}`,
       kind: 'skill',
       group: '나의 영능력',
-      known: admin || !!p.psychics?.includes(x.id),
+      known: admin || x.default || !!p.psychics?.includes(x.id),
       name: x.label,
       desc: x.note,
       extra: `${x.detail}\n취득 조건: ${x.cond}`,

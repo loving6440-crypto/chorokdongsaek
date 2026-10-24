@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Flag, Grid3x3, Swords } from 'lucide-react'
 import { closeOmok, inviteOmok, moveOmok, resignOmok, respondOmok, useOnline } from '../../net/online'
+import RulesButton from '../RulesButton'
+import OmokRules from './OmokRules'
+import { useTurnPing } from '../../game/useTurnPing'
 
 const CELL = 24 // 줄 사이 간격(px)
 const PAD = 14 // 테두리 줄과 판 가장자리 사이 여백(px)
@@ -31,9 +34,14 @@ export default function OmokGame() {
 
   return (
     <div className="ink-panel mt-3 w-full rounded-xl p-4" data-game="omok">
-      <p className="flex items-center gap-1.5 font-serif text-base text-paper">
-        <Grid3x3 size={15} className="text-gold" aria-hidden />
-        오목
+      <p className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 font-serif text-base text-paper">
+          <Grid3x3 size={15} className="text-gold" aria-hidden />
+          오목
+        </span>
+        <RulesButton title="오목 규칙">
+          <OmokRules />
+        </RulesButton>
       </p>
       <p className="mt-1 text-xs leading-relaxed text-paper/65">같은 일행의 한 명에게 신청해서 2인이 번갈아 돌을 놓는다. 가로·세로·대각선 중 하나로 5개를 먼저 이으면 이긴다.</p>
 
@@ -73,6 +81,7 @@ function OmokBoard({ game, me }) {
   const { gid, size, board, turn, players, winner, win } = game
   const myIdx = players.findIndex((p) => p.id === me?.id)
   const myTurn = !winner && myIdx === turn
+  const turnPulse = useTurnPing(myTurn, `${gid}:${turn}`)
   const winSet = useMemo(() => new Set((win ?? []).map(([x, y]) => `${x},${y}`)), [win])
   const place = (x, y) => {
     if (!myTurn || board[y * size + x] != null) return
@@ -82,19 +91,29 @@ function OmokBoard({ game, me }) {
 
   return (
     <div className="mt-3" data-omok-gid={gid}>
-      <p className="flex flex-wrap items-center gap-2 text-sm text-paper/85">
-        {players.map((p, i) => (
-          <span key={p.id} className={`rounded-full px-2.5 py-0.5 ${turn === i && !winner ? 'bg-gold-fill/25 text-gold' : 'bg-edge/[0.07] text-paper/70'}`}>
-            {p.name} · {colorText(i)}
-          </span>
-        ))}
+      <p className="flex flex-wrap items-center justify-between gap-2 text-sm text-paper/85">
+        <span className="flex flex-wrap items-center gap-2">
+          {players.map((p, i) => (
+            <span key={p.id} className={`rounded-full px-2.5 py-0.5 ${turn === i && !winner ? 'bg-gold-fill/25 text-gold' : 'bg-edge/[0.07] text-paper/70'}`}>
+              {p.name} · {colorText(i)}
+            </span>
+          ))}
+        </span>
+        <RulesButton title="오목 규칙">
+          <OmokRules />
+        </RulesButton>
       </p>
       {winner ? (
         <p className="mt-2 rounded-lg bg-gold-fill/20 px-3 py-2 text-sm text-gold" role="status" data-omok-result>
           {players.find((p) => p.id === winner)?.name}님의 승리!
         </p>
       ) : (
-        <p className="mt-2 text-xs text-paper/60">{myTurn ? '내 차례다.' : `${players[turn]?.name}님의 차례를 기다린다.`}</p>
+        <p
+          key={myTurn ? turnPulse : 'wait'}
+          className={`mt-2 inline-block rounded px-1 text-xs text-paper/60 ${myTurn ? 'turn-ping' : ''}`}
+        >
+          {myTurn ? '내 차례다.' : `${players[turn]?.name}님의 차례를 기다린다.`}
+        </p>
       )}
 
       {/* 바둑판처럼: 돌은 칸 안이 아니라 줄이 교차하는 점(모서리) 위에 놓는다. */}

@@ -1,7 +1,8 @@
 import { useId, useRef, useState } from 'react'
 import { Trash2, Upload } from 'lucide-react'
 import Avatar from './Avatar'
-import { fileToAvatarDataUrl, normalizeHex } from '../game/avatarImage'
+import AvatarCropper from './AvatarCropper'
+import { loadAvatarImageFile, normalizeHex } from '../game/avatarImage'
 import { cleanName, gradeOf } from '../game/character'
 import { AGE_MAX, AGE_MIN, DEFAULT_AVATAR_COLOR, GRADES, GREETING_MAX_LENGTH, NAME_MAX_LENGTH } from '../game/constants'
 
@@ -33,6 +34,7 @@ export default function ProfileForm({ value, onChange, title = '인적 사항', 
   const [hexText, setHexText] = useState(initColor.slice(1))
   const [uploaded, setUploaded] = useState(value.avatar?.kind === 'image' ? value.avatar.src : null)
   const [uploadError, setUploadError] = useState('')
+  const [cropping, setCropping] = useState(null) // { img, url } | null — 자르기 모달을 띄울 때 쓴다
   const cleanedName = cleanName(value.name)
   const gradeNow = gradeOf(value)
 
@@ -41,13 +43,24 @@ export default function ProfileForm({ value, onChange, title = '인적 사항', 
     event.target.value = ''
     if (!file) return
     try {
-      const src = await fileToAvatarDataUrl(file)
-      setUploaded(src)
-      set({ avatar: { kind: 'image', src } })
+      const loaded = await loadAvatarImageFile(file)
+      setCropping(loaded)
       setUploadError('')
     } catch (err) {
       setUploadError(err.message)
     }
+  }
+
+  const finishCrop = (src) => {
+    URL.revokeObjectURL(cropping.url)
+    setCropping(null)
+    setUploaded(src)
+    set({ avatar: { kind: 'image', src } })
+  }
+
+  const cancelCrop = () => {
+    URL.revokeObjectURL(cropping.url)
+    setCropping(null)
   }
 
   const removeUpload = () => {
@@ -269,6 +282,7 @@ export default function ProfileForm({ value, onChange, title = '인적 사항', 
           </p>
         )}
       </div>
+      {cropping && <AvatarCropper img={cropping.img} onDone={finishCrop} onCancel={cancelCrop} />}
     </section>
   )
 }

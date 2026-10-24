@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { Dice5, Flag, Swords } from 'lucide-react'
 import { closeYacht, inviteYacht, resignYacht, respondYacht, rollYacht, scoreYacht, useOnline } from '../../net/online'
 import { CATEGORIES, scoreFor, totalScore } from '../../game/yacht'
+import RulesButton from '../RulesButton'
+import YachtRules from './YachtRules'
+import { useTurnPing } from '../../game/useTurnPing'
 
 const PIPS = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
 
@@ -25,9 +28,14 @@ export default function YachtGame() {
   return (
     <div className="mt-3" data-game="yacht">
       <div className="ink-panel rounded-xl p-4">
-        <p className="flex items-center gap-1.5 font-serif text-base text-paper">
-          <Dice5 size={15} className="text-gold" aria-hidden />
-          요트 다이스
+        <p className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 font-serif text-base text-paper">
+            <Dice5 size={15} className="text-gold" aria-hidden />
+            요트 다이스
+          </span>
+          <RulesButton title="요트 다이스 규칙">
+            <YachtRules />
+          </RulesButton>
         </p>
         <p className="mt-1 text-xs leading-relaxed text-paper/65">같은 일행의 1~3명을 골라 신청한다(2~4인). 모두 수락하면 시작한다.</p>
 
@@ -79,6 +87,7 @@ function YachtBoard({ game, me }) {
   const { gid, players, scorecards, dice, rollsLeft, turn, left = [], winner, tie, log } = game
   const myIdx = players.findIndex((p) => p.id === me?.id)
   const myTurn = myIdx === turn && !winner
+  const turnPulse = useTurnPing(myTurn, `${gid}:${turn}`)
   const canScore = myTurn && rollsLeft < 3
 
   const [keep, setKeep] = useState([false, false, false, false, false])
@@ -104,7 +113,10 @@ function YachtBoard({ game, me }) {
           {tie ? `${tie.map((id) => players.find((p) => p.id === id)?.name).join(', ')}님의 동점 우승!` : `${players.find((p) => p.id === winner)?.name}님의 승리!`}
         </p>
       ) : (
-        <p className="mt-2 text-xs text-paper/60">
+        <p
+          key={myTurn ? turnPulse : 'wait'}
+          className={`mt-2 inline-block rounded px-1 text-xs text-paper/60 ${myTurn ? 'turn-ping' : ''}`}
+        >
           {myTurn ? `내 차례다. (남은 던지기 ${rollsLeft}번)` : `${players[turn]?.name}님의 차례를 기다린다.`}
         </p>
       )}

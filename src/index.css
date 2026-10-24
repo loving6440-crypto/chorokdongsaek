@@ -592,6 +592,15 @@ button.bg-gold { border-radius: 0.55rem; }
 }
 @media (prefers-reduced-motion: reduce) { .spot-wide { animation: none; } }
 
+/* 오목·루미큐브·요트 다이스·윷놀이: 내 차례가 막 시작됐을 때 한 번 가볍게 빛나는 효과 */
+@keyframes turn-ping {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-gold-fill) 70%, transparent); }
+  30% { box-shadow: 0 0 14px 4px color-mix(in srgb, var(--c-gold-fill) 60%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.turn-ping { animation: turn-ping 0.9s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .turn-ping { animation: none; } }
+
 /* 상대의 영능력 발동 연출 */
 @keyframes sp-pop { 0% { opacity: 0; transform: scale(.7) } 4% { opacity: 1; transform: scale(1.08) } 8% { transform: scale(1) } 90% { opacity: 1 } 100% { opacity: 0; transform: translateY(-8px) } }
 .sp-banner { animation: sp-pop 6s ease-out forwards; }

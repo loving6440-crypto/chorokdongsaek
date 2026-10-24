@@ -1,10 +1,12 @@
-// 별관 2층 공작소 담당 NPC 오단애. 얼굴 그림(초상화)은 아직 받지 못해 비워 둔다 — 전달되면 faces 에 채워 넣으면 된다.
-// (NpcDialog 는 src 가 없으면 이름의 첫 글자로 자리를 대신한다.)
+// 별관 2층 공작소 담당 NPC 오단애.
 export const DANAE = {
   id: 'danae',
   name: '오단애',
   faces: {
-    // smile: '/danae-smile.webp', dots: '/danae-dots.webp', plain: '/danae-plain.webp', closed: '/danae-closed.webp',
+    smile: '/danae-smile.webp',
+    dots: '/danae-dots.webp',
+    plain: '/danae-plain.webp',
+    closed: '/danae-closed.webp',
   },
   lines: [
     { face: 'plain', text: '근황은 좀 어때? 잘 안 되는 게 있으면 내가 도와줄게!' },

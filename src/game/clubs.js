@@ -7,6 +7,7 @@ export const CLUBS = [
   { id: 'cook', name: '요리 동아리', room: '조리실', floor: '2층' },
   { id: 'read', name: '독서 동아리', room: '서적실', floor: '3층' },
   { id: 'tea', name: '차 동아리', room: '다도실', floor: '3층' },
+  { id: 'garden', name: '원예 동아리', room: '정원', floor: '옥상' },
 ]
 export const CLUB_IDS = CLUBS.map((c) => c.id)
 export const clubOf = (id) => CLUBS.find((c) => c.id === id) ?? null

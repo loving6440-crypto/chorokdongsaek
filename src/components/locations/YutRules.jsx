@@ -1,5 +1,3 @@
-import { BookOpen } from 'lucide-react'
-
 const THROWS = [
   ['빽도', '표시 윳가지 1개만 자빠지고(평평한 면 위) 나머지 셋은 엎어짐', '1칸 뒤로'],
   ['도', '1개만 자빠짐(표시 윳가지가 아닐 때)', '1칸'],
@@ -9,16 +7,11 @@ const THROWS = [
   ['모', '4개 모두 엎어짐(자빠진 게 없음)', '5칸 + 한 번 더 던지기'],
 ]
 
-/** 패 놀이터 윷놀이 옆에 띄우는 규칙 설명서. */
+/** 윷놀이 규칙 설명 — RulesModal 안에 넣는 내용만 담는다(틀은 공통 모달이 맡는다). */
 export default function YutRules() {
   return (
-    <aside className="ink-panel w-full shrink-0 rounded-xl p-4 lg:w-72" aria-label="윷놀이 규칙">
-      <p className="flex items-center gap-1.5 font-serif text-base text-gold">
-        <BookOpen size={15} aria-hidden />
-        윷놀이 규칙
-      </p>
-
-      <p className="mt-3 text-[11px] tracking-widest text-paper/50">윳가지 네 개를 던진 결과</p>
+    <div>
+      <p className="mt-1 text-[11px] tracking-widest text-paper/50">윳가지 네 개를 던진 결과</p>
       <table className="mt-1.5 w-full text-xs">
         <tbody>
           {THROWS.map(([name, cond, move]) => (
@@ -50,6 +43,6 @@ export default function YutRules() {
       <p className="mt-3 rounded-lg bg-edge/[0.07] px-2.5 py-2 text-[11px] leading-relaxed text-paper/55">
         이 판은 2가지를 단순화했다: 업기는 늘 자동이고(따로 고르지 않음), 빽도는 바깥 테두리 위의 말에만 쓸 수 있다(지름길·중앙 위에서는 쓸 수 없음).
       </p>
-    </aside>
+    </div>
   )
 }

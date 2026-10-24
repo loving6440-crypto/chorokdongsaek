@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { Dice5, Flag, Swords } from 'lucide-react'
 import { applyYutThrow, chooseYutBranch, closeYut, inviteYut, resignYut, respondYut, rollYutDice, useOnline } from '../../net/online'
 import YutRules from './YutRules'
+import RulesButton from '../RulesButton'
+import { useTurnPing } from '../../game/useTurnPing'
 
 // 29칸(바깥 테두리 20칸 + 지름길 9칸)의 화면 좌표. src/game/yut.js 의 말판 구조와 그대로 맞춰 둔 값이다.
 const NODE_XY = {
@@ -13,7 +15,7 @@ const NODE_XY = {
   25: [80, 80], 26: [120, 120], 27: [200, 200], 28: [240, 240],
 }
 const CORNERS = new Set([0, 5, 10, 15, 22])
-const PLAYER_COLORS = ['#e23d3d', '#2a7fd6', '#2fa35a', '#c98a1f']
+const PLAYER_COLORS = ['#e23d3d', '#2a4fb0', '#1aa84a', '#f2c230']
 
 export default function YutGame() {
   const net = useOnline()
@@ -33,11 +35,16 @@ export default function YutGame() {
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-start" data-game="yut">
-      <div className="ink-panel w-full min-w-0 flex-1 rounded-xl p-4">
-        <p className="flex items-center gap-1.5 font-serif text-base text-paper">
-          <Dice5 size={15} className="text-gold" aria-hidden />
-          윷놀이
+    <div className="mt-3" data-game="yut">
+      <div className="ink-panel w-full rounded-xl p-4">
+        <p className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 font-serif text-base text-paper">
+            <Dice5 size={15} className="text-gold" aria-hidden />
+            윷놀이
+          </span>
+          <RulesButton title="윷놀이 규칙">
+            <YutRules />
+          </RulesButton>
         </p>
         <p className="mt-1 text-xs leading-relaxed text-paper/65">같은 일행의 1~3명을 골라 신청한다(2~4인). 모두 수락하면 시작한다.</p>
 
@@ -81,7 +88,6 @@ export default function YutGame() {
         )}
         {msg && <p className="mt-2 text-xs text-gold" role="status">{msg}</p>}
       </div>
-      <YutRules />
     </div>
   )
 }
@@ -91,6 +97,7 @@ function YutBoard({ game, me }) {
   const myIdx = players.findIndex((p) => p.id === me?.id)
   const myTurn = myIdx === turn && !winner
   const [selectedThrow, setSelectedThrow] = useState(null)
+  const turnPulse = useTurnPing(myTurn, `${gid}:${turn}`)
 
   const myGroups = useMemo(() => {
     if (myIdx < 0) return []
@@ -144,13 +151,16 @@ function YutBoard({ game, me }) {
           {players.find((p) => p.id === winner)?.name}님의 승리!
         </p>
       ) : (
-        <p className="mt-2 text-xs text-paper/60">
+        <p
+          key={myTurn ? turnPulse : 'wait'}
+          className={`mt-2 inline-block rounded px-1 text-xs text-paper/60 ${myTurn ? 'turn-ping' : ''}`}
+        >
           {myTurn ? '내 차례다.' : `${players[turn]?.name}님의 차례를 기다린다.`}
           {lastRoll && ` · 방금 ${lastRoll.name}`}
         </p>
       )}
 
-      <svg viewBox="0 0 320 320" className="mt-3 w-full max-w-[320px]" role="img" aria-label="윷판" data-yut-board>
+      <svg viewBox="0 0 320 320" className="mt-3 w-full max-w-[560px]" role="img" aria-label="윷판" data-yut-board>
         <rect x="8" y="8" width="304" height="304" rx="8" fill="#dcb77a" />
         <path d="M280,280 L280,40 L40,40 L40,280 Z" fill="none" stroke="#8a6a3a" strokeWidth="2" />
         <line x1="280" y1="40" x2="40" y2="280" stroke="#8a6a3a" strokeWidth="2" />

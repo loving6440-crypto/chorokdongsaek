@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, BUFF_COST, auraOf, enemyTurn, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp } from './battle.js'
+import { ENEMIES, auraOf, enemyTurn, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp } from './battle.js'
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -176,14 +176,17 @@ export function submit(mb, id, act) {
   if (mb.turn !== id) return { error: 'not-your-turn' }
   if (m.act) return { error: 'already' }
   const a = act?.action
-  if (!['attack', 'guard', 'charm', 'scan', 'buff', 'psychic'].includes(a)) return { error: 'bad-action' }
+  if (!['attack', 'guard', 'charm', 'scan', 'psychic'].includes(a)) return { error: 'bad-action' }
+  // 효험(모두가 가진 영능력): 일반 공격·부적·생존본능과 함께, 토글로 켜서 같이 제출한다.
+  // 부적처럼 의지력이 모자라도(0까지) 쓸 수 있으므로 제출 자체를 막지는 않는다.
+  const buffable = a === 'attack' || a === 'charm' || (a === 'psychic' && act.psychic === 'survival')
+  const buff = !!act?.buff && buffable
   // 의지력이 모자라면 부적 말고는 쓸 수 없다.
-  if (a === 'buff' && m.mp < mpCostOf(m.stats, BUFF_COST)) return { error: 'no-mp' }
   if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
   if (a === 'psychic' && act.psychic !== 'survival') return { error: 'bad-psychic' }
-  m.act = { action: a, scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined, psychic: act.psychic }
+  m.act = { action: a, scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined, psychic: act.psychic, buff }
   return { ok: true }
 }
 
@@ -253,10 +256,10 @@ export function resolveTurn(mb, rng = Math.random) {
   const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격에 붙는 보정
   let r
   if (act.action === 'psychic') {
-    r = psychicTurn(v, act.psychic ?? 'survival', { stats: m.stats, mp: m.mp, boost: m.boost, aura }, rng)
+    r = psychicTurn(v, act.psychic ?? 'survival', { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff }, rng)
     if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: '쓸 수 없는 영능력이다.' }], mpCost: 0 }
   } else {
-    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura }, rng)
+    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff }, rng)
     if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: `[${m.name}] 의지력이 모자라 행동하지 못했다.` }], mpCost: 0 }
   }
   if (r.boostUsed) m.boost = false
