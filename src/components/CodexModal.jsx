@@ -59,7 +59,7 @@ function Entry({ e, admin, onGet, have }) {
         {e.extra && <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-gold">{e.extra}</p>}
         {admin && e.kind === 'item' && (
           <button type="button" data-admin-get={e.id} onClick={() => onGet?.(e.id)} className="mt-2 rounded-full bg-crimson/80 px-2.5 py-0.5 text-[11px] text-[#fbf6e9]">
-            관리자: 즉시 취득 (+1 · 보유 {have?.[e.id] || 0})
+            관리자: 즉시 취득 (+1 · 보유 {Object.entries(have ?? {}).filter(([k]) => k === e.id || k.startsWith(`${e.id}#`)).reduce((a, [, n]) => a + n, 0)})
           </button>
         )}
       </div>

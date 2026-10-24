@@ -1,4 +1,5 @@
 import { itemOf } from '../game/items'
+import { EXTRA_BG, EXTRA_ICONS } from './icons2'
 
 /**
  * 아이템 아이콘: 플랫 디자인의 원형 배지.
@@ -359,7 +360,7 @@ const AUTO_DEFAULT_ART = (
 /** 아이템 하나의 아이콘. item 객체나 id 를 준다. 도감에서 아직 모르는 자리는 locked. */
 export default function ItemIcon({ item, id, size = 40, locked = false, className = '' }) {
   const it = item ?? itemOf(id)
-  const key = it?.id ?? id ?? '?'
+  const key = it?.baseId ?? it?.id ?? id ?? '?'
   const px = { width: size, height: size }
   if (locked) {
     return (
@@ -380,4 +381,6 @@ export default function ItemIcon({ item, id, size = 40, locked = false, classNam
   )
 }
 
+Object.assign(BG, EXTRA_BG)
+Object.assign(CUSTOM_ICONS, EXTRA_ICONS)
 export const CUSTOM_ICON_IDS = Object.keys(CUSTOM_ICONS)

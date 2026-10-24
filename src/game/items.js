@@ -636,7 +636,28 @@ export const ITEMS = RAW_ITEMS.map((it) => {
   return { ...it, tags: [it.kind === 'material' ? CAT_MATERIAL : CAT_ITEM, ...tags], ...(it.kind === 'material' && !it.effectText ? { effectText: MATERIAL_TEXT } : {}) }
 })
 
-export const itemOf = (id) => ITEMS.find((i) => i.id === id)
+// ───────── 무구는 한 벌마다 따로 ─────────
+// 무구 한 벌 = 소지품의 고유 id `기본id#꼬리` (예: 'w-sword#k3f9a1') 1개. 강화(player.enh)와 착용(equip.weapon)도 이 id 로 붙는다.
+// 그래서 같은 칼이 두 자루여도 서로 다르게 강화할 수 있고, 선물 · 착용 · 소지품이 모두 기존 방식 그대로 돈다.
+const BASE = new Map(ITEMS.map((i) => [i.id, i]))
+const INST = new Map()
+export const isInstance = (id) => typeof id === 'string' && id.includes('#')
+export const baseIdOf = (id) => (isInstance(id) ? id.split('#')[0] : id)
+export function itemOf(id) {
+  if (!id) return undefined
+  const b = BASE.get(id)
+  if (b) return b
+  if (!isInstance(id)) return undefined
+  let v = INST.get(id)
+  if (!v) {
+    const base = BASE.get(id.split('#')[0])
+    if (!base || base.slot !== 'weapon' || !/^[a-z0-9]{4,12}$/.test(id.split('#')[1] ?? '')) return undefined
+    v = { ...base, id, baseId: base.id, inst: true }
+    INST.set(id, v)
+  }
+  return v
+}
+const newTail = () => Math.random().toString(36).slice(2, 8).padEnd(6, '0')
 /** 매점에서 파는 아이템 (price 가 있는 것) */
 export const STORE_ITEMS = ITEMS.filter((i) => i.price != null)
 export const isMaterial = (item) => item.kind === 'material'
@@ -668,7 +689,63 @@ export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
 export const ENH_MAX = 5 // 육조 스탯 하나당 최대 +5
 export const ENH_ITEMS = ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'] // 현재 수치 0·1·2·3·4 → 다음 단계에 쓰는 재료
 export const ENH_STATS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
-export const WEAPONS = ITEMS.filter((i) => i.kind === 'gear' && i.slot === 'weapon')
+export const WEAPONS = ITEMS.filter((i) => i.kind === 'gear' && i.slot === 'weapon') // 무구 종류(기본형)
+/** 새 무구 한 벌을 소지품에 넣는다. 반환 { player, id } */
+export function giveWeapon(player, baseId, enh) {
+  let id
+  do id = `${baseId}#${newTail()}`
+  while (player.inventory?.[id] || equipOf(player).weapon === id)
+  const next = { ...player, inventory: { ...(player.inventory ?? {}), [id]: 1 } }
+  if (enh && Object.keys(enh).length) next.enh = { ...(player.enh ?? {}), [id]: { ...enh } }
+  return { player: next, id }
+}
+/** 소지품에 있는 모든 것(무구는 한 벌씩) 을 아이템 객체로. ITEMS 순서대로. */
+export function ownedItems(player) {
+  const order = new Map(ITEMS.map((it, i) => [it.id, i]))
+  return Object.keys(player.inventory ?? {})
+    .filter((id) => player.inventory[id] > 0)
+    .map((id) => itemOf(id))
+    .filter(Boolean)
+    .sort((a, b) => (order.get(baseIdOf(a.id)) ?? 99) - (order.get(baseIdOf(b.id)) ?? 99) || (a.id < b.id ? -1 : 1))
+}
+/** 내 무구들(끼고 있는 것 먼저, 그다음 소지품의 것들) */
+export function ownedWeapons(player) {
+  const eq = equipOf(player).weapon
+  const list = ownedItems(player).filter((i) => i.slot === 'weapon')
+  return eq && itemOf(eq) ? [itemOf(eq), ...list] : list
+}
+/** 예전 저장분 정리: 종류 단위로 들고 있던 무구('w-sword' ×n, 종류별 강화, 착용)를 한 벌씩 따로 나눈다. 바뀐 게 없으면 같은 player. */
+export function migrateWeapons(player) {
+  const inv = player.inventory ?? {}
+  const bare = Object.keys(inv).filter((id) => inv[id] > 0 && !isInstance(id) && BASE.get(id)?.slot === 'weapon')
+  const eqW = equipOf(player).weapon
+  const eqBare = eqW && !isInstance(eqW) && BASE.get(eqW)?.slot === 'weapon' ? eqW : null
+  if (!bare.length && !eqBare) return player
+  let p = { ...player, inventory: { ...inv } }
+  const oldEnh = { ...(player.enh ?? {}) }
+  const enhLeft = { ...oldEnh }
+  const claim = (base) => {
+    const e = enhLeft[base]
+    delete enhLeft[base]
+    return e
+  }
+  if (eqBare) {
+    const e = claim(eqBare)
+    const r = giveWeapon(p, eqBare, e)
+    p = { ...r.player, inventory: { ...r.player.inventory }, equip: { ...(p.equip ?? {}), weapon: r.id } }
+    delete p.inventory[r.id] // 끼고 있는 건 소지품이 아니라 착용 칸에
+  }
+  for (const base of bare) {
+    for (let i = 0; i < inv[base]; i++) {
+      const r = giveWeapon(p, base, i === 0 ? claim(base) : undefined)
+      p = r.player
+    }
+    delete p.inventory[base]
+  }
+  // 아직 주인을 못 찾은 강화는 버린다(종류만 남고 갖고 있지 않던 경우).
+  const enh = Object.fromEntries(Object.entries(p.enh ?? {}).filter(([id]) => isInstance(id)))
+  return { ...p, enh }
+}
 export const enhLevel = (player, weaponId, stat) => player.enh?.[weaponId]?.[stat] || 0
 export const enhTotal = (player, weaponId) => Object.values(player.enh?.[weaponId] ?? {}).reduce((a, b) => a + b, 0)
 /** 이 무구를 지금 갖고(들고) 있는가 */

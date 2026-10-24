@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Gift, Minus, Plus, X } from 'lucide-react'
-import { ITEMS, countOf, enhTotal, giftEnhOf } from '../game/items'
+import { countOf, enhTotal, giftEnhOf, ownedItems } from '../game/items'
+import { MAIL_MAX } from '../net/online'
 import ItemIcon from './ItemIcon'
 
 export const GIFT_MAX = 5
@@ -10,7 +11,8 @@ export default function GiftModal({ target, player, onSend, onClose }) {
   const [pick, setPick] = useState({})
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const owned = ITEMS.filter((i) => countOf(player, i.id) > 0)
+  const [note, setNote] = useState('')
+  const owned = ownedItems(player)
   const total = Object.values(pick).reduce((a, b) => a + b, 0)
 
   const change = (id, d) =>
@@ -27,7 +29,7 @@ export default function GiftModal({ target, player, onSend, onClose }) {
     if (!total || busy) return
     setBusy(true)
     setErr('')
-    const r = await onSend(target, pick)
+    const r = await onSend(target, pick, note.trim())
     setBusy(false)
     if (r?.ok) onClose()
     else setErr(r?.message || '선물을 보내지 못했다.')
@@ -80,7 +82,21 @@ export default function GiftModal({ target, player, onSend, onClose }) {
             </ul>
           )}
         </div>
-        <div className="flex items-center justify-between gap-2 border-t border-edge/15 px-4 py-3">
+        <div className="border-t border-edge/15 px-4 pt-3">
+          <label htmlFor="gift-note" className="text-[11px] text-paper/55">쪽지(선택) — 받는 사람의 사물함에 남는다</label>
+          <textarea
+            id="gift-note"
+            data-gift-note
+            value={note}
+            maxLength={MAIL_MAX}
+            rows={2}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="선물과 함께 전할 말"
+            className="mt-1 w-full resize-none rounded border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper outline-none focus:border-gold/50"
+          />
+          <p className="text-right text-[10px] tabular-nums text-paper/45">{note.length} / {MAIL_MAX}</p>
+        </div>
+        <div className="flex items-center justify-between gap-2 px-4 pb-3">
           <span className="text-xs text-paper/70" aria-live="polite">담은 아이템 {total} / {GIFT_MAX}{err && <span className="ml-2 text-crimson">{err}</span>}</span>
           <button type="button" disabled={!total || busy} onClick={send} className="flat-btn disabled:cursor-not-allowed disabled:opacity-40">
             <Gift size={14} />

@@ -16,6 +16,10 @@ let state = {
   mb: null, // 진행 중인 다인 전투 { bid, view }
   mbInvite: null, // { bid, from, enemy, expires } — 다인 전투 초대를 받았다
   mbLobby: null, // { bid, enemyId, waiting, joined } — 내가 건 다인 전투에서 응답을 기다리는 중
+  mailUnread: 0, // 사물함에서 아직 안 읽은 쪽지 · 선물 수
+  mailTick: 0, // 새 쪽지가 올 때마다 +1 (열려 있는 사물함이 다시 불러오는 신호)
+  editReq: null, // 관리자의 스탯 · 디버프 수정 요청(동의 대기) { rid, adminName, changes, expires }
+  editResult: null, // 내가 관리자일 때 받은 결과 { rid, status, targetName }
 }
 const listeners = new Set()
 const emit = () => listeners.forEach((l) => l())
@@ -46,6 +50,7 @@ function handle(ev) {
         history: { rp: ev.history.rp, talk: ev.history.talk, party: ev.partyLog ?? [] },
         party: ev.party ?? null,
         mb: ev.mb ?? null,
+        mailUnread: ev.mailUnread ?? 0,
       })
       break
     case 'presence':
@@ -83,6 +88,15 @@ function handle(ev) {
         seenGifts.add(ev.gift.id)
         giftListeners.forEach((l) => l(ev.gift))
       }
+      break
+    case 'mail':
+      set({ mailUnread: state.mailUnread + 1, mailTick: state.mailTick + 1 })
+      if (ev.mail?.kind === 'note') pushNotice(`${ev.mail.from.name}님의 쪽지가 사물함에 도착했다.`)
+      break
+    case 'adminEdit':
+      if (ev.ev === 'request') set({ editReq: { rid: ev.rid, adminName: ev.adminName, changes: ev.changes, expires: ev.expires } })
+      else if (ev.ev === 'expired') set({ editReq: state.editReq?.rid === ev.rid ? null : state.editReq })
+      else if (ev.ev === 'result') set({ editResult: { rid: ev.rid, status: ev.status, targetName: ev.targetName } })
       break
     case 'market-sold':
       soldListeners.forEach((l) => l())
@@ -174,7 +188,33 @@ export function onGift(cb) {
 }
 
 /** 선물 보내기. 상대가 접속 중이어야 하고, 아이템만 합쳐 최대 5개. (돈은 서버가 거절한다.) */
-export const sendGift = (toId, items, enh) => post('/api/gift', { to: toId, items, ...(enh && Object.keys(enh).length ? { enh } : {}) })
+export const sendGift = (toId, items, enh, note = '') =>
+  post('/api/gift', { to: toId, items, ...(enh && Object.keys(enh).length ? { enh } : {}), ...(note ? { note } : {}) })
+
+// ───────── 우체통 · 사물함 ─────────
+export const MAIL_MAX = 1000
+/** 쪽지만 보내기(아이템 없이). 상대가 접속하지 않았어도 사물함에 쌓인다. */
+export const sendNote = (toId, text) => post('/api/mail/send', { to: toId, text })
+/** 사물함: { ok, received, sent } */
+export const fetchMailbox = () => post('/api/mail/box', {})
+export const markMailRead = async () => {
+  const r = await post('/api/mail/read', {})
+  if (r?.ok) set({ mailUnread: 0 })
+  return r
+}
+/** 쪽지를 보낼 수 있는 사람들: { ok, people: [{ id, name, online }] } */
+export const fetchMailPeople = () => post('/api/mail/people', {})
+/** 관리자: 모든 쪽지 · 선물 내역 */
+export const fetchAllMail = (id, key, who = '') => adminPost('/api/admin/mail', id, key, who ? { who } : {})
+
+// ───────── 관리자 수정(당사자 동의 필요) ─────────
+export const requestEdit = (id, key, target, changes) => adminPost('/api/admin/edit/request', id, key, { target, changes })
+export const respondEdit = async (rid, accept) => {
+  const r = await post('/api/admin/edit/respond', { rid, accept })
+  set({ editReq: null })
+  return r
+}
+export const clearEditResult = () => set({ editResult: null })
 
 // ───────── 벼룩시장 ─────────
 /** 내 물건이 팔렸다는 알림이 오면 cb() 를 부른다. */
@@ -203,7 +243,7 @@ export const leaveParty = () => post('/api/party/leave', {})
 export async function mbStart(enemy, me) {
   const r = await post('/api/mb/start', { enemy, me })
   if (!r.ok) {
-    const why = { 'need-party': '일행 상태에서만 참여할 수 있다. (접속 중인 일행이 있어야 한다)', 'mates-busy': '일행이 모두 다른 전투 중이다.', 'already-in-battle': '이미 다인 전투에 참여 중이다.', 'slow-down': '잠시 후 다시 시도해 줘.' }[r.error]
+    const why = { 'not-leader': '파티장만 다인 전투와 보스 전투를 신청할 수 있다.', 'need-party': '일행 상태에서만 참여할 수 있다. (접속 중인 일행이 있어야 한다)', 'mates-busy': '일행이 모두 다른 전투 중이다.', 'already-in-battle': '이미 다인 전투에 참여 중이다.', 'slow-down': '잠시 후 다시 시도해 줘.' }[r.error]
     pushNotice(why ?? '다인 전투를 시작하지 못했다.')
   }
   return r

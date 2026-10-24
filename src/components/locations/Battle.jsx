@@ -430,7 +430,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                       <Swords size={15} aria-hidden />
                       일행과 {e.name} 겨루기
                     </button>
-                    <p className="mt-1 text-[10px] text-paper/50">{multi?.canParty ? `‘${MULTI_TAG}’ — 일행에게 초대가 가고, 수락한 사람들이 함께 싸운다.` : `‘${MULTI_TAG}’ — 일행(파티) 상태로만 참여할 수 있다.`}</p>
+                    <p className="mt-1 text-[10px] text-paper/50">{multi?.canParty ? `‘${MULTI_TAG}’ — 일행에게 초대가 가고, 수락한 사람들이 함께 싸운다.` : multi?.isLeader === false && multi?.hasParty ? `‘${MULTI_TAG}’ — 파티장만 신청할 수 있다. 파티장의 초대를 받으면 참여한다.` : `‘${MULTI_TAG}’ — 일행(파티) 상태로만 참여할 수 있다.`}</p>
                   </>
                 ) : (
                   <button type="button" onClick={() => start(e.id)} className="flat-btn mt-3 justify-center !bg-crimson">

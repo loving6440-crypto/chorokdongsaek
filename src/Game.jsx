@@ -7,11 +7,13 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, mergeEnh, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
 import MenuPanel from './components/MenuPanel'
+import MailboxPanel from './components/MailboxPanel'
+import EditConsent from './components/EditConsent'
 import ProfileEditModal from './components/ProfileEditModal'
 import GiftModal from './components/GiftModal'
 import CodexModal from './components/CodexModal'
@@ -635,12 +637,20 @@ export default function Game({
     (id) => {
       if (!admin) return
       const cur = playerRef.current
-      const next = { ...cur, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + 1 } }
+      const next = itemOf(id)?.slot === 'weapon' && !itemOf(id).inst ? giveWeapon(cur, id).player : { ...cur, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + 1 } }
       playerRef.current = next
       setPlayer(next)
     },
     [admin],
   )
+
+  // 창고(보관함) 등에서 종류 단위의 무구가 들어오면 한 벌씩으로 정리한다.
+  useEffect(() => {
+    const fixed = migrateWeapons(playerRef.current)
+    if (fixed === playerRef.current) return
+    playerRef.current = fixed
+    setPlayer(fixed)
+  }, [player.inventory])
 
   // 관리자: 업적은 모두 달성한 것으로 취급한다. (보상은 주지 않는다)
   useEffect(() => {
@@ -684,17 +694,17 @@ export default function Game({
         playerRef.current = next
         setPlayer(next)
         addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}${gift.enh ? ' (무구 강화 포함)' : ''}`)
-        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}`)
+        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}${gift.note ? ' (쪽지가 사물함에 있다)' : ''}`)
       }),
     [addLog],
   )
 
   const sendGiftTo = useCallback(
-    async (target, items) => {
+    async (target, items, note = '') => {
       const cur = playerRef.current
       for (const [id, n] of Object.entries(items)) if ((cur.inventory?.[id] || 0) < n) return { ok: false, message: '갖고 있는 개수가 모자라다.' }
       const enh = giftEnhOf(cur, items)
-      const r = await sendGift(target.id, items, enh)
+      const r = await sendGift(target.id, items, enh, note)
       if (!r.ok) {
         const msg = r.error === 'no-target' || r.status === 409 ? '상대가 접속 중이 아니다.' : r.error === 'slow-down' ? '너무 빨리 보내고 있다.' : '선물을 보내지 못했다.'
         return { ok: false, message: msg }
@@ -907,7 +917,9 @@ export default function Game({
     onAct: mbAct,
     onSurvive: mbSurvive,
     onClose: mbClose,
-    canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online),
+    hasParty: !!online.party?.members?.length,
+    isLeader: !!online.party?.members?.length && online.party.members[0].id === online.me?.id,
+    canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online) && online.party.members[0].id === online.me?.id,
     lobby: online.mbLobby,
     onStart: (enemyId) => (ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot())),
     onCancel: mbCancel,
@@ -961,6 +973,25 @@ export default function Game({
       playerRef.current = next
       setPlayer(next)
       addLog('관리자 도구로 수치를 조정했다.')
+    },
+    [addLog],
+  )
+
+  // 관리자가 요청한 수정(스탯 · 쇠약 · 버프)을 당사자가 동의한 뒤에만 적용한다.
+  const applyEditChanges = useCallback(
+    (ch) => {
+      const cur = playerRef.current
+      let next = { ...cur }
+      if (ch.stats) next.stats = { ...cur.stats, ...ch.stats }
+      if (ch.clearWeak) {
+        const { weakUntil: _w, ...rest } = next
+        next = rest
+      }
+      if (ch.clearBuffs) next = { ...next, buffs: [] }
+      if (ch.refill) next = { ...next, hp: next.hpMax, mp: next.mpMax }
+      playerRef.current = next
+      setPlayer(next)
+      addLog('관리자의 수정 요청에 동의해 상태가 바뀌었다.')
     },
     [addLog],
   )
@@ -1032,8 +1063,10 @@ export default function Game({
           }}
         />
         <main className="ink-panel flex min-h-[16rem] min-w-0 flex-1 lg:min-h-0 flex-col overflow-hidden rounded-2xl" aria-label="활동 화면">
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' ? 'market' : `${locationId}-${activity}`}>
-            {panel === 'market' ? (
+          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' || panel === 'mailbox' ? panel : `${locationId}-${activity}`}>
+            {panel === 'mailbox' ? (
+              <MailboxPanel online={online} meId={online.me?.id} />
+            ) : panel === 'market' ? (
               <Market player={player} admin={admin} online={online.status === 'online'} onSell={marketSell} onBuy={marketBuyIt} onCancel={marketCancelIt} onOpen={claimProceeds} />
             ) : (
               <>
@@ -1154,7 +1187,7 @@ export default function Game({
       </div>
 
       <div className="order-2 flex shrink-0 flex-col gap-3 lg:order-3 lg:min-h-0 lg:w-80">
-        <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} hideLog={desktop} />
+        <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} unreadMail={online.mailUnread} hideLog={desktop} />
         {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} onProfile={setCardTo} />}
       </div>
 
@@ -1250,7 +1283,8 @@ export default function Game({
           }}
         />
       )}
-      {adminOpen && <AdminPanel player={player} userId={userId} adminKey={adminKey} onApply={applyAdmin} onClose={() => setAdminOpen(false)} />}
+      <EditConsent online={online} player={player} onAccept={applyEditChanges} />
+      {adminOpen && <AdminPanel player={player} userId={userId} adminKey={adminKey} online={online} onApply={applyAdmin} onClose={() => setAdminOpen(false)} />}
       {profilesOpen && (
         <ProfileSwitchModal
           userId={userId}

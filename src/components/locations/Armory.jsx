@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
 import { ARMORY, SHINAH } from '../../game/armory'
 import { STAT_META } from '../../game/constants'
-import { ENH_ITEMS, ENH_MAX, ENH_STATS, WEAPONS, countOf, enhLevel, enhTotal, itemOf, ownsWeapon } from '../../game/items'
+import { ENH_ITEMS, ENH_MAX, ENH_STATS, WEAPONS, countOf, enhLevel, enhTotal, equipOf, itemOf, ownedWeapons } from '../../game/items'
 import NpcDialog from '../NpcDialog'
 
 /** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯당 최대 +5). 재료는 현재 수치에 맞는 완성품. */
 export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }) {
-  const owned = WEAPONS.filter((w) => ownsWeapon(player, w.id))
+  const owned = ownedWeapons(player)
+  // 같은 종류가 여럿이면 ①②… 로 구분한다.
+  const nameOf = (w) => {
+    const same = owned.filter((x) => x.baseId === w.baseId)
+    return same.length > 1 ? `${w.name} ${'①②③④⑤⑥⑦⑧⑨⑩'[same.indexOf(w)] ?? same.indexOf(w) + 1}` : w.name
+  }
   const [sel, setSel] = useState(null)
   const [msg, setMsg] = useState('')
   const cur = owned.find((w) => w.id === sel) ?? owned[0] ?? null
@@ -38,7 +43,7 @@ export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }
                 <button key={w.id} type="button" role="tab" aria-selected={cur?.id === w.id} data-weapon={w.id}
                   onClick={() => { setSel(w.id); setMsg('') }}
                   className={`rounded-full px-3 py-1 text-xs ${cur?.id === w.id ? 'bg-gold-fill text-ink' : 'bg-shade/30 text-paper/80'}`}>
-                  {w.name}{enhTotal(player, w.id) > 0 && ` +${enhTotal(player, w.id)}`}
+                  {nameOf(w)}{equipOf(player).weapon === w.id && ' (착용)'}{enhTotal(player, w.id) > 0 && ` +${enhTotal(player, w.id)}`}
                 </button>
               ))}
             </div>

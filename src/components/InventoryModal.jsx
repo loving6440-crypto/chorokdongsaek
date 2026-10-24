@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
-import { ENH_STATS, EQUIP_SLOTS, ITEMS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf } from '../game/items'
+import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems } from '../game/items'
 import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
@@ -26,7 +26,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, popupOpen])
-  const owned = ITEMS.filter((i) => countOf(player, i.id) > 0)
+  const owned = ownedItems(player)
   const eq = equipOf(player)
   const picked = sel ? owned.find((i) => i.id === sel) : null
   const pn = picked ? countOf(player, picked.id) : 0
@@ -109,12 +109,12 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                       setTargeting(false)
                       setSel(item.id)
                     }}
-                    aria-label={`${item.name} ×${countOf(player, item.id)}`}
+                    aria-label={item.slot === 'weapon' ? `${item.name}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${item.name} ×${countOf(player, item.id)}`}
                     className="tilt flex w-full flex-col items-center gap-1 rounded-xl bg-edge/[0.07] p-2 hover:bg-gold-fill/15"
                   >
                     <ItemIcon item={item} size={40} className="shrink-0" />
                     <span className="w-full truncate text-center text-[11px] text-paper">{item.name}</span>
-                    <span className="text-[11px] text-gold">×{countOf(player, item.id)}</span>
+                    <span className="text-[11px] text-gold">{item.slot === 'weapon' ? (enhTotal(player, item.id) > 0 ? `+${enhTotal(player, item.id)}` : '') : `×${countOf(player, item.id)}`}</span>
                   </button>
                 </li>
               ))}

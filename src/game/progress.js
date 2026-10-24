@@ -2,7 +2,7 @@
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
-import { START_MONEY, equipOf, gearBonus, weaponFx } from './items'
+import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx } from './items'
 import { checkAchievements } from './achievements'
 
 export const TRAIN_UNIT_MIN = 5
@@ -127,14 +127,14 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
   if (!admin && STAT_KEYS.some((k) => p.stats[k] > STAT_MAX)) {
     p = { ...p, stats: Object.fromEntries(STAT_KEYS.map((k) => [k, Math.min(STAT_MAX, p.stats[k])])) }
   }
-  return syncCodex(p)
+  return syncCodex(migrateWeapons(p))
 }
 
 /** 도감: 한 번이라도 손에 넣은 아이템·만난 NPC 를 기록한다. 바뀐 게 없으면 같은 player 를 돌려준다. */
 export function syncCodex(player) {
   const codex = player.codex ?? { items: {}, npcs: {} }
   const have = [...Object.keys(player.inventory ?? {}).filter((id) => player.inventory[id] > 0), ...Object.values(equipOf(player)).filter(Boolean)]
-  const fresh = [...new Set(have)].filter((id) => !codex.items?.[id])
+  const fresh = [...new Set(have.map(baseIdOf))].filter((id) => !codex.items?.[id])
   const bari = player.tutorialDone && !codex.npcs?.bari
   if (!fresh.length && !bari && player.codex) return player
   return {

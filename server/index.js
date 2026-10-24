@@ -49,6 +49,9 @@ const MARKET_PRICE_MAX = 99999
 let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade, avatar, at } }  (접속자 이름을 눌렀을 때 보여 준다)
 let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
 let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
+let mail = { seq: 1, log: [] } // 쪽지 · 선물 내역: log [{ id, kind:'note'|'gift', from:{id,name}, to:{id,name}, text, items?, enh?, at, read }] (최신이 뒤). 관리자는 전부 열람.
+const MAIL_MAX = 1000 // 쪽지 글자 수 상한
+const MAIL_LOG_CAP = 5000
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
 
 // ───────── 영속 데이터(랭킹 · 벼룩시장 · 인적사항 카드 · 회원 명부 · 익명 사연) ─────────
@@ -103,6 +106,7 @@ function applyRaw(raw) {
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.members && typeof raw.members === 'object') members = raw.members
   if (raw?.stories && Array.isArray(raw.stories.pending)) stories = { pending: raw.stories.pending, papers: raw.stories.papers ?? {}, seq: raw.stories.seq || 1 }
+  if (raw?.mail && Array.isArray(raw.mail.log)) mail = { seq: raw.mail.seq || 1, log: raw.mail.log }
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
 }
 if (db) {
@@ -145,7 +149,7 @@ const loginBlocked = (id) => {
 const bearer = (req) => accounts && A.readToken(accounts.secret, (req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''))
 const ID_RULE = /^[a-zA-Z0-9가-힣_]{2,40}$/
 
-const snapshot = () => ({ ranking, rankingWeek, lastWeek, market, cards, members, stories })
+const snapshot = () => ({ ranking, rankingWeek, lastWeek, market, cards, members, stories, mail })
 async function saveNow() {
   if (db) {
     await db.query(
@@ -396,6 +400,16 @@ function readBody(req, max = 10_000) {
 }
 const cleanId = (v) => (typeof v === 'string' && /^[a-zA-Z0-9가-힣_]{1,40}$/.test(v) ? v : null)
 const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\r\n\t]/g, ' ').trim().slice(0, 24) : '')
+const cleanNote = (v) => (typeof v === 'string' ? v.replace(/\r/g, '').trim() : '')
+function addMail(entry) {
+  const m = { id: `m${mail.seq++}`, at: Date.now(), read: false, ...entry }
+  mail.log.push(m)
+  if (mail.log.length > MAIL_LOG_CAP) mail.log.splice(0, mail.log.length - MAIL_LOG_CAP)
+  scheduleSave()
+  sendTo(m.to.id, { t: 'mail', mail: m })
+  return m
+}
+const editReqs = new Map() // 관리자 수정 요청(당사자 동의 대기): rid → { rid, admin, target, changes, status }
 const storyRate = new Map() // 사연 투고 횟수 제한(접속 중에만 기억, 쓴 사람은 저장하지 않는다)
 const requireClient = (body, res) => {
   const id = cleanId(body?.id)
@@ -508,6 +522,7 @@ async function handleApi(req, res, url) {
       history,
       party: partyView(party),
       partyLog: party?.log ?? [],
+      mailUnread: mail.log.reduce((n, m) => n + (m.to.id === id && !m.read ? 1 : 0), 0),
       mb: (() => {
         const g = mbs.get(mbOf.get(id))
         return g?.mb && g.phase === 'fight' ? { bid: g.id, view: MB.viewOf(g.mb, { deadline: g.deadline }) } : null
@@ -720,6 +735,61 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, total: list.length, members: list })
   }
 
+  // 쪽지 전체 열람(관리자 전용): 누가 누구에게 보낸 쪽지·선물인지 모두 보인다.
+  if (route === '/api/admin/mail') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    const q = cleanId(body.who)
+    let list = mail.log
+    if (q) list = list.filter((m) => m.from.id === q || m.to.id === q)
+    return json(res, 200, { ok: true, total: list.length, mail: list.slice(-500).reverse() })
+  }
+
+  // 스탯 · 디버프 수정 요청(관리자 전용): 당사자가 동의해야만 적용된다. 서버는 요청을 전하고 결과를 돌려줄 뿐이다.
+  if (route === '/api/admin/edit/request') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    const target = clients.get(cleanId(body.target))
+    if (!target) return json(res, 409, { error: 'target-offline' })
+    const ch = body.changes && typeof body.changes === 'object' ? body.changes : {}
+    const STATS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
+    const changes = {}
+    if (ch.stats && typeof ch.stats === 'object') {
+      const st = {}
+      for (const k of STATS) {
+        if (ch.stats[k] == null || ch.stats[k] === '') continue
+        const v = Math.floor(Number(ch.stats[k]))
+        if (Number.isFinite(v)) st[k] = Math.max(1, Math.min(999, v))
+      }
+      if (Object.keys(st).length) changes.stats = st
+    }
+    if (ch.clearWeak) changes.clearWeak = true
+    if (ch.clearBuffs) changes.clearBuffs = true
+    if (ch.refill) changes.refill = true
+    if (!Object.keys(changes).length) return json(res, 400, { error: 'no-changes' })
+    const rid = `e${seq++}`
+    const adminName = members[id]?.name ?? id
+    const r = { rid, admin: id, adminName, target: target.id, targetName: target.name, changes, status: 'wait', at: Date.now() }
+    editReqs.set(rid, r)
+    setTimeout(() => {
+      const x = editReqs.get(rid)
+      if (x && x.status === 'wait') {
+        x.status = 'expired'
+        sendTo(x.admin, { t: 'adminEdit', ev: 'result', rid, status: 'expired', targetName: x.targetName })
+        sendTo(x.target, { t: 'adminEdit', ev: 'expired', rid })
+      }
+      setTimeout(() => editReqs.delete(rid), 60_000)
+    }, 60_000)
+    sendTo(target.id, { t: 'adminEdit', ev: 'request', rid, adminName, changes, expires: Date.now() + 60_000 })
+    return json(res, 200, { ok: true, rid, target: { id: target.id, name: target.name } })
+  }
+
   // 익명 사연 심사(관리자 전용): 대기 목록 / 신문에 올리기 / 반려
   if (route === '/api/admin/stories' || route === '/api/admin/story/publish' || route === '/api/admin/story/reject') {
     const id = cleanId(body.id)
@@ -764,6 +834,48 @@ async function handleApi(req, res, url) {
 
   const me = requireClient(body, res)
   if (!me) return
+
+  // 당사자의 답: 관리자의 수정 요청에 동의/거절. 동의하면 클라이언트가 자기 캐릭터에 적용한 뒤 이 답을 보낸다.
+  if (route === '/api/admin/edit/respond') {
+    const r = editReqs.get(String(body.rid))
+    if (!r || r.target !== me.id || r.status !== 'wait') return json(res, 410, { error: 'expired' })
+    r.status = body.accept ? 'accepted' : 'declined'
+    sendTo(r.admin, { t: 'adminEdit', ev: 'result', rid: r.rid, status: r.status, targetName: r.targetName, changes: r.changes })
+    return json(res, 200, { ok: true, status: r.status })
+  }
+
+  // 우체통: 아이템 없이 쪽지만 보내기. 접속하지 않은 사람에게도 보낼 수 있다(사물함에 쌓인다).
+  if (route === '/api/mail/send') {
+    const to = cleanId(body.to)
+    if (!to || to === me.id || !members[to]) return json(res, 400, { error: 'no-target' })
+    const text = cleanNote(body.text)
+    if (!text) return json(res, 400, { error: 'empty' })
+    if (text.length > MAIL_MAX) return json(res, 400, { error: 'too-long' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const m = addMail({ kind: 'note', from: { id: me.id, name: me.name }, to: { id: to, name: members[to].name }, text })
+    return json(res, 200, { ok: true, id: m.id })
+  }
+  // 사물함: 받은 것(쪽지 · 선물)과 내가 보낸 것
+  if (route === '/api/mail/box') {
+    const mine = mail.log.filter((m) => m.to.id === me.id).slice(-200).reverse()
+    const sent = mail.log.filter((m) => m.from.id === me.id).slice(-200).reverse()
+    return json(res, 200, { ok: true, received: mine, sent })
+  }
+  if (route === '/api/mail/read') {
+    let n = 0
+    for (const m of mail.log) if (m.to.id === me.id && !m.read) (m.read = true), n++
+    if (n) scheduleSave()
+    return json(res, 200, { ok: true, n })
+  }
+  // 쪽지를 보낼 수 있는 사람 목록(서버에 접속한 적 있는 계정)
+  if (route === '/api/mail/people') {
+    const list = Object.values(members)
+      .filter((m) => m.id !== me.id)
+      .map((m) => ({ id: m.id, name: m.name, online: clients.has(m.id) }))
+      .sort((a, b) => b.online - a.online || a.name.localeCompare(b.name, 'ko'))
+      .slice(0, 1000)
+    return json(res, 200, { ok: true, people: list })
+  }
 
   // 익명 사연 투고함: 접속한 사람이면 누구나. 쓴 사람은 저장하지 않는다. (남용 방지는 접속 중 횟수 제한만 한다)
   if (route === '/api/story/submit') {
@@ -868,11 +980,13 @@ async function handleApi(req, res, url) {
     const given = body.items
     if (!given || typeof given !== 'object' || Array.isArray(given)) return json(res, 400, { error: 'bad-items' })
     const ids = new Set(ITEMS.map((i) => i.id))
+    // 무구는 한 벌마다 고유 id('w-칼#꼬리'). 무구 종류의 id 와 꼬리 형식이 맞으면 통과시킨다.
+    const okInstance = (k) => /^w-[a-z]+#[a-z0-9]{4,12}$/.test(k) && ids.has(k.split('#')[0])
     const clean = {}
     let total = 0
     for (const [k, v] of Object.entries(given)) {
-      if (!ids.has(k)) return json(res, 400, { error: 'items-only' }) // money 를 포함해 아이템이 아닌 건 모두 거절
-      if (!Number.isInteger(v) || v < 1) return json(res, 400, { error: 'bad-items' })
+      if (!ids.has(k) && !okInstance(k)) return json(res, 400, { error: 'items-only' }) // money 를 포함해 아이템이 아닌 건 모두 거절
+      if (!Number.isInteger(v) || v < 1 || (k.includes('#') && v !== 1)) return json(res, 400, { error: 'bad-items' })
       clean[k] = v
       total += v
     }
@@ -883,7 +997,7 @@ async function handleApi(req, res, url) {
     const ENH_KEYS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
     if (body.enh && typeof body.enh === 'object' && !Array.isArray(body.enh)) {
       for (const [wid, st] of Object.entries(body.enh)) {
-        if (!clean[wid] || !wid.startsWith('w-') || !st || typeof st !== 'object') continue
+        if (!clean[wid] || !okInstance(wid) || !st || typeof st !== 'object') continue
         const one = {}
         for (const k of ENH_KEYS) {
           const v = Math.floor(Number(st[k]))
@@ -892,8 +1006,11 @@ async function handleApi(req, res, url) {
         if (Object.keys(one).length) enh[wid] = one
       }
     }
-    const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, ...(Object.keys(enh).length ? { enh } : {}), at: Date.now() }
+    const note = cleanNote(body.note)
+    if (note.length > MAIL_MAX) return json(res, 400, { error: 'too-long' })
+    const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, ...(Object.keys(enh).length ? { enh } : {}), ...(note ? { note } : {}), at: Date.now() }
     send(target, { t: 'gift', gift })
+    addMail({ kind: 'gift', from: { id: me.id, name: me.name }, to: { id: target.id, name: target.name }, text: note, items: clean, ...(Object.keys(enh).length ? { enh } : {}) })
     return json(res, 200, { ok: true, giftId: gift.id, to: { id: target.id, name: target.name } })
   }
 
@@ -906,6 +1023,7 @@ async function handleApi(req, res, url) {
     const p = parties.get(partyOf.get(me.id))
     const mates = p ? p.members.filter((m) => m !== me.id && clients.has(m)) : []
     if (!mates.length) return json(res, 409, { error: 'need-party' })
+    if (p.members[0] !== me.id) return json(res, 403, { error: 'not-leader' }) // 파티장만 다인 · 보스 전투를 신청할 수 있다
     if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
     const free = mates.filter((m) => !mbOf.has(m))
     if (!free.length) return json(res, 409, { error: 'mates-busy' })

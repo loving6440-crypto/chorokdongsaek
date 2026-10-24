@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
 import { STAT_KEYS, STAT_META } from '../game/constants'
-import { fetchMembers, fetchPendingStories, publishStory, rejectStory } from '../net/online'
+import { clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
+import { itemsText } from './MailboxPanel'
 
 const fmtAt = (t) => {
   if (!t) return '—'
@@ -52,6 +53,105 @@ function MemberList({ userId, adminKey }) {
       </ul>
       {!st.loading && !st.error && list.length === 0 && <p className="text-xs text-paper/55">표시할 회원이 없다.</p>}
       <p className="mt-2 text-[10px] leading-relaxed text-paper/45">계정은 각자의 브라우저에 저장되므로, 서버에 한 번이라도 접속한 계정만 보인다. 이 기능이 생기기 전에 가입했더라도 다음에 접속하면 명부에 오른다.</p>
+    </section>
+  )
+}
+
+/** 모든 쪽지 · 선물 내역(관리자 전용) */
+function MailAudit({ userId, adminKey }) {
+  const [st, setSt] = useState({ loading: true })
+  const [who, setWho] = useState('')
+  const load = () => {
+    setSt((s0) => ({ ...s0, loading: true }))
+    fetchAllMail(userId, adminKey, who.trim()).then((r) => setSt(r.ok ? { list: r.mail, total: r.total } : { error: r.error }))
+  }
+  useEffect(load, [userId, adminKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <section data-mail-audit>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs tracking-widest text-paper/55">전체 쪽지 · 선물 내역 {st.total != null && `(${st.total}건)`}</p>
+        <button type="button" onClick={load} className="rounded border border-edge/25 px-2 py-0.5 text-[11px] text-paper/80 hover:bg-edge/10">새로고침</button>
+      </div>
+      <div className="mb-2 flex gap-1.5">
+        <input value={who} onChange={(e) => setWho(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} placeholder="아이디로 거르기(보낸·받은 사람)" aria-label="쪽지 거르기" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper outline-none focus:border-gold/50" />
+        <button type="button" onClick={load} className="rounded border border-edge/25 px-2 text-xs text-paper/80 hover:bg-edge/10">찾기</button>
+      </div>
+      {st.loading && <p className="text-xs text-paper/55">불러오는 중…</p>}
+      {st.error && <p className="text-xs text-crimson" role="alert">쪽지를 불러오지 못했다.</p>}
+      <ul className="max-h-64 space-y-1.5 overflow-auto" aria-label="전체 쪽지">
+        {(st.list ?? []).map((m) => (
+          <li key={m.id} data-audit-mail={m.id} className="rounded-lg bg-shade/25 px-3 py-2 text-xs text-paper/85">
+            <p className="text-paper/60">{fmtAt(m.at)} · <b className="text-paper">{m.from.name}</b>(@{m.from.id}) → <b className="text-paper">{m.to.name}</b>(@{m.to.id}){m.kind === 'gift' && ' · 선물'}</p>
+            {m.text && <p className="mt-0.5 whitespace-pre-wrap break-words">{m.text}</p>}
+            {m.items && <p className="text-gold/80">{itemsText(m.items)}{m.enh ? ' (무구 강화 포함)' : ''}</p>}
+          </li>
+        ))}
+      </ul>
+      {!st.loading && !st.error && (st.list ?? []).length === 0 && <p className="text-xs text-paper/55">내역이 없다.</p>}
+    </section>
+  )
+}
+
+/** 다른 사람의 스탯 · 쇠약 등을 고친다. 상대가 접속 중이어야 하고, 상대가 동의해야만 적용된다. */
+function EditOther({ userId, adminKey, online }) {
+  const [to, setTo] = useState('')
+  const [stats, setStats] = useState({})
+  const [clearWeak, setClearWeak] = useState(false)
+  const [clearBuffs, setClearBuffs] = useState(false)
+  const [refill, setRefill] = useState(false)
+  const [msg, setMsg] = useState({ ok: true, text: '' })
+  const [busy, setBusy] = useState(false)
+  const res = online.editResult
+  useEffect(() => {
+    if (!res) return
+    const label = { accepted: '동의해서 적용되었다.', declined: '거절했다. 아무것도 바뀌지 않았다.', expired: '60초 안에 답이 없어 취소되었다.' }[res.status]
+    setMsg({ ok: res.status === 'accepted', text: `${res.targetName}님이 ${label}` })
+    setBusy(false)
+    clearEditResult()
+  }, [res])
+  const others = online.online.filter((p) => p.id !== online.me?.id)
+  const send = async () => {
+    if (!to || busy) return
+    const changes = {
+      ...(Object.keys(stats).some((k) => String(stats[k]).trim() !== '') ? { stats: Object.fromEntries(Object.entries(stats).filter(([, v]) => String(v).trim() !== '')) } : {}),
+      ...(clearWeak ? { clearWeak: true } : {}),
+      ...(clearBuffs ? { clearBuffs: true } : {}),
+      ...(refill ? { refill: true } : {}),
+    }
+    if (!Object.keys(changes).length) return setMsg({ ok: false, text: '바꿀 항목을 골라 줘.' })
+    setBusy(true)
+    const r = await requestEdit(userId, adminKey, to, changes)
+    if (r.ok) setMsg({ ok: true, text: '동의를 기다리는 중… (60초)' })
+    else {
+      setBusy(false)
+      setMsg({ ok: false, text: r.error === 'target-offline' ? '상대가 접속 중이 아니다.' : r.error === 'no-changes' ? '바꿀 항목이 없다.' : '요청을 보내지 못했다.' })
+    }
+  }
+  return (
+    <section data-edit-other>
+      <p className="mb-1.5 text-xs tracking-widest text-paper/55">다른 사람 상태 고치기 (당사자 동의 필요)</p>
+      <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="대상 선택" className="w-full rounded border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper">
+        <option value="">대상 선택 (접속 중인 사람)</option>
+        {others.map((p) => <option key={p.id} value={p.id}>{p.name} (@{p.id})</option>)}
+      </select>
+      <p className="mt-2 text-[11px] text-paper/50">스탯은 비워 두면 그대로다 (1~999).</p>
+      <div className="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {STAT_KEYS.map((k) => (
+          <label key={k} className="flex items-center justify-between gap-1 rounded-lg bg-shade/25 px-2 py-1 text-xs text-paper/85">
+            {STAT_META[k].label}
+            <input data-edit-stat={k} type="number" min={1} max={999} value={stats[k] ?? ''} onChange={(e) => setStats((p) => ({ ...p, [k]: e.target.value }))} className="w-14 rounded border border-edge/25 bg-ink-muted/60 px-1 py-0.5 text-right tabular-nums text-paper outline-none" />
+          </label>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-paper/85">
+        <label className="flex items-center gap-1.5"><input data-edit-weak type="checkbox" checked={clearWeak} onChange={(e) => setClearWeak(e.target.checked)} />[쇠약] 해제</label>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={clearBuffs} onChange={(e) => setClearBuffs(e.target.checked)} />버프 초기화</label>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={refill} onChange={(e) => setRefill(e.target.checked)} />체력·의지력 채우기</label>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <button type="button" data-edit-send disabled={!to || busy} onClick={send} className="flat-btn disabled:cursor-not-allowed disabled:opacity-40">수정 요청 보내기</button>
+        <span className={`text-xs ${msg.ok ? 'text-gold/80' : 'text-crimson'}`} aria-live="polite" data-edit-msg>{msg.text}</span>
+      </div>
     </section>
   )
 }
@@ -144,7 +244,7 @@ function Field({ id, label, value, onChange, min = 0, max = 9999 }) {
 }
 
 /** 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 마음대로 고친다. (소지금은 늘 무한) */
-export default function AdminPanel({ player, userId, adminKey, onApply, onClose }) {
+export default function AdminPanel({ player, userId, adminKey, online, onApply, onClose }) {
   const [v, setV] = useState(() => ({
     ...Object.fromEntries(STAT_KEYS.map((k) => [k, player.stats[k]])),
     hp: Math.floor(player.hp),
@@ -210,6 +310,8 @@ export default function AdminPanel({ player, userId, adminKey, onApply, onClose 
               체력·의지력 가득 채우기
             </button>
           </section>
+          <EditOther userId={userId} adminKey={adminKey} online={online} />
+          <MailAudit userId={userId} adminKey={adminKey} />
           <StoryReview userId={userId} adminKey={adminKey} />
           <MemberList userId={userId} adminKey={adminKey} />
         </div>
