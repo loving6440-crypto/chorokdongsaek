@@ -174,7 +174,7 @@ function PasswordReset({ userId, adminKey }) {
   return (
     <section data-pw-reset>
       <p className="mb-1.5 text-xs tracking-widest text-paper/55">비밀번호를 잊은 계정에 임시 비밀번호 발급</p>
-      <p className="mb-2 text-[11px] text-paper/50">원래 비밀번호는 서버도 알 수 없다. 대신 임시 비밀번호를 새로 만들어 준다. 본인이 그걸로 로그인하면 곧바로 새 비밀번호를 정해야 한다.</p>
+      <p className="mb-2 text-[11px] text-paper/50">원래 비밀번호는 서버도 알 수 없다. 대신 임시 비밀번호를 새로 만들어 준다. 본인이 그걸로 로그인하면 곧바로 새 비밀번호를 정해야 한다. <b className="text-paper/70">게임 속 이름이 아니라 로그인할 때 쓰는 아이디</b>를 넣어야 한다 — 아래 회원 목록에서 @ 뒤에 붙은 게 아이디다.</p>
       <div className="flex gap-1.5">
         <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && issue()} placeholder="대상 아이디" aria-label="대상 아이디" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper outline-none focus:border-gold/50" />
         <button type="button" data-pw-reset-go disabled={!target.trim() || busy} onClick={issue} className="rounded border border-edge/25 px-3 text-xs text-paper/80 hover:bg-edge/10 disabled:opacity-40">발급</button>

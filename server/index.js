@@ -718,7 +718,7 @@ async function handleApi(req, res, url) {
     const target = typeof body.target === 'string' ? body.target.trim() : ''
     if (!ID_RULE.test(target)) return json(res, 400, { error: 'bad-target' })
     const acc = await accounts.get(target)
-    if (!acc) return json(res, 404, { error: 'no-account' })
+    if (!acc) return json(res, 400, { error: 'no-account' }) // 404 는 이 호출을 거는 game/auth.js 의 api() 가 '서버 없음'으로 오인해, 진짜 사유가 가려진다
     const temp = crypto.randomBytes(5).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8)
     acc.passwordHash = A.hashPassword(temp)
     acc.mustReset = true
