@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { findIdsByTwitter, login, markAdmin, signup } from '../game/auth'
+import { markAdmin, serverFindIds, serverLogin, serverSignup } from '../game/auth'
 import { verifyAdminKey } from '../net/online'
 import logo from '../assets/logo.png'
 import SoundToggle from './SoundToggle'
@@ -17,10 +17,11 @@ const tabClass = (active) =>
       : 'border-b border-edge/15 text-paper/50 hover:text-paper/80'
   }`
 
-export default function AuthScreen({ theme, onToggleTheme, onSuccess }) {
+// notice: 위에 띄울 안내 (예: 서버 저장으로 바뀌어 다시 로그인이 필요할 때) · presetId: 아이디 칸에 미리 넣을 값
+export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, presetId }) {
   const [mode, setMode] = useState('login') // 'login' | 'signup' | 'find'
   const [found, setFound] = useState(null) // 아이디 찾기 결과 id 목록
-  const [id, setId] = useState('')
+  const [id, setId] = useState(presetId ?? '')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [twitter, setTwitter] = useState('')
@@ -33,7 +34,9 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess }) {
     e.preventDefault()
     setError('')
     if (mode === 'find') {
-      const r = findIdsByTwitter(twitter)
+      setLoading(true)
+      const r = await serverFindIds(twitter)
+      setLoading(false)
       if (!r.ok) {
         setFound(null)
         setError(r.error)
@@ -61,7 +64,7 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess }) {
           setLoading(false)
           return
         }
-        const result = signup({ id, password, twitter })
+        const result = await serverSignup({ id, password, twitter, adminKey: key || undefined })
         if (!result.ok) {
           setError(result.error)
           setLoading(false)
@@ -69,7 +72,7 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess }) {
         }
         onSuccess(key ? markAdmin(result.user.id, key) ?? result.user : result.user)
       } else {
-        const result = login({ id, password })
+        const result = await serverLogin({ id, password, adminKey: key || undefined })
         if (!result.ok) {
           setError(result.error)
           setLoading(false)
@@ -115,6 +118,11 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 p-6">
+            {notice && mode === 'login' && (
+              <p className="rounded border border-gold/40 bg-gold/10 px-3 py-2.5 text-xs leading-relaxed text-paper" role="status">
+                {notice}
+              </p>
+            )}
             {mode === 'find' && (
               <>
                 <p className="text-xs leading-relaxed text-paper/65">가입할 때 적은 트위터 아이디로 계정 아이디를 찾을 수 있어요. (비밀번호 찾기는 지원하지 않습니다.)</p>

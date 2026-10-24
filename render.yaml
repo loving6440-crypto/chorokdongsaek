@@ -10,3 +10,7 @@ services:
       # 관리자 키: Render 대시보드 > Environment 에서 직접 값을 넣는다. (저장소에 올리지 않는다)
       - key: CHOROK_ADMIN_KEY
         sync: false
+      # Supabase 연결 주소(Session pooler). 랭킹 · 벼룩시장 · 인적사항 카드 · 회원 명부가 여기 저장된다.
+      # 없으면 서버 파일(data.json)에 저장되어 Render 재시작 · 재배포 때마다 초기화된다.
+      - key: DATABASE_URL
+        sync: false

@@ -11,12 +11,13 @@ import {
   createProfile,
   deleteProfile,
   getAdminKey,
-  getCurrentUser,
   isAdminUser,
   loadGameState,
-  logout as authLogout,
+  onRemoteUpdate,
   saveGameState,
+  serverLogout,
   switchProfile,
+  syncOnStart,
 } from './game/auth'
 import { useTheme } from './hooks/useTheme'
 
@@ -33,6 +34,8 @@ export default function App() {
   const [creating, setCreating] = useState(false) // 캐릭터 생성 중
   const [introPlaying, setIntroPlaying] = useState(false) // 첫 캐릭터 생성 전 인트로 재생 중
   const [introLeaving, setIntroLeaving] = useState(false) // 인트로가 끝나가는 중 (뒤에 생성 화면을 미리 깐다)
+  const [relogin, setRelogin] = useState(null) // 서버 저장으로 바뀌어 다시 로그인해야 하는 아이디
+  const [syncKey, setSyncKey] = useState(0) // 다른 기기의 최신 기록을 받으면 올려서 게임 화면을 새로 그린다
 
   // 효과음: 첫 입력에서 오디오를 깨우고, 모든 버튼 클릭에 공통 클릭음을 낸다.
   // 버튼에 data-sfx="none" 을 달면 소리를 끄고, data-sfx="nav" 처럼 다른 소리 이름을 줄 수도 있다.
@@ -53,21 +56,41 @@ export default function App() {
     }
   }, [])
 
-  // 앱 시작 시 세션 복원
+  // 앱 시작 시 세션 복원: 서버의 최신 기록을 먼저 받아 온다. (서버가 없으면 이 브라우저의 기록으로)
   useEffect(() => {
-    const current = getCurrentUser()
-    if (current) {
-      setUser(current)
-      // 저장 데이터가 없으면 생성 화면으로 (처음이면 인트로부터)
-      if (!current.save) {
-        setCreating(true)
-        setIntroPlaying(!hasSeenIntro(current.id))
+    let alive = true
+    syncOnStart().then((r) => {
+      if (!alive) return
+      if (r.needLogin) setRelogin(r.id)
+      const current = r.user ?? null
+      if (current) {
+        setUser(current)
+        // 저장 데이터가 없으면 생성 화면으로 (처음이면 인트로부터)
+        if (!current.save) {
+          setCreating(true)
+          setIntroPlaying(!hasSeenIntro(current.id))
+        }
       }
+      setReady(true)
+    })
+    return () => {
+      alive = false
     }
-    setReady(true)
   }, [])
 
+  // 다른 기기에서 더 최근에 저장한 기록이 들어오면 그 기록으로 게임을 다시 연다.
+  useEffect(
+    () =>
+      onRemoteUpdate((fresh) => {
+        setUser(fresh)
+        setCreating(!fresh.save?.character)
+        setSyncKey((k) => k + 1)
+      }),
+    [],
+  )
+
   const handleAuthSuccess = useCallback((loggedInUser) => {
+    setRelogin(null)
     setUser(loggedInUser)
     if (!loggedInUser.save) {
       setCreating(true)
@@ -147,7 +170,7 @@ export default function App() {
   }, [user])
 
   const handleLogout = useCallback(() => {
-    authLogout()
+    serverLogout()
     setUser(null)
     setCreating(false)
     setIntroPlaying(false)
@@ -163,7 +186,13 @@ export default function App() {
 
   if (!user) {
     return (
-      <AuthScreen theme={theme} onToggleTheme={toggleTheme} onSuccess={handleAuthSuccess} />
+      <AuthScreen
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onSuccess={handleAuthSuccess}
+        presetId={relogin ?? undefined}
+        notice={relogin ? '이제 기록이 서버에 저장돼 어느 기기에서든 이어서 할 수 있어요. 이 브라우저의 기록을 옮기기 위해 한 번만 다시 로그인해 주세요.' : undefined}
+      />
     )
   }
 
@@ -189,7 +218,7 @@ export default function App() {
 
   return (
     <Game
-      key={activeProfileId(user)}
+      key={`${activeProfileId(user)}:${syncKey}`}
       character={saved.character}
       initialSave={saved}
       theme={theme}

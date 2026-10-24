@@ -11,13 +11,19 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 개발 중에는 터미널 두 개로 `npm run server` 와 `npm run dev` 를 함께 띄운다. (vite 가 `/api` 를 8787 로 넘겨 준다.)
 서버 없이 `npm run dev` 만 켜도 게임은 돌아가지만 채팅 · 랭킹은 '서버에 연결되지 않음' 으로 표시된다.
 
-환경 변수: `PORT`(기본 8787), `CHOROK_DATA`(랭킹 저장 파일, 기본 `server/data.json`), `CHOROK_DIST`(정적 파일 폴더).
+환경 변수: `PORT`(기본 8787), `CHOROK_DATA`(랭킹 저장 파일, 기본 `server/data.json`), `CHOROK_DIST`(정적 파일 폴더), `DATABASE_URL`(Supabase 연결 주소. 있으면 랭킹 · 벼룩시장 · 인적사항 카드 · 회원 명부를 DB 에 저장하고, 없으면 `data.json` 에 저장한다. Render 배포에서는 반드시 넣을 것).
 
 ### 서버 (`server/index.js`, 의존성 없음)
 - 채팅: 연락(RP, 공개) · 담화(일반, 공개) · 일행(파티원끼리만). 최근 100줄을 메모리에 보관한다.
 - 파티: 접속자 목록에서 초대 → 상대에게 "일행으로 참여하시겠습니까?" (네/아니오).
 - 랭킹: 과목별 각자의 최고 기록만 남기며 `data.json` 에 저장된다.
-- 계정과 저장 데이터는 지금까지처럼 각자의 브라우저(localStorage)에 있다. 서버는 클라이언트가 보낸 아이디 · 점수를 그대로 믿는다.
+- 계정 · 캐릭터 저장: 서버(`server/accounts.js`)가 원본을 갖고, 브라우저(localStorage)에는 사본을 둔다. 어느 기기에서든 같은 계정으로 이어서 할 수 있다.
+  - 로그인 · 가입은 서버가 확인한다(비밀번호는 scrypt). 로그인하면 토큰(180일)을 받고, 게임 저장은 몇 초씩 모아 `/api/account/save` 로 보낸다.
+  - 자동 이전: 서버에 계정이 없고 브라우저에 옛 기록이 있으면, 로그인할 때 비밀번호를 확인해 서버로 옮긴다. 서버 저장 전부터 로그인해 있던 브라우저는 한 번 다시 로그인하게 한다.
+  - 두 기기에서 동시에 하면: 서버가 매긴 저장 번호로 판단해, 다른 기기가 먼저 저장했으면 덮어쓰지 않고 그 기록으로 게임을 다시 연다.
+  - 서버에 연결할 수 없으면(서버 없이 `npm run dev` 등) 예전처럼 브라우저 안에서만 동작하고, 나중에 서버가 있을 때 로그인하면 옮겨진다.
+  - 저장 위치: `DATABASE_URL` 이 있으면 Supabase 의 `saves` 테이블(`account:<아이디>` 줄), 없으면 `server/accounts.json`(`CHOROK_ACCOUNTS` 로 변경).
+  - 점수 · 저장 내용은 여전히 브라우저가 보낸 값을 믿는다. (조작 방지는 하지 않는다)
 
 ## 구성
 - `src/components/Intro.jsx`, `FitLines.jsx` — 첫 캐릭터 생성 전 인트로. 문장 하나는 항상 한 줄이며 화면 폭에 맞춰 글자 크기가 자동 조절된다. 문단 내용은 `src/game/intro.js`
@@ -244,3 +250,13 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 - 도감: 튜토리얼에서 바리가 도깨비불을 빌려주면 도감 4장에 [빌린 영능력] 도깨비불(바리의 영능력)이 기록된다(`player.specials['dokkaebi-fire']`).
 - 급식실: 기숙사 활동에 [급식실](매점 옆). 오늘의 교내 신문(KST 날짜), 익명 사연 투고함, 오늘의 아침/점심/저녁 식단표(`src/game/meals.js`, 날짜 시드 랜덤이라 모두에게 같은 식단. 알레르기 번호 표기, 점심엔 방과후 간식). 메뉴는 meals.js의 POOLS에서 추가한다.
 - 익명 사연: `POST /api/story/submit`(접속자, 300자, 1시간 5건; 쓴 사람은 저장하지 않음) → 관리자 도구 [익명 사연 심사]에서 체크 후 [선택해서 신문에 올리기] 또는 [반려](`/api/admin/stories`, `/story/publish`, `/story/reject`, 관리자 키 필요). 올린 날의 신문에 #1, #2, #3… (날마다 1부터) 순서로 실린다. `GET /api/newspaper`. data.json의 `stories`에 저장.
+
+## v36
+- 저장소를 Supabase(Postgres)로: 환경변수 `DATABASE_URL` 이 있으면 서버 기록(랭킹 · 벼룩시장 · 인적사항 카드 · 회원 명부 · 익명 사연)과 계정 · 캐릭터가 모두 Supabase 의 `saves` 테이블에 저장된다. Render 무료 플랜의 재시작 · 재배포에도 기록이 남는다. 없으면 예전처럼 `server/data.json` · `server/accounts.json`.
+  - Supabase SQL Editor 에서 한 번: `create table saves (id text primary key, data jsonb not null, updated_at timestamptz default now());`
+  - Supabase [Connect] → Direct → **Session pooler** 주소를 복사해 비밀번호를 넣고, Render [Environment] 에 `DATABASE_URL` 로 넣는다.
+  - DB 가 비어 있으면 첫 실행 때 남아 있는 `data.json` 을 한 번 옮겨 온다. DB 를 읽지 못하면 기존 기록을 덮어쓰지 않도록 서버가 뜨지 않는다.
+- 계정 · 캐릭터 서버 저장: 어느 기기에서든 같은 계정으로 이어서 한다. 기존 브라우저 기록은 로그인할 때 자동으로 서버에 옮겨진다(이미 로그인해 있던 브라우저는 한 번 다시 로그인 안내). 자세한 동작은 위 '서버' 항목.
+- 잠들기 방지: UptimeRobot 등으로 `/api/health` 를 10분마다 부르면 서버가 잠들지 않고, DB 도 함께 건드려 Supabase 무료 프로젝트가 일시정지되지 않는다.
+- 재배포 · 재시작 직전(SIGTERM)에 아직 안 쓴 기록을 저장하고 종료한다.
+- 의존성: `pg` 추가 (`npm install` 필요).

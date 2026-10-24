@@ -13,6 +13,7 @@ import { ITEMS } from '../src/game/items.js'
 import { ENEMIES } from '../src/game/battle.js'
 import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
+import * as A from './accounts.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GIFT_MAX = 5
@@ -50,28 +51,96 @@ let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visi
 let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
 
-// ───────── 영속 데이터(랭킹 · 벼룩시장) ─────────
+// ───────── 영속 데이터(랭킹 · 벼룩시장 · 인적사항 카드 · 회원 명부 · 익명 사연) ─────────
+// 저장 위치는 두 가지:
+//  - 환경변수 DATABASE_URL 이 있으면 Supabase(Postgres)의 saves 테이블, id='server' 한 줄에 통째로 저장한다.
+//    (Render 무료 플랜은 재시작 · 재배포 때 파일이 지워지므로 배포 서버에서는 반드시 이쪽을 쓴다.)
+//  - 없으면 지금까지처럼 data.json 파일. (로컬 개발용)
+// Supabase 테이블:  create table saves (id text primary key, data jsonb not null, updated_at timestamptz default now());
+const DATABASE_URL = process.env.DATABASE_URL || ''
+const DB_ROW_ID = 'server'
+let db = null // pg Pool (DATABASE_URL 이 있을 때만)
+if (DATABASE_URL) {
+  const { default: pg } = await import('pg')
+  db = new pg.Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 3 })
+  db.on('error', (e) => console.error('DB 연결 오류:', e.message))
+}
+
 let ranking = Object.fromEntries(COURSES.map((c) => [c, {}])) // { course: { [playerId]: { id, name, score, at } } }
-try {
-  const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
+function applyRaw(raw) {
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.members && typeof raw.members === 'object') members = raw.members
   if (raw?.stories && Array.isArray(raw.stories.pending)) stories = { pending: raw.stories.pending, papers: raw.stories.papers ?? {}, seq: raw.stories.seq || 1 }
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
-} catch {
-  /* 첫 실행이면 빈 랭킹으로 시작 */
+}
+if (db) {
+  // DB 를 못 읽었는데 빈 상태로 시작하면 다음 저장 때 기존 기록을 덮어쓰므로, 읽기에 실패하면 서버를 띄우지 않는다.
+  try {
+    const r = await db.query('select data from saves where id = $1', [DB_ROW_ID])
+    if (r.rows[0]) applyRaw(r.rows[0].data)
+    else {
+      // DB 가 비어 있으면 data.json 이 남아 있을 경우 한 번 옮겨 온다. (로컬에서 쓰던 기록 이전용)
+      try {
+        applyRaw(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')))
+        console.log('data.json 의 기록을 DB 로 옮깁니다.')
+      } catch {
+        /* 옮길 파일도 없으면 빈 상태로 시작 */
+      }
+    }
+    console.log('저장소: Supabase(Postgres)')
+  } catch (e) {
+    console.error('DB 에서 기록을 불러오지 못했습니다. DATABASE_URL 과 saves 테이블을 확인하세요:', e.message)
+    process.exit(1)
+  }
+} else {
+  try {
+    applyRaw(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')))
+  } catch {
+    /* 첫 실행이면 빈 랭킹으로 시작 */
+  }
+}
+
+// 계정 · 캐릭터 저장소 (server/accounts.js). DB 가 없으면 accounts.json 파일.
+const ACCOUNTS_FILE = process.env.CHOROK_ACCOUNTS || path.join(__dirname, 'accounts.json')
+const accounts = await A.createAccountStore({ db, file: ACCOUNTS_FILE })
+const ACCOUNT_BODY_MAX = 3_000_000 // 프로필 사진(데이터 URL)이 들어 있을 수 있어 넉넉히
+let loginFails = new Map() // id → [틀린 시각]  (10분에 10번 넘게 틀리면 잠시 막는다)
+const loginBlocked = (id) => {
+  const arr = (loginFails.get(id) ?? []).filter((t) => Date.now() - t < 600_000)
+  loginFails.set(id, arr)
+  return arr.length >= 10
+}
+const bearer = (req) => accounts && A.readToken(accounts.secret, (req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''))
+const ID_RULE = /^[a-zA-Z0-9가-힣_]{2,40}$/
+
+const snapshot = () => ({ ranking, market, cards, members, stories })
+async function saveNow() {
+  if (db) {
+    await db.query(
+      `insert into saves (id, data, updated_at) values ($1, $2, now())
+       on conflict (id) do update set data = excluded.data, updated_at = now()`,
+      [DB_ROW_ID, JSON.stringify(snapshot())]
+    )
+  } else {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(snapshot(), null, 1))
+  }
 }
 let saveTimer = null
+let dirty = false
 function scheduleSave() {
+  dirty = true
   clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(async () => {
+    saveTimer = null
+    dirty = false
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market, cards, members, stories }, null, 1))
+      await saveNow()
     } catch (e) {
-      console.error('랭킹 저장 실패:', e.message)
+      console.error('기록 저장 실패(10초 뒤 다시 시도):', e.message)
+      if (!saveTimer) setTimeout(() => !saveTimer && scheduleSave(), 10_000)
     }
-  }, 400)
+  }, db ? 1500 : 400)
 }
 
 // ───────── 접속 상태(메모리) ─────────
@@ -307,13 +376,27 @@ const topOf = (course, limit = 20) =>
 async function handleApi(req, res, url) {
   const route = url.pathname
 
-  if (req.method === 'GET' && route === '/api/health') return json(res, 200, { ok: true, online: clients.size })
+  // 잠들기 방지용으로 UptimeRobot 등이 주기적으로 찌르는 주소. DB 도 함께 건드려 Supabase 무료 프로젝트가 일시정지되지 않게 한다.
+  if (req.method === 'GET' && route === '/api/health') {
+    let dbOk = null
+    if (db) dbOk = await db.query('select 1').then(() => true, () => false)
+    return json(res, 200, { ok: true, online: clients.size, db: dbOk })
+  }
 
   // 그날의 교내 신문: 누구나 볼 수 있다. ?date=YYYY-MM-DD (없으면 오늘, KST)
   if (req.method === 'GET' && route === '/api/newspaper') {
     const q = url.searchParams.get('date')
     const date = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : kstDate()
     return json(res, 200, { ok: true, date, stories: (stories.papers[date] ?? []).map((s) => ({ no: s.no, text: s.text })) })
+  }
+
+  // 내 계정 (로그인 토큰 필요): 다른 기기에서 저장한 최신 기록을 받아 간다.
+  if (req.method === 'GET' && route === '/api/account/me') {
+    const id = bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    const acc = await accounts.get(id)
+    if (!acc) return json(res, 401, { error: 'no-account' })
+    return json(res, 200, { ok: true, user: A.publicAccount(acc) })
   }
 
   // 벼룩시장 목록: 물건 종류별로(상점 순서) 1개당 값이 싼 것부터. 올린 사람은 알려 주지 않고, 본인 것만 mine 으로 표시한다.
@@ -415,8 +498,95 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method !== 'POST') return json(res, 404, { error: 'not-found' })
-  const body = await readBody(req, route === '/api/card' ? 400_000 : 10_000)
+  const body = await readBody(req, route === '/api/card' ? 400_000 : route.startsWith('/api/account/') ? ACCOUNT_BODY_MAX : 10_000)
   if (!body) return json(res, 400, { error: 'bad-json' })
+
+  // ───────── 계정 (가입 · 로그인 · 저장 · 아이디 찾기) ─────────
+  if (route === '/api/account/signup') {
+    const id = typeof body.id === 'string' ? body.id.trim() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
+    const twitter = typeof body.twitter === 'string' ? body.twitter.trim().replace(/^@/, '') : ''
+    if (!ID_RULE.test(id)) return json(res, 400, { error: 'bad-id' })
+    if (password.length < 4) return json(res, 400, { error: 'bad-password' })
+    if (!twitter) return json(res, 400, { error: 'no-twitter' })
+    if (rateLimited(`auth:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (await accounts.get(id)) return json(res, 409, { error: 'taken' })
+    const acc = {
+      id,
+      passwordHash: A.hashPassword(password),
+      twitter,
+      twitterNorm: A.normTwitter(twitter),
+      createdAt: Date.now(),
+      admin: !!(body.adminKey && adminOk(body.adminKey)),
+      save: null,
+      updatedAt: Date.now(),
+    }
+    await accounts.put(acc)
+    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+  }
+
+  // 로그인. 서버에 계정이 없고 이 브라우저에 옛 기록(local)이 있으면, 비밀번호가 맞을 때 그 기록을 서버로 옮긴다. (자동 이전)
+  if (route === '/api/account/login') {
+    const id = typeof body.id === 'string' ? body.id.trim() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
+    if (!ID_RULE.test(id) || !password) return json(res, 401, { error: 'bad-login' })
+    if (rateLimited(`auth:${id}`) || loginBlocked(id)) return json(res, 429, { error: 'slow-down' })
+    const local = body.local && typeof body.local === 'object' && body.local.id === id ? body.local : null
+    const localOk = !!local && local.passwordHash === A.legacyHash(password, id)
+    let acc = await accounts.get(id)
+    let migrated = false
+    if (!acc) {
+      if (!localOk) {
+        loginFails.get(id)?.push(Date.now()) ?? loginFails.set(id, [Date.now()])
+        return json(res, 401, { error: 'bad-login' })
+      }
+      acc = {
+        id,
+        passwordHash: A.hashPassword(password),
+        twitter: String(local.twitter ?? ''),
+        twitterNorm: A.normTwitter(local.twitter),
+        createdAt: Number(local.createdAt) || Date.now(),
+        admin: !!local.admin,
+        ...A.pickGame(local),
+        updatedAt: Date.now(),
+      }
+      migrated = true
+    } else {
+      if (!A.verifyPassword(password, acc.passwordHash)) {
+        loginFails.get(id)?.push(Date.now()) ?? loginFails.set(id, [Date.now()])
+        return json(res, 401, { error: 'bad-login' })
+      }
+      // 이 브라우저에서 서버에 못 보낸 플레이(dirty)가 있고, 그 사이 다른 기기가 저장하지 않았다면 이 브라우저 쪽을 남긴다.
+      if (localOk && local.dirty && Number(local.syncBase) === (acc.updatedAt || 0)) {
+        Object.assign(acc, A.pickGame(local), { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
+        migrated = true
+      }
+    }
+    if (body.adminKey && adminOk(body.adminKey)) acc.admin = true
+    loginFails.delete(id)
+    await accounts.put(acc)
+    return json(res, 200, { ok: true, migrated, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+  }
+
+  // 게임 저장 (로그인 토큰 필요). 브라우저가 저장할 때마다 몇 초 모아서 보낸다.
+  if (route === '/api/account/save') {
+    const id = bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    const acc = await accounts.get(id)
+    if (!acc) return json(res, 401, { error: 'no-account' })
+    // base: 이 브라우저가 마지막으로 서버와 맞춘 저장 번호. 그 사이 다른 기기가 저장했다면 덮어쓰지 않고 최신 기록을 돌려준다.
+    if (Number(body.base) !== (acc.updatedAt || 0)) return json(res, 409, { error: 'stale', user: A.publicAccount(acc) })
+    Object.assign(acc, A.pickGame(body.account), { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
+    await accounts.put(acc)
+    return json(res, 200, { ok: true, updatedAt: acc.updatedAt })
+  }
+
+  // 아이디 찾기: 가입할 때 적은 트위터 아이디로. (비밀번호 찾기는 지원하지 않는다.)
+  if (route === '/api/account/find') {
+    if (rateLimited('auth:find')) return json(res, 429, { error: 'slow-down' })
+    const ids = await accounts.idsByTwitter(body.twitter)
+    return json(res, 200, { ok: true, ids })
+  }
 
   // 관리자 키 확인 (로그인 화면에서 한 번). 맞으면 클라이언트가 그 계정을 관리자로 표시한다.
   if (route === '/api/admin/verify') {
@@ -788,4 +958,29 @@ const server = http.createServer((req, res) => {
     serveStatic(req, res, url)
   }
 })
-server.listen(PORT, () => console.log(`초록동색 서버: http://localhost:${PORT}  (랭킹 파일: ${DATA_FILE})`))
+server.listen(PORT, () => console.log(`초록동색 서버: http://localhost:${PORT}  (저장소: ${db ? 'Supabase' : DATA_FILE})`))
+
+// Render 는 재배포 · 재시작 직전에 SIGTERM 을 보낸다. 아직 안 쓴 기록이 있으면 마저 저장하고 끈다.
+let shuttingDown = false
+async function shutdown(sig) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`${sig} 수신: 기록을 저장하고 종료합니다.`)
+  clearTimeout(saveTimer)
+  if (dirty || saveTimer) {
+    try {
+      await saveNow()
+    } catch (e) {
+      console.error('종료 전 저장 실패:', e.message)
+    }
+  }
+  try {
+    accounts.flush()
+  } catch (e) {
+    console.error('계정 파일 저장 실패:', e.message)
+  }
+  await db?.end().catch(() => {})
+  process.exit(0)
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
