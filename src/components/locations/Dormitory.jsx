@@ -55,6 +55,7 @@ function Sleep({ spirit, sleeping, onStartSleep, onStopSleep }) {
               <p className="text-[11px] text-paper/50">일어나면</p>
               <ul className="mt-1 space-y-0.5 text-sm">
                 <li>체력 · 의지력 <b className="text-gold">가득 참</b></li>
+                <li>[쇠약]에 걸려 있다면 <b className="text-gold">함께 회복</b></li>
                 <li>
                   영력 <b className="text-gold">+{gainText}</b>
                   <span className="ml-1.5 text-[11px] text-paper/55">

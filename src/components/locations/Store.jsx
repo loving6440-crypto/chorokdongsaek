@@ -5,9 +5,10 @@ import { STORE_INFO, YUMIN } from '../../game/store'
 import { pickNpcLine } from '../../game/npcLines'
 import ItemIcon from '../ItemIcon'
 import NpcDialog from '../NpcDialog'
+import NpcGift from '../NpcGift'
 
 /** 기숙사 매점. 아래쪽에서 점원 강유민이 들어올 때마다 대사를 하나씩 한다. */
-export default function Store({ player, onBuy, onMeet, onLineSeen, admin = false }) {
+export default function Store({ player, onBuy, onMeet, onLineSeen, admin = false, onGiveNpc }) {
   const [now, setNow] = useState(() => Date.now())
   const [{ line, firstOf }] = useState(() => pickNpcLine(YUMIN.id, YUMIN.lines, player, player.lineSeen))
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function Store({ player, onBuy, onMeet, onLineSeen, admin = false
       <NpcDialog npc={YUMIN.name} src={YUMIN.faces[line.face ?? 'plain']} face={line.face} dataNpc="yumin">
         {line.text}
       </NpcDialog>
+      <NpcGift npcId="yumin" player={player} onGive={onGiveNpc} />
       {target && (
         <div className="modal-scrim fixed inset-0 z-[75] grid place-items-center p-4" onClick={() => setTarget(null)}>
           <div role="alertdialog" aria-modal="true" aria-label="구매 확인" className="ink-panel w-full max-w-sm rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>

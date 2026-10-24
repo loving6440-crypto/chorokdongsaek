@@ -11,9 +11,12 @@ import {
   rollRash,
   rashPercent,
   resolveSurvive,
+  psychicTurn,
   revealOf,
   rollInitiative,
   scanTurns,
+  recLabel,
+  partyLabel,
 } from '../../game/battle'
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
@@ -25,7 +28,7 @@ import Tutorial from './Tutorial'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [b, setB] = useState(null)
   const [fights, setFights] = useState(0)
@@ -33,6 +36,14 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const [busy, setBusy] = useState(false)
   const [dice, setDice] = useState(null)
   const [psyOpen, setPsyOpen] = useState(false) // 영능력 탭
+  const [scanOpen, setScanOpen] = useState(false) // 간파: 의지력을 얼마나 쓸지 고르는 칸
+  const [scanN, setScanN] = useState(1)
+  const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
+  useEffect(() => {
+    if (!spBanner) return undefined
+    const t = setTimeout(() => setSpBanner(null), 2800)
+    return () => clearTimeout(t)
+  }, [spBanner])
   const beginRef = useRef(null)
   const timer = useRef(null)
   const reported = useRef(false)
@@ -106,6 +117,8 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       }
       return { ...e, text: `✦ 영능력 《${e.label}》` }
     })
+    const sp = events.find((e) => e.kind === 'special')
+    if (sp) setSpBanner({ label: sp.label, note: sp.note, k: Math.random() })
     setLog((l) => [...events.map((e) => ({ ...e, id: Math.random() })), ...l].slice(0, 40))
     const last = [...events].reverse().find((e) => e.roll)
     if (last) setDice({ n: last.roll, kind: last.kind, k: Math.random() })
@@ -118,7 +131,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       fightingRef.current = false
       onActive?.(false)
       setPhase('result')
-      onFinish({ win: state.over === 'win', enemy: state.enemy })
+      onFinish({ win: state.over === 'win', fled: state.over === 'fled', enemy: state.enemy })
     },
     [onFinish, onActive],
   )
@@ -131,6 +144,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         spend(-r.mpDrain)
         let st = r.state
         let evs = r.events
+        if (st.pendingDeath || st.over === 'lose') onDown?.()
         // 에너지드링크: 전투불능이 되는 순간 1회 체력 1로 부활, 전투는 계속된다.
         if ((st.pendingDeath || st.over === 'lose') && reviveRef.current) {
           st = { ...st, php: 1, pendingDeath: false, over: null }
@@ -145,7 +159,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         else if (!st.pendingDeath) beginRef.current?.(st)
       }, delay)
     },
-    [stats, push, finish, spend, onReviveUsed],
+    [stats, push, finish, spend, onReviveUsed, onDown],
   )
 
   const start = (enemyId) => {
@@ -180,8 +194,8 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
   const resolve = useCallback(
-    (cur, action) => {
-      const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true })
+    (cur, action, extra = {}) => {
+      const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true, ...extra })
       if (r.boostUsed) {
         boostRef.current = false
         onBoostUsed?.()
@@ -216,7 +230,18 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   const act = useCallback(
     (action) => {
-      if (action === 'psychic') return setPsyOpen((o) => !o)
+      if (action === 'psychic') {
+        setScanOpen(false)
+        return setPsyOpen((o) => !o)
+      }
+      if (action === 'scan') {
+        const c0 = bRef.current
+        if (!c0 || c0.over || c0.pendingDeath || busy || phase !== 'fight') return
+        if (Math.floor(mpRef.current) < 1) return
+        setPsyOpen(false)
+        setScanN((n) => Math.max(1, Math.min(Math.floor(mpRef.current), n)))
+        return setScanOpen((o) => !o)
+      }
       const cur = bRef.current
       if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
       const have = Math.floor(mpRef.current)
@@ -228,10 +253,35 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     [busy, phase, resolve],
   )
 
+  const doScan = () => {
+    const cur = bRef.current
+    if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
+    const amount = Math.max(1, Math.min(Math.floor(mpRef.current), scanN))
+    setScanOpen(false)
+    setPsyOpen(false)
+    resolve(cur, 'scan', { scanAmount: amount })
+  }
+
+  const usePsychic = (id) => {
+    const cur = bRef.current
+    if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
+    setPsyOpen(false)
+    const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current })
+    if (r.invalid) return
+    if (r.boostUsed) {
+      boostRef.current = false
+      onBoostUsed?.()
+    }
+    setB(r.state)
+    push(r.events)
+    if (r.state.over) finish(r.state)
+    else runEnemy(r.state)
+  }
+
   const survive = (accept) => {
     const cur = bRef.current
     if (!cur?.pendingDeath) return
-    const r = resolveSurvive(cur, accept, mpRef.current)
+    const r = resolveSurvive(cur, accept, mpRef.current, stats)
     spend(-r.mpCost)
     setB(r.state)
     push(r.events)
@@ -311,6 +361,10 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                   <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 align-middle font-sans text-[11px] text-gold" aria-label={`${e.tier}단계`}>{tierLabel(e.tier)}</span>
                   {e.name}
                 </p>
+                <p className="mt-1 flex flex-wrap gap-1 text-[10px]" data-rec>
+                  <span className="rounded-full border border-edge/25 px-2 py-px text-paper/70">{recLabel(e)}</span>
+                  <span className={`rounded-full border px-2 py-px ${e.partySize > 1 ? 'border-gold/50 text-gold' : 'border-edge/25 text-paper/70'}`}>{partyLabel(e)}</span>
+                </p>
                 <p className="mt-1 flex-1 text-xs leading-relaxed text-paper/60">{e.blurb}</p>
                 <p className="mt-2 grid grid-cols-2 gap-x-3 text-[11px] tabular-nums text-paper/70">
                   <span>체력 {q(rv.hp, e.hp)}</span>
@@ -336,12 +390,20 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const rv = revealOf(b.enemy, stats, fights)
   const danger = b.php <= b.phpMax * 0.3 && !b.over
   const myTurn = !busy && !b.over && !b.pendingDeath
-  const shown = b.over ? 0 : Math.min(b.known, 3)
+  const shown = b.over ? 0 : Math.min(b.known, b.queue.length)
+  const SHOW_MAX = 14
   const have = Math.floor(mpRef.current)
   const q = (ok, v) => (ok ? v : '???')
 
   return (
-    <section aria-label="전투" className="relative">
+    <section aria-label="전투" className={`relative ${spBanner ? 'sp-shake' : ''}`}>
+      {spBanner && (
+        <div key={spBanner.k} role="alert" data-sp-banner className="sp-banner pointer-events-none absolute inset-x-0 top-10 z-30 mx-auto w-[min(26rem,92%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl" onAnimationEnd={() => setSpBanner(null)}>
+          <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
+          <p className="mt-1 font-serif text-3xl text-gold">《{spBanner.label}》</p>
+          <p className="mt-1 text-sm text-paper/90">{spBanner.note}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
         <span>
           라운드 <b className="font-serif text-base text-paper">{b.round}</b>
@@ -357,6 +419,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             <p className="font-serif text-lg text-paper">
               {b.enemy.tier && <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 align-middle font-sans text-[11px] text-gold">{tierLabel(b.enemy.tier)}</span>}
               {b.enemy.name}
+              {b.enemy.tier && <span className="ml-2 align-middle font-sans text-[10px] text-paper/50">{recLabel(b.enemy)} · {partyLabel(b.enemy)}</span>}
             </p>
             <p className="text-xs tabular-nums text-paper/70">{rv.hp ? `${b.ehp} / ${b.enemy.hp}` : '체력 ???'}</p>
           </div>
@@ -374,12 +437,12 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
               <p className="text-[11px] text-paper/55">상대의 다음 행동</p>
               {shown > 0 ? (
                 <ol className="mt-1 flex flex-wrap gap-1.5">
-                  {b.queue.slice(0, shown).map((k, i) => (
-                    <li key={i} className={`rounded-full px-2.5 py-0.5 text-xs ${k === 'smash' ? 'bg-crimson/25 text-crimson' : 'bg-edge/10'}`}>
+                  {b.queue.slice(0, Math.min(shown, SHOW_MAX)).map((k, i) => (
+                    <li key={i} className={`rounded-full px-2.5 py-0.5 text-xs ${k === 'smash' ? 'bg-crimson/25 text-crimson' : k === 'special' ? 'bg-gold/20 text-gold' : 'bg-edge/10'}`}>
                       {i + 1}. {INTENTS[k].label}
-                      {k === 'special' && ` · ${knownSp.current[b.enemy.id] ? b.enemy.special.label : '???'}`}
                     </li>
                   ))}
+                  {shown > SHOW_MAX && <li className="px-1 py-0.5 text-xs text-paper/55">… 외 {shown - SHOW_MAX}턴 더</li>}
                 </ol>
               ) : (
                 <p className="mt-1 text-xs text-paper/60">알 수 없다. 간파로 읽을 수 있다.</p>
@@ -455,11 +518,42 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                   <span className="text-[10px] text-paper/40">{i + 1}</span>
                 </span>
                 <span className="text-[10.5px] leading-snug text-paper/60">
-                  {id === 'scan' ? `의지력 1. 다음 ${scanTurns(stats, b.enemy)}턴의 행동을 본다.` : ACTIONS[id].note}
+                  {id === 'scan' ? `의지력 N. 1이면 ${scanTurns(stats, b.enemy)}턴, 1 늘 때마다 1턴 더 본다.` : ACTIONS[id].note}
                 </span>
               </button>
             )
           })}
+        </div>
+      )}
+
+      {scanOpen && !b.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="간파">
+          <p className="font-serif text-base text-gold">간파</p>
+          {(() => {
+            const n = Math.max(1, Math.min(have, scanN))
+            return (
+              <>
+                <p className="mt-1 text-[11px] text-paper/65">의지력을 많이 쓸수록 상대의 행동을 더 멀리까지 본다.</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button type="button" aria-label="간파 의지력 줄이기" onClick={() => setScanN(Math.max(1, n - 1))} disabled={n <= 1} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">−</button>
+                  <input
+                    aria-label="간파에 쓸 의지력"
+                    inputMode="numeric"
+                    value={n}
+                    onChange={(e) => setScanN(Math.max(1, Math.min(have, parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)))}
+                    className="h-8 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50"
+                  />
+                  <button type="button" aria-label="간파 의지력 늘리기" onClick={() => setScanN(Math.min(have, n + 1))} disabled={n >= have} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
+                  <button type="button" onClick={() => setScanN(have)} disabled={have <= 1} className="rounded-lg bg-edge/10 px-2 py-1.5 text-[11px] text-paper/80 disabled:opacity-35">최대</button>
+                  <span className="text-xs text-gold" data-scan-turns>의지력 {n} → {scanTurns(stats, b.enemy, n)}턴</span>
+                </div>
+                <button type="button" onClick={doScan} disabled={!myTurn} className="flat-btn mt-3 justify-center disabled:opacity-40" data-scan-go>
+                  <Eye size={14} aria-hidden />
+                  간파 사용 (의지력 {n})
+                </button>
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -475,6 +569,12 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                   <li key={s.id} data-psychic={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
                     <p className="text-sm text-paper">{s.label}</p>
                     <p className="text-[11px] text-paper/60">{s.note}</p>
+                    {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
+                    {s.use && (
+                      <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        사용
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -490,6 +590,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             버티기를 쓰면 의지력 <b className="text-gold">{Math.max(0, have - 1)}</b>을(를) 전부 쏟고 체력 1로 일어선다.
             포기하면 여기서 패배하지만 남은 의지력은 지킨다.
           </p>
+          <p className="mt-1 text-[11px] text-paper/60">버티기는 한 전투에 한 번뿐이다. 인내 {Math.min(100, stats.endurance)}% 확률로 의지력을 쓰지 않는다.</p>
           <div className="mt-3 flex justify-center gap-2">
             <button type="button" onClick={() => survive(true)} className="flat-btn justify-center">버티기</button>
             <button type="button" onClick={() => survive(false)} className="flat-btn justify-center !bg-crimson">쓰러진다</button>
@@ -499,7 +600,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
       {phase === 'result' && b.over && (
         <div className="ink-panel mt-3 rounded-xl p-4 text-center">
-          <p className={`font-serif text-2xl ${b.over === 'win' ? 'text-gold' : 'text-crimson'}`}>{b.over === 'win' ? '승리' : '패배'}</p>
+          <p className={`font-serif text-2xl ${b.over === 'win' ? 'text-gold' : b.over === 'fled' ? 'text-paper' : 'text-crimson'}`}>{b.over === 'win' ? '승리' : b.over === 'fled' ? '도주' : '패배'}</p>
           {b.over === 'win' && <p className="mt-1 text-xs text-paper/70">쓰러진 {b.enemy.name}의 영력이 흘러든다. (영력 +{b.enemy.reward}) (하루 {rewardLeft <= 0 ? '보상 소진' : '보상 한도 내'})</p>}
           <button type="button" onClick={() => setPhase('pick')} className="flat-btn mt-3 justify-center">
             상대 고르기

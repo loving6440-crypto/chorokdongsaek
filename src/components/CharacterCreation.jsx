@@ -8,6 +8,7 @@ import StatTooltip from './StatTooltip'
 import { STAT_ICONS } from './statIcons'
 import {
   allocationToStats,
+  cleanGreeting,
   cleanName,
   emptyAllocation,
   remainingPoints,
@@ -31,6 +32,7 @@ const subtleButton =
 export default function CharacterCreation({ theme, onToggleTheme, onComplete, onCancel }) {
   const [profile, setProfile] = useState({
     name: '',
+    greeting: '',
     age: AGE_MIN,
     grade: null, // null = 나이에 맞춰 자동
     avatar: { kind: 'color', color: DEFAULT_AVATAR_COLOR },
@@ -62,6 +64,7 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete, on
     if (!canStart) return
     onComplete({
       name: cleanedName,
+      greeting: cleanGreeting(profile.greeting),
       age: profile.age,
       grade: profile.grade,
       avatar: profile.avatar,

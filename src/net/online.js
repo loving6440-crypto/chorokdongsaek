@@ -182,6 +182,20 @@ export const marketClaim = () => post('/api/market/claim', {})
 
 export const leaveParty = () => post('/api/party/leave', {})
 
+// ───────── 인적사항 카드 ─────────
+/** 내 카드를 서버에 올린다. card = { name, greeting, age, grade, avatar } */
+export const sendCard = (card) => post('/api/card', { card })
+/** 다른 사람의 카드를 가져온다. { ok, card, online, title } 또는 { ok:false } */
+export async function fetchCard(targetId) {
+  try {
+    const r = await fetch(`/api/card?id=${encodeURIComponent(state.me?.id ?? '')}&target=${encodeURIComponent(targetId)}`)
+    if (!r.ok) return { ok: false, status: r.status }
+    return await r.json()
+  } catch {
+    return { ok: false, status: 0 }
+  }
+}
+
 // ───────── 랭킹 ─────────
 export async function fetchRanking(course, id) {
   try {

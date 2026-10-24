@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import ProfileForm from './ProfileForm'
-import { cleanName } from '../game/character'
+import { cleanGreeting, cleanName } from '../game/character'
 
 /** 프로필 수정: 사진 · 이름 · 나이 · 학년을 바꾼다. 스탯과 진행 상황은 그대로다. */
 export default function ProfileEditModal({ player, onSave, onClose }) {
   const [value, setValue] = useState({
     name: player.name,
+    greeting: player.greeting ?? '',
     age: player.age,
     grade: player.grade ?? null,
     avatar: player.avatar,
@@ -30,7 +31,7 @@ export default function ProfileEditModal({ player, onSave, onClose }) {
           <button
             type="button"
             disabled={!ok}
-            onClick={() => onSave({ ...value, name })}
+            onClick={() => onSave({ ...value, name, greeting: cleanGreeting(value.greeting) })}
             className="flat-btn disabled:cursor-not-allowed disabled:opacity-40"
           >
             저장

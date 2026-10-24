@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPlayer } from './game/character'
+import { createPlayer, gradeOf } from './game/character'
 import ChatPanel from './components/ChatPanel'
 import InventoryModal from './components/InventoryModal'
+import CodexToast from './components/CodexToast'
+import ProfileCardModal from './components/ProfileCardModal'
+import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
-import { START_MONEY, canUseItem, isStoreOpen, itemOf } from './game/items'
+import { START_MONEY, canUseItem, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -49,9 +52,14 @@ import {
   startRest,
   startSleep,
   markNpc,
+  syncCodex,
   REST_KINDS,
+  acquirePsychic,
+  effectiveStats,
+  isWeak,
+  weakLeftText,
 } from './game/progress'
-import { connect, disconnect, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline } from './net/online'
+import { connect, disconnect, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline } from './net/online'
 import Market from './components/Market'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
@@ -90,7 +98,7 @@ export default function Game({
 }) {
   const restored = initialSave?.player
 
-  const [player, setPlayer] = useState(() => (restored ? sanitizeRestored(restored, joinedAt, admin) : createPlayer(character)))
+  const [player, setPlayer] = useState(() => (restored ? sanitizeRestored(restored, joinedAt, admin) : syncCodex(createPlayer(character))))
   const [locationId, setLocationId] = useState(() => initialSave?.locationId || 'dorm')
   const battleRef = useRef(false)
   const reviveRef = useRef(false)
@@ -110,7 +118,23 @@ export default function Game({
   const [invOpen, setInvOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [giftTo, setGiftTo] = useState(null) // { id, name }
+  const [cardTo, setCardTo] = useState(null) // 인적사항 카드로 보는 사람 { id, name }
   const [codexOpen, setCodexOpen] = useState(false)
+  // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다. 전투 교육 중에는 끝난 뒤에 모아서 보여 준다.
+  const [codexNew, setCodexNew] = useState([])
+  const codexSeen = useRef(null)
+  useEffect(() => {
+    if (player.tutorialSnap) return
+    const now = codexKnown(player)
+    if (codexSeen.current == null) {
+      codexSeen.current = now
+      return
+    }
+    const fresh = Object.keys(now).filter((k) => !codexSeen.current[k])
+    if (!fresh.length) return
+    codexSeen.current = now
+    setCodexNew((prev) => [...prev, ...fresh.map((k) => ({ key: k, ...now[k] }))])
+  }, [player])
   const [adminOpen, setAdminOpen] = useState(false)
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
@@ -143,6 +167,10 @@ export default function Game({
   // 항상 최신 player 를 들고 있는 ref. (수업 시스템의 콜백이 늘 같은 함수로 남도록)
   const playerRef = useRef(player)
   playerRef.current = player
+  // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
+  // 장비 보정(무복 등)도 여기서 더해진다.
+  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.weakUntil])
+  const viewPlayer = useMemo(() => (effStats === player.stats ? player : { ...player, stats: effStats }), [player, effStats])
 
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
   useEffect(() => {
@@ -179,8 +207,8 @@ export default function Game({
 
   // 프로필을 고치면 저장되는 character 도 같이 바뀐다.
   const charOut = useMemo(
-    () => ({ ...character, name: player.name, age: player.age, grade: player.grade ?? null, avatar: player.avatar }),
-    [character, player.name, player.age, player.grade, player.avatar],
+    () => ({ ...character, name: player.name, greeting: player.greeting ?? '', age: player.age, grade: player.grade ?? null, avatar: player.avatar }),
+    [character, player.name, player.greeting, player.age, player.grade, player.avatar],
   )
 
   // 상태 변경 시 자동 저장 (약 0.8초 디바운스)
@@ -332,7 +360,7 @@ export default function Game({
   const closeCourse = () => setCourse(null)
 
   const saveProfile = (v) => {
-    setPlayer((prev) => ({ ...prev, name: v.name, age: v.age, grade: v.grade, avatar: v.avatar }))
+    setPlayer((prev) => ({ ...prev, name: v.name, greeting: v.greeting ?? '', age: v.age, grade: v.grade, avatar: v.avatar }))
     setProfileOpen(false)
     addLog('프로필을 고쳤다.')
   }
@@ -364,6 +392,8 @@ export default function Game({
         setPlayer((prev) => spendAttempt(prev, id) ?? prev)
         return true
       },
+      // 시도를 다 쓴 뒤의 자유 플레이: 시도는 쓰지 않고 새 동작으로만 친다.
+      freePlay: () => interruptAll('새 동작을 시작해'),
       complete: (id) => {
         const r = completeLesson(playerRef.current, id)
         if (!r.logs.length) return
@@ -431,6 +461,14 @@ export default function Game({
 
   // ───────── 벼룩시장 ─────────
   const online = useOnline()
+  // 내 인적사항 카드를 서버에 올려 둔다. (접속할 때, 프로필을 바꿀 때)
+  useEffect(() => {
+    if (online.status !== 'online') return undefined
+    const t = setTimeout(() => {
+      sendCard({ name: player.name, greeting: player.greeting ?? '', age: player.age, grade: gradeOf(player), avatar: player.avatar })
+    }, 500)
+    return () => clearTimeout(t)
+  }, [online.status, player.name, player.greeting, player.age, player.grade, player.avatar])
   const claimProceeds = useCallback(async () => {
     const r = await marketClaim()
     if (!r.ok || !r.amount) return
@@ -509,6 +547,66 @@ export default function Game({
     [addLog],
   )
 
+  // 자기 학년 보관함을 처음 열면 무복이 한 벌 들어 있다. (그 뒤로는 평범한 아이템)
+  const lockerOpen = useCallback(
+    (grade) => {
+      const cur = playerRef.current
+      if (cur.gymwearGiven) return
+      const box = cur.lockers?.[grade] ?? {}
+      const next = { ...cur, gymwearGiven: true, lockers: { ...(cur.lockers ?? {}), [grade]: { ...box, gymwear: (box.gymwear || 0) + 1 } } }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`${grade}학년 물품보관함 안에서 [무복] 한 벌을 발견했다.`)
+    },
+    [addLog],
+  )
+
+  // ───────── 장비 ─────────
+  const equip = useCallback(
+    (id) => {
+      if (battleRef.current) return { error: '전투 중에는 장비를 바꿀 수 없다.' }
+      const r = equipItem(playerRef.current, id)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`[${itemOf(id).name}]을(를) 착용했다.`)
+      return {}
+    },
+    [addLog],
+  )
+  const unequip = useCallback(
+    (slot) => {
+      if (battleRef.current) return { error: '전투 중에는 장비를 바꿀 수 없다.' }
+      const cur = playerRef.current
+      const was = equipOf(cur)[slot]
+      const r = unequipSlot(cur, slot)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`[${itemOf(was).name}]을(를) 벗었다.`)
+      return {}
+    },
+    [addLog],
+  )
+
+  // NPC 에게 마이쮸를 건네 호감도를 올린다. (전투 중엔 불가)
+  const giveNpc = useCallback(
+    (npcId, itemId = 'chewy') => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const cur = playerRef.current
+      if (!(cur.inventory?.[itemId] > 0)) return { error: '건넬 물건이 없다.' }
+      const inv = { ...cur.inventory, [itemId]: cur.inventory[itemId] - 1 }
+      if (inv[itemId] <= 0) delete inv[itemId]
+      const lv = (cur.affinity?.[npcId] || 0) + 1
+      const next = { ...cur, inventory: inv, affinity: { ...(cur.affinity ?? {}), [npcId]: lv } }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`${itemOf(itemId).name}을(를) 건넸다. 호감도가 올랐다. (${lv})`)
+      return { level: lv }
+    },
+    [addLog],
+  )
+
   // ───────── 선물 ─────────
   const itemList = (items) =>
     Object.entries(items)
@@ -581,7 +679,7 @@ export default function Game({
         setBoostOn(true)
       }
       setItemsUsed((n) => n + 1)
-      addLog(`${item.name}을(를) 사용했다. (${e.revive ? '전투불능 시 1회 부활 대기' : e.boost ? '다음 행동의 피해 2배 (1턴)' : item.effectText})`)
+      addLog(`${item.name}을(를) 사용했다. (${e.revive ? '전투불능 시 1회 부활 대기' : e.boost ? '나의 다음 행동 피해 2배 (1턴)' : item.effectText})`)
     },
     [addLog],
   )
@@ -596,6 +694,16 @@ export default function Game({
     },
     [interruptAll],
   )
+
+  // 전투 중 처음으로 전투불능이 되면 영능력 [생존본능]을 얻는다.
+  const downed = useCallback(() => {
+    const cur = playerRef.current
+    const next = acquirePsychic(cur, 'survival')
+    if (next === cur) return
+    playerRef.current = next
+    setPlayer(next)
+    addLog('✦ 영능력 《생존본능》을 얻었다. (영능력 탭에서 확인)')
+  }, [addLog])
 
   const changeHp = useCallback((value) => {
     const cur = playerRef.current
@@ -646,7 +754,11 @@ export default function Game({
   }, [])
 
   const finishBattle = useCallback(
-    ({ win, enemy }) => {
+    ({ win, fled, enemy }) => {
+      if (fled) {
+        addLog(`퇴마 실습: 생존본능으로 ${enemy.name}에게서 도망쳤다. (보상도 손실도 없다)`)
+        return
+      }
       const r = applyBattleResult(playerRef.current, win, enemy.reward)
       playerRef.current = r.player
       setPlayer(r.player)
@@ -658,9 +770,14 @@ export default function Game({
         )
       } else {
         addLog(`퇴마 실습: ${enemy.name}에게 패했다.${r.lost ? ` 영력 -${r.lost}.` : ''}`)
+        // 전투불능 → 무조건 양호실에서 눈을 뜬다. [쇠약] 24시간.
+        addLog('눈을 떠 보니 양호실이다. 몸이 말을 듣지 않는다… [쇠약] 모든 육조 스탯이 5할로 줄었다. (24시간)')
+        interruptAll('쓰러져')
+        setActivity('intro')
+        setLocationId('infirmary')
       }
     },
-    [addLog],
+    [addLog, interruptAll],
   )
 
   const investigate = useCallback(
@@ -759,7 +876,12 @@ export default function Game({
               <Market player={player} admin={admin} online={online.status === 'online'} onSell={marketSell} onBuy={marketBuyIt} onCancel={marketCancelIt} onOpen={claimProceeds} />
             ) : (
               <>
-                {locationId === 'mainHall' && <MainHall player={player} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} />}
+                {isWeak(player) && (
+                  <p data-weak-chip className="mb-3 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
+                    [쇠약] 모든 육조 스탯이 5할 · 남은 시간 {weakLeftText(player)} (기숙사에서 6시간 취침하면 바로 회복)
+                  </p>
+                )}
+                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} />}
                 {locationId === 'infirmary' && (
                   <Infirmary
                     view={activity}
@@ -769,11 +891,11 @@ export default function Game({
                   />
                 )}
                 {locationId === 'annex' && <Annex view={activity} />}
-                {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} />}
+                {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />}
                 {locationId === 'dorm' && activity !== 'store' && (
                   <Dormitory
                     view={activity}
-                    control={player.stats.control}
+                    control={effStats.control}
                     spirit={player.spirit}
                     training={player.training ?? null}
                     sleeping={player.sleeping ?? null}
@@ -786,7 +908,7 @@ export default function Game({
                 {locationId === 'gym' && (
                   <Gym
                     view={activity}
-                    stats={player.stats}
+                    stats={effStats}
                     mp={player.mp}
                     hp={player.hp}
                     hpMax={player.hpMax}
@@ -796,6 +918,7 @@ export default function Game({
                     onStart={startBattle}
                     onMp={changeMp}
                     onFinish={finishBattle}
+                    onDown={downed}
                     specials={player.specials}
                     tutorialDone={!!player.tutorialDone}
                     onSpecialSeen={seeSpecial}
@@ -834,7 +957,7 @@ export default function Game({
                   />
                 )}
                 {locationId === 'shrine' && (
-                  <Shrine view={activity} player={player} onExplore={exploreShrine} onMeet={meetNpc} onLineSeen={lineSeen} />
+                  <Shrine view={activity} player={player} onExplore={exploreShrine} onMeet={meetNpc} onLineSeen={lineSeen} onGiveNpc={giveNpc} />
                 )}
               </>
             )}
@@ -852,12 +975,12 @@ export default function Game({
             </button>
           )}
         </main>
-        <StatusPanel player={player} onUpgrade={upgradeStat} />
+        <StatusPanel player={player} eff={effStats} onUpgrade={upgradeStat} />
       </div>
 
       <div className="order-2 flex shrink-0 flex-col gap-3 lg:order-3 lg:min-h-0 lg:w-80">
         <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} hideLog={desktop} />
-        {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} />}
+        {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} onProfile={setCardTo} />}
       </div>
 
       <GameModal
@@ -865,7 +988,7 @@ export default function Game({
         onClose={closeCourse}
         playerKey={userId}
         playerName={player.name}
-        stats={player.stats}
+        stats={effStats}
         lesson={course ? lessonOf(player, course.id) : null}
         actions={lessonActions}
       />
@@ -927,13 +1050,15 @@ export default function Game({
           onClose={() => setProfilesOpen(false)}
         />
       )}
+      {cardTo && <ProfileCardModal target={cardTo} onClose={() => setCardTo(null)} />}
+      {codexNew.length > 0 && <CodexToast entries={codexNew} onClose={() => setCodexNew([])} onOpen={() => { setCodexNew([]); setCodexOpen(true) }} />}
       {codexOpen && <CodexModal player={player} onClose={() => setCodexOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={player} inBattle={battleActive} reviveOn={reviveOn} boostOn={boostOn} onUse={useItem} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={player} inBattle={battleActive} reviveOn={reviveOn} boostOn={boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyMates={(online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
-      {!desktop && <ChatPanel onGift={setGiftTo} />}
+      {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>
   )
 }

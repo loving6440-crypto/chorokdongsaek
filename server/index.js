@@ -42,6 +42,7 @@ const INVITE_TTL_MS = 60_000
 const MARKET_MAX_PER_SELLER = 10
 const MARKET_QTY_MAX = 99
 const MARKET_PRICE_MAX = 99999
+let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade, avatar, at } }  (접속자 이름을 눌렀을 때 보여 준다)
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
 
 // ───────── 영속 데이터(랭킹 · 벼룩시장) ─────────
@@ -49,6 +50,7 @@ let ranking = Object.fromEntries(COURSES.map((c) => [c, {}])) // { course: { [pl
 try {
   const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
+  if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
 } catch {
   /* 첫 실행이면 빈 랭킹으로 시작 */
@@ -58,7 +60,7 @@ function scheduleSave() {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market }, null, 1))
+      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market, cards }, null, 1))
     } catch (e) {
       console.error('랭킹 저장 실패:', e.message)
     }
@@ -138,12 +140,12 @@ const json = (res, status, body) => {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
   res.end(JSON.stringify(body))
 }
-function readBody(req) {
+function readBody(req, max = 10_000) {
   return new Promise((resolve) => {
     let data = ''
     req.on('data', (c) => {
       data += c
-      if (data.length > 10_000) req.destroy()
+      if (data.length > max) req.destroy()
     })
     req.on('end', () => {
       try {
@@ -196,6 +198,17 @@ async function handleApi(req, res, url) {
       .sort((a, b) => order.get(a.item) - order.get(b.item) || a.price - b.price || a.at - b.at)
       .map((l) => ({ id: l.id, item: l.item, qty: l.qty, price: l.price, total: l.price * l.qty, mine: l.seller === id }))
     return json(res, 200, { ok: true, listings: list })
+  }
+
+  // 인적사항 카드 조회: 접속해 있는 사람만 볼 수 있다. 상대가 접속 중이 아니어도 마지막으로 저장된 카드가 나온다.
+  if (req.method === 'GET' && route === '/api/card') {
+    const id = cleanId(url.searchParams.get('id'))
+    if (!id || !clients.get(id)) return json(res, 409, { error: 'not-connected' })
+    const target = cleanId(url.searchParams.get('target'))
+    const c = target && cards[target]
+    if (!c) return json(res, 404, { error: 'no-card' })
+    const live = clients.get(target)
+    return json(res, 200, { ok: true, card: { ...c, id: target }, online: !!live, title: live?.title ?? null })
   }
 
   if (req.method === 'GET' && route === '/api/events') {
@@ -264,7 +277,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method !== 'POST') return json(res, 404, { error: 'not-found' })
-  const body = await readBody(req)
+  const body = await readBody(req, route === '/api/card' ? 400_000 : 10_000)
   if (!body) return json(res, 400, { error: 'bad-json' })
 
   // 관리자 키 확인 (로그인 화면에서 한 번). 맞으면 클라이언트가 그 계정을 관리자로 표시한다.
@@ -319,6 +332,21 @@ async function handleApi(req, res, url) {
       return json(res, 200, { ok: true })
     }
     return json(res, 400, { error: 'bad-channel' })
+  }
+
+  // 내 인적사항 카드 저장(프로필을 바꾸거나 접속할 때마다 클라이언트가 보낸다)
+  if (route === '/api/card') {
+    const c = body.card && typeof body.card === 'object' ? body.card : {}
+    const clean = (v, n) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '')
+    const av = c.avatar
+    let avatar = { kind: 'color', color: '#1f7a4d' }
+    if (av?.kind === 'color' && typeof av.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(av.color)) avatar = { kind: 'color', color: av.color }
+    else if (av?.kind === 'image' && typeof av.src === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(av.src) && av.src.length <= 250_000) avatar = { kind: 'image', src: av.src }
+    const age = Number.isInteger(c.age) && c.age >= 10 && c.age <= 40 ? c.age : null
+    const grade = [1, 2, 3].includes(c.grade) ? c.grade : null
+    cards[me.id] = { name: clean(c.name, 12) || me.name, greeting: clean(c.greeting, 30), age, grade, avatar, at: Date.now() }
+    scheduleSave()
+    return json(res, 200, { ok: true })
   }
 
   // ───────── 벼룩시장 ─────────

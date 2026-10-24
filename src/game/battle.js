@@ -42,7 +42,47 @@ export const ENEMIES = [
     spirit: 13,
     special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' },
   },
-].map((e, i) => ({ ...e, tier: i + 1, reward: e.spirit * REWARD_MULT }))
+  // ───────── 파티 전투용 하급 요괴 ─────────
+  // partySize 명이 함께 상대하는 걸 기준으로 맞췄다. (혼자서는 벅차다.) 이 상대들은 체력이 더 많은 사람을 먼저 노린다. (pickTarget)
+  {
+    id: 'foxfire',
+    name: '여우불',
+    blurb: '밤길에 여우 울음 같은 소리를 내며 떠도는 푸른 불꽃 무리. 혼자서는 벅차지만 둘이 함께라면 해볼 만하다.',
+    tier: 1,
+    partySize: 2,
+    hp: 110,
+    atk: 6,
+    act: 7,
+    spirit: 6,
+    special: { label: '불똥 흩뿌리기', note: '사방으로 튀는 불똥. 막을 수 없는 피해를 입는다.' },
+  },
+  {
+    id: 'dueoksini',
+    name: '두억시니',
+    blurb: '어둠 속에서 사람을 짓누르는 사나운 야차. 셋은 모여야 맞설 수 있다.',
+    tier: 2,
+    partySize: 3,
+    hp: 280,
+    atk: 11,
+    act: 11,
+    spirit: 11,
+    special: { label: '짓누르는 그림자', note: '막을 수 없는 일격으로 몸을 짓누르고, 의지력을 빨아들이며, 다음 내 턴엔 막기를 할 수 없다.' },
+  },
+].map((e, i) => ({ ...e, tier: e.tier ?? i + 1, partySize: e.partySize ?? 1, reward: e.spirit * REWARD_MULT }))
+
+/** 단계별 적정 레벨(모든 스탯이 대략 이 정도일 때) */
+export const REC_STATS = { 1: '2~3', 2: '5~6', 3: '8~10' }
+export const recLabel = (e) => `모든 스탯 ${REC_STATS[e.tier] ?? '?'} 기준`
+export const partyLabel = (e) => (e.partySize > 1 ? `적정 ${e.partySize}명` : '적정 1명')
+
+/** 파티 전투에서 상대가 노릴 사람: 체력이 가장 많은 사람. 같으면 무작위. members = [{ id, hp }] (쓰러진 사람 제외) */
+export function pickTarget(members, rng = Math.random) {
+  const alive = members.filter((m) => m.hp > 0)
+  if (!alive.length) return null
+  const top = Math.max(...alive.map((m) => m.hp))
+  const ties = alive.filter((m) => m.hp === top)
+  return ties[Math.floor(rng() * ties.length)]
+}
 
 /** 전투 교육 과정용 연습 상대. 쓰러지지 않도록 체력이 넉넉하고 공격은 약하다. */
 export const TUTOR_ENEMY = {
@@ -69,7 +109,7 @@ export const ACTIONS = {
   attack: { label: '일반 공격', note: '안목으로 명중, 호전으로 피해. 명중 굴림 1이면 빗나간다.' },
   guard: { label: '막기', note: '약공 절반 · 강공 1/3만 받고, 1d(호전)만큼 더 막는다.' },
   charm: { label: '부적', note: '빗나감 없는 2배 피해, 방어 무시. 한 판 3장 · 의지력 소모.' },
-  scan: { label: '간파', note: '의지력 1. 상대의 다음 행동을 2턴(안목이 높으면 3턴) 앞서 본다.' },
+  scan: { label: '간파', note: '의지력 N을 쓰면 상대의 다음 행동을 (2+N)턴 앞서 본다. 안목이 상대 영력보다 높으면 (4+N)턴. 영능력은 ‘영능력’이라고만 보인다.' },
   buff: { label: '효험', note: '의지력 10(모자라면 0까지). 공격을 두 번 굴려 더 나은 쪽을 고른다.' },
   psychic: { label: '영능력', note: '지금까지 익힌 영능력(스킬)을 확인하고 쓴다.' },
 }
@@ -80,7 +120,48 @@ export const ACTIONS = {
  * 익히는 과정을 만들면 progress.js 의 acquirePsychic(player, id) 로 player.psychics 에 넣으면 되고,
  * 전투 '영능력' 탭에는 그 목록이 자동으로 나타난다.
  */
-export const PSYCHICS = []
+export const PSYCHICS = [
+  {
+    id: 'survival',
+    label: '생존본능',
+    note: '불리한 전투라고 판단이 될 때 적을 교란하고 전투에서 도망친다. 후일을 도모하는 것도 결국 살아있는 자들의 특권이 아닌가.',
+    detail: '자신의 턴에 사용. (50% + 1d(신속)×2 − 상대의 영력)% 확률로 전투에서 도주한다.',
+    cond: '전투 중 최초로 전투불능이 되어본다.',
+    use: true,
+  },
+]
+
+/** 생존본능 도주 확률(%) = 50 + 1d(신속)×2 − 상대의 영력, 0~100 로 자른다. */
+export function fleeChance(roll, enemy) {
+  return Math.max(0, Math.min(100, 50 + roll * 2 - enemy.spirit))
+}
+
+/** 영능력 사용(내 턴). 지금은 생존본능만. 반환: { state, events, mpCost, fled } — 실패하면 내 턴을 쓴 것으로 치고 상대 턴으로 넘어간다. */
+export function psychicTurn(state, id, ctx, rng = Math.random) {
+  const { stats } = ctx
+  const s = { ...state, guard: false }
+  if (id !== 'survival') return { state, events: [], mpCost: 0, invalid: true }
+  const roll = die(stats.agility, rng)
+  const chance = fleeChance(roll, s.enemy)
+  const d = Math.floor(rng() * 100) + 1
+  if (d <= chance) {
+    s.over = 'fled'
+    return {
+      state: s,
+      events: [{ kind: 'end', text: `✦ 생존본능! [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 적을 교란하고 전투에서 도망쳤다.` }],
+      mpCost: 0,
+      fled: true,
+      boostUsed: !!ctx.boost,
+    }
+  }
+  return {
+    state: s,
+    events: [{ kind: 'warn', text: `✦ 생존본능… 실패! [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 도망치지 못했다.` }],
+    mpCost: 0,
+    fled: false,
+    boostUsed: !!ctx.boost,
+  }
+}
 
 export const CHARMS = 3
 export const BASE_HP = 24
@@ -104,7 +185,8 @@ export function rollRash(stats, rng = Math.random) {
   return { percent, roll, hit: roll <= percent }
 }
 export const charmDie = (stats) => Math.max(1, CHARM_DIE - stats.control)
-export const scanTurns = (stats, enemy) => (stats.insight > enemy.spirit ? 3 : 2)
+/** 간파: 의지력 1 이면 3턴(안목이 상대 영력보다 높으면 5턴), 1 늘릴 때마다 1턴씩 더 본다. */
+export const scanTurns = (stats, enemy, amount = 1) => (stats.insight > enemy.spirit ? 5 : 3) + Math.max(0, Math.floor(amount) - 1)
 
 /** 상대에 대해 무엇을 알 수 있는가. fights = 지금까지 이 상대와 싸운 횟수(이번 전투 제외). */
 export function revealOf(enemy, stats, fights) {
@@ -151,7 +233,8 @@ export function newBattle(enemyId, stats, rng = Math.random, startHp, hpCap) {
     bound: false, // 휘감겨서 이번 내 턴엔 막기 불가
     curse: 0, // 남은 저주 턴
     pendingDeath: false,
-    over: null, // 'win' | 'lose'
+    survived: false, // 버티기는 한 전투에 한 번만
+    over: null, // 'win' | 'lose' | 'fled'
   }
 }
 
@@ -230,10 +313,13 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
       ev.push({ kind: 'player', roll: r.hit, dmg, text: `부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해 (의지력 -${mpCost}, 남은 부적 ${s.charms}장)` })
     }
   } else if (act === 'scan') {
-    mpCost = SCAN_COST
-    const n = scanTurns(stats, s.enemy)
+    const amount = Math.max(1, Math.min(mp, Math.floor(ctx.scanAmount ?? 1)))
+    mpCost = amount
+    const n = scanTurns(stats, s.enemy, amount)
+    s.queue = [...s.queue]
+    while (s.queue.length < n + 1) s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng))
     s.known = Math.max(s.known, n)
-    ev.push({ kind: 'player', text: `간파! 의지력 ${SCAN_COST}을 쓰고 상대의 다음 ${n}턴을 내다본다.` })
+    ev.push({ kind: 'player', text: `간파! 의지력 ${amount}을 쓰고 상대의 다음 ${n}턴을 내다본다.` })
   } else if (act === 'guard') {
     if (s.bound) {
       ev.push({ kind: 'warn', text: '몸이 감겨 있어 막기를 할 수 없다!' })
@@ -311,6 +397,15 @@ export function enemyTurn(state, ctx, rng = Math.random) {
     if (enemy.id === 'scarecrow') {
       mpDrain = Math.min(mp, die(enemy.spirit, rng) * 2)
       ev.push({ kind: 'enemy', text: `${enemy.name}의 혼 빨기! 의지력이 ${mpDrain} 빨려 나갔다.` })
+    } else if (enemy.id === 'foxfire') {
+      const a = die(enemy.atk, rng)
+      hurt(a + enemy.spirit, `${enemy.name}의 불똥 흩뿌리기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+    } else if (enemy.id === 'dueoksini') {
+      const a = die(enemy.atk, rng)
+      hurt(a * 2, `${enemy.name}의 짓누르는 그림자 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+      mpDrain = Math.min(mp, die(enemy.spirit, rng))
+      s.bound = true
+      ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다! 몸이 짓눌려 다음 내 턴엔 막기를 할 수 없다.` })
     } else if (enemy.id === 'snake') {
       const a = die(enemy.atk, rng)
       hurt(a, `${enemy.name}의 휘감기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
@@ -340,27 +435,42 @@ export function enemyTurn(state, ctx, rng = Math.random) {
 
   if (s.php <= 0) {
     s.php = 0
-    if (mp - mpDrain >= 2) {
+    if (!s.survived && mp - mpDrain >= 2) {
       s.pendingDeath = true
       ev.push({ kind: 'warn', text: '체력이 바닥났다…! 버티기를 쓸 수 있다.' })
     } else {
       s.over = 'lose'
-      ev.push({ kind: 'end', text: '더는 버티지 못하고 쓰러졌다.' })
+      ev.push({ kind: 'end', text: s.survived ? '이미 한 번 버텼다. 더는 버티지 못하고 그대로 쓰러졌다.' : '더는 버티지 못하고 쓰러졌다.' })
     }
   }
   return { state: s, events: ev, mpDrain }
 }
 
-/** 버티기: 의지력을 1만 남기고 모두 쓰는 대신 체력 1로 일어선다. 거절하면 그대로 패배. */
-export function resolveSurvive(state, accept, mp) {
+/**
+ * 버티기: 한 전투에 한 번만. 체력 1로 일어서고, 의지력은 1만 남기고 모두 쓴다.
+ * 단 (인내)% 확률로 의지력을 쓰지 않는다. 거절하면 그대로 패배.
+ */
+export function resolveSurvive(state, accept, mp, stats = { endurance: 0 }, rng = Math.random) {
   const s = { ...state, pendingDeath: false }
   const have = Math.floor(mp)
-  if (accept && have >= 2) {
+  if (accept && have >= 2 && !state.survived) {
     s.php = 1
+    s.survived = true
+    const pct = Math.max(0, Math.min(100, stats.endurance || 0))
+    const d = Math.floor(rng() * 100) + 1
+    const free = d <= pct
     return {
       state: s,
-      mpCost: have - 1,
-      events: [{ kind: 'warn', text: `버티기! 의지력 ${have - 1}을 모두 쏟아 체력 1로 일어섰다.` }],
+      mpCost: free ? 0 : have - 1,
+      free,
+      events: [
+        {
+          kind: 'warn',
+          text: free
+            ? `버티기! [인내 ${pct}%, d100 = ${d}] 의지력을 쓰지 않고 체력 1로 일어섰다!`
+            : `버티기! [인내 ${pct}%, d100 = ${d}] 의지력 ${have - 1}을 모두 쏟아 체력 1로 일어섰다. (이번 전투에선 더 못 버틴다)`,
+        },
+      ],
     }
   }
   s.over = 'lose'

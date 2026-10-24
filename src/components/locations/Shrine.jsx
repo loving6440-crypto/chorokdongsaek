@@ -5,9 +5,10 @@ import { pickNpcLine } from '../../game/npcLines'
 import { ISHI } from '../../game/shrine'
 import LocationIntro from '../LocationIntro'
 import NpcDialog from '../NpcDialog'
+import NpcGift from '../NpcGift'
 
 /** 사당 문지기 이시와의 대화. 말을 걸 때마다 대사가 하나씩 나온다. */
-function Guard({ player, onMeet, onLineSeen }) {
+function Guard({ player, onMeet, onLineSeen, onGiveNpc }) {
   const [talk, setTalk] = useState(null) // { line, firstOf }
   const speak = () => {
     const r = pickNpcLine(ISHI.id, ISHI.lines, player, player.lineSeen)
@@ -35,17 +36,18 @@ function Guard({ player, onMeet, onLineSeen }) {
           <NpcDialog npc={ISHI.name} src={ISHI.portrait} dataNpc="ishi">
             {talk.line.text}
           </NpcDialog>
+          <NpcGift npcId={ISHI.id} player={player} onGive={onGiveNpc} />
         </>
       )}
     </section>
   )
 }
 
-export default function Shrine({ view, player, onExplore, onMeet, onLineSeen }) {
+export default function Shrine({ view, player, onExplore, onMeet, onLineSeen, onGiveNpc }) {
   const insight = player.stats.insight
   const unlocked = insight >= SHRINE_INSIGHT_UNLOCK
   if (view === 'intro') return <LocationIntro id="shrine" />
-  if (view === 'guard') return <Guard key="guard" player={player} onMeet={onMeet} onLineSeen={onLineSeen} />
+  if (view === 'guard') return <Guard key="guard" player={player} onMeet={onMeet} onLineSeen={onLineSeen} onGiveNpc={onGiveNpc} />
 
   return (
     <section>

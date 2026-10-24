@@ -3,7 +3,7 @@ import { Trash2, Upload } from 'lucide-react'
 import Avatar from './Avatar'
 import { fileToAvatarDataUrl, normalizeHex } from '../game/avatarImage'
 import { cleanName, gradeOf } from '../game/character'
-import { AGE_MAX, AGE_MIN, DEFAULT_AVATAR_COLOR, GRADES, NAME_MAX_LENGTH } from '../game/constants'
+import { AGE_MAX, AGE_MIN, DEFAULT_AVATAR_COLOR, GRADES, GREETING_MAX_LENGTH, NAME_MAX_LENGTH } from '../game/constants'
 
 const AGES = Array.from({ length: AGE_MAX - AGE_MIN + 1 }, (_, i) => AGE_MIN + i)
 const sectionLabel = 'font-serif text-xs tracking-[0.2em] text-gold/80'
@@ -25,6 +25,7 @@ function swatchClass(selected) {
 export default function ProfileForm({ value, onChange, title = '인적 사항', className = '' }) {
   const nameId = useId()
   const hexId = useId()
+  const greetId = useId()
   const fileRef = useRef(null)
   const set = (patch) => onChange(patch)
   const initColor = value.avatar?.kind === 'color' ? value.avatar.color : DEFAULT_AVATAR_COLOR
@@ -91,6 +92,7 @@ export default function ProfileForm({ value, onChange, title = '인적 사항', 
             {cleanedName || <span className="text-paper/45">이름 미정</span>}
           </p>
           <p className="mt-0.5 text-xs text-paper/65">창록고 {gradeNow}학년 · {value.age}세</p>
+          {value.greeting ? <p className="mt-1 truncate text-xs italic text-paper/55">“{value.greeting}”</p> : null}
         </div>
       </div>
 
@@ -110,6 +112,25 @@ export default function ProfileForm({ value, onChange, title = '인적 사항', 
           placeholder="이름을 입력하세요"
           autoComplete="off"
           className="w-full rounded border border-edge/20 bg-shade/20 px-3 py-2 text-sm text-paper placeholder:text-paper/70 focus-visible:border-gold focus-visible:outline-none"
+        />
+      </div>
+
+      <div>
+        <label htmlFor={greetId} className="mb-1.5 flex justify-between text-xs text-paper/70">
+          <span>한 줄 인사</span>
+          <span className="text-paper/45">
+            {(value.greeting ?? '').length} / {GREETING_MAX_LENGTH}
+          </span>
+        </label>
+        <input
+          id={greetId}
+          type="text"
+          value={value.greeting ?? ''}
+          maxLength={GREETING_MAX_LENGTH}
+          onChange={(e) => set({ greeting: e.target.value })}
+          placeholder="예: 잘 부탁드립니다 / 수련하기 너무 귀찮다"
+          autoComplete="off"
+          className="w-full rounded border border-edge/20 bg-shade/20 px-3 py-2 text-sm text-paper placeholder:text-paper/50 focus-visible:border-gold focus-visible:outline-none"
         />
       </div>
 

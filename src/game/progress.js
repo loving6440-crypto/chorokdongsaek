@@ -2,7 +2,7 @@
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_DAILY_ATTEMPTS, LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
-import { START_MONEY } from './items'
+import { START_MONEY, equipOf, gearBonus } from './items'
 import { checkAchievements } from './achievements'
 
 export const TRAIN_UNIT_MIN = 5
@@ -130,7 +130,8 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
 /** 도감: 한 번이라도 손에 넣은 아이템·만난 NPC 를 기록한다. 바뀐 게 없으면 같은 player 를 돌려준다. */
 export function syncCodex(player) {
   const codex = player.codex ?? { items: {}, npcs: {} }
-  const fresh = Object.keys(player.inventory ?? {}).filter((id) => player.inventory[id] > 0 && !codex.items?.[id])
+  const have = [...Object.keys(player.inventory ?? {}).filter((id) => player.inventory[id] > 0), ...Object.values(equipOf(player)).filter(Boolean)]
+  const fresh = [...new Set(have)].filter((id) => !codex.items?.[id])
   const bari = player.tutorialDone && !codex.npcs?.bari
   if (!fresh.length && !bari && player.codex) return player
   return {
@@ -143,6 +144,22 @@ export function syncCodex(player) {
 }
 
 /** 영능력(스킬)을 새로 익힌다. 전투의 '영능력' 탭에 자동으로 들어간다. 이미 있으면 같은 player 를 돌려준다. */
+export const WEAK_MS = 24 * 3600 * 1000 // [쇠약] 지속 시간: 리얼타임 24시간
+export const isWeak = (player, now = Date.now()) => !!player.weakUntil && now < player.weakUntil
+/** [쇠약] 중이면 모든 육조 스탯이 현재 스탯의 5할(내림, 최소 1). 아니면 그대로. */
+export function effectiveStats(player, now = Date.now()) {
+  const bonus = gearBonus(player)
+  const hasBonus = Object.keys(bonus).length > 0
+  if (!isWeak(player, now) && !hasBonus) return player.stats
+  const weak = isWeak(player, now)
+  // 쇠약으로 5할이 된 뒤에 장비 보정이 더해진다.
+  return Object.fromEntries(Object.entries(player.stats).map(([k, v]) => [k, (weak ? Math.max(1, Math.floor(v / 2)) : v) + (bonus[k] || 0)]))
+}
+export const weakLeftText = (player, now = Date.now()) => {
+  const m = Math.max(0, Math.ceil(((player.weakUntil || 0) - now) / 60000))
+  return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`
+}
+
 export function acquirePsychic(player, id) {
   if (player.psychics?.includes(id)) return player
   return { ...player, psychics: [...(player.psychics ?? []), id] }
@@ -186,6 +203,11 @@ export function startRest(player, kind, minutes, now = Date.now()) {
 export function tickPlayer(player, now, dtSec) {
   let p = player
   const logs = []
+  if (p.weakUntil && now >= p.weakUntil) {
+    const { weakUntil: _w, ...rest } = p
+    p = rest
+    logs.push('[쇠약]이 풀렸다. 몸에 힘이 돌아온다.')
+  }
   // 대기(수련·취침·휴식·수업 대기) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
   const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
   const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting)
@@ -203,8 +225,10 @@ export function tickPlayer(player, now, dtSec) {
   const sl = p.sleeping
   if (sl && now >= sl.startedAt + sl.minutes * 60000) {
     const gain = sleepSpiritGain(p.spirit)
-    p = { ...p, sleeping: null, hp: p.hpMax, mp: p.mpMax, spirit: p.spirit + gain }
-    logs.push(`푹 자고 일어났다. 체력과 의지력이 가득 찼다.${gain ? ` (영력 +${Math.round(gain * 10) / 10})` : ' (영력은 이미 가득 차 있었다)'}`)
+    const wasWeak = !!p.weakUntil
+    const { weakUntil: _wk, ...awake } = p
+    p = { ...(wasWeak ? awake : p), sleeping: null, hp: p.hpMax, mp: p.mpMax, spirit: p.spirit + gain }
+    logs.push(`푹 자고 일어났다. 체력과 의지력이 가득 찼다.${gain ? ` (영력 +${Math.round(gain * 10) / 10})` : ' (영력은 이미 가득 차 있었다)'}${wasWeak ? ' [쇠약]도 함께 회복되었다.' : ''}`)
   }
 
   // 양호실 휴식: 끝까지 쉬어야 분당 1씩(누워서 쉬기: 체력 / 상담: 의지력) 한꺼번에 들어온다.
@@ -260,7 +284,8 @@ export function applyBattleResult(player, win, reward, now = Date.now()) {
   const g = gymToday(player, now)
   if (!win) {
     const lost = Math.min(GYM_LOSS_PENALTY, Math.floor(player.spirit))
-    return { player: { ...player, spirit: player.spirit - lost, gym: g }, granted: 0, lost }
+    // 전투불능: [쇠약] 24시간(다시 쓰러지면 그때부터 24시간으로 갱신).
+    return { player: { ...player, spirit: player.spirit - lost, gym: g, weakUntil: now + WEAK_MS }, granted: 0, lost }
   }
   if (g.wins >= GYM_DAILY_REWARDS) return { player: { ...player, gym: g }, granted: 0, lost: 0 }
   return { player: { ...player, spirit: player.spirit + reward, gym: { ...g, wins: g.wins + 1 } }, granted: reward, lost: 0 }

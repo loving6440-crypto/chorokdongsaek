@@ -95,6 +95,7 @@ export const AGE_MIN = 17
 export const AGE_MAX = 19
 export const GRADES = [1, 2, 3]
 export const NAME_MAX_LENGTH = 12
+export const GREETING_MAX_LENGTH = 30 // 한 줄 인사
 export const STAT_MIN = 1 // 스탯 최소값 (최대값은 없다)
 export const STAT_START_POINTS = 10 // 캐릭터 생성 시 자유롭게 투자할 수 있는 포인트
 

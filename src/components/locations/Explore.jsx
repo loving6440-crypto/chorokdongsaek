@@ -20,7 +20,7 @@ const Paras = ({ list }) =>
   ))
 
 /** 본관 탐사: 층 → 구역 → 세부 조사 순으로 살핀다. 누를 때마다 그 자리의 스크립트가 나온다. */
-export default function Explore({ stats, player, onInvestigate, onEnter, onLockerMove }) {
+export default function Explore({ stats, player, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
   const [floorId, setFloorId] = useState(null)
   const [areaId, setAreaId] = useState(null)
   const [detailId, setDetailId] = useState(null)
@@ -120,7 +120,7 @@ export default function Explore({ stats, player, onInvestigate, onEnter, onLocke
               <div className="mt-2">
                 <Paras list={shown.paras} />
               </div>
-              {shown.locker && <Locker player={player} grade={shown.locker} onMove={onLockerMove} />}
+              {shown.locker && <Locker player={player} grade={shown.locker} onMove={onLockerMove} onOpen={onLockerOpen} />}
             </div>
           )}
         </div>

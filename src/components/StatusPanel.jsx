@@ -1,10 +1,13 @@
 import { Sparkles } from 'lucide-react'
 import { STAT_KEYS, STAT_MAX, STAT_META, STAT_UPGRADE_COST_PER_POINT } from '../game/constants'
 import { STAT_ICONS } from './statIcons'
+import { isWeak, weakLeftText } from '../game/progress'
 import StatTooltip from './StatTooltip'
 
 /** 육조 스탯: 화면 맨 아래에 따로 떨어진 칸. 이름에 마우스를 올리면 기질 설명이 뜬다. */
-export default function StatusPanel({ player, onUpgrade }) {
+export default function StatusPanel({ player, eff, onUpgrade }) {
+  const weak = isWeak(player)
+  const shown = eff ?? player.stats
   return (
     <section className="ink-panel shrink-0 rounded-2xl p-3 sm:p-4" aria-label="육조 스탯">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -17,6 +20,11 @@ export default function StatusPanel({ player, onUpgrade }) {
           보유 영력 <b className="font-serif text-sm text-gold">{Math.floor(player.spirit)}</b>
         </p>
       </div>
+      {weak && (
+        <p data-weak className="mb-2 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
+          [쇠약] 모든 육조 스탯이 5할 · 남은 시간 {weakLeftText(player)} · 기숙사에서 6시간 취침하면 회복
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
         {STAT_KEYS.map((key) => {
           const meta = STAT_META[key]
@@ -34,7 +42,10 @@ export default function StatusPanel({ player, onUpgrade }) {
                     {meta.label}
                   </StatTooltip>
                 </p>
-                <span className="font-serif text-xl leading-none text-gold">{value}</span>
+                <span className="font-serif text-xl leading-none text-gold" data-stat-value={shown[key]}>
+                  {shown[key]}
+                  {!weak && shown[key] > value && <sup className="ml-0.5 text-[10px] text-mana">+{shown[key] - value}</sup>}
+                </span>
               </div>
               <button
                 type="button"

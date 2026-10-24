@@ -72,8 +72,8 @@
   --loc-infirmary: #7fd8a6;   /* 유 */
 }
 
-/* ───────── 화이트 모드: 크림 노트지 + 연두/진녹 ─────────
- * 다크 모드의 금색(gold) 강조 역할을 진녹색(로고의 동그라미 색)이 맡는다.
+/* ───────── 화이트 모드: 크림 노트지 + 분홍빛 붉은색 ─────────
+ * 다크 모드의 금색(gold) 강조 역할을 채팅의 [관리자] 표시와 같은 붉은색(--c-crimson)이 맡는다.
  */
 [data-theme="light"] {
   color-scheme: light;
@@ -83,9 +83,9 @@
   --c-ink: #f6f1dc;
   --c-ink-raised: #fffbea;
   --c-ink-muted: #e8eed2;
-  --c-gold: #36503c;
-  --c-gold-dim: #a9cfa8;
-  --c-gold-fill: #4f7a58;     /* 진하고 탁한 녹색: 크림 배경과 또렷이 구분된다 */
+  --c-gold: #d8506a;          /* 강조 글자: [관리자] 표시와 같은 색 */
+  --c-gold-dim: #f0b6c1;
+  --c-gold-fill: #d8506a;     /* 강조 버튼·막대 */
   --c-crimson: #d8506a;
   --c-paper: #213427;
   --c-mana: #2f86c0;
@@ -213,7 +213,7 @@ body {
   clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
   filter: drop-shadow(0 0 0 transparent);
 }
-[data-theme="light"] .dancheong-line::after { background: #f2c95a; }
+[data-theme="light"] .dancheong-line::after { background: #d8506a; }
 
 /* 다크 모드: 구분선을 오방색 단청 띠로 */
 [data-theme="dark"] .dancheong-line {
@@ -261,7 +261,7 @@ body {
   clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
   animation: twinkle 2.8s ease-in-out infinite;
 }
-[data-theme="light"] .sparkle { background: #f2c95a; }
+[data-theme="light"] .sparkle { background: #d8506a; }
 @keyframes twinkle {
   0%, 100% { transform: scale(1) rotate(0); opacity: 1; }
   50% { transform: scale(0.65) rotate(18deg); opacity: 0.7; }
@@ -591,3 +591,10 @@ button.bg-gold { border-radius: 0.55rem; }
   50% { box-shadow: 0 0 18px 4px color-mix(in srgb, var(--c-gold-fill) 50%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) { .spot-wide { animation: none; } }
+
+/* 상대의 영능력 발동 연출 */
+@keyframes sp-pop { 0% { opacity: 0; transform: scale(.7) } 12% { opacity: 1; transform: scale(1.08) } 22% { transform: scale(1) } 85% { opacity: 1 } 100% { opacity: 0; transform: translateY(-8px) } }
+.sp-banner { animation: sp-pop 2.6s ease-out forwards; }
+@keyframes sp-shake { 0%,100% { transform: translateX(0) } 15% { transform: translateX(-5px) } 30% { transform: translateX(5px) } 45% { transform: translateX(-3px) } 60% { transform: translateX(3px) } }
+.sp-shake { animation: sp-shake .45s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .sp-banner { animation: none; } .sp-shake { animation: none; } }

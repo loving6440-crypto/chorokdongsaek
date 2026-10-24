@@ -60,14 +60,14 @@ const RAW_ITEMS = [
   {
     id: 'chewy',
     kind: 'food',
-    name: '마이쭈',
+    name: '마이쮸',
     price: 5,
-    desc: '친해지고 싶은 친구에게 나눠주자. 혼자 먹어도 좋고.',
+    desc: '친해지고 싶은 상대에게 나눠주자. 전투 중에는 같이 싸우는 파티원에게도(물론 혼자 먹어도) 건넬 수 있다.',
     tags: ['전투 중 사용 가능'],
-    effectText: '일행(파티) 상태일 때 파티원에게 나눠주면 일시적으로 공격력을 올려준다. 1턴에 한해 2배. (전투 중에 직접 먹으면 내 다음 행동의 피해가 1턴 동안 2배가 된다.)',
+    effectText: '전투 중: 파티원(나 자신 포함) 한 명에게 건네면 그 사람의 다음 행동 피해가 1턴 동안 2배가 된다. 전투가 아닐 때: NPC에게 주면 호감도가 오른다.',
     effect: { boost: true },
     battle: true,
-    party: true,
+    giftNpc: true,
   },
   {
     id: 'energy',
@@ -81,6 +81,29 @@ const RAW_ITEMS = [
     effect: { revive: true },
     battle: true,
     only: 'battle',
+  },
+  // ───────── 제작 재료 (매점에서 판다) ─────────
+  {
+    id: 'brush',
+    kind: 'material',
+    tags: ['재료'],
+    name: '붓',
+    price: 12,
+    desc: '털끝이 가지런한 평범한 붓. 부적이든 서예든, 일단 이게 있어야 시작이다.',
+    effectText: '',
+    effect: {},
+    battle: false,
+  },
+  {
+    id: 'hanji',
+    kind: 'material',
+    tags: ['재료'],
+    name: '한지',
+    price: 6,
+    desc: '매끈하고 질긴 새 한지. 번지지 않아서 글씨 쓰기 좋다.',
+    effectText: '',
+    effect: {},
+    battle: false,
   },
   // ───────── 재료 · 먹을거리 (아직 어디서 나오는지는 정해지지 않았다) ─────────
   {
@@ -237,6 +260,33 @@ const RAW_ITEMS = [
     effect: {},
     battle: false,
   },
+  // ───────── 장비 (착용 부위: 무구 / 신체 / 장신구) ─────────
+  {
+    id: 'uniform',
+    kind: 'gear',
+    slot: 'body',
+    tags: ['완성품', '신체'],
+    name: '교복',
+    price: null,
+    desc: '국립 창록고등학교에서 지어주는 교복. 부드러운 전통 옷감은 겨울엔 따뜻하고, 여름엔 시원한 느낌을 내준다.',
+    effectText: '착용에 의한 효과는 없다.',
+    effect: {},
+    bonus: {},
+    battle: false,
+  },
+  {
+    id: 'gymwear',
+    kind: 'gear',
+    slot: 'body',
+    tags: ['완성품', '신체'],
+    name: '무복',
+    price: null,
+    desc: '국립 창록고등학교에서 지어주는 체육복. 현대식으로 재해석한 무복에 활동성 좋은 각종 소재를 덧대어 만들었다.',
+    effectText: '착용 시 호전, 절제 각각 +1 보정.',
+    effect: {},
+    bonus: { aggression: 1, control: 1 },
+    battle: false,
+  },
 ]
 
 /**
@@ -245,16 +295,60 @@ const RAW_ITEMS = [
  */
 export const CAT_ITEM = '완성품'
 export const CAT_MATERIAL = '재료'
+export const MATERIAL_TEXT = '제작 재료로 쓰인다.'
 export const ITEMS = RAW_ITEMS.map((it) => {
   const tags = it.tags ?? []
-  if (tags.includes(CAT_ITEM) || tags.includes(CAT_MATERIAL)) return it
-  return { ...it, tags: [it.kind === 'material' ? CAT_MATERIAL : CAT_ITEM, ...tags] }
+  if (tags.includes(CAT_ITEM) || tags.includes(CAT_MATERIAL)) {
+    // [재료] 태그가 붙은 아이템은 효과 문구를 '제작 재료로 쓰인다.'로 통일한다.
+    return tags.includes(CAT_MATERIAL) && !it.effectText ? { ...it, effectText: MATERIAL_TEXT } : it
+  }
+  return { ...it, tags: [it.kind === 'material' ? CAT_MATERIAL : CAT_ITEM, ...tags], ...(it.kind === 'material' && !it.effectText ? { effectText: MATERIAL_TEXT } : {}) }
 })
 
 export const itemOf = (id) => ITEMS.find((i) => i.id === id)
 /** 매점에서 파는 아이템 (price 가 있는 것) */
 export const STORE_ITEMS = ITEMS.filter((i) => i.price != null)
 export const isMaterial = (item) => item.kind === 'material'
+export const isGear = (item) => item.kind === 'gear'
+
+// ───────── 장비 ─────────
+export const EQUIP_SLOTS = [
+  { id: 'weapon', label: '무구' },
+  { id: 'body', label: '신체' },
+  { id: 'trinket', label: '장신구' },
+]
+/** 기본 착용: 무구·장신구는 비어 있고, 신체엔 교복. */
+export const DEFAULT_EQUIP = { weapon: null, body: 'uniform', trinket: null }
+export const equipOf = (player) => ({ ...DEFAULT_EQUIP, ...(player.equip ?? {}) })
+/** 착용한 장비들의 스탯 보정 합계 */
+export function gearBonus(player) {
+  const out = {}
+  for (const id of Object.values(equipOf(player))) {
+    const it = id && itemOf(id)
+    for (const [k, v] of Object.entries(it?.bonus ?? {})) out[k] = (out[k] || 0) + v
+  }
+  return out
+}
+/** 착용. 같은 부위에 입고 있던 건 소지품으로 돌아온다. { player } 또는 { error } */
+export function equipItem(player, id) {
+  const it = itemOf(id)
+  if (!it || !isGear(it)) return { error: '장비가 아니다.' }
+  if (!countOf(player, id)) return { error: '갖고 있지 않다.' }
+  const eq = equipOf(player)
+  const old = eq[it.slot]
+  const inv = { ...player.inventory, [id]: countOf(player, id) - 1 }
+  if (inv[id] <= 0) delete inv[id]
+  if (old) inv[old] = (inv[old] || 0) + 1
+  return { player: { ...player, inventory: inv, equip: { ...eq, [it.slot]: id } } }
+}
+/** 벗기. 신체는 다른 옷으로 갈아입어야 한다. */
+export function unequipSlot(player, slot) {
+  const eq = equipOf(player)
+  if (slot === 'body') return { error: '신체 장비는 벗을 수 없다. 다른 옷으로 갈아입자.' }
+  const old = eq[slot]
+  if (!old) return { error: '비어 있다.' }
+  return { player: { ...player, inventory: { ...player.inventory, [old]: (player.inventory?.[old] || 0) + 1 }, equip: { ...eq, [slot]: null } } }
+}
 
 /** 매점 영업시간: 오전 8시 ~ 밤 10시 (기기의 현재 시각 기준). 지금은 enforce:false 라 늘 열려 있다. true 로 바꾸면 영업시간에만 연다. */
 export const STORE_HOURS = { enforce: false, open: 8, close: 22 }
@@ -270,6 +364,8 @@ export const countOf = (player, id) => player.inventory?.[id] || 0
 export function canUseItem(item, { inBattle, countNow, reviveOn, boostOn }) {
   if (!countNow) return { ok: false, why: '갖고 있지 않다' }
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
+  if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
+  if (item.giftNpc && !inBattle) return { ok: false, why: '전투 중이 아닐 땐 NPC에게 건네면 호감도가 오른다. (NPC와 대화하는 곳에서)' }
   if (item.party && !inBattle) return { ok: false, why: '일행(파티) 상태에서만 쓸 수 있다' }
   if (inBattle && !item.battle) return { ok: false, why: '전투 중에는 쓸 수 없다' }
   if (item.only === 'battle' && !inBattle) return { ok: false, why: '전투 중에만 쓸 수 있다' }

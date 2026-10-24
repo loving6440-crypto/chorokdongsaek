@@ -13,6 +13,10 @@ import {
 } from './constants'
 
 /** 이름 앞뒤 공백을 정리하고 길이를 제한한다. */
+export function cleanGreeting(raw) {
+  return String(raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 30)
+}
+
 export function cleanName(raw) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX_LENGTH)
 }
@@ -46,9 +50,10 @@ export function allocationToStats(allocation) {
  * 캐릭터 생성 결과로 플레이어 초기 상태를 만든다.
  * 모든 캐릭터는 영력 중앙값, 체력·의지력 100%로 시작한다.
  */
-export function createPlayer({ name, age, grade = null, avatar, stats }) {
+export function createPlayer({ name, age, grade = null, avatar, stats, greeting = '' }) {
   return {
     name,
+    greeting,
     age,
     grade,
     avatar,

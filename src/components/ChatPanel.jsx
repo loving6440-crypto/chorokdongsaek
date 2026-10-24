@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Gift, MessageCircle, Send, UserPlus, Users, X } from 'lucide-react'
 import {
   dismissNotice,
@@ -20,7 +20,7 @@ const TABS = [
 const timeOf = (at) =>
   new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export default function ChatPanel({ docked = false, logs = null, onGift = null }) {
+export default function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
   const net = useOnline()
   const [openState, setOpen] = useState(false)
   const open = docked || openState
@@ -42,14 +42,22 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
     return () => setActiveChannel(null)
   }, [open, tab])
 
+  const connected = net.status === 'online'
   const msgs = net.history[tab] || []
-  useEffect(() => {
+  // 채팅은 항상 맨 아래(최신)가 보이게 한다. 기록이 100개로 꽉 차 길이가 그대로여도 마지막 글이 바뀌면 내려가고,
+  // 탭을 옮기거나 접속자 목록을 닫았다 열거나 다른 곳에 갔다 와도 다시 맨 아래로 간다.
+  const lastId = msgs.length ? msgs[msgs.length - 1].id : null
+  const toBottom = () => {
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [msgs.length, open, tab])
+  }
+  useLayoutEffect(() => {
+    toBottom()
+    const r = requestAnimationFrame(toBottom) // 레이아웃이 자리 잡은 뒤 한 번 더
+    return () => cancelAnimationFrame(r)
+  }, [lastId, msgs.length, open, tab, showWho, connected])
 
   const totalUnread = net.unread.rp + net.unread.talk + net.unread.party
-  const connected = net.status === 'online'
   const inParty = !!net.party
 
   const submit = async (e) => {
@@ -58,6 +66,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
     if (!v || !connected || (tab === 'party' && !inParty)) return
     setText('')
     await sendChat(tab, v)
+    toBottom() // 내가 방금 친 글이 바로 보이게
   }
 
   return (
@@ -190,7 +199,9 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
                       <li key={p.id} className="flex items-center justify-between gap-2 rounded bg-shade/20 px-2 py-1.5 text-xs">
                         <span className="truncate text-paper">
                           {p.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px text-[10px] font-medium text-white" data-title>[{p.title}]</span>}
-                          {p.name}
+                          <button type="button" data-sfx="none" onClick={() => onProfile?.({ id: p.id, name: p.name })} aria-label={`${p.name}의 인적사항 보기`} className="underline-offset-2 hover:text-gold hover:underline">
+                            {p.name}
+                          </button>
                           <span className="ml-1 text-[10px] text-paper/40">@{p.id}</span>
                           {mine && <span className="ml-1 text-[10px] text-gold">나</span>}
                           {mate && !mine && <span className="ml-1 text-[10px] text-gold">일행</span>}
@@ -245,7 +256,13 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null }
                     <p key={m.id} className="text-[13px] leading-snug break-words text-paper">
                       <span className="mr-1 text-[10px] text-paper/40">{timeOf(m.at)}</span>
                       {m.from?.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px align-middle text-[10px] font-medium text-white" data-title>[{m.from.title}]</span>}
-                      <b className={m.from?.id === net.me?.id ? 'text-gold' : 'text-paper/90'}>{m.from?.name}</b>
+                      {m.from?.id && onProfile ? (
+                        <button type="button" data-sfx="none" onClick={() => onProfile({ id: m.from.id, name: m.from.name })} aria-label={`${m.from.name}의 인적사항 보기`} className={`font-bold underline-offset-2 hover:underline ${m.from.id === net.me?.id ? 'text-gold' : 'text-paper/90'}`}>
+                          {m.from.name}
+                        </button>
+                      ) : (
+                        <b className={m.from?.id === net.me?.id ? 'text-gold' : 'text-paper/90'}>{m.from?.name}</b>
+                      )}
                       <span className="text-paper/50"> : </span>
                       {m.text}
                     </p>

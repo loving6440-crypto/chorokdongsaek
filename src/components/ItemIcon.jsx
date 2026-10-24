@@ -326,6 +326,13 @@ const AUTO_ART = {
       <rect x="27" y="9.5" width="10" height="4" rx="1.5" fill={Y} />
     </>
   ),
+  gear: (
+    <>
+      <path d="M22 14 L32 20 L42 14 L54 22 L48 32 L43 29 V52 H21 V29 L16 32 L10 22Z" fill={W} />
+      <path d="M26 14 L32 24 L38 14" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinejoin="round" opacity=".7" />
+      <rect x="21" y="40" width="22" height="4" fill={W2} />
+    </>
+  ),
   material: (
     <>
       <path d="M32 11 L47 25 L40 52 H24 L17 25Z" fill={W} />

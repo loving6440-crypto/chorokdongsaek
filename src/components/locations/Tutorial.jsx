@@ -100,13 +100,16 @@ const NODES = [
       '아, 전투 중 의지력이 부족할 때는 걱정 마세요. 의지력은 0 미만으로 떨어지지 않아요.',
       '의지력이 현재 내야 할 대가보다 모자라더라도 0까지 떨어지고 그 능력을 사용할 수 있어요.',
       '하지만, 0인 상태에서는 더 이상 그 어떤 것도 사용할 수 없으니 주의해요.',
-      '첫 번째는 “간파”예요. 의지력 1로 상대의 다음 행동을 두 턴 앞서 볼 수 있어요. 안목이 상대의 영력보다 높으면 세 턴이에요.',
+      '첫 번째는 “간파”예요. 의지력 1을 쓰면 상대의 다음 행동을 세 턴 앞서 볼 수 있어요. 안목이 상대의 영력보다 높으면 처음부터 다섯 턴이에요.',
+      '그리고 의지력을 1 더 쓸 때마다 한 턴씩 더 멀리 볼 수 있어요. 예를 들어 의지력 5를 쓰면 처음 3턴에 4턴이 더해져서, 7턴 동안 상대의 행동이 보여요!',
+      '단, 상대가 영능력을 쓰는 턴은 간파로 봐도 “영능력”이라고만 보이고, 어떤 영능력인지는 알 수 없어요.',
     ],
   },
   {
     do: true,
     allow: ['scan'],
-    prompt: '“간파”를 눌러 보세요. (숫자 키 4) 간파도 한 턴을 써요.',
+    prompt: '“간파”를 눌러 보세요. (숫자 키 4) 이번엔 연습이라 의지력 3을 한꺼번에 써서 멀리 볼게요. 간파도 한 턴을 써요.',
+    scanAmount: 3,
     prep: (s) => ({ ...s, queue: q(['jab', 'guard', 'jab', 'special']) }),
   },
   {
@@ -168,14 +171,23 @@ const NODES = [
   {
     say: [
       '봤죠? 영능력은 이런 식으로 상대가 처음 쓸 때 설명이 함께 나와요. 직접 보기 전까진 이름도, 효과도 알 수 없어요.',
-      '그러니까 처음 만나는 상대와의 싸움은 긴장해야 해요… 간파로 봐도 영능력은 ???로만 보인답니다.',
+      '그러니까 처음 만나는 상대와의 싸움은 긴장해야 해요… 간파로 봐도 영능력은 “영능력”이라고만 보이고, 무슨 영능력인지는 직접 당해 봐야 안답니다.',
+    ],
+  },
+  {
+    say: [
+      '전투 상대를 고를 때 보면 단계 옆에 “모든 스탯 2~3 기준”, “모든 스탯 5~6 기준”, “모든 스탯 8~10 기준” 같은 글이 붙어 있어요. 내 스탯이 대략 그 정도일 때 맞서 볼 만하다는 적정 레벨이에요.',
+      '그 옆에는 “적정 2명”, “적정 3명”처럼 적정 인원도 적혀 있어요. 하급 요괴 중엔 여럿이 함께 상대하는 걸 기준으로 강한 녀석들이 있어요. 혼자 맞서면 많이 벅찰 거예요!',
+      '이런 상대는 일행 중 체력이 가장 많은 사람을 먼저 노려요. 그 외엔 평소 상대와 다를 게 없어요.',
     ],
   },
   {
     say: [
       '그리고 몇 가지 더요. 체력이 0이 되면 “버티기”를 쓸 수 있어요. 의지력을 1만 남기고 전부 써서 체력 1로 일어서는 거예요. 포기하면 의지력은 지킬 수 있어요.',
+      '단, 버티기는 한 전투에 딱 한 번뿐이에요. 의지력이 남아 있어도 두 번째부턴 못 버티고 바로 쓰러져요. 대신 인내 수치(%)만큼의 확률로 의지력을 하나도 쓰지 않고 일어설 수 있어요.',
       '체력과 의지력은 전투가 끝나도 그대로고, 저절로 차지 않아요. 본관 2층의 양호실에 찾아가서 쉬면 1분에 1씩 채워져요.',
-      '호전이 절제보다 많이 높으면 가끔 몸이 멋대로 공격해 버려요.',
+      '그리고 “돌발 행동”! 내 턴이 시작될 때마다 1d100을 굴려서, 호전에서 절제를 뺀 수치(%)보다 낮게 나오면 몸이 멋대로 튀어 나가요. 그러면 그 턴엔 무조건 일반 공격을 하게 돼요.',
+      '마지막으로 무서운 이야기예요. 체력이 0이 되어 완전히 쓰러지면, 눈을 떴을 땐 양호실이에요. 그리고 [쇠약] 상태가 돼요. 24시간 동안 모든 육조 스탯이 현재 수치의 절반으로 줄어드니까, 기숙사에서 6시간 푹 자면 [쇠약]도 한꺼번에 낫지만, 쓰러지지 않게 조심하세요.',
       '쓰러뜨리면 상대의 영력만큼 제 영력이 늘어요. 보상이 나오는 승리는 하루에 한 번 뿐이니까, 누구를 처리해야 할지 신중하게 정해야 해요!',
       '연습 자체는 하루에 몇 번이건 할 수 있어요.',
     ],
@@ -192,7 +204,7 @@ const NODES = [
   },
   {
     say: [
-      '수고하셨어요! 이걸로 전투 교육은 끝이에요. 체력이랑 의지력은 제가 전부 채워 드릴게요.',
+      '수고하셨어요! 이걸로 전투 교육은 끝이에요. 체력이랑 의지력은 교육 들어오기 전 상태로 돌려 드릴게요.',
       '혼자서도 잘하실 거예요. 그래도 위험하다 싶으면… 무리하지 마세요. 다음에 또 만나요!',
     ],
     last: true,
@@ -228,8 +240,8 @@ const SPOTS = [
 const spotOf = (node, line) => (node.do ? null : (SPOTS.find(([k]) => node.say[0].startsWith(k))?.[1][line] ?? null))
 
 // 대사 속 중요한 말(능력치·행동·용어)은 굵고 밝게, 행동 이름은 밑줄까지 넣어 눈에 띄게 한다.
-const ACTION_WORDS = '일반 공격|막기|부적|간파|효험|버티기|도깨비불'
-const TERM_WORDS = '안목|호전|인내|절제|신속|이해|행동력|공격력|영력|체력|의지력|기 모으기|강공|약공|방어 태세|영능력|선공 판정|내 턴|상대의 턴|소지품|아이템|양호실|반격'
+const ACTION_WORDS = '일반 공격|막기|부적|간파|효험|버티기|도깨비불|생존본능'
+const TERM_WORDS = '안목|호전|인내|절제|신속|이해|행동력|공격력|영력|체력|의지력|기 모으기|강공|약공|방어 태세|영능력|적정 레벨|적정 인원|선공 판정|내 턴|상대의 턴|소지품|아이템|양호실|반격|쇠약|돌발 행동'
 const RICH = new RegExp(`(${ACTION_WORDS}|${TERM_WORDS})`, 'g')
 const ACTION_SET = new Set(ACTION_WORDS.split('|'))
 function Rich({ text }) {
@@ -252,6 +264,12 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
   const [b, setB] = useState(() => ({ ...newBattle(TUTOR_ENEMY, stats, Math.random, hp, hpMax), queue: q(['jab']) }))
   const [log, setLog] = useState([])
   const [busy, setBusy] = useState(false)
+  const [spBanner, setSpBanner] = useState(null)
+  useEffect(() => {
+    if (!spBanner) return undefined
+    const t = setTimeout(() => setSpBanner(null), 2800)
+    return () => clearTimeout(t)
+  }, [spBanner])
   const timer = useRef(null)
   const bRef = useRef(b)
   bRef.current = b
@@ -309,7 +327,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
         mpNow = 10
         push([{ kind: 'warn', text: '(의지력이 0이라 바리가 연습용으로 조금 채워 주었다.)' }])
       }
-      const ctx = { stats, mp: mpNow, noRash: true }
+      const ctx = { stats, mp: mpNow, noRash: true, ...(n.scanAmount && action === 'scan' ? { scanAmount: n.scanAmount } : {}) }
       const r = playerTurn(cur, action, ctx)
       onMp?.(-r.mpCost)
       mpNow -= r.mpCost
@@ -329,6 +347,8 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
           // 연습이라 쓰러지지 않는다.
           if (s.php <= 0) s = { ...s, php: 1 }
           s = { ...s, pendingDeath: false, over: null }
+          const spEv = e.events.find((ev) => ev.kind === 'special')
+          if (spEv) setSpBanner({ label: spEv.label, note: spEv.note, k: Math.random() })
           push(
             e.events
               .filter((ev) => ev.kind !== 'end')
@@ -360,13 +380,20 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
     return () => window.removeEventListener('keydown', onKey)
   }, [idx, next, act])
 
-  const shown = Math.min(b.known, 3)
+  const shown = Math.min(b.known, b.queue.length, 14)
   const have = Math.floor(mp)
   const text = isDo ? node.prompt : node.say[line]
   const spot = spotOf(node, line)
 
   return (
     <section aria-label="전투 교육 과정" className="relative flex flex-col">
+      {spBanner && (
+        <div key={spBanner.k} role="alert" data-sp-banner className="sp-banner pointer-events-none absolute inset-x-0 top-24 z-30 mx-auto w-[min(26rem,92%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl">
+          <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
+          <p className="mt-1 font-serif text-3xl text-gold">《{spBanner.label}》</p>
+          <p className="mt-1 text-sm text-paper/90">{spBanner.note}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 order-first">
         <h2 className="font-serif text-xl text-gold">전투 교육 과정</h2>
         <button type="button" onClick={onExit} className="rounded-full bg-edge/10 px-3 py-1 text-xs text-paper/80 hover:bg-edge/20">
@@ -395,7 +422,6 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
                 {b.queue.slice(0, shown).map((k, i) => (
                   <li key={i} className={`rounded-full px-2.5 py-0.5 text-xs ${k === 'smash' ? 'bg-crimson/25 text-crimson' : 'bg-edge/10'}`}>
                     {i + 1}. {INTENTS[k].label}
-                    {k === 'special' && ' · ???'}
                   </li>
                 ))}
               </ol>
@@ -465,7 +491,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
                 <span className="text-[10px] text-paper/40">{i + 1}</span>
               </span>
               <span className="text-[10.5px] leading-snug text-paper/60">
-                {id === 'scan' ? `의지력 1. 다음 ${scanTurns(stats, b.enemy)}턴의 행동을 본다.` : ACTIONS[id].note}
+                {id === 'scan' ? `의지력 N. 1이면 ${scanTurns(stats, b.enemy)}턴, 1 늘 때마다 1턴 더 본다.` : ACTIONS[id].note}
               </span>
             </button>
           )

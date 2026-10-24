@@ -109,7 +109,11 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
               <span className="rounded-md border border-edge/25 px-2 py-0.5 text-xs text-paper/80">{gradeOf(player)}학년</span>
               <span className="rounded-md border border-edge/25 px-2 py-0.5 text-xs text-paper/80">{player.age}세</span>
             </div>
-            {userId && <p className="mt-1.5 max-w-[100px] truncate text-[10px] text-paper/35">@{userId}</p>}
+            {player.greeting ? (
+              <p className="mt-1.5 line-clamp-2 max-w-[132px] text-center text-[11px] leading-snug text-paper/70 italic" data-greeting>“{player.greeting}”</p>
+            ) : (
+              userId && <p className="mt-1.5 max-w-[100px] truncate text-[10px] text-paper/35">@{userId}</p>
+            )}
           </div>
         </Facet>
 
