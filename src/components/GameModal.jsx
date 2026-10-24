@@ -13,7 +13,6 @@ import StatTooltip from './StatTooltip'
 import { STAT_KEYS, STAT_MAX, STAT_META } from '../game/constants'
 import {
   COURSE_INFO,
-  LESSON_DAILY_ATTEMPTS,
   LESSON_WAIT_MINUTES,
   rewardText,
 } from '../game/courseInfo'
@@ -56,7 +55,6 @@ export default function GameModal({
   const live = useRef({})
   live.current = { course, lesson, actions, playerKey, playerName }
   const completed = useRef(false)
-  const freeRef = useRef(false) // 오늘의 시도를 다 쓴 뒤의 자유 플레이(보상·랭킹 없음)
   const [active, setActive] = useState(false) // 지금 판이 진행 중인가
   const [result, setResult] = useState(null) // 직전 판의 결과 { score, dead, won }
   const [tab, setTab] = useState('game') // game | rank
@@ -71,7 +69,6 @@ export default function GameModal({
   useEffect(() => {
     // 과목이 바뀌면(열릴 때마다) 진행 상태를 비운다.
     completed.current = false
-    freeRef.current = false
     setActive(false)
     setResult(null)
     setTab('game')
@@ -98,7 +95,7 @@ export default function GameModal({
     const metric = (v) => {
       const c = live.current
       const info = COURSE_INFO[c.course?.id]
-      if (!info || completed.current || c.lesson?.done || freeRef.current) return
+      if (!info || completed.current || c.lesson?.done) return
       if (v >= info.minValue) {
         completed.current = true
         c.actions.complete(c.course.id)
@@ -107,7 +104,7 @@ export default function GameModal({
     const submit = (score) => {
       const c = live.current
       const info = COURSE_INFO[c.course?.id]
-      if (!info?.ranked || !(score > 0) || !c.playerKey || freeRef.current) return
+      if (!info?.ranked || !(score > 0) || !c.playerKey) return
       submitScore(c.course.id, c.playerKey, c.playerName || c.playerKey, Math.round(score)).then(() =>
         setRankKey((k) => k + 1),
       )
@@ -116,15 +113,6 @@ export default function GameModal({
       start: () => {
         const c = live.current
         if (c.course.id === 'divination-fortune') return true
-        // 시도 3회를 다 쓴 뒤엔 자유 플레이: 시도를 쓰지 않고, 보상도 랭킹 기록도 없다.
-        if (c.lesson && c.lesson.used >= LESSON_DAILY_ATTEMPTS && !c.lesson.waitUntil) {
-          c.actions.freePlay?.(c.course.id)
-          freeRef.current = true
-          setActive(true)
-          setResult(null)
-          return true
-        }
-        freeRef.current = false
         const ok = c.actions.spendAttempt(c.course.id)
         if (ok) {
           setActive(true)
@@ -161,9 +149,7 @@ export default function GameModal({
   const Playable = entry?.Component
   const info = COURSE_INFO[course.id]
   const isFortune = course.id === 'divination-fortune'
-  const usedUp = !isFortune && lesson.used >= LESSON_DAILY_ATTEMPTS
   const blocked = !isFortune && waiting && !active
-  const attemptsLeft = Math.max(0, LESSON_DAILY_ATTEMPTS - lesson.used)
   const canWait = !isFortune && !lesson.done && !waiting
 
   return (
@@ -214,7 +200,7 @@ export default function GameModal({
           </span>
           {!isFortune && (
             <span className="text-paper/60">
-              오늘 시도 <b className="ml-1 font-medium text-paper">{lesson.used}/{LESSON_DAILY_ATTEMPTS}</b>
+              오늘 플레이 <b className="ml-1 font-medium text-paper">{lesson.used}회</b>
             </span>
           )}
           {lesson.done && (
@@ -325,14 +311,7 @@ export default function GameModal({
                     창을 닫거나 탭을 내려 두어도 계속 기다린다. 다른 곳으로 이동하거나 새 동작을 시작하면 끊긴다.
                   </span>
                 </p>
-              ) : (
-                <>
-                  <p className="text-sm leading-relaxed text-paper/75">
-                    오늘의 시도 {LESSON_DAILY_ATTEMPTS}회를 모두 썼다.
-                    {lesson.done ? ' 내일 다시 도전할 수 있다.' : ` 최소 조건(${info.minLabel})을 채우지 못했다면 ${LESSON_WAIT_MINUTES}분을 기다려 수업을 마칠 수 있다. (대기 중에는 이 화면을 계속 보고 있어야 한다.)`}
-                  </p>
-                </>
-              )}
+              ) : null}
               {canWait && (
                 <button
                   type="button"
@@ -359,15 +338,9 @@ export default function GameModal({
                   {result.won ? info.success : result.dead ? info.death : '수업을 마쳤다.'}
                 </p>
               )}
-              {usedUp && !waiting && (
-                <p className="mb-3 rounded-md border border-gold/30 bg-gold/5 px-3 py-2 text-center text-[11px] leading-relaxed text-paper/70" data-free-play>
-                  오늘의 시도 {LESSON_DAILY_ATTEMPTS}회를 모두 썼다. 지금부터는 <b className="text-gold">자유 플레이</b>다. 보상(영력)과 랭킹 기록은 없고, 얼마든지 연습할 수 있다.
-                  {!lesson.done && ` 최소 조건(${info.minLabel})을 못 채웠다면 ${LESSON_WAIT_MINUTES}분 대기로 수업을 마칠 수 있다.`}
-                </p>
-              )}
-              {!isFortune && !active && !lesson.done && attemptsLeft > 0 && (
+              {!isFortune && !active && (
                 <p className="mb-3 text-center text-[11px] text-paper/50">
-                  게임을 시작하면 오늘의 시도 1회가 소모된다. (남은 {attemptsLeft}회)
+                  {lesson.done ? '오늘의 보상은 이미 받았다. 플레이와 랭킹 기록은 계속 쌓인다.' : '플레이 횟수에는 제한이 없다. 보상(영력)은 하루에 한 번만 받는다.'}
                 </p>
               )}
               {Playable ? (

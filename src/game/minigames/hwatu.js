@@ -32,7 +32,7 @@ export function stageConfig(stage) {
     cards,
     cols: cards <= 16 ? 4 : cards <= 20 ? 5 : 6,
     chances: Math.ceil(months * 0.9) + 2, // 틀려도 되는 횟수
-    peekSeconds: Math.max(3, 7 - stage), // 패를 펼쳐 보여 주는 시간
+    peekSeconds: 5, // 패를 펼쳐 보여 주는 시간: 판이 올라가도 5초로 그대로
     parSeconds: months * 7, // 보너스 기준 시간
   }
 }

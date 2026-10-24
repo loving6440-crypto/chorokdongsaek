@@ -404,8 +404,6 @@ export default function Game({
         setPlayer((prev) => spendAttempt(prev, id) ?? prev)
         return true
       },
-      // 시도를 다 쓴 뒤의 자유 플레이: 시도는 쓰지 않고 새 동작으로만 친다.
-      freePlay: () => interruptAll('새 동작을 시작해'),
       complete: (id) => {
         const r = completeLesson(playerRef.current, id)
         if (!r.logs.length) return

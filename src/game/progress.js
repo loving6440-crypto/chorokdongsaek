@@ -1,6 +1,6 @@
 // 시간이 흐르면서 바뀌는 상태(수련 · 수업 대기 · 일일 수업)를 다루는 순수 함수 모음.
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
-import { LESSON_DAILY_ATTEMPTS, LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
+import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
 import { START_MONEY, equipOf, gearBonus } from './items'
 import { checkAchievements } from './achievements'
@@ -86,7 +86,7 @@ export function completeLesson(player, courseId, now = Date.now()) {
 /** 시도 1회를 쓴다. 쓸 수 없으면 null. */
 export function spendAttempt(player, courseId, now = Date.now()) {
   const st = lessonOf(player, courseId, now)
-  if (st.waitUntil || st.used >= LESSON_DAILY_ATTEMPTS) return null
+  if (st.waitUntil) return null // 시도 횟수 제한은 없다. 보상만 하루 한 번(completeLesson)
   return setLesson(player, courseId, { ...st, used: st.used + 1 })
 }
 

@@ -116,6 +116,12 @@ export default function Tetris() {
   useEffect(() => {
     if (state.status === 'playing') run.metric(state.score)
   }, [state.score, state.status, run])
+  // 도중에 창을 닫거나 다른 곳으로 가도 그때까지의 점수는 랭킹에 올린다.
+  const live = useRef(state)
+  live.current = state
+  useEffect(() => () => {
+    if (live.current.status === 'playing' && live.current.score > 0) run.submit(live.current.score)
+  }, [run])
 
   // 게임이 끝나면 최고 기록 저장
   useEffect(() => {

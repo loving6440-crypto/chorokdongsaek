@@ -1,6 +1,5 @@
 import { COURSES } from '../../game/constants'
 import { lessonOf } from '../../game/progress'
-import { LESSON_DAILY_ATTEMPTS } from '../../game/courseInfo'
 import LocationIntro from '../LocationIntro'
 import Explore from './Explore'
 
@@ -16,7 +15,7 @@ export default function MainHall({ player, view, onOpenCourse, onInvestigate, on
         수업 <span className="sparkle text-lg" aria-hidden="true" />
       </h2>
       <p className="mt-1 text-sm text-paper/65">
-        과목 카드를 열면 설명과 오늘의 수업 상태가 나온다. 게임은 하루 {LESSON_DAILY_ATTEMPTS}회까지 시도할 수 있다.
+        과목 카드를 열면 설명과 오늘의 수업 상태가 나온다. 게임은 횟수 제한 없이 할 수 있고, 보상은 과목마다 하루 한 번만 받는다. 랭킹은 계속 갱신된다.
       </p>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {COURSES.map((course) => {
@@ -39,7 +38,7 @@ export default function MainHall({ player, view, onOpenCourse, onInvestigate, on
                   <span className="rounded-full border border-gold/50 px-1.5 py-px text-[10px] text-gold">대기 중</span>
                 ) : course.id !== 'divination-fortune' ? (
                   <span className="text-[10px] text-paper/45">
-                    {Math.max(0, LESSON_DAILY_ATTEMPTS - st.used)}/{LESSON_DAILY_ATTEMPTS}회 남음
+                    오늘 {st.used}회 플레이
                   </span>
                 ) : null}
               </div>
