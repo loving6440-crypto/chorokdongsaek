@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
-import { ACTIONS, INTENTS, LENT_FIRE, PSYCHICS, TUTOR_ENEMY, enemyTurn, fireTurn, newBattle, playerTurn, psychicTurn, scanTurns } from '../../game/battle'
+import { specialSummary, ACTIONS, INTENTS, LENT_FIRE, PSYCHICS, TUTOR_ENEMY, enemyTurn, fireTurn, newBattle, playerTurn, psychicTurn, scanTurns } from '../../game/battle'
+import SpBanner from '../SpBanner'
 import { Bar } from './battleUi'
 
 const ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
@@ -294,7 +295,7 @@ function Rich({ text }) {
 
 const DELAY = 800
 
-export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed = 0, psychics = [], onSpotItems, onGiveItem, onExit, onDone }) {
+export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed = 0, psychics = [], onLent, onSpotItems, onGiveItem, onExit, onDone }) {
   const [psyOpen, setPsyOpen] = useState(false) // 영능력 목록
   const [lent, setLent] = useState(false) // 바리가 도깨비불을 빌려준 동안
   const [idx, setIdx] = useState(0)
@@ -305,7 +306,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
   const [spBanner, setSpBanner] = useState(null)
   useEffect(() => {
     if (!spBanner) return undefined
-    const t = setTimeout(() => setSpBanner(null), 2800)
+    const t = setTimeout(() => setSpBanner(null), 6200)
     return () => clearTimeout(t)
   }, [spBanner])
   const timer = useRef(null)
@@ -333,7 +334,10 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
       if (n?.prep) setB((cur) => n.prep(cur))
       if (n?.enter?.give) onGiveItem?.(n.enter.give)
       if (n?.enter?.baseItems) baseItems.current = itemsRef.current
-      if (n?.enter?.lend) setLent(true)
+      if (n?.enter?.lend) {
+        setLent(true)
+        onLent?.()
+      }
       if (n?.enter?.unlend) {
         setLent(false)
         setPsyOpen(false)
@@ -397,11 +401,11 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
           if (s.php <= 0) s = { ...s, php: 1 }
           s = { ...s, pendingDeath: false, over: null }
           const spEv = e.events.find((ev) => ev.kind === 'special')
-          if (spEv) setSpBanner({ label: spEv.label, note: spEv.note, k: Math.random() })
+          if (spEv) setSpBanner({ label: spEv.label, note: spEv.note, chance: spEv.chance, effects: spEv.effects, result: spEv.result, k: Math.random() })
           push(
             e.events
               .filter((ev) => ev.kind !== 'end')
-              .map((ev) => (ev.kind === 'special' ? { ...ev, kind: 'warn', text: `✦ 영능력 《${ev.label}》 — ${ev.note} (처음 본 비기는 이렇게 설명이 붙는다.)` } : ev)),
+              .map((ev) => (ev.kind === 'special' ? { ...ev, kind: 'warn', text: specialSummary(ev) } : ev)),
           )
         }
         setB(s)
@@ -476,13 +480,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
 
   return (
     <section aria-label="전투 교육 과정" className="relative flex flex-col">
-      {spBanner && (
-        <div key={spBanner.k} role="alert" data-sp-banner className="sp-banner pointer-events-none absolute inset-x-0 top-24 z-30 mx-auto w-[min(26rem,92%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl">
-          <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
-          <p className="mt-1 font-serif text-3xl text-gold">《{spBanner.label}》</p>
-          <p className="mt-1 text-sm text-paper/90">{spBanner.note}</p>
-        </div>
-      )}
+      <SpBanner sp={spBanner} className="top-24" onEnd={() => setSpBanner(null)} />
       <div className="flex items-center justify-between gap-2 order-first">
         <h2 className="font-serif text-xl text-gold">전투 교육 과정</h2>
         <button type="button" onClick={onExit} className="rounded-full bg-edge/10 px-3 py-1 text-xs text-paper/80 hover:bg-edge/20">

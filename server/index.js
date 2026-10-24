@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { ITEMS } from '../src/game/items.js'
 import { ENEMIES } from '../src/game/battle.js'
 import * as MB from '../src/game/mbattle.js'
+import { kstDate, STORY_MAX } from '../src/game/meals.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GIFT_MAX = 5
@@ -46,6 +47,7 @@ const MARKET_QTY_MAX = 99
 const MARKET_PRICE_MAX = 99999
 let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade, avatar, at } }  (접속자 이름을 눌렀을 때 보여 준다)
 let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
+let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
 
 // ───────── 영속 데이터(랭킹 · 벼룩시장) ─────────
@@ -55,6 +57,7 @@ try {
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.members && typeof raw.members === 'object') members = raw.members
+  if (raw?.stories && Array.isArray(raw.stories.pending)) stories = { pending: raw.stories.pending, papers: raw.stories.papers ?? {}, seq: raw.stories.seq || 1 }
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
 } catch {
   /* 첫 실행이면 빈 랭킹으로 시작 */
@@ -64,7 +67,7 @@ function scheduleSave() {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market, cards, members }, null, 1))
+      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market, cards, members, stories }, null, 1))
     } catch (e) {
       console.error('랭킹 저장 실패:', e.message)
     }
@@ -275,6 +278,7 @@ function readBody(req, max = 10_000) {
 }
 const cleanId = (v) => (typeof v === 'string' && /^[a-zA-Z0-9가-힣_]{1,40}$/.test(v) ? v : null)
 const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\r\n\t]/g, ' ').trim().slice(0, 24) : '')
+const storyRate = new Map() // 사연 투고 횟수 제한(접속 중에만 기억, 쓴 사람은 저장하지 않는다)
 const requireClient = (body, res) => {
   const id = cleanId(body?.id)
   const c = id && clients.get(id)
@@ -304,6 +308,13 @@ async function handleApi(req, res, url) {
   const route = url.pathname
 
   if (req.method === 'GET' && route === '/api/health') return json(res, 200, { ok: true, online: clients.size })
+
+  // 그날의 교내 신문: 누구나 볼 수 있다. ?date=YYYY-MM-DD (없으면 오늘, KST)
+  if (req.method === 'GET' && route === '/api/newspaper') {
+    const q = url.searchParams.get('date')
+    const date = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : kstDate()
+    return json(res, 200, { ok: true, date, stories: (stories.papers[date] ?? []).map((s) => ({ no: s.no, text: s.text })) })
+  }
 
   // 벼룩시장 목록: 물건 종류별로(상점 순서) 1개당 값이 싼 것부터. 올린 사람은 알려 주지 않고, 본인 것만 mine 으로 표시한다.
   if (req.method === 'GET' && route === '/api/market') {
@@ -451,6 +462,29 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, total: list.length, members: list })
   }
 
+  // 익명 사연 심사(관리자 전용): 대기 목록 / 신문에 올리기 / 반려
+  if (route === '/api/admin/stories' || route === '/api/admin/story/publish' || route === '/api/admin/story/reject') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    const today = kstDate()
+    if (route === '/api/admin/stories') return json(res, 200, { ok: true, date: today, pending: stories.pending, published: stories.papers[today] ?? [] })
+    const idx = stories.pending.findIndex((s) => s.id === body.storyId)
+    if (idx < 0) return json(res, 404, { error: 'no-story' })
+    const [st] = stories.pending.splice(idx, 1)
+    if (route === '/api/admin/story/publish') {
+      const paper = (stories.papers[today] ??= [])
+      const no = paper.reduce((m, s) => Math.max(m, s.no), 0) + 1
+      paper.push({ no, text: st.text, at: Date.now() })
+      scheduleSave()
+      return json(res, 200, { ok: true, no, date: today })
+    }
+    scheduleSave()
+    return json(res, 200, { ok: true, rejected: true })
+  }
+
   if (route === '/api/ranking') {
     const id = cleanId(body.id)
     const course = body.course
@@ -471,6 +505,22 @@ async function handleApi(req, res, url) {
 
   const me = requireClient(body, res)
   if (!me) return
+
+  // 익명 사연 투고함: 접속한 사람이면 누구나. 쓴 사람은 저장하지 않는다. (남용 방지는 접속 중 횟수 제한만 한다)
+  if (route === '/api/story/submit') {
+    const text = typeof body.text === 'string' ? body.text.replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim() : ''
+    if (!text) return json(res, 400, { error: 'empty' })
+    if (text.length > STORY_MAX) return json(res, 400, { error: 'too-long' })
+    if (stories.pending.length >= 200) return json(res, 429, { error: 'full' })
+    const now = Date.now()
+    const arr = (storyRate.get(me.id) ?? []).filter((t0) => now - t0 < 3600000)
+    if (arr.length >= 5) return json(res, 429, { error: 'slow-down' })
+    arr.push(now)
+    storyRate.set(me.id, arr)
+    stories.pending.push({ id: `s${stories.seq++}`, text, at: now })
+    scheduleSave()
+    return json(res, 200, { ok: true })
+  }
 
   if (route === '/api/chat') {
     const channel = body.channel

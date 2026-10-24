@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
-import { ACTIONS, ENEMIES, INTENTS, PSYCHICS, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { specialSummary, ACTIONS, ENEMIES, INTENTS, PSYCHICS, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 import { Bar, vague } from './battleUi'
+import SpBanner from '../SpBanner'
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
@@ -36,11 +37,11 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     if (first) return // 다시 접속했을 때 지난 기록으로는 연출하지 않는다
     for (const e of fresh) {
       if (e.kind !== 'special') continue
-      spText.current[e.id] = seenSp.current[e.enemyId] ? `✦ 영능력 《${e.label}》` : `✦ 영능력 《${e.label}》 — ${e.note} (처음 본 비기는 이렇게 설명이 붙는다.)`
+      spText.current[e.id] = specialSummary(e)
     }
     const sp = [...fresh].reverse().find((e) => e.kind === 'special')
     if (sp) {
-      setSpBanner({ label: sp.label, note: sp.note, k: Math.random() })
+      setSpBanner({ label: sp.label, note: sp.note, chance: sp.chance, effects: sp.effects, result: sp.result, k: Math.random() })
       if (!seenSp.current[sp.enemyId]) {
         seenSp.current = { ...seenSp.current, [sp.enemyId]: true }
         onSpecialSeen?.(sp.enemyId)
@@ -51,7 +52,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   }, [view.log, meId, onSpecialSeen])
   useEffect(() => {
     if (!spBanner) return undefined
-    const t = setTimeout(() => setSpBanner(null), 2800)
+    const t = setTimeout(() => setSpBanner(null), 6200)
     return () => clearTimeout(t)
   }, [spBanner])
   // 새 라운드가 시작되면 보냈다는 표시를 푼다
@@ -114,18 +115,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const danger = me && me.php <= me.phpMax * 0.3 && me.status === 'alive'
   const textOf = (l) => {
     if (l.kind !== 'special') return l.text
-    return spText.current[l.id] ?? `✦ 영능력 《${l.label}》`
+    return spText.current[l.id] ?? specialSummary(l)
   }
 
   return (
     <section aria-label="다인 전투" data-mb className={`relative ${spBanner ? 'sp-shake' : ''}`}>
-      {spBanner && (
-        <div key={spBanner.k} role="alert" data-sp-banner className="sp-banner pointer-events-none absolute inset-x-0 top-10 z-30 mx-auto w-[min(26rem,92%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl">
-          <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
-          <p className="mt-1 font-serif text-3xl text-gold">《{spBanner.label}》</p>
-          <p className="mt-1 text-sm text-paper/90">{spBanner.note}</p>
-        </div>
-      )}
+      <SpBanner sp={spBanner} onEnd={() => setSpBanner(null)} />
       <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
         <span>
           <Users size={13} className="mr-1 inline align-[-2px]" aria-hidden />

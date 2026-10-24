@@ -593,8 +593,8 @@ button.bg-gold { border-radius: 0.55rem; }
 @media (prefers-reduced-motion: reduce) { .spot-wide { animation: none; } }
 
 /* 상대의 영능력 발동 연출 */
-@keyframes sp-pop { 0% { opacity: 0; transform: scale(.7) } 12% { opacity: 1; transform: scale(1.08) } 22% { transform: scale(1) } 85% { opacity: 1 } 100% { opacity: 0; transform: translateY(-8px) } }
-.sp-banner { animation: sp-pop 2.6s ease-out forwards; }
+@keyframes sp-pop { 0% { opacity: 0; transform: scale(.7) } 4% { opacity: 1; transform: scale(1.08) } 8% { transform: scale(1) } 90% { opacity: 1 } 100% { opacity: 0; transform: translateY(-8px) } }
+.sp-banner { animation: sp-pop 6s ease-out forwards; }
 @keyframes sp-shake { 0%,100% { transform: translateX(0) } 15% { transform: translateX(-5px) } 30% { transform: translateX(5px) } 45% { transform: translateX(-3px) } 60% { transform: translateX(3px) } }
 .sp-shake { animation: sp-shake .45s ease-out 1; }
 @media (prefers-reduced-motion: reduce) { .sp-banner { animation: none; } .sp-shake { animation: none; } }

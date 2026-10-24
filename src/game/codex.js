@@ -6,7 +6,7 @@
 //  - 적: src/game/battle.js 의 blurb
 //  - NPC: 아래 NPC_ENTRIES 의 desc (비워 두면 '(설명 준비 중)')
 //  - 영능력: 적 special 의 note (src/game/battle.js)
-import { ENEMIES, PSYCHICS } from './battle'
+import { ENEMIES, PSYCHICS, LENT_FIRE, specialEffects, SPECIAL_PERCENT } from './battle'
 import { ITEMS } from './items'
 import { ISHI } from './shrine'
 
@@ -77,6 +77,16 @@ export function codexEntries(chapterId, player) {
       desc: x.note,
       extra: `${x.detail}\n취득 조건: ${x.cond}`,
     })),
+    {
+      id: `lent-${LENT_FIRE.id}`,
+      kind: 'skill',
+      group: '빌린 영능력',
+      known: !!p.specials?.[LENT_FIRE.id],
+      name: LENT_FIRE.label,
+      desc: LENT_FIRE.note,
+      extra: `${LENT_FIRE.detail}\n바리가 전투 교육에서 빌려준 영능력. 아직 내 것은 아니다.`,
+      from: '바리',
+    },
     ...ENEMIES.map((e) => ({
       id: `sp-${e.id}`,
       kind: 'skill',
@@ -84,6 +94,7 @@ export function codexEntries(chapterId, player) {
       known: !!p.specials?.[e.id],
       name: e.special.label,
       desc: e.special.note,
+      extra: `발동 확률 ${SPECIAL_PERCENT}% (상대 턴마다 d10 = 10)\n${specialEffects(e).join('\n')}`,
       from: e.name,
     })),
   ]

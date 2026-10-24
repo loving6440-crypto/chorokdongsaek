@@ -1,4 +1,4 @@
-import { Mountain, ShoppingBag, BedDouble, BookOpen, Compass, Swords, GraduationCap, Library, Moon, Signpost, MessageCircle } from 'lucide-react'
+import { Mountain, ShoppingBag, BedDouble, BookOpen, Compass, Swords, GraduationCap, Library, Moon, Signpost, MessageCircle, Utensils } from 'lucide-react'
 
 /**
  * 구역별 활동 목록. 화면 위쪽 '활동' 칸에 버튼으로 나오고,
@@ -20,6 +20,7 @@ export const ACTIVITIES = {
     { id: 'sleep', label: '휴식', icon: BedDouble },
     { id: 'train', label: '수련', icon: Moon },
     { id: 'store', label: '매점', icon: ShoppingBag },
+    { id: 'cafeteria', label: '급식실', icon: Utensils },
   ],
   gym: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },

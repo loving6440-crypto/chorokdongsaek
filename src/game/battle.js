@@ -248,6 +248,34 @@ export function revealOf(enemy, stats, fights) {
   }
 }
 
+/** 영능력 발동 확률(%): 상대 턴 행동 굴림 d10 에서 10 이 나올 때. (기 모으기 바로 다음 턴은 반드시 강공이라 제외) */
+export const SPECIAL_PERCENT = 10
+
+/** 상대 영능력의 정확한 효과 목록(스탯 숫자 포함). 팝업·전투 기록·도감이 같이 쓴다. */
+export function specialEffects(enemy) {
+  const { atk, spirit } = enemy
+  switch (enemy.id) {
+    case 'scarecrow':
+      return [`내 의지력을 1d${spirit}×2 만큼 빨아들인다. (${2}~${spirit * 2}, 남은 의지력이 한도)`, '체력 피해는 없다.']
+    case 'foxfire':
+      return [`막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}).`, '막기·방어로 줄일 수 없다.']
+    case 'dueoksini':
+      return [`막을 수 없는 피해 1d${atk}×2 (${2}~${atk * 2}).`, `내 의지력을 1d${spirit} 만큼 빨아들인다. (남은 의지력이 한도)`, '다음 내 턴엔 막기를 할 수 없다.']
+    case 'snake':
+      return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.']
+    case 'wonhon':
+      return [`저주 3턴: 걸린 다음 상대 턴부터 세 번, 매번 1d${Math.max(1, Math.floor(spirit / 2))} 피해 (1~${Math.max(1, Math.floor(spirit / 2))}).`, '막을 수 없고, 저주 중 다시 걸면 3턴으로 갱신된다.']
+    default:
+      return [enemy.special?.note ?? '상대마다 다른 비기.']
+  }
+}
+
+/** 팝업/기록에 쓰는 한 덩어리 설명. */
+export function specialSummary(ev) {
+  const eff = (ev.effects ?? []).join(' ')
+  return `✦ 영능력 《${ev.label}》 — 발동 확률 ${ev.chance ?? SPECIAL_PERCENT}% (상대 턴마다 d10 = 10). ${eff}${ev.result ? ` ▶ 이번 결과: ${ev.result}` : ''}`
+}
+
 /** 상대가 다음에 할 행동을 한 번 굴린다. 기 모으기 다음은 반드시 강공. */
 function rollIntent(prev, rng) {
   if (prev === 'charge') return 'smash'
@@ -441,26 +469,34 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   } else if (intent === 'guard') {
     ev.push({ kind: 'enemy', text: `${enemy.name}이(가) 몸을 웅크려 방어했다.` })
   } else if (intent === 'special') {
-    ev.push({ kind: 'special', label: enemy.special.label, note: enemy.special.note, enemyId: enemy.id })
+    const spEv = { kind: 'special', label: enemy.special.label, note: enemy.special.note, enemyId: enemy.id, chance: SPECIAL_PERCENT, effects: specialEffects(enemy), result: '' }
+    ev.push(spEv)
     if (enemy.id === 'scarecrow') {
-      mpDrain = Math.min(mp, die(enemy.spirit, rng) * 2)
+      const rr = die(enemy.spirit, rng)
+      mpDrain = Math.min(mp, rr * 2)
+      spEv.result = `[1d${enemy.spirit} = ${rr}] ×2 = ${rr * 2}${mpDrain < rr * 2 ? ` (남은 의지력이 적어 ${mpDrain})` : ''} → 의지력 ${mpDrain} 흡수`
       ev.push({ kind: 'enemy', text: `${enemy.name}의 혼 빨기! 의지력이 ${mpDrain} 빨려 나갔다.` })
     } else if (enemy.id === 'foxfire') {
       const a = die(enemy.atk, rng)
       hurt(a + enemy.spirit, `${enemy.name}의 불똥 흩뿌리기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+      spEv.result = `[공격 d${enemy.atk} = ${a}] + ${enemy.spirit} = ${a + enemy.spirit} 피해 (막기 불가)`
     } else if (enemy.id === 'dueoksini') {
       const a = die(enemy.atk, rng)
       hurt(a * 2, `${enemy.name}의 짓누르는 그림자 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
-      mpDrain = Math.min(mp, die(enemy.spirit, rng))
+      const rr = die(enemy.spirit, rng)
+      mpDrain = Math.min(mp, rr)
+      spEv.result = `[공격 d${enemy.atk} = ${a}] ×2 = ${a * 2} 피해 (막기 불가), [1d${enemy.spirit} = ${rr}] → 의지력 ${mpDrain} 흡수, 다음 내 턴 막기 불가`
       s.bound = true
       ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다! 몸이 짓눌려 다음 내 턴엔 막기를 할 수 없다.` })
     } else if (enemy.id === 'snake') {
       const a = die(enemy.atk, rng)
       hurt(a, `${enemy.name}의 휘감기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+      spEv.result = `[공격 d${enemy.atk} = ${a}] = ${a} 피해 (막기 불가), 다음 내 턴 막기 불가`
       s.bound = true
       ev.push({ kind: 'warn', text: '몸이 휘감겼다! 다음 내 턴엔 막기를 할 수 없다.' })
     } else {
       s.curse = 3
+      spEv.result = `저주 3턴 시작 (매 턴 1d${Math.max(1, Math.floor(enemy.spirit / 2))} 피해)`
       ev.push({ kind: 'enemy', text: `${enemy.name}의 원한의 저주! 앞으로 세 번의 상대 턴 동안 피해가 스며든다.` })
     }
   }

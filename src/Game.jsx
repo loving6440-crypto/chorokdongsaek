@@ -6,6 +6,7 @@ import CodexToast from './components/CodexToast'
 import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
+import Cafeteria from './components/locations/Cafeteria'
 import { START_MONEY, canUseItem, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
@@ -1005,7 +1006,8 @@ export default function Game({
                 )}
                 {locationId === 'annex' && <Annex view={activity} />}
                 {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />}
-                {locationId === 'dorm' && activity !== 'store' && (
+                {locationId === 'dorm' && activity === 'cafeteria' && <Cafeteria online={online.status === 'online'} />}
+                {locationId === 'dorm' && activity !== 'store' && activity !== 'cafeteria' && (
                   <Dormitory
                     view={activity}
                     control={effStats.control}

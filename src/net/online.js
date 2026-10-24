@@ -304,3 +304,38 @@ export async function fetchMembers(id, key) {
     return { ok: false, error: 'network' }
   }
 }
+
+// ───────── 급식실 · 교내 신문 · 익명 사연 ─────────
+/** 그날의 교내 신문. { ok, date, stories: [{ no, text }] } */
+export async function fetchNewspaper(date) {
+  try {
+    const r = await fetch(`/api/newspaper${date ? `?date=${encodeURIComponent(date)}` : ''}`)
+    const data = await r.json().catch(() => ({}))
+    return r.ok && data.ok ? data : { ok: false, error: data.error ?? 'network' }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** 익명 사연 투고. { ok, error } — 접속 중이어야 한다. */
+export const submitStory = (text) => post('/api/story/submit', { text })
+
+async function adminPost(path, id, key, extra = {}) {
+  try {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, key, ...extra }),
+    })
+    const data = await r.json().catch(() => ({}))
+    return r.ok && data.ok ? data : { ok: false, error: data.error ?? 'network' }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+/** 관리자: 심사 대기 사연 + 오늘 올라간 사연 */
+export const fetchPendingStories = (id, key) => adminPost('/api/admin/stories', id, key)
+/** 관리자: 승인하고 신문에 올리기 */
+export const publishStory = (id, key, storyId) => adminPost('/api/admin/story/publish', id, key, { storyId })
+/** 관리자: 반려(내용이 불순할 때) */
+export const rejectStory = (id, key, storyId) => adminPost('/api/admin/story/reject', id, key, { storyId })

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import {
+  specialSummary,
+  LENT_FIRE,
   ACTIONS,
   ENEMIES,
   INTENTS,
@@ -24,6 +26,7 @@ const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
 const ENEMY_DELAY = 900
 
 import { Bar, vague } from './battleUi'
+import SpBanner from '../SpBanner'
 import Tutorial from './Tutorial'
 import MultiBattle from './MultiBattle'
 import { MULTI_TAG, isMulti } from '../../game/mbattle'
@@ -43,7 +46,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
   useEffect(() => {
     if (!spBanner) return undefined
-    const t = setTimeout(() => setSpBanner(null), 2800)
+    const t = setTimeout(() => setSpBanner(null), 6200)
     return () => clearTimeout(t)
   }, [spBanner])
   const beginRef = useRef(null)
@@ -117,12 +120,11 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (first) {
         knownSp.current = { ...knownSp.current, [e.enemyId]: true }
         onSpecialSeen?.(e.enemyId)
-        return { ...e, text: `✦ 영능력 《${e.label}》 — ${e.note} (처음 본 비기는 이렇게 설명이 붙는다.)` }
       }
-      return { ...e, text: `✦ 영능력 《${e.label}》` }
+      return { ...e, text: specialSummary(e) }
     })
     const sp = events.find((e) => e.kind === 'special')
-    if (sp) setSpBanner({ label: sp.label, note: sp.note, k: Math.random() })
+    if (sp) setSpBanner({ label: sp.label, note: sp.note, chance: sp.chance, effects: sp.effects, result: sp.result, k: Math.random() })
     setLog((l) => [...events.map((e) => ({ ...e, id: Math.random() })), ...l].slice(0, 40))
     const last = [...events].reverse().find((e) => e.roll)
     if (last) setDice({ n: last.roll, kind: last.kind, k: Math.random() })
@@ -336,6 +338,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         onHp={onHp}
         itemsUsed={itemsUsed}
         psychics={psychics}
+        onLent={() => onSpecialSeen?.(LENT_FIRE.id)}
         onSpotItems={onSpotItems}
         onGiveItem={onGiveItem}
         onExit={() => {
@@ -453,13 +456,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   return (
     <section aria-label="전투" className={`relative ${spBanner ? 'sp-shake' : ''}`}>
-      {spBanner && (
-        <div key={spBanner.k} role="alert" data-sp-banner className="sp-banner pointer-events-none absolute inset-x-0 top-10 z-30 mx-auto w-[min(26rem,92%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl" onAnimationEnd={() => setSpBanner(null)}>
-          <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
-          <p className="mt-1 font-serif text-3xl text-gold">《{spBanner.label}》</p>
-          <p className="mt-1 text-sm text-paper/90">{spBanner.note}</p>
-        </div>
-      )}
+      <SpBanner sp={spBanner} onEnd={() => setSpBanner(null)} />
       <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
         <span>
           라운드 <b className="font-serif text-base text-paper">{b.round}</b>

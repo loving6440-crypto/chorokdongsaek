@@ -238,3 +238,9 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 - 튜토리얼: 전투 BGM 재생, [영능력] 행동 추가(6번 키), 바리가 도깨비불을 빌려주는 실습(3턴 기 모으기 → 일반 공격 4배, 방어 태세엔 절반). 엔진: `psychicTurn('dokkaebi-fire')` / `fireTurn`.
 - 프로필: 프로필을 고친 적 없으면 남에게는 최초 입학 때의 인적사항(`player.profile0`)이 보인다. 고치면(`profileEdited`) 고친 값.
 - 수정: v33에서 도감 적 항목의 설명(blurb)이 빠졌던 것을 복구.
+
+## v35
+- 영능력 팝업/기록: 상대 영능력이 발동되면 큰 팝업(6초)에 **발동 확률(10% = 상대 턴 d10에서 10)**, 효과 공식(상대 스탯 숫자 포함), **이번에 실제로 굴린 값과 피해/흡수량**이 나온다. 전투 기록에도 같은 문구가 남는다(1인·다인·튜토리얼 공통). `battle.js`의 `SPECIAL_PERCENT` · `specialEffects(enemy)` · `specialSummary(ev)`, 공용 `components/SpBanner.jsx`. 도감 영능력 칸에도 확률·효과가 붙는다.
+- 도감: 튜토리얼에서 바리가 도깨비불을 빌려주면 도감 4장에 [빌린 영능력] 도깨비불(바리의 영능력)이 기록된다(`player.specials['dokkaebi-fire']`).
+- 급식실: 기숙사 활동에 [급식실](매점 옆). 오늘의 교내 신문(KST 날짜), 익명 사연 투고함, 오늘의 아침/점심/저녁 식단표(`src/game/meals.js`, 날짜 시드 랜덤이라 모두에게 같은 식단. 알레르기 번호 표기, 점심엔 방과후 간식). 메뉴는 meals.js의 POOLS에서 추가한다.
+- 익명 사연: `POST /api/story/submit`(접속자, 300자, 1시간 5건; 쓴 사람은 저장하지 않음) → 관리자 도구 [익명 사연 심사]에서 체크 후 [선택해서 신문에 올리기] 또는 [반려](`/api/admin/stories`, `/story/publish`, `/story/reject`, 관리자 키 필요). 올린 날의 신문에 #1, #2, #3… (날마다 1부터) 순서로 실린다. `GET /api/newspaper`. data.json의 `stories`에 저장.

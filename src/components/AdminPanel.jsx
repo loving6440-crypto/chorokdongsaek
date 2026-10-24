@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
 import { STAT_KEYS, STAT_META } from '../game/constants'
-import { fetchMembers } from '../net/online'
+import { fetchMembers, fetchPendingStories, publishStory, rejectStory } from '../net/online'
 
 const fmtAt = (t) => {
   if (!t) return '—'
@@ -52,6 +52,69 @@ function MemberList({ userId, adminKey }) {
       </ul>
       {!st.loading && !st.error && list.length === 0 && <p className="text-xs text-paper/55">표시할 회원이 없다.</p>}
       <p className="mt-2 text-[10px] leading-relaxed text-paper/45">계정은 각자의 브라우저에 저장되므로, 서버에 한 번이라도 접속한 계정만 보인다. 이 기능이 생기기 전에 가입했더라도 다음에 접속하면 명부에 오른다.</p>
+    </section>
+  )
+}
+
+/** 익명 사연 심사: 대기 사연을 골라 '선택해서 신문에 올리기', 내용이 불순하면 반려 */
+function StoryReview({ userId, adminKey }) {
+  const [st, setSt] = useState({ loading: true })
+  const [sel, setSel] = useState({})
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const load = () => {
+    setSt((s) => ({ ...s, loading: true }))
+    fetchPendingStories(userId, adminKey).then((r) => setSt(r.ok ? { pending: r.pending, published: r.published, date: r.date } : { error: r.error }))
+  }
+  useEffect(load, [userId, adminKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const chosen = (st.pending ?? []).filter((s) => sel[s.id])
+  const publish = async () => {
+    if (!chosen.length || busy) return
+    setBusy(true)
+    let n = 0
+    for (const s of chosen) {
+      const r = await publishStory(userId, adminKey, s.id)
+      if (r.ok) n += 1
+    }
+    setSel({})
+    setMsg(`${n}건을 오늘의 교내 신문에 올렸다.`)
+    setBusy(false)
+    load()
+  }
+  const reject = async (s) => {
+    if (busy) return
+    setBusy(true)
+    const r = await rejectStory(userId, adminKey, s.id)
+    setMsg(r.ok ? '사연을 반려했다.' : '반려하지 못했다.')
+    setBusy(false)
+    load()
+  }
+  return (
+    <section data-story-review>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs tracking-widest text-paper/55">익명 사연 심사 {st.pending && `(대기 ${st.pending.length}건)`}</p>
+        <button type="button" onClick={load} className="rounded border border-edge/25 px-2 py-0.5 text-[11px] text-paper/80 hover:bg-edge/10">새로고침</button>
+      </div>
+      {st.error && <p className="text-xs text-crimson" role="alert">사연 목록을 불러오지 못했다.</p>}
+      <ul className="space-y-1.5" aria-label="대기 중인 익명 사연">
+        {(st.pending ?? []).map((s) => (
+          <li key={s.id} data-story-pending={s.id} className="rounded-lg bg-shade/25 px-3 py-2 text-xs text-paper/85">
+            <label className="flex items-start gap-2">
+              <input type="checkbox" checked={!!sel[s.id]} onChange={(e) => setSel((o) => ({ ...o, [s.id]: e.target.checked }))} aria-label="신문에 올릴 사연 선택" className="mt-0.5" />
+              <span className="whitespace-pre-line break-words leading-relaxed">{s.text}</span>
+            </label>
+            <div className="mt-1.5 flex justify-end">
+              <button type="button" disabled={busy} onClick={() => reject(s)} className="rounded border border-crimson/50 px-2 py-0.5 text-[11px] text-crimson hover:bg-crimson/10">반려</button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {!st.loading && !st.error && !(st.pending ?? []).length && <p className="text-xs text-paper/55">심사를 기다리는 사연이 없다.</p>}
+      <button type="button" disabled={!chosen.length || busy} onClick={publish} className="mt-2 rounded border border-gold/50 px-3 py-1 text-xs text-gold hover:bg-gold/10 disabled:opacity-40" data-story-publish>
+        선택해서 신문에 올리기 ({chosen.length})
+      </button>
+      {msg && <p className="mt-1 text-[11px] text-paper/60" role="status">{msg}</p>}
+      {(st.published ?? []).length > 0 && <p className="mt-1 text-[10px] text-paper/45">오늘({st.date}) 신문에 올라간 사연 {st.published.length}건 · 올린 순서대로 #1, #2, #3…</p>}
     </section>
   )
 }
@@ -147,6 +210,7 @@ export default function AdminPanel({ player, userId, adminKey, onApply, onClose 
               체력·의지력 가득 채우기
             </button>
           </section>
+          <StoryReview userId={userId} adminKey={adminKey} />
           <MemberList userId={userId} adminKey={adminKey} />
         </div>
         <div className="flex justify-end gap-2 border-t border-edge/15 px-4 py-3">
