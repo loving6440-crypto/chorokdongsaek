@@ -399,7 +399,10 @@ function readBody(req, max = 10_000) {
     req.on('error', () => resolve(null))
   })
 }
-const cleanId = (v) => (typeof v === 'string' && /^[a-zA-Z0-9가-힣_]{1,40}$/.test(v) ? v : null)
+// 한글은 두 가지 유니코드 표현(완성형 NFC/조합형 NFD)이 있어, 보기엔 똑같아도 다른 문자열일 수 있다.
+// (예: 어떤 기기·IME 는 '이요' 를 조합형으로 입력한다.) 아이디는 들어오는 모든 자리에서 NFC 로 맞춰, 같은 아이디가 다른 문자열로 갈리지 않게 한다.
+const nfc = (v) => (typeof v === 'string' ? v.normalize('NFC') : v)
+const cleanId = (v) => (typeof v === 'string' && /^[a-zA-Z0-9가-힣_]{1,40}$/.test(nfc(v)) ? nfc(v) : null)
 const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\r\n\t]/g, ' ').trim().slice(0, 24) : '')
 const cleanNote = (v) => (typeof v === 'string' ? v.replace(/\r/g, '').trim() : '')
 function addMail(entry) {
@@ -577,7 +580,7 @@ async function handleApi(req, res, url) {
 
   // ───────── 계정 (가입 · 로그인 · 저장 · 아이디 찾기) ─────────
   if (route === '/api/account/signup') {
-    const id = typeof body.id === 'string' ? body.id.trim() : ''
+    const id = nfc(typeof body.id === 'string' ? body.id.trim() : '')
     const password = typeof body.password === 'string' ? body.password : ''
     const twitter = typeof body.twitter === 'string' ? body.twitter.trim().replace(/^@/, '') : ''
     if (!ID_RULE.test(id)) return json(res, 400, { error: 'bad-id' })
@@ -601,7 +604,7 @@ async function handleApi(req, res, url) {
 
   // 로그인. 서버에 계정이 없고 이 브라우저에 옛 기록(local)이 있으면, 비밀번호가 맞을 때 그 기록을 서버로 옮긴다. (자동 이전)
   if (route === '/api/account/login') {
-    const id = typeof body.id === 'string' ? body.id.trim() : ''
+    const id = nfc(typeof body.id === 'string' ? body.id.trim() : '')
     const password = typeof body.password === 'string' ? body.password : ''
     if (!ID_RULE.test(id) || !password) return json(res, 401, { error: 'bad-login' })
     if (rateLimited(`auth:${id}`) || loginBlocked(id)) return json(res, 429, { error: 'slow-down' })
@@ -668,7 +671,7 @@ async function handleApi(req, res, url) {
   // 비밀번호는 브라우저에 있던 옛 해시를 'legacy$' 로 보관했다가, 그 계정이 처음 비밀번호로 로그인하는 순간 안전한 방식으로 바꾼다.
   if (route === '/api/account/adopt') {
     const local = body.local && typeof body.local === 'object' ? body.local : null
-    const id = typeof local?.id === 'string' ? local.id.trim() : ''
+    const id = nfc(typeof local?.id === 'string' ? local.id.trim() : '')
     if (!ID_RULE.test(id) || !/^[0-9a-f]{8}$/.test(String(local.passwordHash ?? ''))) return json(res, 400, { error: 'bad-local' })
     if (rateLimited(`auth:${id}`) || rateLimited('adopt:all')) return json(res, 429, { error: 'slow-down' })
     if (await accounts.get(id)) return json(res, 409, { error: 'exists' })
@@ -715,7 +718,7 @@ async function handleApi(req, res, url) {
     if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
     if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
     if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
-    const target = typeof body.target === 'string' ? body.target.trim() : ''
+    const target = nfc(typeof body.target === 'string' ? body.target.trim() : '')
     if (!ID_RULE.test(target)) return json(res, 400, { error: 'bad-target' })
     const acc = await accounts.get(target)
     if (!acc) return json(res, 400, { error: 'no-account' }) // 404 는 이 호출을 거는 game/auth.js 의 api() 가 '서버 없음'으로 오인해, 진짜 사유가 가려진다

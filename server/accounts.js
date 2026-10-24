@@ -88,14 +88,30 @@ export async function createAccountStore({ db, file }) {
     }
   }
 
+  const getExact = async (id) => {
+    if (db) {
+      const r = await db.query('select data from saves where id = $1', [ACC(id)])
+      return r.rows[0]?.data ?? null
+    }
+    return mem.accounts[id] ?? null
+  }
+
   return {
     secret,
+    // 한글은 완성형(NFC)·조합형(NFD) 두 표현이 있어 보기엔 같아도 문자열이 다를 수 있다.
+    // 서버는 들어오는 아이디를 NFC 로 맞춰 쓰지만, 이 기능이 생기기 전에 조합형으로 저장된 옛 계정이 있을 수 있어
+    // 못 찾으면 조합형으로도 한 번 더 찾아본다. 찾으면 그 자리에서 완성형으로 옮겨 써, 다음부터는 바로 찾는다.
     async get(id) {
-      if (db) {
-        const r = await db.query('select data from saves where id = $1', [ACC(id)])
-        return r.rows[0]?.data ?? null
+      const direct = await getExact(id)
+      if (direct) return direct
+      const alt = id.normalize('NFC') === id ? id.normalize('NFD') : id.normalize('NFC')
+      if (alt === id) return null
+      const found = await getExact(alt)
+      if (found && found.id !== id) {
+        found.id = id // 완성형으로 정리
+        await this.put(found)
       }
-      return mem.accounts[id] ?? null
+      return found
     },
     async put(acc) {
       if (db) await upsert(ACC(acc.id), acc)
