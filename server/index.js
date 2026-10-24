@@ -878,7 +878,21 @@ async function handleApi(req, res, url) {
     }
     if (total < 1 || total > GIFT_MAX) return json(res, 400, { error: 'too-many' })
     if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
-    const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, at: Date.now() }
+    // 무구의 강화: 보내는 무구에 한해, 알려진 스탯 · 0~5 정수만 통과시킨다.
+    const enh = {}
+    const ENH_KEYS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
+    if (body.enh && typeof body.enh === 'object' && !Array.isArray(body.enh)) {
+      for (const [wid, st] of Object.entries(body.enh)) {
+        if (!clean[wid] || !wid.startsWith('w-') || !st || typeof st !== 'object') continue
+        const one = {}
+        for (const k of ENH_KEYS) {
+          const v = Math.floor(Number(st[k]))
+          if (v >= 1) one[k] = Math.min(5, v)
+        }
+        if (Object.keys(one).length) enh[wid] = one
+      }
+    }
+    const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, ...(Object.keys(enh).length ? { enh } : {}), at: Date.now() }
     send(target, { t: 'gift', gift })
     return json(res, 200, { ok: true, giftId: gift.id, to: { id: target.id, name: target.name } })
   }

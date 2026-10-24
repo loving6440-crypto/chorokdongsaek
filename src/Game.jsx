@@ -7,7 +7,7 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, enhanceWeapon, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, mergeEnh, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -680,10 +680,10 @@ export default function Game({
         const cur = playerRef.current
         const inv = { ...(cur.inventory ?? {}) }
         for (const [id, n] of Object.entries(gift.items)) if (itemOf(id)) inv[id] = (inv[id] || 0) + n
-        const next = { ...cur, inventory: inv }
+        const next = mergeEnh({ ...cur, inventory: inv }, gift.enh)
         playerRef.current = next
         setPlayer(next)
-        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}`)
+        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}${gift.enh ? ' (무구 강화 포함)' : ''}`)
         notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}`)
       }),
     [addLog],
@@ -693,7 +693,8 @@ export default function Game({
     async (target, items) => {
       const cur = playerRef.current
       for (const [id, n] of Object.entries(items)) if ((cur.inventory?.[id] || 0) < n) return { ok: false, message: '갖고 있는 개수가 모자라다.' }
-      const r = await sendGift(target.id, items)
+      const enh = giftEnhOf(cur, items)
+      const r = await sendGift(target.id, items, enh)
       if (!r.ok) {
         const msg = r.error === 'no-target' || r.status === 409 ? '상대가 접속 중이 아니다.' : r.error === 'slow-down' ? '너무 빨리 보내고 있다.' : '선물을 보내지 못했다.'
         return { ok: false, message: msg }
@@ -704,10 +705,10 @@ export default function Game({
         inv[id] = (inv[id] || 0) - n
         if (inv[id] <= 0) delete inv[id]
       }
-      const next = { ...now, inventory: inv }
+      const next = dropEnh({ ...now, inventory: inv }, Object.keys(enh))
       playerRef.current = next
       setPlayer(next)
-      addLog(`${target.name}님에게 선물을 건넸다: ${itemList(items)}`)
+      addLog(`${target.name}님에게 선물을 건넸다: ${itemList(items)}${Object.keys(enh).length ? ' (무구 강화 포함)' : ''}`)
       return { ok: true }
     },
     [addLog],

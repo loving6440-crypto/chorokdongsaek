@@ -174,7 +174,7 @@ export function onGift(cb) {
 }
 
 /** 선물 보내기. 상대가 접속 중이어야 하고, 아이템만 합쳐 최대 5개. (돈은 서버가 거절한다.) */
-export const sendGift = (toId, items) => post('/api/gift', { to: toId, items })
+export const sendGift = (toId, items, enh) => post('/api/gift', { to: toId, items, ...(enh && Object.keys(enh).length ? { enh } : {}) })
 
 // ───────── 벼룩시장 ─────────
 /** 내 물건이 팔렸다는 알림이 오면 cb() 를 부른다. */

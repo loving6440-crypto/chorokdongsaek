@@ -694,6 +694,43 @@ export function enhanceWeapon(player, weaponId, stat, admin = false) {
   const enh = { ...(player.enh ?? {}), [weaponId]: { ...(player.enh?.[weaponId] ?? {}), [stat]: from + 1 } }
   return { player: { ...player, inventory, enh }, from, to: from + 1, material }
 }
+/**
+ * 선물로 무구를 보낼 때 함께 가는 강화: 보낸 뒤에 그 무구를 더는 갖고(끼고) 있지 않을 때만 강화가 따라간다.
+ * (한 벌을 남겨 두고 하나만 보내면 강화는 남은 쪽에 그대로 있다. 복사되지 않는다.)
+ * 반환 { [무구 id]: { 스탯: 수치 } }
+ */
+export function giftEnhOf(player, items) {
+  const out = {}
+  for (const [id, n] of Object.entries(items ?? {})) {
+    const it = itemOf(id)
+    if (!it || it.slot !== 'weapon' || !player.enh?.[id]) continue
+    const keeps = countOf(player, id) - n > 0 || equipOf(player).weapon === id
+    if (!keeps) out[id] = { ...player.enh[id] }
+  }
+  return out
+}
+/** 받은 강화를 합친다: 스탯마다 더 높은 쪽. */
+export function mergeEnh(player, incoming) {
+  const enh = { ...(player.enh ?? {}) }
+  for (const [id, stats] of Object.entries(incoming ?? {})) {
+    if (itemOf(id)?.slot !== 'weapon') continue
+    const cur = { ...(enh[id] ?? {}) }
+    for (const [s, v] of Object.entries(stats ?? {})) {
+      if (!ENH_STATS.includes(s)) continue
+      const lv = Math.max(0, Math.min(ENH_MAX, Math.floor(Number(v) || 0)))
+      if (lv > (cur[s] || 0)) cur[s] = lv
+    }
+    if (Object.keys(cur).length) enh[id] = cur
+  }
+  return { ...player, enh }
+}
+/** 보낸 쪽: 강화가 따라간 무구의 강화 기록을 지운다. */
+export function dropEnh(player, ids) {
+  if (!ids.length || !player.enh) return player
+  const enh = { ...player.enh }
+  for (const id of ids) delete enh[id]
+  return { ...player, enh }
+}
 /** 착용. 같은 부위에 입고 있던 건 소지품으로 돌아온다. { player } 또는 { error } */
 export function equipItem(player, id) {
   const it = itemOf(id)

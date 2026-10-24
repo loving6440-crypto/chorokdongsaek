@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Gift, Minus, Plus, X } from 'lucide-react'
-import { ITEMS, countOf } from '../game/items'
+import { ITEMS, countOf, enhTotal, giftEnhOf } from '../game/items'
 import ItemIcon from './ItemIcon'
 
 export const GIFT_MAX = 5
@@ -59,6 +59,11 @@ export default function GiftModal({ target, player, onSend, onClose }) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm text-paper">{item.name} <span className="text-[11px] text-paper/50">보유 {countOf(player, item.id)}</span></p>
                       {item.effectText && <p className="truncate text-[11px] text-gold/80">{item.effectText}</p>}
+                      {item.slot === 'weapon' && enhTotal(player, item.id) > 0 && (
+                        <p className="text-[11px] text-paper/60" data-gift-enh={item.id}>
+                          강화 +{enhTotal(player, item.id)}{n > 0 && Object.keys(giftEnhOf(player, { [item.id]: n })).length ? ' — 이 선물에 함께 간다' : n > 0 ? ' — 남는 무구에 그대로 남는다' : ''}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button type="button" aria-label={`${item.name} 빼기`} disabled={!n} onClick={() => change(item.id, -1)} className="grid size-7 place-items-center rounded border border-gold/30 text-gold disabled:opacity-30">
