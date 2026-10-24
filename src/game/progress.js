@@ -150,8 +150,15 @@ export function syncCodex(player) {
 export const WEAK_MS = 24 * 3600 * 1000 // [쇠약] 지속 시간: 리얼타임 24시간
 export const isWeak = (player, now = Date.now()) => !!player.weakUntil && now < player.weakUntil
 /** [쇠약] 중이면 모든 육조 스탯이 현재 스탯의 5할(내림, 최소 1). 아니면 그대로. */
+/** 아이템으로 받은 시간제 보정(예: 쑥 → 인내 +1, 24시간). 만료된 건 무시한다. */
+export function tempBonus(player, now = Date.now()) {
+  const out = {}
+  for (const b of player.buffs ?? []) if (b.until > now) out[b.stat] = (out[b.stat] || 0) + b.amount
+  return out
+}
 export function effectiveStats(player, now = Date.now()) {
-  const bonus = gearBonus(player)
+  const bonus = { ...gearBonus(player) }
+  for (const [k, v] of Object.entries(tempBonus(player, now))) bonus[k] = (bonus[k] || 0) + v
   const hasBonus = Object.keys(bonus).length > 0
   const fx = weaponFx(player)
   if (!isWeak(player, now) && !hasBonus && !fx) return player.stats

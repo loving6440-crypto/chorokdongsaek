@@ -25,7 +25,7 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, boost }) {
+export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, boost, bring }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
@@ -49,6 +49,7 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     pendingDeath: false,
     revive: !!revive,
     boost: !!boost,
+    bring: bring ?? null, // 보스 전투: 가져온 아이템 { id: 개수 } (null 이면 제한 없음)
     act: null, // 이번 라운드에 고른 행동 { action, scanAmount?, psychic?, forced? }
   }
 }
@@ -193,11 +194,22 @@ export function autoFill(mb) {
 
 /** 아이템 효과(전투 중). 반환 { ok, text } 또는 { error } */
 export function useItemMB(mb, id, item, targetId) {
+  const r = useItemCore(mb, id, item, targetId)
+  if (r.ok && mb.enemy.boss) {
+    const m = mb.members.find((x) => x.id === id)
+    m.bring = { ...m.bring, [item.id]: m.bring[item.id] - 1 }
+  }
+  return r
+}
+function useItemCore(mb, id, item, targetId) {
   const m = mb.members.find((x) => x.id === id)
   const t = mb.members.find((x) => x.id === (targetId || id))
   if (!m || !t || m.status !== 'alive' || mb.phase === 'over') return { error: 'not-fighting' }
   const e = item?.effect ?? {}
   if (!item?.battle) return { error: 'not-battle-item' }
+  if (mb.enemy.boss) {
+    if ((m.bring?.[item.id] || 0) < 1) return { error: 'not-brought' } // 가져오지 않은 아이템은 쓸 수 없다
+  }
   if (e.boost) {
     if (t.status !== 'alive') return { error: 'bad-target' }
     if (t.boost) return { error: 'already' }
@@ -278,6 +290,22 @@ export function resolveTurn(mb, rng = Math.random) {
 export const resolveRound = resolveTurn
 
 /** 상대의 차례. 단체 공격이면 일행 전원, 아니면 체력이 가장 많은 한 명. 끝나면 다음 라운드 준비(또는 버티기 대기). 반환: 로그 */
+/** 보스 기믹: 체력이 줄면 행동이 바뀐다. { intent, notes[] } */
+export function bossGimmick(mb, intent) {
+  const notes = []
+  if (!mb.enemy.boss) return { intent, notes }
+  const ratio = mb.ehp / mb.enemy.hp
+  const stage = ratio < 0.25 ? 2 : ratio < 0.5 ? 1 : 0
+  if (stage > (mb.rage || 0)) {
+    mb.rage = stage
+    notes.push(stage === 1 ? `${mb.enemy.name}이(가) 사납게 몸을 뒤튼다! (3라운드마다 반드시 영능력을 쓴다)` : `${mb.enemy.name}이(가) 광분한다! (약공이 모두 단체 공격으로 바뀐다)`)
+  }
+  let out = intent
+  if (stage >= 2 && out === 'jab') out = 'group'
+  if (stage >= 1 && mb.round % 3 === 0 && ['jab', 'group', 'guard'].includes(out)) out = 'special'
+  return { intent: out, notes }
+}
+
 function enemyPhase(mb, rng) {
   const evs = []
   const alive = aliveOf(mb).filter((m) => m.php > 0)
@@ -286,13 +314,17 @@ function enemyPhase(mb, rng) {
     return evs
   }
   mb.turn = null
-  const intent = mb.queue[0]
-  const group = intent === 'group'
+  const gim = bossGimmick(mb, mb.queue[0])
+  const intent = gim.intent
+  for (const n of gim.notes) evs.push(...addLog(mb, [{ kind: 'warn', text: n }], 'enemy'))
+  if (intent !== mb.queue[0]) mb.queue = [intent, ...mb.queue.slice(1)]
+  const sp = intent === 'special' && mb.enemy.special2 ? (rng() < 0.5 ? 2 : 1) : 1
+  const group = intent === 'group' || (intent === 'special' && sp === 2)
   const hits = intent === 'jab' || intent === 'smash' || intent === 'special'
   let targets
   if (group) {
     targets = alive
-    evs.push(...addLog(mb, [{ kind: 'info', text: `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+    evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
   } else {
     const pick = pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
     targets = [mb.members.find((m) => m.id === pick.id)]
@@ -302,9 +334,9 @@ function enemyPhase(mb, rng) {
     if (mb.ehp <= 0) return
     const last = i === targets.length - 1
     const q = [...mb.queue]
-    if (group) q[0] = 'jab'
+    if (intent === 'group') q[0] = 'jab'
     const v = { ...viewOfMember(mb, t), guard: t.guard, queue: q }
-    const r = enemyTurn(v, { stats: t.stats, mp: t.mp }, rng)
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp }, rng)
     if (last) {
       mb.queue = r.state.queue
       mb.known = r.state.known
@@ -404,6 +436,8 @@ export function resultOf(mb, id) {
 export function viewOf(mb, extra = {}) {
   return {
     enemyId: mb.enemy.id,
+    boss: !!mb.enemy.boss,
+    rage: mb.rage || 0,
     ehp: mb.ehp,
     queue: mb.queue.slice(0, mb.over ? 0 : mb.known),
     known: mb.over ? 0 : mb.known,
@@ -426,6 +460,7 @@ export function viewOf(mb, extra = {}) {
       survived: m.survived,
       fx: m.fx,
       boost: m.boost,
+      bring: m.bring,
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
       acted: !!m.act,

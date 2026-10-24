@@ -66,8 +66,39 @@ if (DATABASE_URL) {
   db.on('error', (e) => console.error('DB 연결 오류:', e.message))
 }
 
-let ranking = Object.fromEntries(COURSES.map((c) => [c, {}])) // { course: { [playerId]: { id, name, score, at } } }
+let ranking = Object.fromEntries(COURSES.map((c) => [c, {}])) // { course: { [playerId]: { id, name, score, at } } } — 이번 주(월요일 00시 KST 에 리셋)
+// ───────── 주간 랭킹: 매주 월요일 오전 00시(한국 시간)에 리셋. 리셋 직전 기록 중 5위까지를 '지난주의 기록'으로 남긴다. ─────────
+const KST_MS = 9 * 3600 * 1000
+const DAY_MS = 24 * 3600 * 1000
+const LAST_WEEK_TOP = 5
+/** 이 시각이 속한 주의 시작(월요일 00:00 KST)의 UTC ms */
+const weekStartOf = (now) => {
+  const k = now + KST_MS // KST 벽시계를 UTC 필드처럼 다룬다
+  const dow = new Date(k).getUTCDay() // 0=일
+  const sinceMon = (dow + 6) % 7
+  return Math.floor(k / DAY_MS) * DAY_MS - sinceMon * DAY_MS - KST_MS
+}
+const weekLabel = (start) => new Date(start + KST_MS).toISOString().slice(0, 10)
+let rankingWeek = weekStartOf(Date.now()) // 지금 쌓이는 기록이 속한 주의 시작
+let lastWeek = null // { start, end, top: { [course]: [{rank,id,name,score}] } }
+/** 주가 바뀌었으면 지난주 5위까지를 남기고 이번 주를 비운다. 읽고 쓰기 전에 늘 부른다. */
+function rollWeek(now = Date.now()) {
+  const cur = weekStartOf(now)
+  if (cur === rankingWeek) return false
+  const prevWeek = cur - 7 * DAY_MS
+  // 바로 지난주 기록일 때만 '지난주의 기록'이 된다. (서버가 오래 꺼져 있었다면 비어 있다.)
+  lastWeek =
+    rankingWeek === prevWeek
+      ? { start: rankingWeek, end: cur, top: Object.fromEntries(COURSES.map((c) => [c, topOf(c, LAST_WEEK_TOP)])) }
+      : { start: prevWeek, end: cur, top: Object.fromEntries(COURSES.map((c) => [c, []])) }
+  ranking = Object.fromEntries(COURSES.map((c) => [c, {}]))
+  rankingWeek = cur
+  scheduleSave()
+  return true
+}
 function applyRaw(raw) {
+  if (Number.isFinite(raw?.rankingWeek)) rankingWeek = raw.rankingWeek
+  if (raw?.lastWeek && typeof raw.lastWeek === 'object') lastWeek = raw.lastWeek
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.members && typeof raw.members === 'object') members = raw.members
@@ -114,7 +145,7 @@ const loginBlocked = (id) => {
 const bearer = (req) => accounts && A.readToken(accounts.secret, (req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''))
 const ID_RULE = /^[a-zA-Z0-9가-힣_]{2,40}$/
 
-const snapshot = () => ({ ranking, market, cards, members, stories })
+const snapshot = () => ({ ranking, rankingWeek, lastWeek, market, cards, members, stories })
 async function saveNow() {
   if (db) {
     await db.query(
@@ -282,7 +313,8 @@ function mbStart(g) {
     if (mbOf.get(id) === g.id) mbOf.delete(id)
   }
   g.phase = 'fight'
-  g.mb = MB.createMB(g.enemyId, infos)
+  const isBoss = !!ENEMIES.find((e) => e.id === g.enemyId)?.boss
+  g.mb = MB.createMB(g.enemyId, infos.map((i) => ({ ...i, bring: isBoss ? (i.bring ?? {}) : null })))
   MB.openingInitiative(g.mb)
   if (g.mb.phase === 'input' && !g.mb.turn) MB.beginRound(g.mb)
   mbAfter(g)
@@ -294,7 +326,23 @@ function mbLobbyCheck(g) {
     for (const id of [g.host]) sendTo(id, { t: 'mb', ev: 'lobby', bid: g.id, enemyId: g.enemyId, waiting: Object.keys(g.invited).filter((i) => g.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i), joined: Object.keys(g.joins).map((i) => clients.get(i)?.name ?? i) })
   }
 }
-const mbInfo = (c, me) => ({ id: c.id, name: c.name, stats: me?.stats, fx: me?.fx, hp: me?.hp, hpMax: me?.hpMax, mp: me?.mp, mpMax: me?.mpMax, revive: !!me?.revive, boost: !!me?.boost })
+/** 보스 전투에 가져가는 아이템: 전투용 아이템만, 한 '개' 단위로 합쳐서 최대 5개 */
+const BOSS_BRING_MAX = 5
+function cleanBring(raw) {
+  const out = {}
+  let total = 0
+  for (const [id, n0] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
+    const it = ITEMS.find((i) => i.id === id)
+    const n = Math.floor(Number(n0))
+    if (!it?.battle || !(n >= 1)) continue
+    const take = Math.min(n, BOSS_BRING_MAX - total)
+    if (take <= 0) break
+    out[id] = take
+    total += take
+  }
+  return out
+}
+const mbInfo = (c, me) => ({ id: c.id, name: c.name, bring: me?.bring === undefined ? undefined : cleanBring(me.bring), stats: me?.stats, fx: me?.fx, hp: me?.hp, hpMax: me?.hpMax, mp: me?.mp, mpMax: me?.mpMax, revive: !!me?.revive, boost: !!me?.boost })
 function mbDisconnect(id) {
   const bid = mbOf.get(id)
   const g = bid && mbs.get(bid)
@@ -485,13 +533,22 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'GET' && route.startsWith('/api/ranking/')) {
+    rollWeek()
     const course = route.slice('/api/ranking/'.length)
     if (!COURSES.includes(course)) return json(res, 404, { error: 'unknown-course' })
     const me = cleanId(url.searchParams.get('id'))
+    const weekInfo = { weekStart: rankingWeek, weekLabel: weekLabel(rankingWeek), resetsAt: rankingWeek + 7 * DAY_MS }
+    if (url.searchParams.get('week') === 'last') {
+      const lw = lastWeek
+      const top = lw?.top?.[course] ?? []
+      return json(res, 200, { course, week: 'last', ...weekInfo, lastStart: lw?.start ?? null, lastLabel: lw ? weekLabel(lw.start) : null, lastEndLabel: lw ? weekLabel(lw.end - DAY_MS) : null, top, total: top.length, me: null })
+    }
     const mine = me ? ranking[course][me] : null
     const all = Object.values(ranking[course]).sort((a, b) => b.score - a.score || a.at - b.at)
     return json(res, 200, {
       course,
+      week: 'this',
+      ...weekInfo,
       top: topOf(course),
       me: mine ? { score: mine.score, rank: all.findIndex((r) => r.id === me) + 1 } : null,
       total: all.length,
@@ -687,6 +744,7 @@ async function handleApi(req, res, url) {
   }
 
   if (route === '/api/ranking') {
+    rollWeek()
     const id = cleanId(body.id)
     const course = body.course
     const score = Number(body.score)
@@ -842,7 +900,7 @@ async function handleApi(req, res, url) {
     mbOf.set(me.id, g.id)
     for (const m of free) {
       mbOf.set(m, g.id)
-      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name }, expires: Date.now() + MB_LOBBY_MS })
+      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name, boss: !!enemy.boss }, expires: Date.now() + MB_LOBBY_MS })
     }
     g.timer = setTimeout(() => {
       for (const id of Object.keys(g.invited)) if (g.invited[id] === 'wait') g.invited[id] = 'no'
@@ -989,6 +1047,8 @@ const server = http.createServer((req, res) => {
     serveStatic(req, res, url)
   }
 })
+rollWeek() // 서버가 꺼져 있던 사이에 월요일이 지났다면 지금 리셋한다.
+setInterval(() => rollWeek(), 30_000) // 월요일 0시를 넘기면 사람이 없어도 리셋된다.
 server.listen(PORT, () => console.log(`초록동색 서버: http://localhost:${PORT}  (저장소: ${db ? 'Supabase' : DATA_FILE})`))
 
 // Render 는 재배포 · 재시작 직전에 SIGTERM 을 보낸다. 아직 안 쓴 기록이 있으면 마저 저장하고 끈다.

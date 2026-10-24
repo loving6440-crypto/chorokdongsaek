@@ -4,10 +4,10 @@ import LocationIntro from '../LocationIntro'
 import Explore from './Explore'
 
 // view: 'intro' | 'class'. 본관에 새로 들어설 때마다 intro 부터 시작하도록 Game 이 들고 있는다.
-export default function MainHall({ player, view, onOpenCourse, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
+export default function MainHall({ player, view, onOpenCourse, onInvestigate, onEnter, onLockerMove, onLockerOpen, admin, onCraft }) {
 
   if (view === 'intro') return <LocationIntro id="mainHall" />
-  if (view === 'explore') return <Explore stats={player.stats} player={player} onInvestigate={onInvestigate} onEnter={onEnter} onLockerMove={onLockerMove} onLockerOpen={onLockerOpen} />
+  if (view === 'explore') return <Explore stats={player.stats} player={player} admin={admin} onCraft={onCraft} onInvestigate={onInvestigate} onEnter={onEnter} onLockerMove={onLockerMove} onLockerOpen={onLockerOpen} />
 
   return (
     <section>

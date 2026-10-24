@@ -242,9 +242,9 @@ export async function fetchCard(targetId) {
 }
 
 // ───────── 랭킹 ─────────
-export async function fetchRanking(course, id) {
+export async function fetchRanking(course, id, week = 'this') {
   try {
-    const r = await fetch(`/api/ranking/${course}?id=${encodeURIComponent(id ?? '')}`)
+    const r = await fetch(`/api/ranking/${course}?id=${encodeURIComponent(id ?? '')}&week=${week}`)
     if (!r.ok) return null
     return await r.json()
   } catch {

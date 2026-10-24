@@ -64,11 +64,33 @@ export const ENEMIES = [
     tier: 2,
     partySize: 3,
     tags: ['다인 전투'],
-    hp: 280,
-    atk: 11,
+    hp: 310,
+    atk: 12,
     act: 11,
     spirit: 11,
     special: { label: '짓누르는 그림자', note: '막을 수 없는 일격으로 몸을 짓누르고, 의지력을 빨아들이며, 다음 내 턴엔 막기를 할 수 없다.' },
+  },
+  // ───────── 보스 (하드 컨텐츠) ─────────
+  // 다인 전투 기반. 영능력이 두 종류이고, 체력이 줄면 추가 기믹이 붙는다. (bossGimmick — mbattle.js)
+  {
+    id: 'bulgasari',
+    name: '불가살이',
+    blurb: '쇠붙이를 먹고 자란다는 불길한 괴수. 쇠도 불도 가리지 않고 삼키며, 몸이 상할수록 사나워진다. 셋은 모여야 겨우 맞설 수 있다.',
+    tier: 3,
+    partySize: 3,
+    boss: true,
+    tags: ['다인 전투', '보스'],
+    hp: 620,
+    atk: 14,
+    act: 13,
+    spirit: 14,
+    special: { label: '쇠 갉아먹기', note: '한 사람의 살과 의지를 갉아먹는다. 막을 수 없는 피해를 주고 의지력을 빨아들인다.' },
+    special2: { label: '불길 내뿜기', note: '일행 전원에게 불길을 뿜는다. 막을 수 없는 피해를 입고, 다음 내 턴엔 막기를 할 수 없다.' },
+    gimmicks: [
+      '체력 50% 미만: 3라운드마다 반드시 영능력을 쓴다.',
+      '체력 25% 미만: 약공이 모두 단체 공격으로 바뀐다.',
+      '평소에도 단체 공격이 자주 나온다.',
+    ],
   },
 ].map((e, i) => ({ ...e, tier: e.tier ?? i + 1, partySize: e.partySize ?? 1, reward: e.spirit * REWARD_MULT }))
 
@@ -264,6 +286,12 @@ export function specialEffects(enemy) {
       return [`막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}).`, '막기·방어로 줄일 수 없다.']
     case 'dueoksini':
       return [`막을 수 없는 피해 1d${atk}×2 (${2}~${atk * 2}).`, `내 의지력을 1d${spirit} 만큼 빨아들인다. (남은 의지력이 한도)`, '다음 내 턴엔 막기를 할 수 없다.']
+    case 'bulgasari':
+      return [
+        `《${enemy.special.label}》 한 사람: 막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}), 의지력 1d${spirit}×2 흡수 (남은 의지력이 한도).`,
+        `《${enemy.special2.label}》 일행 전원: 막을 수 없는 피해 1d${atk} + ${Math.floor(spirit / 2)} (${1 + Math.floor(spirit / 2)}~${atk + Math.floor(spirit / 2)}), 다음 내 턴엔 막기 불가.`,
+        '영능력을 쓸 때 두 가지 중 하나가 나온다.',
+      ]
     case 'snake':
       return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.']
     case 'wonhon':
@@ -280,10 +308,11 @@ export function specialSummary(ev) {
 }
 
 /** 상대가 다음에 할 행동을 한 번 굴린다. 기 모으기 다음은 반드시 강공. */
-function rollIntent(prev, rng, party = false) {
+function rollIntent(prev, rng, party = false, boss = false) {
   if (prev === 'charge') return 'smash'
   const r = d10(rng)
   if (r <= 2) return 'charge'
+  if (boss && party && (r === 6 || r === 7)) return 'group' // 보스: 단체 공격이 더 잦다
   if (r <= 7) return 'jab' // (7 은 기획에 빠져 있어 약공으로 둔다)
   if (party) return r === 8 ? 'guard' : r === 9 ? 'group' : 'special' // 일행을 상대하는 적: 방어는 8 하나, 9 는 단체 공격
   if (r <= 9) return 'guard'
@@ -295,7 +324,7 @@ export function newBattle(enemyId, stats, rng = Math.random, startHp, hpCap, opt
   const queue = []
   let prev = null
   for (let i = 0; i < 5; i++) {
-    prev = rollIntent(prev, rng, !!opts.party)
+    prev = rollIntent(prev, rng, !!opts.party, !!enemy.boss)
     queue.push(prev)
   }
   const hp = hpCap ?? maxHp(stats)
@@ -444,7 +473,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
     mpCost = mpCostOf(stats, amount)
     const n = scanTurns(stats, s.enemy, amount)
     s.queue = [...s.queue]
-    while (s.queue.length < n + 1) s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng))
+    while (s.queue.length < n + 1) s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng, s.party, !!s.enemy.boss))
     s.known = Math.max(s.known, n)
     ev.push({ kind: 'player', text: `간파! 의지력 ${amount}을 쓰고 상대의 다음 ${n}턴을 내다본다.` })
   } else if (act === 'guard') {
@@ -522,9 +551,27 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   } else if (intent === 'guard') {
     ev.push({ kind: 'enemy', text: `${enemy.name}이(가) 몸을 웅크려 방어했다.` })
   } else if (intent === 'special') {
-    const spEv = { kind: 'special', label: enemy.special.label, note: enemy.special.note, enemyId: enemy.id, chance: SPECIAL_PERCENT, effects: specialEffects(enemy), result: '' }
+    const sp2 = !!enemy.special2 && ctx.sp === 2
+    const spDef = sp2 ? enemy.special2 : enemy.special
+    const spEv = { kind: 'special', label: spDef.label, note: spDef.note, enemyId: sp2 ? `${enemy.id}-2` : enemy.id, chance: SPECIAL_PERCENT, effects: specialEffects(enemy), result: '' }
     ev.push(spEv)
-    if (enemy.id === 'scarecrow') {
+    if (enemy.id === 'bulgasari') {
+      if (sp2) {
+        const a = die(enemy.atk, rng)
+        const add = Math.floor(enemy.spirit / 2)
+        hurt(a + add, `${enemy.name}의 불길 내뿜기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+        spEv.result = `[공격 d${enemy.atk} = ${a}] + ${add} = ${a + add} 피해 (막기 불가), 다음 내 턴 막기 불가`
+        s.bound = true
+        ev.push({ kind: 'warn', text: '불길에 휩싸였다! 다음 내 턴엔 막기를 할 수 없다.' })
+      } else {
+        const a = die(enemy.atk, rng)
+        hurt(a + enemy.spirit, `${enemy.name}의 쇠 갉아먹기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+        const rr = die(enemy.spirit, rng)
+        mpDrain = Math.min(mp, rr * 2)
+        spEv.result = `[공격 d${enemy.atk} = ${a}] + ${enemy.spirit} = ${a + enemy.spirit} 피해 (막기 불가), [1d${enemy.spirit} = ${rr}]×2 → 의지력 ${mpDrain} 흡수`
+        ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다!` })
+      }
+    } else if (enemy.id === 'scarecrow') {
       const rr = die(enemy.spirit, rng)
       mpDrain = Math.min(mp, rr * 2)
       spEv.result = `[1d${enemy.spirit} = ${rr}] ×2 = ${rr * 2}${mpDrain < rr * 2 ? ` (남은 의지력이 적어 ${mpDrain})` : ''} → 의지력 ${mpDrain} 흡수`
@@ -566,7 +613,7 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   s.guard = false
   s.round += 1
   s.queue.shift()
-  s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng, s.party))
+  s.queue.push(rollIntent(s.queue[s.queue.length - 1], rng, s.party, !!enemy.boss))
   s.known = Math.max(0, s.known - 1)
   if (intent0 === 'charge') s.known = Math.max(s.known, 1) // 기 모으기 다음은 강공이라는 건 누구나 안다.
 

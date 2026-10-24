@@ -30,14 +30,14 @@ export const NPC_ENTRIES = [
  * 장 하나의 칸들을 만든다. known=false 이면 화면에서 '???'.
  * 각 칸: { id, known, name, desc, extra?, tags?, kind, ... }
  */
-export function codexEntries(chapterId, player) {
+export function codexEntries(chapterId, player, admin = false) {
   const p = player ?? {}
   if (chapterId === 'items') {
     return ITEMS.map((it) => ({
       id: it.id,
       kind: 'item',
       item: it,
-      known: !!p.codex?.items?.[it.id],
+      known: admin || !!p.codex?.items?.[it.id],
       name: it.name,
       desc: it.desc,
       extra: it.effectText,
@@ -49,7 +49,7 @@ export function codexEntries(chapterId, player) {
       id: e.id,
       kind: 'enemy',
       enemy: e,
-      known: (p.seen?.[e.id] || 0) > 0,
+      known: admin || (p.seen?.[e.id] || 0) > 0,
       name: e.name,
       desc: e.blurb,
       tags: e.tags,
@@ -61,7 +61,7 @@ export function codexEntries(chapterId, player) {
       id: n.id,
       kind: 'npc',
       npc: n,
-      known: !!p.codex?.npcs?.[n.id],
+      known: admin || !!p.codex?.npcs?.[n.id],
       name: n.name,
       desc: n.desc,
       where: n.where,
@@ -74,7 +74,7 @@ export function codexEntries(chapterId, player) {
       id: `my-${x.id}`,
       kind: 'skill',
       group: '나의 영능력',
-      known: !!p.psychics?.includes(x.id),
+      known: admin || !!p.psychics?.includes(x.id),
       name: x.label,
       desc: x.note,
       extra: `${x.detail}\n취득 조건: ${x.cond}`,
@@ -83,7 +83,7 @@ export function codexEntries(chapterId, player) {
       id: `lent-${LENT_FIRE.id}`,
       kind: 'skill',
       group: '빌린 영능력',
-      known: !!p.specials?.[LENT_FIRE.id],
+      known: admin || !!p.specials?.[LENT_FIRE.id],
       name: LENT_FIRE.label,
       desc: LENT_FIRE.note,
       extra: `${LENT_FIRE.detail}\n바리가 전투 교육에서 빌려준 영능력. 아직 내 것은 아니다.`,
@@ -93,10 +93,20 @@ export function codexEntries(chapterId, player) {
       id: `sp-${e.id}`,
       kind: 'skill',
       group: '상대의 영능력',
-      known: !!p.specials?.[e.id],
+      known: admin || !!p.specials?.[e.id],
       name: e.special.label,
       desc: e.special.note,
       extra: `발동 확률 ${SPECIAL_PERCENT}% (상대 턴마다 d10 = 10)\n${specialEffects(e).join('\n')}`,
+      from: e.name,
+    })),
+    ...ENEMIES.filter((e) => e.special2).map((e) => ({
+      id: `sp-${e.id}-2`,
+      kind: 'skill',
+      group: '상대의 영능력',
+      known: admin || !!p.specials?.[`${e.id}-2`],
+      name: e.special2.label,
+      desc: e.special2.note,
+      extra: `발동 확률 ${SPECIAL_PERCENT}% (상대 턴마다 d10 = 10, 영능력은 두 종류 중 하나)\n${specialEffects(e).join('\n')}`,
       from: e.name,
     })),
   ]
@@ -112,7 +122,7 @@ export function codexKnown(player) {
 }
 
 /** 장별 진행도 { got, total } */
-export function codexProgress(chapterId, player) {
-  const list = codexEntries(chapterId, player)
+export function codexProgress(chapterId, player, admin = false) {
+  const list = codexEntries(chapterId, player, admin)
   return { got: list.filter((e) => e.known).length, total: list.length }
 }

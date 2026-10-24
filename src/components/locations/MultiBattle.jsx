@@ -141,6 +141,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </span>
       </div>
 
+      {view.boss && (
+        <p className="mt-2 rounded-lg bg-crimson/15 px-3 py-1.5 text-[11px] text-paper/80" data-boss-note>
+          보스 전투 — 가져온 아이템만 쓸 수 있다{me?.bring ? ` (남은 ${Object.values(me.bring).reduce((a, b) => a + b, 0)}개)` : ''}.
+          {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{view.rage >= 2 ? '광분 — 약공이 모두 단체 공격!' : '분노 — 3라운드마다 반드시 영능력!'}</b> : null}
+        </p>
+      )}
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="ink-panel rounded-xl p-4">
           <div className="flex items-baseline justify-between">
@@ -148,6 +154,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 align-middle font-sans text-[11px] text-gold">{tierLabel(enemy.tier)}</span>
               {enemy.name}
               <span className="ml-2 rounded-full border border-gold/50 px-1.5 py-px align-middle font-sans text-[10px] text-gold">{MULTI_TAG}</span>
+              {view.boss && <span data-boss-tag className="ml-1 rounded-full bg-crimson/80 px-1.5 py-px align-middle font-sans text-[10px] text-[#fbf6e9]">보스</span>}
             </p>
             <p className="text-xs tabular-nums text-paper/70">{rv.hp ? `${view.ehp} / ${enemy.hp}` : '체력 ???'}</p>
           </div>
@@ -184,7 +191,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
           <p className="font-serif text-lg text-paper">일행</p>
           <ul className="mt-2 space-y-2" aria-label="일행 상태">
             {view.members.map((m) => (
-              <li key={m.id} data-mb-member={m.id} className={`rounded-lg px-3 py-2 ${m.id === meId ? 'bg-gold-fill/15' : 'bg-edge/[0.07]'} ${m.status !== 'alive' ? 'opacity-60' : ''}`}>
+              <li key={m.id} data-mb-member={m.id} data-current-turn={m.id === view.turn && view.phase === 'input' && !view.over && m.status === 'alive' ? '1' : '0'} className={`rounded-lg px-3 py-2 transition-shadow ${m.id === view.turn && view.phase === 'input' && !view.over && m.status === 'alive' ? 'bg-gold-fill/35 ring-2 ring-gold shadow-[0_0_14px_rgba(250,204,21,0.45)]' : m.id === meId ? 'bg-gold-fill/15' : 'bg-edge/[0.07]'} ${m.status !== 'alive' ? 'opacity-60' : ''}`}>
                 <div className="flex items-baseline justify-between gap-2 text-xs">
                   <span className="text-paper">
                     {m.name}
@@ -235,6 +242,11 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </div>
       )}
 
+      {!view.over && view.phase === 'input' && (
+        <p className={`mt-2 rounded-lg px-3 py-1.5 text-center text-xs ${canAct ? 'bg-gold-fill/30 text-gold ring-1 ring-gold' : 'bg-edge/[0.07] text-paper/60'}`} data-mb-turn-note>
+          {canAct ? '지금은 내 차례다. 행동을 고르면 차례가 끝난다.' : `${turnName ? `${turnName} 님` : '다른 사람'}의 차례가 끝날 때까지는 행동을 고를 수 없다.`}
+        </p>
+      )}
       {!view.over && (
         <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" role="group" aria-label="행동 선택">
           {ACTION_ORDER.map((id, i) => {

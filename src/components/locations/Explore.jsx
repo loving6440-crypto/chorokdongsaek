@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FLOORS, introOf, scriptOfDay } from '../../game/explore'
 import { LOCKED_TEXT, canOpenLocker } from '../../game/locker'
 import Locker from '../Locker'
+import Workshop from './Workshop'
 
 /** **굵게**(눌러볼 수 있는 단서) / *기울임*(강조) 표기를 꾸밈으로 바꾼다. */
 function Rich({ text }) {
@@ -20,7 +21,7 @@ const Paras = ({ list }) =>
   ))
 
 /** 본관 탐사: 층 → 구역 → 세부 조사 순으로 살핀다. 누를 때마다 그 자리의 스크립트가 나온다. */
-export default function Explore({ stats, player, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
+export default function Explore({ stats, player, admin, onCraft, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
   const [floorId, setFloorId] = useState(null)
   const [areaId, setAreaId] = useState(null)
   const [detailId, setDetailId] = useState(null)
@@ -52,6 +53,7 @@ export default function Explore({ stats, player, onInvestigate, onEnter, onLocke
   }
   const lookDetail = (d) => {
     setDetailId(d.id)
+    if (d.workshop) return setShown({ label: `${area.name} · ${d.name}`, paras: [], workshop: true })
     show(`${area.name} · ${d.name}`, floor.name, d.id)
   }
 
@@ -114,7 +116,8 @@ export default function Explore({ stats, player, onInvestigate, onEnter, onLocke
               </div>
             </>
           )}
-          {shown && (
+          {shown?.workshop && <div className="mt-4"><Workshop player={player} admin={admin} onCraft={onCraft} /></div>}
+          {shown && !shown.workshop && (
             <div className="ink-panel mt-4 w-full rounded-xl p-5" aria-live="polite">
               <p className="text-[11px] tracking-widest text-gold">{shown.label}</p>
               <div className="mt-2">

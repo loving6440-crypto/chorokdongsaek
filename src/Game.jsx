@@ -15,6 +15,9 @@ import MenuPanel from './components/MenuPanel'
 import ProfileEditModal from './components/ProfileEditModal'
 import GiftModal from './components/GiftModal'
 import CodexModal from './components/CodexModal'
+import BringPicker from './components/BringPicker'
+import { ACHIEVEMENTS } from './game/achievements'
+import { craft } from './game/crafting'
 import Intro from './components/Intro'
 import AdminPanel from './components/AdminPanel'
 import ProfileSwitchModal from './components/ProfileSwitchModal'
@@ -173,7 +176,7 @@ export default function Game({
   playerRef.current = player
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
   // 장비 보정(무복 등)도 여기서 더해진다.
-  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weakUntil])
+  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weakUntil, player.buffs])
   const viewPlayer = useMemo(() => (effStats === player.stats ? player : { ...player, stats: effStats }), [player, effStats])
 
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
@@ -601,6 +604,20 @@ export default function Game({
     [addLog],
   )
 
+  // 제작 (비품실 › 공작소). 제작법이 없으면 만들 수 없다.
+  const craftItem = useCallback(
+    (recipeId) => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const r = craft(playerRef.current, recipeId, admin)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`공작소에서 ${r.item.name}을(를) 만들었다.`)
+      return r
+    },
+    [addLog, admin],
+  )
+
   // 무구 강화 (무구보관소). 관리자는 재료를 쓰지 않는다.
   const enhance = useCallback(
     (weaponId, stat) => {
@@ -624,6 +641,13 @@ export default function Game({
     },
     [admin],
   )
+
+  // 관리자: 업적은 모두 달성한 것으로 취급한다. (보상은 주지 않는다)
+  useEffect(() => {
+    if (!admin) return
+    if (ACHIEVEMENTS.every((a) => player.achievements?.[a.id])) return
+    setPlayer((prev) => ({ ...prev, achievements: { ...Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, { at: Date.now() }])), ...(prev.achievements ?? {}) } }))
+  }, [admin, player.achievements])
 
   // NPC 에게 마이쮸를 건네 호감도를 올린다. (전투 중엔 불가)
   const giveNpc = useCallback(
@@ -716,8 +740,13 @@ export default function Game({
       const ok = canUseItem(item, { inBattle: battleRef.current, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current, boostOn: boostRef.current })
       if (!ok.ok) return
       const e = item.effect
+      const now0 = Date.now()
+      const buffs = e.buff
+        ? [...(cur.buffs ?? []).filter((b) => b.until > now0 && !(b.src === id)), { src: id, stat: e.buff.stat, amount: e.buff.amount, until: now0 + e.buff.hours * 3600 * 1000 }]
+        : cur.buffs
       const next = {
         ...cur,
+        ...(buffs ? { buffs } : {}),
         inventory: { ...cur.inventory, [id]: cur.inventory[id] - 1 },
         hp: e.hp ? Math.min(cur.hpMax, cur.hp + e.hp) : cur.hp,
         mp: e.mp ? Math.min(cur.mpMax, cur.mp + e.mp) : cur.mp,
@@ -733,7 +762,7 @@ export default function Game({
         setBoostOn(true)
       }
       setItemsUsed((n) => n + 1)
-      addLog(`${item.name}을(를) 사용했다. (${e.revive ? '전투불능 시 1회 부활 대기' : e.boost ? '나의 다음 행동 피해 2배 (1턴)' : item.effectText})`)
+      addLog(`${item.name}을(를) 사용했다. (${e.buff ? `${STAT_META[e.buff.stat].label} +${e.buff.amount} (${e.buff.hours}시간)` : e.revive ? '전투불능 시 1회 부활 대기' : e.boost ? '나의 다음 행동 피해 2배 (1턴)' : item.effectText})`)
     },
     [addLog],
   )
@@ -813,6 +842,7 @@ export default function Game({
     const cur = playerRef.current
     return { stats: effectiveStats(cur), fx: weaponFx(cur), hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
+  const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
   const mbLive = !!online.mb && !online.mb.view.over
   const mbLiveRef = useRef(false)
   mbLiveRef.current = mbLive
@@ -878,7 +908,7 @@ export default function Game({
     onClose: mbClose,
     canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online),
     lobby: online.mbLobby,
-    onStart: (enemyId) => mbStart(enemyId, mbSnapshot()),
+    onStart: (enemyId) => (ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot())),
     onCancel: mbCancel,
   }
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
@@ -1017,7 +1047,7 @@ export default function Game({
                     [쇠약] 모든 육조 스탯이 5할 · 남은 시간 {weakLeftText(player)} (기숙사에서 6시간 취침하면 바로 회복)
                   </p>
                 )}
-                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} />}
+                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} admin={admin} onCraft={craftItem} />}
                 {locationId === 'infirmary' && (
                   <Infirmary
                     view={activity}
@@ -1196,7 +1226,7 @@ export default function Game({
             <p className="mt-1 text-sm text-paper">전투에 참여하시겠습니까?</p>
             <p className="mt-1 text-[11px] text-paper/55">참여하면 하던 일을 멈추고 전투 화면으로 이동한다.</p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" onClick={() => mbRespond(true, mbSnapshot())} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
+              <button type="button" onClick={() => (online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()))} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
                 참여
               </button>
               <button type="button" onClick={() => mbRespond(false)} className="rounded border border-gold/40 px-6 py-1.5 text-sm text-gold hover:bg-gold/10">
@@ -1205,6 +1235,19 @@ export default function Game({
             </div>
           </div>
         </div>
+      )}
+      {bringPick && (
+        <BringPicker
+          player={player}
+          enemyName={bringPick.invite ? online.mbInvite?.enemy?.name : ENEMIES.find((e) => e.id === bringPick.enemyId)?.name}
+          onCancel={() => setBringPick(null)}
+          onConfirm={(bring) => {
+            const pick = bringPick
+            setBringPick(null)
+            if (pick.invite) mbRespond(true, { ...mbSnapshot(), bring })
+            else mbStart(pick.enemyId, { ...mbSnapshot(), bring })
+          }}
+        />
       )}
       {adminOpen && <AdminPanel player={player} userId={userId} adminKey={adminKey} onApply={applyAdmin} onClose={() => setAdminOpen(false)} />}
       {profilesOpen && (
@@ -1218,11 +1261,11 @@ export default function Game({
       )}
       {cardTo && <ProfileCardModal target={cardTo} onClose={() => setCardTo(null)} />}
       {codexNew.length > 0 && <CodexToast entries={codexNew} onClose={() => setCodexNew([])} onOpen={() => { setCodexNew([]); setCodexOpen(true) }} />}
-      {codexOpen && <CodexModal player={player} onClose={() => setCodexOpen(false)} />}
+      {codexOpen && <CodexModal player={player} admin={admin} onGet={adminGive} onClose={() => setCodexOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>

@@ -20,7 +20,7 @@ function Unknown({ size = 44 }) {
   )
 }
 
-function Entry({ e }) {
+function Entry({ e, admin, onGet, have }) {
   if (!e.known) {
     return (
       <li className="flex items-center gap-3 rounded-xl bg-edge/[0.05] p-3" data-codex={e.id} data-known="0">
@@ -57,21 +57,26 @@ function Entry({ e }) {
         {e.from && <p className="text-[11px] text-paper/50">{e.from}의 영능력</p>}
         <p className={`mt-1 whitespace-pre-line text-xs leading-relaxed ${e.desc ? 'text-paper/75' : 'text-paper/40'}`}>{e.desc || EMPTY_DESC}</p>
         {e.extra && <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-gold">{e.extra}</p>}
+        {admin && e.kind === 'item' && (
+          <button type="button" data-admin-get={e.id} onClick={() => onGet?.(e.id)} className="mt-2 rounded-full bg-crimson/80 px-2.5 py-0.5 text-[11px] text-[#fbf6e9]">
+            관리자: 즉시 취득 (+1 · 보유 {have?.[e.id] || 0})
+          </button>
+        )}
       </div>
     </li>
   )
 }
 
-function Codex({ player }) {
+function Codex({ player, admin, onGet }) {
   const [chapter, setChapter] = useState(CODEX_CHAPTERS[0].id)
-  const list = codexEntries(chapter, player)
+  const list = codexEntries(chapter, player, admin)
   const groups = [...new Set(list.map((e) => e.group).filter(Boolean))]
-  const cur = codexProgress(chapter, player)
+  const cur = codexProgress(chapter, player, admin)
   return (
     <div>
       <div role="tablist" aria-label="도감 장" className="flex flex-wrap gap-1.5">
         {CODEX_CHAPTERS.map((c) => {
-          const pr = codexProgress(c.id, player)
+          const pr = codexProgress(c.id, player, admin)
           return (
             <button key={c.id} type="button" role="tab" aria-selected={chapter === c.id} aria-pressed={chapter === c.id} onClick={() => setChapter(c.id)} className="flat-chip tilt">
               {c.no}. {c.title}
@@ -91,7 +96,7 @@ function Codex({ player }) {
             <p className="text-xs tracking-widest text-paper/55">{g}</p>
             <ul className="mt-1.5 space-y-2" aria-label={g}>
               {list.filter((e) => e.group === g).map((e) => (
-                <Entry key={e.id} e={e} />
+                <Entry key={e.id} e={e} admin={admin} onGet={onGet} have={player.inventory} />
               ))}
             </ul>
           </div>
@@ -99,7 +104,7 @@ function Codex({ player }) {
       ) : (
         <ul className="mt-2 space-y-2" aria-label="도감 목록">
           {list.map((e) => (
-            <Entry key={e.id} e={e} />
+            <Entry key={e.id} e={e} admin={admin} onGet={onGet} have={player.inventory} />
           ))}
         </ul>
       )}
@@ -108,8 +113,9 @@ function Codex({ player }) {
 }
 
 /** 업적: 아직 달성하지 못한 업적은 이름만 보인다. */
-function Achievements({ player }) {
-  const got = ACHIEVEMENTS.filter((a) => player.achievements?.[a.id]).length
+function Achievements({ player, admin }) {
+  const ach = (id) => player.achievements?.[id] ?? (admin ? { at: Date.now() } : null)
+  const got = ACHIEVEMENTS.filter((a) => ach(a.id)).length
   return (
     <div>
       <p className="text-[11px] text-paper/50">
@@ -117,7 +123,7 @@ function Achievements({ player }) {
       </p>
       <ul className="mt-2 space-y-2" aria-label="업적 목록">
         {ACHIEVEMENTS.map((a) => {
-          const rec = player.achievements?.[a.id]
+          const rec = ach(a.id)
           return rec ? (
             <li key={a.id} data-ach={a.id} data-done="1" className="flex items-start gap-3 rounded-xl bg-edge/[0.07] p-3">
               <span className="grid size-11 shrink-0 place-items-center rounded-full bg-gold-fill text-ink light:text-ink">
@@ -147,7 +153,7 @@ function Achievements({ player }) {
 }
 
 /** 업적 · 도감 팝업. */
-export default function CodexModal({ player, onClose }) {
+export default function CodexModal({ player, admin = false, onGet, onClose }) {
   const [tab, setTab] = useState('ach')
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -183,7 +189,7 @@ export default function CodexModal({ player, onClose }) {
             <X size={16} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-4">{tab === 'ach' ? <Achievements player={player} /> : <Codex player={player} />}</div>
+        <div className="min-h-0 flex-1 overflow-auto p-4">{tab === 'ach' ? <Achievements player={player} admin={admin} /> : <Codex player={player} admin={admin} onGet={onGet} />}</div>
       </div>
     </div>
   )
