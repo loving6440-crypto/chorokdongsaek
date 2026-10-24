@@ -13,6 +13,9 @@ let state = {
   party: null, // { id, members: [{ id, name, online }] }
   invite: null, // { from: { id, name } }
   notices: [], // [{ id, text }]
+  mb: null, // 진행 중인 다인 전투 { bid, view }
+  mbInvite: null, // { bid, from, enemy, expires } — 다인 전투 초대를 받았다
+  mbLobby: null, // { bid, enemyId, waiting, joined } — 내가 건 다인 전투에서 응답을 기다리는 중
 }
 const listeners = new Set()
 const emit = () => listeners.forEach((l) => l())
@@ -42,6 +45,7 @@ function handle(ev) {
         online: ev.online,
         history: { rp: ev.history.rp, talk: ev.history.talk, party: ev.partyLog ?? [] },
         party: ev.party ?? null,
+        mb: ev.mb ?? null,
       })
       break
     case 'presence':
@@ -64,6 +68,15 @@ function handle(ev) {
       break
     case 'notice':
       pushNotice(ev.text)
+      break
+    case 'mb':
+      if (ev.ev === 'invite') set({ mbInvite: { bid: ev.bid, from: ev.from, enemy: ev.enemy, expires: ev.expires } })
+      else if (ev.ev === 'closed') set({ mbInvite: state.mbInvite?.bid === ev.bid ? null : state.mbInvite })
+      else if (ev.ev === 'lobby') set({ mbLobby: { bid: ev.bid, enemyId: ev.enemyId, waiting: ev.waiting, joined: ev.joined } })
+      else if (ev.ev === 'cancel') {
+        set({ mbLobby: null })
+        if (ev.reason) pushNotice(ev.reason)
+      } else if (ev.ev === 'state') set({ mb: { bid: ev.bid, view: ev.view }, mbLobby: null, mbInvite: state.mbInvite?.bid === ev.bid ? null : state.mbInvite })
       break
     case 'gift':
       if (!seenGifts.has(ev.gift.id)) {
@@ -105,6 +118,9 @@ export function disconnect() {
     online: [],
     party: null,
     invite: null,
+    mb: null,
+    mbInvite: null,
+    mbLobby: null,
     history: { rp: [], talk: [], party: [] },
     unread: { rp: 0, talk: 0, party: 0 },
   })
@@ -182,6 +198,35 @@ export const marketClaim = () => post('/api/market/claim', {})
 
 export const leaveParty = () => post('/api/party/leave', {})
 
+// ───────── 다인 전투 ─────────
+/** 내 전투 스냅샷(스탯 · 체력 · 의지력)을 서버에 알려 준다. me = { stats, hp, hpMax, mp, mpMax, revive, boost } */
+export async function mbStart(enemy, me) {
+  const r = await post('/api/mb/start', { enemy, me })
+  if (!r.ok) {
+    const why = { 'need-party': '일행 상태에서만 참여할 수 있다. (접속 중인 일행이 있어야 한다)', 'mates-busy': '일행이 모두 다른 전투 중이다.', 'already-in-battle': '이미 다인 전투에 참여 중이다.', 'slow-down': '잠시 후 다시 시도해 줘.' }[r.error]
+    pushNotice(why ?? '다인 전투를 시작하지 못했다.')
+  }
+  return r
+}
+export async function mbRespond(accept, me) {
+  const inv = state.mbInvite
+  set({ mbInvite: null })
+  if (!inv) return { ok: false }
+  const r = await post('/api/mb/respond', { bid: inv.bid, accept, me })
+  if (!r.ok) pushNotice('초대가 이미 만료되었다.')
+  return r
+}
+export const mbCancel = () => {
+  const bid = state.mbLobby?.bid
+  set({ mbLobby: null })
+  return bid ? post('/api/mb/cancel', { bid }) : Promise.resolve({ ok: false })
+}
+export const mbAct = (act) => post('/api/mb/act', { bid: state.mb?.bid, act })
+export const mbSurvive = (accept) => post('/api/mb/survive', { bid: state.mb?.bid, accept })
+export const mbItem = (item, to) => post('/api/mb/item', { bid: state.mb?.bid, item, to })
+/** 결과 화면을 닫는다 */
+export const mbClose = () => set({ mb: null })
+
 // ───────── 인적사항 카드 ─────────
 /** 내 카드를 서버에 올린다. card = { name, greeting, age, grade, avatar } */
 export const sendCard = (card) => post('/api/card', { card })
@@ -240,6 +285,21 @@ export async function verifyAdminKey(id, key) {
     })
     const data = await r.json().catch(() => ({}))
     return { ok: r.ok && !!data.ok, error: data.error ?? (r.ok ? undefined : 'network') }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+
+/** 관리자: 회원(서버에 데이터가 남은 계정) 목록. { ok, members, total, error } */
+export async function fetchMembers(id, key) {
+  try {
+    const r = await fetch('/api/admin/members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, key }),
+    })
+    const data = await r.json().catch(() => ({}))
+    return r.ok && data.ok ? { ok: true, members: data.members, total: data.total } : { ok: false, error: data.error ?? 'network' }
   } catch {
     return { ok: false, error: 'network' }
   }

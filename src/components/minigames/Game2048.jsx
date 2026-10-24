@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { Languages, Lock, Palette, RotateCcw } from 'lucide-react'
 import { createGame, step } from '../../game/minigames/logic2048'
-import TileFace from './TileFace'
+import TileFace, { Blossom } from './TileFace'
+import { ACHIEVEMENTS } from '../../game/achievements'
+import { SKINS, skinOf } from '../../game/skins2048'
 import { sfx } from '../../game/sfx'
-import { isTypingTarget, useLesson } from '../../game/lessonContext'
+import { isTypingTarget, useLesson, useSkin } from '../../game/lessonContext'
 
 const BEST_KEY = 'chorok-best-2048'
+const MODE_KEY = 'chorok-mode-2048' // 'hanja' | 'number'
+const loadMode = () => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'number' ? 'number' : 'hanja'
+  } catch {
+    return 'hanja'
+  }
+}
 
 const loadBest = () => {
   try {
@@ -39,6 +49,21 @@ export default function Game2048() {
   const touch = useRef(null)
   const run = useLesson()
   const started = useRef(false) // 이번 판에서 첫 수를 뒀는가 (그때 시도 1회를 쓴다)
+  const [mode, setMode] = useState(loadMode)
+  const [skinOpen, setSkinOpen] = useState(false)
+  const skinCtx = useSkin()
+  const skin = skinOf(skinCtx.current)
+  const cute = skin.id === 'changnok'
+  const toggleMode = () =>
+    setMode((m) => {
+      const next = m === 'hanja' ? 'number' : 'hanja'
+      try {
+        localStorage.setItem(MODE_KEY, next)
+      } catch {
+        /* 저장 불가 환경이면 이번만 유지 */
+      }
+      return next
+    })
 
   const commit = useCallback((next) => {
     gameRef.current = next
@@ -119,19 +144,79 @@ export default function Game2048() {
           <ScoreBox label="점수" value={game.score} />
           <ScoreBox label="최고" value={game.best} />
         </div>
-        <button
-          type="button"
-          data-sfx="none"
-          onClick={restart}
-          className="inline-flex items-center gap-1.5 rounded border border-gold/30 px-3 py-1.5 text-xs text-gold transition hover:bg-gold/10"
-        >
-          <RotateCcw size={13} />
-          새 판
-        </button>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <button
+            type="button"
+            data-2048-mode={mode}
+            onClick={toggleMode}
+            aria-label={`표시 전환: 지금은 ${mode === 'hanja' ? '한자' : '숫자'} 버전`}
+            className="inline-flex items-center gap-1.5 rounded border border-gold/30 px-3 py-1.5 text-xs text-gold transition hover:bg-gold/10"
+          >
+            <Languages size={13} />
+            {mode === 'hanja' ? '한자' : '숫자'}
+          </button>
+          <button
+            type="button"
+            data-2048-skin-btn
+            onClick={() => setSkinOpen((o) => !o)}
+            aria-expanded={skinOpen}
+            className="inline-flex items-center gap-1.5 rounded border border-gold/30 px-3 py-1.5 text-xs text-gold transition hover:bg-gold/10"
+          >
+            <Palette size={13} />
+            스킨
+          </button>
+          <button
+            type="button"
+            data-sfx="none"
+            onClick={restart}
+            className="inline-flex items-center gap-1.5 rounded border border-gold/30 px-3 py-1.5 text-xs text-gold transition hover:bg-gold/10"
+          >
+            <RotateCcw size={13} />
+            새 판
+          </button>
+        </div>
       </div>
 
+      {skinOpen && (
+        <div className="mb-3 rounded-md border border-gold/25 bg-shade/30 p-3" role="region" aria-label="스킨" data-2048-skins>
+          <p className="text-xs tracking-widest text-paper/55">스킨</p>
+          <ul className="mt-2 space-y-1.5">
+            {SKINS.map((k) => {
+              const open = skinCtx.open.includes(k.id)
+              const on = skin.id === k.id
+              return (
+                <li key={k.id}>
+                  <button
+                    type="button"
+                    data-skin={k.id}
+                    disabled={!open}
+                    onClick={() => {
+                      skinCtx.set(k.id)
+                      setSkinOpen(false)
+                    }}
+                    aria-pressed={on}
+                    className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-xs ${on ? 'bg-gold-fill/20 ring-1 ring-gold/50' : 'bg-edge/[0.07] enabled:hover:bg-gold-fill/10'} disabled:opacity-60`}
+                  >
+                    <span className="mt-0.5 shrink-0 text-gold">{open ? <Palette size={14} aria-hidden /> : <Lock size={14} aria-hidden />}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-serif text-sm text-paper">
+                        {k.name}
+                        {on && <span className="ml-1.5 text-[10px] text-gold">사용 중</span>}
+                      </span>
+                      <span className="block text-paper/60">{open ? k.desc : `업적 [${ACH_NAME[k.unlock] ?? '???'}]을(를) 달성하면 열린다.`}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
       <div
-        className="relative aspect-square w-full touch-none rounded-md border border-gold/25 bg-shade/30 p-1"
+        className={`relative aspect-square w-full touch-none ${cute ? 'rounded-2xl p-1.5' : 'rounded-md border border-gold/25 bg-shade/30 p-1'}`}
+        style={cute ? { backgroundColor: skin.board.frame, boxShadow: '0 0 0 3px #fff0f4, 0 0 0 5px #f4a3bb, 0 8px 20px rgba(214, 62, 76, 0.25)' } : undefined}
+        data-2048-board={skin.id}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -143,7 +228,7 @@ export default function Game2048() {
               className="absolute size-1/4 p-[3px]"
               style={{ left: `${(i % 4) * 25}%`, top: `${Math.floor(i / 4) * 25}%` }}
             >
-              <div className="size-full rounded bg-edge/8" />
+              <div className={`size-full ${cute ? 'rounded-xl' : 'rounded bg-edge/8'}`} style={cute ? { backgroundColor: skin.board.cell } : undefined} />
             </div>
           ))}
 
@@ -160,14 +245,25 @@ export default function Game2048() {
             >
               <TileFace
                 value={t.v}
+                mode={mode}
+                skin={skin.id}
                 className={t.isNew ? 'tile-pop' : t.isMerged ? 'tile-merge' : ''}
               />
             </div>
           ))}
         </div>
 
+        {cute && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden>
+            {[8, 27, 46, 65, 84].map((x, i) => (
+              <span key={x} className="petal absolute top-0" style={{ left: `${x}%`, animationDelay: `${i * 1.3}s`, animationDuration: `${7 + (i % 3)}s` }}>
+                <Blossom size={9 + (i % 2) * 3} color="#f7b8cb" />
+              </span>
+            ))}
+          </div>
+        )}
         {(game.over || showWin) && (
-          <div className="absolute inset-0 z-10 grid place-items-center rounded-md bg-ink/80 p-4 text-center">
+          <div className={`absolute inset-0 z-10 grid place-items-center p-4 text-center ${cute ? 'rounded-2xl bg-[#fff0f4]/90' : 'rounded-md bg-ink/80'}`}>
             <div>
               <p className="font-serif text-xl text-gold">
                 {game.over ? '부적이 가득 찼다' : '신위가 二千四十八에 닿았다'}
@@ -198,11 +294,13 @@ export default function Game2048() {
       </div>
 
       <p className="mt-3 text-center text-[11px] text-paper/50">
-        방향키 / WASD 또는 스와이프로 부적 조각을 민다. 같은 수끼리 합쳐 2048(二千四十八)을 만들자.
+        방향키 / WASD 또는 스와이프로 부적 조각을 민다. 같은 수끼리 합쳐 2048{mode === 'hanja' ? '(二千四十八)' : ''}을 만들자.
       </p>
     </div>
   )
 }
+
+const ACH_NAME = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a.name]))
 
 function ScoreBox({ label, value }) {
   return (

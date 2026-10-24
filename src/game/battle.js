@@ -50,6 +50,7 @@ export const ENEMIES = [
     blurb: '밤길에 여우 울음 같은 소리를 내며 떠도는 푸른 불꽃 무리. 혼자서는 벅차지만 둘이 함께라면 해볼 만하다.',
     tier: 1,
     partySize: 2,
+    tags: ['다인 전투'],
     hp: 110,
     atk: 6,
     act: 7,
@@ -62,6 +63,7 @@ export const ENEMIES = [
     blurb: '어둠 속에서 사람을 짓누르는 사나운 야차. 셋은 모여야 맞설 수 있다.',
     tier: 2,
     partySize: 3,
+    tags: ['다인 전투'],
     hp: 280,
     atk: 11,
     act: 11,
@@ -131,6 +133,20 @@ export const PSYCHICS = [
   },
 ]
 
+/**
+ * 도깨비불 (바리의 영능력): 쓴 턴을 포함해 3턴 동안 아무 행동도 하지 않고 기를 모은 뒤,
+ * 그 다음 내 턴에 일반 공격의 4배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
+ * 쓰고 나면 state.fire 가 남은 자동 턴 수(3)로 세팅되고, 내 턴이 올 때마다 fireTurn 을 불러 진행한다.
+ */
+export const FIRE_TURNS = 3
+export const LENT_FIRE = {
+  id: 'dokkaebi-fire',
+  label: '도깨비불',
+  note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
+  detail: '쓴 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격.',
+  use: true,
+}
+
 /** 생존본능 도주 확률(%) = 50 + 1d(신속)×2 − 상대의 영력, 0~100 로 자른다. */
 export function fleeChance(roll, enemy) {
   return Math.max(0, Math.min(100, 50 + roll * 2 - enemy.spirit))
@@ -140,6 +156,10 @@ export function fleeChance(roll, enemy) {
 export function psychicTurn(state, id, ctx, rng = Math.random) {
   const { stats } = ctx
   const s = { ...state, guard: false }
+  if (id === 'dokkaebi-fire') {
+    s.fire = FIRE_TURNS
+    return { state: s, events: [{ kind: 'warn', text: `✦ 도깨비불! 푸른 불꽃에 기를 모은다… (1/${FIRE_TURNS}) 앞으로 ${FIRE_TURNS - 1}턴은 아무 행동도 할 수 없다.` }], mpCost: 0, fled: false, boostUsed: false }
+  }
   if (id !== 'survival') return { state, events: [], mpCost: 0, invalid: true }
   const roll = die(stats.agility, rng)
   const chance = fleeChance(roll, s.enemy)
@@ -161,6 +181,34 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     fled: false,
     boostUsed: !!ctx.boost,
   }
+}
+
+/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 4배 공격. 반환: { state, events, done } */
+export function fireTurn(state, ctx, rng = Math.random) {
+  const { stats } = ctx
+  const s = { ...state, guard: false }
+  const left = s.fire ?? 0
+  if (left > 1) {
+    s.fire = left - 1
+    return { state: s, events: [{ kind: 'warn', text: `✦ 도깨비불… 기를 모으는 중 (${FIRE_TURNS + 2 - left}/${FIRE_TURNS})` }], done: false }
+  }
+  s.fire = 0
+  const braced = s.queue[0] === 'guard'
+  const r = attackRoll(stats, rng)
+  const mult = ctx.boost ? 2 : 1
+  let dmg = r.dmg * 4 * mult
+  if (!r.miss && braced) dmg = Math.ceil(dmg / 2)
+  s.ehp = Math.max(0, s.ehp - dmg)
+  const ev = [
+    r.miss
+      ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발… 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` }
+      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${braced ? ' (방어에 절반으로 막힘)' : ''}` },
+  ]
+  if (s.ehp <= 0) {
+    s.over = 'win'
+    ev.push({ kind: 'end', text: `${s.enemy.name}이(가) 쓰러졌다.` })
+  }
+  return { state: s, events: ev, done: true }
 }
 
 export const CHARMS = 3

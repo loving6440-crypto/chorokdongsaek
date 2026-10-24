@@ -25,10 +25,12 @@ const ENEMY_DELAY = 900
 
 import { Bar, vague } from './battleUi'
 import Tutorial from './Tutorial'
+import MultiBattle from './MultiBattle'
+import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems, onBgm, multi }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [b, setB] = useState(null)
   const [fights, setFights] = useState(0)
@@ -61,7 +63,9 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const endRef = useRef(onTutorialEnd)
   endRef.current = onTutorialEnd
   // 교육 중에 다른 곳으로 가 버려도 원래의 체력·의지력으로 돌려 놓는다.
-  useEffect(() => () => { if (phaseRef.current === 'tutorial') endRef.current?.(false) }, [])
+  const bgmCb = useRef(onBgm)
+  bgmCb.current = onBgm
+  useEffect(() => () => { bgmCb.current?.(false); if (phaseRef.current === 'tutorial') endRef.current?.(false) }, [])
   const boostRef = useRef(false)
   boostRef.current = boostOn
 
@@ -302,6 +306,25 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   const rash = rashPercent(stats)
 
+  // 다인 전투가 진행 중이면 그 화면을 보여 준다. (판은 서버가 진행한다)
+  if (multi?.view) {
+    return (
+      <MultiBattle
+        meId={multi.meId}
+        view={multi.view}
+        stats={stats}
+        seen={seen}
+        specials={specials}
+        psychics={psychics}
+        onAct={multi.onAct}
+        onSurvive={multi.onSurvive}
+        onOpenItems={onOpenItems}
+        onSpecialSeen={onSpecialSeen}
+        onClose={multi.onClose}
+      />
+    )
+  }
+
   if (phase === 'tutorial') {
     return (
       <Tutorial
@@ -312,13 +335,16 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         onMp={onMp}
         onHp={onHp}
         itemsUsed={itemsUsed}
+        psychics={psychics}
         onSpotItems={onSpotItems}
         onGiveItem={onGiveItem}
         onExit={() => {
+          onBgm?.(false)
           onTutorialEnd?.(false)
           setPhase('pick')
         }}
         onDone={() => {
+          onBgm?.(false)
           onTutorialDone?.()
           setPhase('pick')
         }}
@@ -337,6 +363,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
           type="button"
           onClick={() => {
             onTutorialStart?.()
+            onBgm?.(true) // 튜토리얼에도 전투 BGM
             setPhase('tutorial')
           }}
           className="ink-panel tilt mt-4 flex w-full items-center gap-3 rounded-xl p-4 text-left hover:bg-gold-fill/15"
@@ -351,6 +378,16 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             </span>
           </span>
         </button>
+        {multi?.lobby && (
+          <div className="ink-panel mt-4 rounded-xl p-4" role="status" data-mb-lobby>
+            <p className="font-serif text-base text-gold">{ENEMIES.find((x) => x.id === multi.lobby.enemyId)?.name} 전투 초대를 보냈다</p>
+            <p className="mt-1 text-xs text-paper/70">
+              응답을 기다리는 중: {multi.lobby.waiting.length ? multi.lobby.waiting.join(', ') : '없음'}
+              {multi.lobby.joined?.length > 0 && <> · 참여: {multi.lobby.joined.join(', ')}</>}
+            </p>
+            <button type="button" onClick={multi.onCancel} className="mt-2 rounded-lg bg-edge/10 px-3 py-1 text-xs text-paper/80 hover:bg-edge/20">초대 취소</button>
+          </div>
+        )}
         <ul className="mt-4 grid gap-3 md:grid-cols-3">
           {ENEMIES.map((e) => {
             const rv = revealOf(e, stats, seen?.[e.id] || 0)
@@ -364,6 +401,9 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                 <p className="mt-1 flex flex-wrap gap-1 text-[10px]" data-rec>
                   <span className="rounded-full border border-edge/25 px-2 py-px text-paper/70">{recLabel(e)}</span>
                   <span className={`rounded-full border px-2 py-px ${e.partySize > 1 ? 'border-gold/50 text-gold' : 'border-edge/25 text-paper/70'}`}>{partyLabel(e)}</span>
+                  {(e.tags ?? []).map((t) => (
+                    <span key={t} data-tag={t} className="rounded-full bg-gold/15 px-2 py-px text-gold">{t}</span>
+                  ))}
                 </p>
                 <p className="mt-1 flex-1 text-xs leading-relaxed text-paper/60">{e.blurb}</p>
                 <p className="mt-2 grid grid-cols-2 gap-x-3 text-[11px] tabular-nums text-paper/70">
@@ -372,10 +412,26 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                   <span>행동력 {q(rv.act, e.act)}</span>
                   <span>영력 {q(rv.spirit, e.spirit)}</span>
                 </p>
-                <button type="button" onClick={() => start(e.id)} className="flat-btn mt-3 justify-center !bg-crimson">
-                  <Swords size={15} aria-hidden />
-                  {e.name}과 겨루기
-                </button>
+                {isMulti(e) ? (
+                  <>
+                    <button
+                      type="button"
+                      data-multi-start={e.id}
+                      disabled={!multi?.canParty || !!multi?.lobby}
+                      onClick={() => multi.onStart(e.id)}
+                      className="flat-btn mt-3 justify-center !bg-crimson disabled:opacity-40"
+                    >
+                      <Swords size={15} aria-hidden />
+                      일행과 {e.name} 겨루기
+                    </button>
+                    <p className="mt-1 text-[10px] text-paper/50">{multi?.canParty ? `‘${MULTI_TAG}’ — 일행에게 초대가 가고, 수락한 사람들이 함께 싸운다.` : `‘${MULTI_TAG}’ — 일행(파티) 상태로만 참여할 수 있다.`}</p>
+                  </>
+                ) : (
+                  <button type="button" onClick={() => start(e.id)} className="flat-btn mt-3 justify-center !bg-crimson">
+                    <Swords size={15} aria-hidden />
+                    {e.name}과 겨루기
+                  </button>
+                )}
               </li>
             )
           })}

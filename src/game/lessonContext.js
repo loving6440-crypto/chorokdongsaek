@@ -17,3 +17,7 @@ export const isTypingTarget = (e) => {
   const t = e.target
   return t instanceof HTMLElement && !!t.closest('input, textarea, select, [contenteditable="true"]')
 }
+
+/** 부적학 스킨: 지금 쓰는 스킨 · 열린 스킨 · 바꾸기. (플레이어 정보는 게임이 들고 있다.) */
+export const SkinContext = createContext({ current: 'talisman', open: ['talisman'], set: noop })
+export const useSkin = () => useContext(SkinContext)

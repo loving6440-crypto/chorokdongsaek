@@ -76,6 +76,7 @@ export function completeLesson(player, courseId, now = Date.now()) {
   return {
     player: {
       ...setLesson(player, courseId, { ...st, done: true, waitUntil: null }),
+      cleared: { ...(player.cleared ?? {}), [courseId]: player.cleared?.[courseId] ?? now }, // 처음 마친 시각(업적용)
       spirit: player.spirit + LESSON_SPIRIT_REWARD,
     },
     logs: [`${name} 수업을 마쳤다. 영력 +${LESSON_SPIRIT_REWARD}`],
@@ -118,6 +119,8 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
   }
   if (p.money == null) p = { ...p, money: START_MONEY }
   if (!p.inventory) p = { ...p, inventory: {} }
+  // 최초 입학 프로필: 예전 저장분엔 없으니 지금 값을 최초 값으로 삼는다.
+  if (!p.profile0) p = { ...p, profile0: { name: p.name, greeting: p.greeting ?? '', age: p.age, grade: p.grade ?? null, avatar: p.avatar } }
   // 캐릭터를 만든 시각(업적 기준). 예전 저장분엔 없으니 계정을 만든 시각으로 대신한다.
   if (!p.createdAt) p = { ...p, createdAt: joinedAt ?? Date.now() }
   // 모든 스탯의 최대치는 50.

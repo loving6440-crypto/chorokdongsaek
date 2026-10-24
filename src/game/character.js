@@ -61,6 +61,7 @@ export function createPlayer({ name, age, grade = null, avatar, stats, greeting 
     spirit: SPIRIT_START,
     money: START_MONEY,
     inventory: {},
+    profile0: { name, greeting, age, grade, avatar }, // 최초 입학 때의 인적사항. 프로필을 고친 적이 없으면 남들에게는 이게 보인다.
     createdAt: Date.now(), // 캐릭터를 만든 시각 (업적 '신의 주시' 기준)
     hp: HP_MAX,
     hpMax: HP_MAX,

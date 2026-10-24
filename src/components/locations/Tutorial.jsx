@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Eye, Flame, Shield, Sparkles, Swords } from 'lucide-react'
-import { ACTIONS, INTENTS, TUTOR_ENEMY, enemyTurn, newBattle, playerTurn, scanTurns } from '../../game/battle'
+import { Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
+import { ACTIONS, INTENTS, LENT_FIRE, PSYCHICS, TUTOR_ENEMY, enemyTurn, fireTurn, newBattle, playerTurn, psychicTurn, scanTurns } from '../../game/battle'
 import { Bar } from './battleUi'
 
-const ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame }
-const ORDER = ['attack', 'guard', 'charm', 'scan', 'buff']
+const ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
+const ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
 const FILL = ['jab', 'jab', 'jab', 'jab', 'jab']
 const q = (list) => [...list, ...FILL].slice(0, 5)
 
@@ -50,7 +50,7 @@ const NODES = [
     say: [
       '상대의 턴에는 상대가 10면체를 굴려서 행동을 정해요. 1~2는 기 모으기, 3~7은 약공, 8~9는 방어 태세, 10은 상대마다 다른 영능력이에요.',
       '기 모으기를 하면 다음 턴엔 반드시 강공이 와요. 강공은 위험하니까 조심하세요… 약공은 일반 공격, 방어 태세에는 내 공격이 절반이 돼요.',
-      '내 턴에 할 수 있는 건 다섯 가지예요. 일반 공격, 막기, 부적, 간파, 효험. 하나씩 직접 해 볼 거예요.',
+      '내 턴에 할 수 있는 건 여섯 가지예요. 일반 공격, 막기, 부적, 간파, 효험, 그리고 영능력. 영능력은 조금 뒤에 따로 알려드릴게요. 먼저 나머지를 하나씩 직접 해 볼 거예요.',
     ],
   },
   {
@@ -160,6 +160,42 @@ const NODES = [
     fx: 'fire',
   },
   {
+    say: [
+      '말로만 들으면 와닿지 않죠? 이번엔 특별히 제 “도깨비불”을 잠깐 빌려드릴게요!',
+      '영능력은 행동 칸의 “영능력”에서 쓸 수 있어요. 지금까지 익힌 영능력이 목록으로 나와요.',
+    ],
+    fx: 'fire',
+    enter: { lend: true },
+  },
+  {
+    do: true,
+    allow: ['psychic'],
+    wait: 'psyopen',
+    prompt: '“영능력”을 눌러 목록을 열어 보세요. (숫자 키 6)',
+  },
+  {
+    say: [
+      '“도깨비불”이 보이죠? 빌려드린 거라 교육이 끝나면 돌려받을 거예요.',
+      '쓰면 그 턴부터 3턴 동안은 아무 행동도 할 수 없어요. 기를 모으는 동안에도 상대는 계속 공격해 와요!',
+      '대신 모으고 나면 다음 턴에 일반 공격의 4배 피해가 자동으로 나가요. 방어 태세인 상대에겐 절반이 되니 타이밍을 잘 봐요!',
+    ],
+    fx: 'fire',
+  },
+  {
+    do: true,
+    allow: ['psychic'],
+    useFire: true,
+    prompt: '영능력 목록에서 “도깨비불”의 [사용]을 눌러 보세요. 상대는 약공만 할 거예요.',
+    prep: (s) => ({ ...s, queue: q(['jab']), fire: 0 }),
+  },
+  {
+    say: [
+      '어때요, 한 방이 묵직하죠? 대신 기를 모으는 세 턴 동안은 무방비예요. 영능력은 이렇게 쓸 때를 잘 가려야 해요.',
+      '그럼 빌려드린 도깨비불은 돌려받을게요! 여러분만의 영능력은 싸우다 보면 언젠가 익히게 될 거예요.',
+    ],
+    enter: { unlend: true },
+  },
+  {
     say: ['이제 상대도 영능력을 쓸 차례예요. 일단 아무 공격이나 해 볼래요?'],
   },
   {
@@ -258,7 +294,9 @@ function Rich({ text }) {
 
 const DELAY = 800
 
-export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed = 0, onSpotItems, onGiveItem, onExit, onDone }) {
+export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed = 0, psychics = [], onSpotItems, onGiveItem, onExit, onDone }) {
+  const [psyOpen, setPsyOpen] = useState(false) // 영능력 목록
+  const [lent, setLent] = useState(false) // 바리가 도깨비불을 빌려준 동안
   const [idx, setIdx] = useState(0)
   const [line, setLine] = useState(0)
   const [b, setB] = useState(() => ({ ...newBattle(TUTOR_ENEMY, stats, Math.random, hp, hpMax), queue: q(['jab']) }))
@@ -280,7 +318,8 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
   const spotRef = useRef(onSpotItems)
   spotRef.current = onSpotItems
   useEffect(() => () => spotRef.current?.(false), [])
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const gone = useRef(false)
+  useEffect(() => () => { gone.current = true; clearTimeout(timer.current) }, [])
 
   const node = NODES[idx]
   const isDo = !!node.do
@@ -294,6 +333,11 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
       if (n?.prep) setB((cur) => n.prep(cur))
       if (n?.enter?.give) onGiveItem?.(n.enter.give)
       if (n?.enter?.baseItems) baseItems.current = itemsRef.current
+      if (n?.enter?.lend) setLent(true)
+      if (n?.enter?.unlend) {
+        setLent(false)
+        setPsyOpen(false)
+      }
       onSpotItems?.(!!n?.enter?.spotItems)
     },
     [onGiveItem, onSpotItems],
@@ -319,6 +363,11 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
       const n = NODES[idx]
       const cur = bRef.current
       if (!n.do || busy || !n.allow.includes(action)) return
+      if (action === 'psychic') {
+        setPsyOpen((o) => !o)
+        if (n.wait === 'psyopen') enter(idx + 1)
+        return
+      }
       setBusy(true)
       // 연습을 끝까지 볼 수 있도록, 기술을 쓸 의지력이 모자라면 바리가 조금 채워 준다.
       let mpNow = mpRef.current
@@ -365,6 +414,46 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
     [idx, busy, stats, enter, onMp, onHp],
   )
 
+  // 도깨비불 시연: 기를 모으는 3턴(상대는 계속 공격) → 4배 공격
+  const runFire = useCallback(async () => {
+    const n = NODES[idx]
+    if (!n.useFire || busy) return
+    const pause = (ms) => new Promise((res) => { timer.current = setTimeout(res, ms) })
+    setBusy(true)
+    setPsyOpen(false)
+    const enemyAct = (s) => {
+      const e = enemyTurn(s, { stats, mp: mpRef.current })
+      let st = e.state
+      if (st.php <= 0) st = { ...st, php: 1 }
+      st = { ...st, pendingDeath: false, over: null }
+      push(e.events.filter((ev) => ev.kind !== 'end'))
+      onHp?.(st.php)
+      return st
+    }
+    const first = psychicTurn(bRef.current, 'dokkaebi-fire', { stats, mp: mpRef.current })
+    let s = first.state
+    setB(s)
+    push(first.events)
+    for (let guard = 0; guard < 6 && !gone.current; guard++) {
+      await pause(DELAY)
+      if (gone.current) return
+      s = enemyAct(s)
+      setB(s)
+      await pause(DELAY)
+      if (gone.current) return
+      const f = fireTurn(s, { stats, mp: mpRef.current })
+      s = f.state
+      if (s.over === 'win') s = { ...s, over: null, ehp: Math.max(s.ehp, 30) } // 연습이라 쓰러지지 않는다
+      setB(s)
+      push(f.events)
+      if (f.done) break
+    }
+    await pause(DELAY)
+    if (gone.current) return
+    setBusy(false)
+    enter(idx + 1)
+  }, [idx, busy, stats, enter, onHp])
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName) && e.key === ' ') return
@@ -373,7 +462,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
         e.preventDefault?.()
         return
       }
-      const i = ['1', '2', '3', '4', '5'].indexOf(e.key)
+      const i = ['1', '2', '3', '4', '5', '6'].indexOf(e.key)
       if (i >= 0) act(ORDER[i])
     }
     window.addEventListener('keydown', onKey)
@@ -473,7 +562,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5" role="group" aria-label="행동 선택">
+      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" role="group" aria-label="행동 선택">
         {ORDER.map((id, i) => {
           const Icon = ICONS[id]
           const allowed = isDo && !busy && node.allow.includes(id)
@@ -497,6 +586,42 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
           )
         })}
       </div>
+
+      {psyOpen && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록" data-tut-psychic>
+          <p className="font-serif text-base text-gold">영능력</p>
+          {(() => {
+            const mine = PSYCHICS.filter((x) => psychics.includes(x.id))
+            const list = [...(lent ? [{ ...LENT_FIRE, lentFrom: BARI }] : []), ...mine]
+            if (!list.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
+            return (
+              <ul className="mt-2 space-y-2">
+                {list.map((x) => (
+                  <li key={x.id} data-psychic={x.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
+                    <p className="text-sm text-paper">
+                      {x.label}
+                      {x.lentFrom && <span className="ml-2 rounded-full bg-gold/15 px-2 py-px text-[10px] text-gold">{x.lentFrom}에게 빌림</span>}
+                    </p>
+                    <p className="text-[11px] text-paper/60">{x.note}</p>
+                    {x.detail && <p className="mt-1 text-[11px] text-gold/80">{x.detail}</p>}
+                    {x.use && (
+                      <button
+                        type="button"
+                        data-psychic-use={x.id}
+                        disabled={!(x.id === 'dokkaebi-fire' && node.useFire && !busy)}
+                        onClick={runFire}
+                        className={`flat-btn mt-2 justify-center disabled:opacity-40 ${x.id === 'dokkaebi-fire' && node.useFire && !busy ? 'spot' : ''}`}
+                      >
+                        {x.id === 'dokkaebi-fire' ? '사용' : '사용 (연습에선 쓸 수 없다)'}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
+        </div>
+      )}
 
       <ul className={`mt-3 max-h-40 space-y-1 overflow-auto rounded-xl bg-shade/30 p-3 font-mono text-[11px] leading-relaxed ${spot === 'log' ? 'spot-wide' : ''}`} aria-label="전투 기록">
         {log.map((l) => (

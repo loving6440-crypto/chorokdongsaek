@@ -1,0 +1,362 @@
+import { useEffect, useRef, useState } from 'react'
+import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
+import { ACTIONS, ENEMIES, INTENTS, PSYCHICS, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { MULTI_TAG } from '../../game/mbattle'
+import { tierLabel } from '../../game/constants'
+import { Bar, vague } from './battleUi'
+
+const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
+const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
+const STATUS_LABEL = { alive: '', down: '전투불능', fled: '이탈' }
+
+/**
+ * 다인 전투 화면. 판은 서버가 진행하고, 여기서는 상태를 보여 주고 내 행동을 보낸다.
+ * view: 서버가 보낸 판 상태. 라운드마다 살아 있는 모두가 행동을 고르면 한꺼번에 해결된다.
+ */
+export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
+  const enemy = ENEMIES.find((e) => e.id === view.enemyId)
+  const me = view.members.find((m) => m.id === meId)
+  const [psyOpen, setPsyOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scanN, setScanN] = useState(1)
+  const [sending, setSending] = useState(false)
+  const [spBanner, setSpBanner] = useState(null)
+  const [dice, setDice] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  const lastLog = useRef(0)
+  const seenSp = useRef({ ...specials })
+  const spText = useRef({}) // 영능력 로그 id → 보여 줄 문구(처음 본 비기만 설명이 붙는다)
+
+  // 새 로그가 오면: 영능력 발동 연출 · 도감 반영 · 내 마지막 주사위
+  useEffect(() => {
+    const fresh = view.log.filter((l) => l.id > lastLog.current)
+    if (!fresh.length) return
+    const first = lastLog.current === 0
+    lastLog.current = view.log[view.log.length - 1].id
+    if (first) return // 다시 접속했을 때 지난 기록으로는 연출하지 않는다
+    for (const e of fresh) {
+      if (e.kind !== 'special') continue
+      spText.current[e.id] = seenSp.current[e.enemyId] ? `✦ 영능력 《${e.label}》` : `✦ 영능력 《${e.label}》 — ${e.note} (처음 본 비기는 이렇게 설명이 붙는다.)`
+    }
+    const sp = [...fresh].reverse().find((e) => e.kind === 'special')
+    if (sp) {
+      setSpBanner({ label: sp.label, note: sp.note, k: Math.random() })
+      if (!seenSp.current[sp.enemyId]) {
+        seenSp.current = { ...seenSp.current, [sp.enemyId]: true }
+        onSpecialSeen?.(sp.enemyId)
+      }
+    }
+    const mine = [...fresh].reverse().find((e) => e.roll && e.by === meId)
+    if (mine) setDice({ n: mine.roll, kind: mine.kind, k: Math.random() })
+  }, [view.log, meId, onSpecialSeen])
+  useEffect(() => {
+    if (!spBanner) return undefined
+    const t = setTimeout(() => setSpBanner(null), 2800)
+    return () => clearTimeout(t)
+  }, [spBanner])
+  // 새 라운드가 시작되면 보냈다는 표시를 푼다
+  useEffect(() => {
+    setSending(false)
+    setPsyOpen(false)
+    setScanOpen(false)
+  }, [view.round, view.phase])
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(t)
+  }, [])
+
+  const have = me ? Math.floor(me.mp) : 0
+  const fighting = me?.status === 'alive'
+  const inputPhase = view.phase === 'input' && fighting && !view.over
+  const acted = !!me?.acted || sending
+  const canAct = inputPhase && !acted
+  const rv = revealOf(enemy, stats, seen?.[enemy.id] || 0)
+  const q = (ok, v) => (ok ? v : '???')
+  const left = view.deadline ? Math.max(0, Math.ceil((view.deadline - now) / 1000)) : null
+  const waiting = view.members.filter((m) => m.status === 'alive' && !m.acted && view.phase === 'input')
+  const shown = Math.min(view.known, view.queue.length)
+  const rash = rashPercent(stats)
+
+  const send = async (act) => {
+    if (!canAct) return
+    setSending(true)
+    setPsyOpen(false)
+    setScanOpen(false)
+    const r = await onAct(act)
+    if (!r?.ok) setSending(false)
+  }
+  const pick = (id) => {
+    if (id === 'psychic') {
+      setScanOpen(false)
+      return setPsyOpen((o) => !o)
+    }
+    if (id === 'scan') {
+      if (!canAct || have < 1) return
+      setPsyOpen(false)
+      setScanN((n) => Math.max(1, Math.min(have, n)))
+      return setScanOpen((o) => !o)
+    }
+    if (id === 'charm' && (me.charms <= 0 || have < 1)) return
+    if (id === 'buff' && have < 1) return
+    if (id === 'guard' && me.bound) return
+    send({ action: id })
+  }
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return
+      const i = ['1', '2', '3', '4', '5', '6'].indexOf(e.key)
+      if (i >= 0) pick(ACTION_ORDER[i])
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const danger = me && me.php <= me.phpMax * 0.3 && me.status === 'alive'
+  const textOf = (l) => {
+    if (l.kind !== 'special') return l.text
+    return spText.current[l.id] ?? `✦ 영능력 《${l.label}》`
+  }
+
+  return (
+    <section aria-label="다인 전투" data-mb className={`relative ${spBanner ? 'sp-shake' : ''}`}>
+      {spBanner && (
+        <div key={spBanner.k} role="alert" data-sp-banner className="sp-banner pointer-events-none absolute inset-x-0 top-10 z-30 mx-auto w-[min(26rem,92%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl">
+          <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
+          <p className="mt-1 font-serif text-3xl text-gold">《{spBanner.label}》</p>
+          <p className="mt-1 text-sm text-paper/90">{spBanner.note}</p>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
+        <span>
+          <Users size={13} className="mr-1 inline align-[-2px]" aria-hidden />
+          다인 전투 · 라운드 <b className="font-serif text-base text-paper">{view.round}</b>
+        </span>
+        <span className={`rounded-full px-3 py-0.5 ${canAct ? 'bg-gold-fill text-ink light:text-ink' : 'bg-edge/10'}`} aria-live="polite" data-mb-status>
+          {view.over
+            ? '전투 종료'
+            : view.phase === 'survive'
+              ? '쓰러지는 중…'
+              : !fighting
+                ? '관전 중'
+                : acted
+                  ? `다른 일행을 기다리는 중 (${waiting.length}명)`
+                  : `내 행동을 고른다${left != null ? ` · ${left}초` : ''}`}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="ink-panel rounded-xl p-4">
+          <div className="flex items-baseline justify-between">
+            <p className="font-serif text-lg text-paper">
+              <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 align-middle font-sans text-[11px] text-gold">{tierLabel(enemy.tier)}</span>
+              {enemy.name}
+              <span className="ml-2 rounded-full border border-gold/50 px-1.5 py-px align-middle font-sans text-[10px] text-gold">{MULTI_TAG}</span>
+            </p>
+            <p className="text-xs tabular-nums text-paper/70">{rv.hp ? `${view.ehp} / ${enemy.hp}` : '체력 ???'}</p>
+          </div>
+          <p className="mt-0.5 text-[10px] text-paper/50">{recLabel(enemy)} · {partyLabel(enemy)}</p>
+          <div className="mt-2">
+            <Bar value={view.ehp} max={enemy.hp} tone="bg-crimson" label="상대 체력" hidden={!rv.hp} />
+          </div>
+          {!rv.hp && <p className="mt-1 text-[11px] text-paper/55">{vague(view.ehp, enemy.hp)}</p>}
+          <p className="mt-2 grid grid-cols-3 gap-x-2 text-[11px] tabular-nums text-paper/70">
+            <span>공격력 {q(rv.atk, enemy.atk)}</span>
+            <span>행동력 {q(rv.act, enemy.act)}</span>
+            <span>영력 {q(rv.spirit, enemy.spirit)}</span>
+          </p>
+          {!view.over && (
+            <div className="mt-3 rounded-lg bg-edge/[0.07] px-3 py-2 text-sm text-paper/85" aria-label="상대의 다음 행동">
+              <p className="text-[11px] text-paper/55">상대의 다음 행동 (일행 누구든 간파하면 모두에게 보인다)</p>
+              {shown > 0 ? (
+                <ol className="mt-1 flex flex-wrap gap-1.5">
+                  {view.queue.slice(0, Math.min(shown, 14)).map((k, i) => (
+                    <li key={i} className={`rounded-full px-2.5 py-0.5 text-xs ${k === 'smash' ? 'bg-crimson/25 text-crimson' : k === 'special' ? 'bg-gold/20 text-gold' : 'bg-edge/10'}`}>
+                      {i + 1}. {INTENTS[k].label}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-1 text-xs text-paper/60">알 수 없다. 간파로 읽을 수 있다.</p>
+              )}
+              <p className="mt-1 text-[11px] text-paper/50">상대는 일행 중 체력이 가장 많은 사람을 노린다.</p>
+            </div>
+          )}
+        </div>
+
+        <div className={`ink-panel rounded-xl p-4 ${danger ? 'ring-2 ring-crimson/70' : ''}`}>
+          <p className="font-serif text-lg text-paper">일행</p>
+          <ul className="mt-2 space-y-2" aria-label="일행 상태">
+            {view.members.map((m) => (
+              <li key={m.id} data-mb-member={m.id} className={`rounded-lg px-3 py-2 ${m.id === meId ? 'bg-gold-fill/15' : 'bg-edge/[0.07]'} ${m.status !== 'alive' ? 'opacity-60' : ''}`}>
+                <div className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-paper">
+                    {m.name}
+                    {m.id === meId && <span className="ml-1 text-gold">(나)</span>}
+                    {STATUS_LABEL[m.status] && <span className="ml-1.5 rounded-full bg-crimson/25 px-1.5 text-[10px] text-crimson">{STATUS_LABEL[m.status]}</span>}
+                    {m.pendingDeath && <span className="ml-1.5 text-[10px] text-crimson">쓰러지는 중</span>}
+                    {m.status === 'alive' && view.phase === 'input' && !view.over && <span className={`ml-1.5 text-[10px] ${m.acted ? 'text-gold' : 'text-paper/45'}`}>{m.acted ? '행동 완료' : '고르는 중…'}</span>}
+                  </span>
+                  <span className="tabular-nums text-paper/70">
+                    {m.php} / {m.phpMax}
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <Bar value={m.php} max={m.phpMax} tone={m.php <= m.phpMax * 0.3 ? 'bg-crimson' : 'bg-mana'} label={`${m.name} 체력`} />
+                </div>
+                <p className="mt-1 flex flex-wrap gap-1 text-[10px] text-paper/60">
+                  <span>의지력 {Math.floor(m.mp)}</span>
+                  <span>· 부적 {m.charms}장</span>
+                  {m.bound && <span className="text-crimson">· 막기 불가</span>}
+                  {m.boost && <span className="text-gold">· 마이쮸 대기</span>}
+                  {m.revive && <span className="text-gold">· 부활 대기</span>}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 flex items-center gap-3">
+            <div
+              key={dice?.k}
+              className={`grid size-12 shrink-0 place-items-center rounded-lg ${dice ? (dice.kind === 'enemy' ? 'bg-crimson/80' : 'bg-gold-fill') : 'bg-edge/10'} ${dice ? 'dice-pop' : ''}`}
+              style={{ transform: 'rotate(45deg)' }}
+              aria-label="마지막 주사위"
+            >
+              <span className="-rotate-45 font-serif text-xl text-ink light:text-ink">{dice ? dice.n : <Dices size={18} aria-hidden />}</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-paper/60">
+              내 마지막 굴림 · 돌발 {rash}%
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {!view.over && (
+        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-paper/55">
+          <span>소지품: 회복 아이템은 나에게, 마이쮸는 일행 누구에게든 건넬 수 있다. (턴을 쓰지 않는다)</span>
+          <button type="button" onClick={onOpenItems} className="flat-chip tilt shrink-0">
+            소지품
+          </button>
+        </div>
+      )}
+
+      {!view.over && (
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" role="group" aria-label="행동 선택">
+          {ACTION_ORDER.map((id, i) => {
+            const Icon = ACTION_ICONS[id]
+            const off =
+              !canAct && id !== 'psychic'
+                ? true
+                : id === 'psychic'
+                  ? !canAct
+                  : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'buff' && have < 1) || (id === 'scan' && have < 1) || (id === 'guard' && me.bound)
+            return (
+              <button
+                key={id}
+                type="button"
+                disabled={off}
+                onClick={() => pick(id)}
+                aria-pressed={id === 'psychic' ? psyOpen : undefined}
+                data-mb-act={id}
+                className="tilt flex flex-col items-start gap-1 rounded-xl bg-edge/[0.07] p-3 text-left enabled:hover:bg-gold-fill/20 disabled:opacity-40"
+              >
+                <span className="flex items-center gap-1.5 text-sm font-medium text-paper">
+                  <Icon size={15} aria-hidden className="text-gold" />
+                  {ACTIONS[id].label}
+                  <span className="text-[10px] text-paper/40">{i + 1}</span>
+                </span>
+                <span className="text-[10.5px] leading-snug text-paper/60">{id === 'scan' ? `의지력 N. 1이면 ${scanTurns(stats, enemy)}턴, 1 늘 때마다 1턴 더 본다.` : ACTIONS[id].note}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {scanOpen && !view.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="간파">
+          <p className="font-serif text-base text-gold">간파</p>
+          {(() => {
+            const n = Math.max(1, Math.min(have, scanN))
+            return (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" aria-label="간파 의지력 줄이기" onClick={() => setScanN(Math.max(1, n - 1))} disabled={n <= 1} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">−</button>
+                <span className="w-10 text-center text-sm text-paper">{n}</span>
+                <button type="button" aria-label="간파 의지력 늘리기" onClick={() => setScanN(Math.min(have, n + 1))} disabled={n >= have} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
+                <span className="text-xs text-gold">의지력 {n} → {scanTurns(stats, enemy, n)}턴</span>
+                <button type="button" onClick={() => send({ action: 'scan', scanAmount: n })} disabled={!canAct} className="flat-btn justify-center disabled:opacity-40" data-scan-go>
+                  <Eye size={14} aria-hidden />
+                  간파 사용
+                </button>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
+      {psyOpen && !view.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
+          <p className="font-serif text-base text-gold">영능력</p>
+          {(() => {
+            const mine = PSYCHICS.filter((s) => psychics.includes(s.id))
+            if (!mine.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
+            return (
+              <ul className="mt-2 space-y-2">
+                {mine.map((s) => (
+                  <li key={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
+                    <p className="text-sm text-paper">{s.label}</p>
+                    <p className="text-[11px] text-paper/60">{s.note}</p>
+                    {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
+                    {s.use && (
+                      <button type="button" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        사용
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
+        </div>
+      )}
+
+      {me?.pendingDeath && !view.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4 text-center" role="alertdialog" aria-label="버티기" data-mb-survive>
+          <p className="font-serif text-xl text-crimson">체력이 바닥났다!</p>
+          <p className="mt-1 text-sm text-paper/80">
+            버티기를 쓰면 의지력 <b className="text-gold">{Math.max(0, have - 1)}</b>을(를) 전부 쏟고 체력 1로 일어선다. 포기하면 이 전투에서 쓰러진다. (일행은 계속 싸운다)
+          </p>
+          <p className="mt-1 text-[11px] text-paper/60">버티기는 한 전투에 한 번뿐이다. 인내 {Math.min(100, stats.endurance)}% 확률로 의지력을 쓰지 않는다.{left != null && ` · ${left}초 안에 고르지 않으면 쓰러진다.`}</p>
+          <div className="mt-3 flex justify-center gap-2">
+            <button type="button" onClick={() => onSurvive(true)} disabled={have < 2} className="flat-btn justify-center disabled:opacity-40">버티기</button>
+            <button type="button" onClick={() => onSurvive(false)} className="flat-btn justify-center !bg-crimson">쓰러진다</button>
+          </div>
+        </div>
+      )}
+      {view.phase === 'survive' && !me?.pendingDeath && !view.over && <p className="mt-3 text-center text-xs text-paper/60">일행이 버틸지 정하고 있다…</p>}
+
+      {view.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4 text-center" data-mb-result>
+          {(() => {
+            const r = me?.result
+            return (
+              <>
+                <p className={`font-serif text-2xl ${r === 'win' ? 'text-gold' : r === 'fled' ? 'text-paper' : 'text-crimson'}`}>{r === 'win' ? '승리' : r === 'fled' ? '이탈' : '패배'}</p>
+                {r === 'win' && <p className="mt-1 text-xs text-paper/70">일행이 함께 {enemy.name}을(를) 쓰러뜨렸다. (영력 +{enemy.reward}, 하루 보상 한도 안에서)</p>}
+                {r === 'lose' && <p className="mt-1 text-xs text-paper/70">일행이 모두 쓰러졌다.</p>}
+                <button type="button" onClick={onClose} className="flat-btn mt-3 justify-center">
+                  상대 고르기
+                </button>
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      <ul className="mt-3 max-h-48 space-y-1 overflow-auto rounded-xl bg-shade/30 p-3 font-mono text-[11px] leading-relaxed" aria-live="polite" aria-label="전투 기록">
+        {[...view.log].reverse().map((l) => (
+          <li key={l.id} className={l.kind === 'enemy' ? 'text-crimson' : l.kind === 'warn' || l.kind === 'end' || l.kind === 'rash' || l.kind === 'special' ? 'text-gold' : 'text-paper/80'}>
+            {textOf(l)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

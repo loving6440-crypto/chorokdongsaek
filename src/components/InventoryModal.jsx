@@ -4,7 +4,7 @@ import { EQUIP_SLOTS, ITEMS, canUseItem, countOf, equipOf, isGear, isMaterial, i
 import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
-export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onEquip, onUnequip, partyMates = [], onClose }) {
+export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onEquip, onUnequip, partyMates = [], partyBattle = false, onClose }) {
   const [sel, setSel] = useState(null) // 아이템 id
   const [slotSel, setSlotSel] = useState(null) // 착용 중인 부위 id
   const [targeting, setTargeting] = useState(false) // 마이쭈: 누구에게 줄까
@@ -166,12 +166,23 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                     나 (자신)
                   </button>
                   {partyMates.map((m) => (
-                    <button key={m.id} type="button" disabled title="파티 전투는 준비 중이다" className="rounded-lg bg-edge/10 px-2.5 py-1 text-xs text-paper/45 disabled:cursor-not-allowed">
+                    <button
+                      key={m.id}
+                      type="button"
+                      data-target={m.id}
+                      disabled={!partyBattle}
+                      title={partyBattle ? undefined : '파티 전투(다인 전투) 중에만 건넬 수 있다'}
+                      onClick={() => {
+                        onUse(picked.id, m.id)
+                        setTargeting(false)
+                      }}
+                      className="flat-btn !py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                    >
                       {m.name}
                     </button>
                   ))}
                 </div>
-                {partyMates.length > 0 && <p className="mt-1 text-[10px] text-paper/45">파티원에게 건네는 건 파티 전투가 열리면 쓸 수 있다.</p>}
+                {partyMates.length > 0 && !partyBattle && <p className="mt-1 text-[10px] text-paper/45">파티원에게 건네는 건 다인 전투 중에만 쓸 수 있다.</p>}
               </div>
             ) : (
               <div className="mt-3 flex justify-end gap-2">

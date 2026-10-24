@@ -4,6 +4,9 @@
 //  - hint:   달성하기 전에는 보이지 않는다. 달성한 뒤 '달성 조건'으로 보인다.
 //  - reward: { spirit } 달성하는 순간 자동으로 들어온다.
 //  - at(player, now): 달성 조건을 채운 시각(ms)을 돌려준다. 아직이면 null.
+import { SKINS } from './skins2048'
+
+const SKIN_NAME = Object.fromEntries(SKINS.map((k) => [k.id, k.name]))
 const DAY = 24 * 60 * 60 * 1000
 
 export const ACHIEVEMENTS = [
@@ -15,9 +18,18 @@ export const ACHIEVEMENTS = [
     reward: { spirit: 20 },
     at: (p, now) => (p.createdAt && now - p.createdAt >= DAY ? p.createdAt + DAY : null),
   },
+  {
+    id: 'first-talisman',
+    name: '첫 부적',
+    desc: '삐뚤빼뚤하지만 첫 부적 한 장을 완성했다. 칸이 가득 차기 전에 수를 끌어올리는 요령이 조금 붙었다.',
+    hint: '부적학 수업을 처음으로 마친다.',
+    reward: { spirit: 10, skin: 'changnok' },
+    at: (p) => p.cleared?.['talisman-2048'] ?? null,
+  },
 ]
 
-export const rewardText = (r) => (r?.spirit ? `영력 +${r.spirit}` : '')
+export const rewardText = (r) =>
+  [r?.spirit ? `영력 +${r.spirit}` : '', r?.skin ? `2048 스킨 [${SKIN_NAME[r.skin] ?? r.skin}] 해금` : ''].filter(Boolean).join(' · ')
 
 /** 새로 달성한 업적이 있으면 기록하고 보상을 준다. 바뀐 게 없으면 같은 player 를 돌려준다. */
 export function checkAchievements(player, now = Date.now()) {

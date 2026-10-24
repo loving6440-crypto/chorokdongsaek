@@ -50,6 +50,7 @@ export function codexEntries(chapterId, player) {
       known: (p.seen?.[e.id] || 0) > 0,
       name: e.name,
       desc: e.blurb,
+      tags: e.tags,
       tier: e.tier,
     }))
   }

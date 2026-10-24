@@ -10,6 +10,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ITEMS } from '../src/game/items.js'
+import { ENEMIES } from '../src/game/battle.js'
+import * as MB from '../src/game/mbattle.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GIFT_MAX = 5
@@ -43,6 +45,7 @@ const MARKET_MAX_PER_SELLER = 10
 const MARKET_QTY_MAX = 99
 const MARKET_PRICE_MAX = 99999
 let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade, avatar, at } }  (접속자 이름을 눌렀을 때 보여 준다)
+let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
 
 // ───────── 영속 데이터(랭킹 · 벼룩시장) ─────────
@@ -51,6 +54,7 @@ try {
   const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
+  if (raw?.members && typeof raw.members === 'object') members = raw.members
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
 } catch {
   /* 첫 실행이면 빈 랭킹으로 시작 */
@@ -60,7 +64,7 @@ function scheduleSave() {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     try {
-      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market, cards }, null, 1))
+      fs.writeFileSync(DATA_FILE, JSON.stringify({ ranking, market, cards, members }, null, 1))
     } catch (e) {
       console.error('랭킹 저장 실패:', e.message)
     }
@@ -132,6 +136,118 @@ function leaveParty(id, reason = 'leave') {
   } else {
     pushPartyMsg(p, makeMsg(null, `${name}님이 일행을 떠났다.`, { system: true }))
     pushParty(p)
+  }
+}
+
+
+// ───────── 다인 전투 ─────────
+// 일행(파티) 중 한 명이 '다인 전투' 상대에게 도전하면 나머지 일행에게 초대가 가고, 수락한 사람들이 한 판에서 함께 싸운다.
+// 판은 서버가 진행한다. (src/game/mbattle.js)
+const MB_LOBBY_MS = 30_000
+const mbs = new Map() // bid → { id, host, enemyId, phase: 'lobby'|'fight'|'over', invited: {id: 'wait'|'yes'|'no'}, joins: {id: info}, mb, timer, deadline }
+const mbOf = new Map() // playerId → bid (로비이거나 전투 중)
+let mbSeq = 1
+
+const mbMembers = (g) => (g.mb ? g.mb.members.map((m) => m.id) : [...mbOf].filter(([, b]) => b === g.id).map(([id]) => id))
+function mbPush(g, extra = {}) {
+  if (!g.mb) return
+  for (const id of g.mb.members.map((m) => m.id)) sendTo(id, { t: 'mb', ev: 'state', bid: g.id, view: MB.viewOf(g.mb, { deadline: g.deadline, ...extra }) })
+}
+function mbClear(g, ids) {
+  clearTimeout(g.timer)
+  for (const id of ids) if (mbOf.get(id) === g.id) mbOf.delete(id)
+}
+function mbEnd(g) {
+  g.phase = 'over'
+  g.deadline = null
+  mbPush(g)
+  mbClear(g, g.mb.members.map((m) => m.id))
+  setTimeout(() => mbs.delete(g.id), 120_000)
+}
+// 라운드 진행 중 시간 제한을 건다.
+function mbArm(g) {
+  clearTimeout(g.timer)
+  const mb = g.mb
+  if (mb.over) return mbEnd(g)
+  if (mb.phase === 'input') {
+    g.deadline = Date.now() + MB.MB_INPUT_MS
+    g.timer = setTimeout(() => {
+      MB.autoFill(mb)
+      mbStep(g)
+    }, MB.MB_INPUT_MS)
+  } else if (mb.phase === 'survive') {
+    g.deadline = Date.now() + MB.MB_SURVIVE_MS
+    g.timer = setTimeout(() => {
+      for (const m of MB.pendingSurvivors(mb)) MB.survive(mb, m.id, false)
+      mbAfter(g)
+    }, MB.MB_SURVIVE_MS)
+  }
+  mbPush(g)
+}
+function mbAfter(g) {
+  if (g.mb.over) return mbEnd(g)
+  mbArm(g)
+  if (g.mb.phase === 'input' && MB.ready(g.mb)) mbStep(g) // 전원 돌발이면 곧바로 해결
+}
+function mbStep(g) {
+  if (g.phase !== 'fight' || g.mb.phase !== 'input') return
+  MB.resolveRound(g.mb)
+  mbAfter(g)
+}
+function mbStart(g) {
+  clearTimeout(g.timer)
+  const infos = [g.joins[g.host], ...Object.keys(g.joins).filter((id) => id !== g.host).map((id) => g.joins[id])]
+  if (infos.length < 2) {
+    sendTo(g.host, { t: 'mb', ev: 'cancel', bid: g.id, reason: '함께할 일행이 없어 전투가 취소되었다.' })
+    for (const id of Object.keys(g.invited)) sendTo(id, { t: 'mb', ev: 'closed', bid: g.id })
+    mbClear(g, [g.host, ...Object.keys(g.invited)])
+    mbs.delete(g.id)
+    return
+  }
+  for (const id of Object.keys(g.invited)) if (g.invited[id] !== 'yes') {
+    sendTo(id, { t: 'mb', ev: 'closed', bid: g.id })
+    if (mbOf.get(id) === g.id) mbOf.delete(id)
+  }
+  g.phase = 'fight'
+  g.mb = MB.createMB(g.enemyId, infos)
+  MB.openingInitiative(g.mb)
+  if (g.mb.phase === 'input' && !g.mb.members.some((m) => m.act)) MB.beginRound(g.mb)
+  mbAfter(g)
+}
+function mbLobbyCheck(g) {
+  if (g.phase !== 'lobby') return
+  if (Object.values(g.invited).every((v) => v !== 'wait')) mbStart(g)
+  else {
+    for (const id of [g.host]) sendTo(id, { t: 'mb', ev: 'lobby', bid: g.id, enemyId: g.enemyId, waiting: Object.keys(g.invited).filter((i) => g.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i), joined: Object.keys(g.joins).map((i) => clients.get(i)?.name ?? i) })
+  }
+}
+const mbInfo = (c, me) => ({ id: c.id, name: c.name, stats: me?.stats, hp: me?.hp, hpMax: me?.hpMax, mp: me?.mp, mpMax: me?.mpMax, revive: !!me?.revive, boost: !!me?.boost })
+function mbDisconnect(id) {
+  const bid = mbOf.get(id)
+  const g = bid && mbs.get(bid)
+  if (!g) return
+  if (g.phase === 'lobby') {
+    if (id === g.host) {
+      for (const i of Object.keys(g.invited)) sendTo(i, { t: 'mb', ev: 'closed', bid: g.id })
+      mbClear(g, [g.host, ...Object.keys(g.invited)])
+      clearTimeout(g.timer)
+      mbs.delete(g.id)
+    } else if (g.invited[id] === 'wait') {
+      g.invited[id] = 'no'
+      mbOf.delete(id)
+      mbLobbyCheck(g)
+    }
+  } else if (g.phase === 'fight') {
+    // 잠깐 끊긴 건 봐 준다. 30초 안에 돌아오지 않으면 전투에서 이탈한 것으로 친다.
+    setTimeout(() => {
+      if (clients.has(id) || g.phase !== 'fight') return
+      MB.dropMember(g.mb, id)
+      mbOf.delete(id)
+      if (g.mb.over) return mbEnd(g)
+      if (g.mb.phase === 'survive' && !MB.pendingSurvivors(g.mb).length) mbAfter(g)
+      else if (MB.ready(g.mb)) mbStep(g)
+      else mbPush(g)
+    }, 30_000)
   }
 }
 
@@ -233,6 +349,12 @@ async function handleApi(req, res, url) {
       }
     }
     const client = { id, name, res, joinedAt: Date.now(), title: isAdmin ? ADMIN_TITLE : undefined }
+    {
+      const m = members[id]
+      const now = Date.now()
+      members[id] = { id, name, firstSeen: m?.firstSeen ?? now, lastSeen: now, visits: (m?.visits ?? 0) + (prev ? 0 : 1) }
+      scheduleSave()
+    }
     clients.set(id, client)
     const pid = partyOf.get(id)
     const party = pid ? parties.get(pid) : null
@@ -243,6 +365,10 @@ async function handleApi(req, res, url) {
       history,
       party: partyView(party),
       partyLog: party?.log ?? [],
+      mb: (() => {
+        const g = mbs.get(mbOf.get(id))
+        return g?.mb && g.phase === 'fight' ? { bid: g.id, view: MB.viewOf(g.mb, { deadline: g.deadline }) } : null
+      })(),
     })
     if (party) pushParty(party)
     pushPresence()
@@ -252,6 +378,7 @@ async function handleApi(req, res, url) {
       if (clients.get(id) === client) {
         clients.delete(id)
         invites.delete(id)
+        mbDisconnect(id)
         // 잠깐의 재연결은 일행을 유지하고, 오래 안 돌아오면 일행에서 뺀다.
         setTimeout(() => {
           if (!clients.has(id)) leaveParty(id, 'drop')
@@ -290,6 +417,38 @@ async function handleApi(req, res, url) {
     if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
     admins.add(id)
     return json(res, 200, { ok: true })
+  }
+
+  // 회원 목록(관리자 전용): 서버에 데이터가 남은 모든 계정. 명부 + 인적사항 카드 + 랭킹 기록에서 모은다.
+  if (route === '/api/admin/members') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    const ids = new Set([...Object.keys(members), ...Object.keys(cards)])
+    for (const c of COURSES) for (const k of Object.keys(ranking[c])) ids.add(k)
+    const list = [...ids].map((pid) => {
+      const m = members[pid]
+      const c = cards[pid]
+      const scores = {}
+      for (const co of COURSES) if (ranking[co][pid]) scores[co] = ranking[co][pid].score
+      return {
+        id: pid,
+        name: m?.name ?? c?.name ?? ranking[COURSES.find((co) => ranking[co][pid])]?.[pid]?.name ?? pid,
+        grade: c?.grade ?? null,
+        age: c?.age ?? null,
+        greeting: c?.greeting ?? '',
+        firstSeen: m?.firstSeen ?? null,
+        lastSeen: m?.lastSeen ?? c?.at ?? null,
+        visits: m?.visits ?? 0,
+        online: clients.has(pid),
+        admin: admins.has(pid),
+        scores,
+      }
+    })
+    list.sort((a, b) => (b.online - a.online) || ((b.lastSeen ?? 0) - (a.lastSeen ?? 0)))
+    return json(res, 200, { ok: true, total: list.length, members: list })
   }
 
   if (route === '/api/ranking') {
@@ -413,6 +572,88 @@ async function handleApi(req, res, url) {
     const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, at: Date.now() }
     send(target, { t: 'gift', gift })
     return json(res, 200, { ok: true, giftId: gift.id, to: { id: target.id, name: target.name } })
+  }
+
+
+  // ───────── 다인 전투 ─────────
+  if (route === '/api/mb/start') {
+    const enemy = ENEMIES.find((e) => e.id === body.enemy)
+    if (!enemy || !MB.isMulti(enemy)) return json(res, 400, { error: 'not-multi' })
+    if (mbOf.has(me.id)) return json(res, 409, { error: 'already-in-battle' })
+    const p = parties.get(partyOf.get(me.id))
+    const mates = p ? p.members.filter((m) => m !== me.id && clients.has(m)) : []
+    if (!mates.length) return json(res, 409, { error: 'need-party' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const free = mates.filter((m) => !mbOf.has(m))
+    if (!free.length) return json(res, 409, { error: 'mates-busy' })
+    const g = { id: `b${mbSeq++}`, host: me.id, enemyId: enemy.id, phase: 'lobby', invited: Object.fromEntries(free.map((m) => [m, 'wait'])), joins: { [me.id]: mbInfo(me, body.me) }, mb: null, timer: null, deadline: null }
+    mbs.set(g.id, g)
+    mbOf.set(me.id, g.id)
+    for (const m of free) {
+      mbOf.set(m, g.id)
+      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name }, expires: Date.now() + MB_LOBBY_MS })
+    }
+    g.timer = setTimeout(() => {
+      for (const id of Object.keys(g.invited)) if (g.invited[id] === 'wait') g.invited[id] = 'no'
+      mbLobbyCheck(g)
+    }, MB_LOBBY_MS)
+    mbLobbyCheck(g)
+    return json(res, 200, { ok: true, bid: g.id, invited: free.length })
+  }
+
+  if (route === '/api/mb/respond') {
+    const g = mbs.get(body.bid)
+    if (!g || g.phase !== 'lobby' || g.invited[me.id] !== 'wait') return json(res, 410, { error: 'expired' })
+    if (body.accept) {
+      g.invited[me.id] = 'yes'
+      g.joins[me.id] = mbInfo(me, body.me)
+    } else {
+      g.invited[me.id] = 'no'
+      mbOf.delete(me.id)
+      sendTo(g.host, { t: 'notice', text: `${me.name}님이 ${ENEMIES.find((e) => e.id === g.enemyId)?.name} 전투 초대를 거절했다.` })
+    }
+    mbLobbyCheck(g)
+    return json(res, 200, { ok: true })
+  }
+
+  if (route === '/api/mb/cancel') {
+    const g = mbs.get(body.bid)
+    if (!g || g.phase !== 'lobby' || g.host !== me.id) return json(res, 410, { error: 'expired' })
+    for (const i of Object.keys(g.invited)) sendTo(i, { t: 'mb', ev: 'closed', bid: g.id })
+    sendTo(me.id, { t: 'mb', ev: 'cancel', bid: g.id, reason: '전투 초대를 취소했다.' })
+    mbClear(g, [g.host, ...Object.keys(g.invited)])
+    mbs.delete(g.id)
+    return json(res, 200, { ok: true })
+  }
+
+  if (route === '/api/mb/act') {
+    const g = mbs.get(body.bid)
+    if (!g || g.phase !== 'fight') return json(res, 410, { error: 'expired' })
+    const r = MB.submit(g.mb, me.id, body.act)
+    if (r.error) return json(res, 409, r)
+    if (MB.ready(g.mb)) mbStep(g)
+    else mbPush(g)
+    return json(res, 200, { ok: true })
+  }
+
+  if (route === '/api/mb/survive') {
+    const g = mbs.get(body.bid)
+    if (!g || g.phase !== 'fight') return json(res, 410, { error: 'expired' })
+    const r = MB.survive(g.mb, me.id, !!body.accept)
+    if (r.error) return json(res, 409, r)
+    if (g.mb.phase === 'survive') mbPush(g)
+    else mbAfter(g)
+    return json(res, 200, { ok: true })
+  }
+
+  if (route === '/api/mb/item') {
+    const g = mbs.get(body.bid)
+    if (!g || g.phase !== 'fight') return json(res, 410, { error: 'expired' })
+    const item = ITEMS.find((i) => i.id === body.item)
+    const r = MB.useItemMB(g.mb, me.id, item, cleanId(body.to) || me.id)
+    if (r.error) return json(res, 409, r)
+    mbPush(g)
+    return json(res, 200, { ok: true })
   }
 
   if (route === '/api/party/invite') {

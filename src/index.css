@@ -598,3 +598,12 @@ button.bg-gold { border-radius: 0.55rem; }
 @keyframes sp-shake { 0%,100% { transform: translateX(0) } 15% { transform: translateX(-5px) } 30% { transform: translateX(5px) } 45% { transform: translateX(-3px) } 60% { transform: translateX(3px) } }
 .sp-shake { animation: sp-shake .45s ease-out 1; }
 @media (prefers-reduced-motion: reduce) { .sp-banner { animation: none; } .sp-shake { animation: none; } }
+
+/* 부적학 [창록 교화] 스킨: 흩날리는 벚꽃잎 */
+@keyframes petal-fall {
+  0% { transform: translate(0, -12%) rotate(0deg); opacity: 0; }
+  12% { opacity: 0.9; }
+  100% { transform: translate(26px, 520%) rotate(300deg); opacity: 0; }
+}
+.petal { animation: petal-fall 8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .petal { animation: none; opacity: 0; } }

@@ -80,6 +80,7 @@ export const bgm = {
   setTrack(next) {
     if (!TRACKS[next] || next === track) return
     track = next
+    try { document.documentElement.dataset.bgm = next } catch { /* 테스트용 표시 */ }
     const a = audios[next]
     if (a && next === 'battle') a.currentTime = 0
     sync()

@@ -1,6 +1,60 @@
 import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
 import { STAT_KEYS, STAT_META } from '../game/constants'
+import { fetchMembers } from '../net/online'
+
+const fmtAt = (t) => {
+  if (!t) return '—'
+  const d = new Date(t)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const COURSE_LABEL = { 'talisman-2048': '부적', 'spell-typing': '주문', 'ward-tetris': '결계', 'folklore-spot': '민속', 'exorcism-space': '퇴마' }
+
+/** 회원 목록: 서버에 데이터가 남은 모든 계정 */
+function MemberList({ userId, adminKey }) {
+  const [st, setSt] = useState({ loading: true })
+  const [q, setQ] = useState('')
+  const load = () => {
+    setSt({ loading: true })
+    fetchMembers(userId, adminKey).then((r) => setSt(r.ok ? { list: r.members, total: r.total } : { error: r.error }))
+  }
+  useEffect(load, [userId, adminKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const list = (st.list ?? []).filter((m) => !q.trim() || `${m.id} ${m.name}`.toLowerCase().includes(q.trim().toLowerCase()))
+  return (
+    <section data-members>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs tracking-widest text-paper/55">회원 목록 {st.total != null && `(${st.total}명)`}</p>
+        <button type="button" onClick={load} className="rounded border border-edge/25 px-2 py-0.5 text-[11px] text-paper/80 hover:bg-edge/10">새로고침</button>
+      </div>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="아이디·이름 검색" aria-label="회원 검색" className="mb-2 w-full rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper outline-none focus:border-gold/50" />
+      {st.loading && <p className="text-xs text-paper/55">불러오는 중…</p>}
+      {st.error && <p className="text-xs text-crimson" role="alert">{st.error === 'bad-key' ? '관리자 키가 확인되지 않았다.' : st.error === 'admin-disabled' ? '서버에 관리자 키가 설정되어 있지 않다.' : '목록을 불러오지 못했다.'}</p>}
+      <ul className="space-y-1.5" aria-label="회원 목록">
+        {list.map((m) => (
+          <li key={m.id} data-member={m.id} className="rounded-lg bg-shade/25 px-3 py-2 text-xs text-paper/85">
+            <p className="flex flex-wrap items-center gap-x-2">
+              <b className="font-serif text-sm text-paper">{m.name}</b>
+              <span className="text-paper/55">@{m.id}</span>
+              {m.online && <span className="rounded-full bg-gold-fill/80 px-1.5 text-[10px] text-ink">접속 중</span>}
+              {m.admin && <span className="rounded-full bg-crimson/80 px-1.5 text-[10px] text-[#fbf6e9]">관리자</span>}
+            </p>
+            <p className="mt-0.5 text-paper/60">
+              {m.grade ? `${m.grade}학년` : '학년 ?'} · {m.age ? `${m.age}세` : '나이 ?'} · 접속 {m.visits}회
+            </p>
+            <p className="text-paper/50">처음 {fmtAt(m.firstSeen)} · 마지막 {fmtAt(m.lastSeen)}</p>
+            {m.greeting && <p className="text-paper/60">“{m.greeting}”</p>}
+            {Object.keys(m.scores).length > 0 && (
+              <p className="text-paper/50">{Object.entries(m.scores).map(([c, v]) => `${COURSE_LABEL[c] ?? c} ${v}`).join(' · ')}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+      {!st.loading && !st.error && list.length === 0 && <p className="text-xs text-paper/55">표시할 회원이 없다.</p>}
+      <p className="mt-2 text-[10px] leading-relaxed text-paper/45">계정은 각자의 브라우저에 저장되므로, 서버에 한 번이라도 접속한 계정만 보인다. 이 기능이 생기기 전에 가입했더라도 다음에 접속하면 명부에 오른다.</p>
+    </section>
+  )
+}
 
 const num = (v, lo, hi, dec = false) => {
   const n = Number(v)
@@ -27,7 +81,7 @@ function Field({ id, label, value, onChange, min = 0, max = 9999 }) {
 }
 
 /** 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 마음대로 고친다. (소지금은 늘 무한) */
-export default function AdminPanel({ player, onApply, onClose }) {
+export default function AdminPanel({ player, userId, adminKey, onApply, onClose }) {
   const [v, setV] = useState(() => ({
     ...Object.fromEntries(STAT_KEYS.map((k) => [k, player.stats[k]])),
     hp: Math.floor(player.hp),
@@ -60,7 +114,7 @@ export default function AdminPanel({ player, onApply, onClose }) {
 
   return (
     <div className="modal-scrim fixed inset-0 z-[70] grid place-items-center p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="관리자 도구" className="ink-panel flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-2xl" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="관리자 도구" className="ink-panel flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-2 border-b border-edge/15 px-4 py-3">
           <h2 className="flex items-center gap-2 font-serif text-lg text-gold">
             <Shield size={18} aria-hidden />
@@ -93,6 +147,7 @@ export default function AdminPanel({ player, onApply, onClose }) {
               체력·의지력 가득 채우기
             </button>
           </section>
+          <MemberList userId={userId} adminKey={adminKey} />
         </div>
         <div className="flex justify-end gap-2 border-t border-edge/15 px-4 py-3">
           <button type="button" onClick={onClose} className="flat-btn-ghost">

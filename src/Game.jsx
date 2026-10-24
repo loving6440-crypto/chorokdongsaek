@@ -34,6 +34,8 @@ import {
   STAT_UPGRADE_COST_PER_POINT,
 } from './game/constants'
 import { LESSON_WAIT_MINUTES } from './game/courseInfo'
+import { ENEMIES } from './game/battle'
+import { SKINS, isSkinOpen } from './game/skins2048'
 import {
   GYM_DAILY_REWARDS,
   applyBattleResult,
@@ -59,7 +61,7 @@ import {
   isWeak,
   weakLeftText,
 } from './game/progress'
-import { connect, disconnect, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline } from './net/online'
+import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline } from './net/online'
 import Market from './components/Market'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
@@ -139,6 +141,7 @@ export default function Game({
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
   const [battleActive, setBattleActive] = useState(false)
+  const [bgmBattle, setBgmBattle] = useState(false) // 전투 교육 과정에서도 전투 BGM
   // 전투에 들어가면 전투 BGM, 끝나면 평소 BGM
   useEffect(() => {
     bgm.setTrack(battleActive ? 'battle' : 'main')
@@ -358,9 +361,17 @@ export default function Game({
   }
 
   const closeCourse = () => setCourse(null)
+  const setSkin2048 = useCallback((id) => {
+    const cur = playerRef.current
+    const k = SKINS.find((x) => x.id === id)
+    if (!k || !isSkinOpen(k, cur)) return
+    const next = { ...cur, skin2048: id }
+    playerRef.current = next
+    setPlayer(next)
+  }, [])
 
   const saveProfile = (v) => {
-    setPlayer((prev) => ({ ...prev, name: v.name, greeting: v.greeting ?? '', age: v.age, grade: v.grade, avatar: v.avatar }))
+    setPlayer((prev) => ({ ...prev, name: v.name, greeting: v.greeting ?? '', age: v.age, grade: v.grade, avatar: v.avatar, profileEdited: true }))
     setProfileOpen(false)
     addLog('프로필을 고쳤다.')
   }
@@ -465,10 +476,12 @@ export default function Game({
   useEffect(() => {
     if (online.status !== 'online') return undefined
     const t = setTimeout(() => {
-      sendCard({ name: player.name, greeting: player.greeting ?? '', age: player.age, grade: gradeOf(player), avatar: player.avatar })
+      // 프로필을 고친 적이 없으면 최초 입학 때의 인적사항이 보인다.
+      const src = player.profileEdited || !player.profile0 ? player : player.profile0
+      sendCard({ name: src.name, greeting: src.greeting ?? '', age: src.age, grade: gradeOf(src), avatar: src.avatar })
     }, 500)
     return () => clearTimeout(t)
-  }, [online.status, player.name, player.greeting, player.age, player.grade, player.avatar])
+  }, [online.status, player.name, player.greeting, player.age, player.grade, player.avatar, player.profileEdited, player.profile0])
   const claimProceeds = useCallback(async () => {
     const r = await marketClaim()
     if (!r.ok || !r.amount) return
@@ -655,10 +668,28 @@ export default function Game({
 
   // 전투 중에도 턴·상황과 상관없이 쓸 수 있고, 써도 내 턴이 끝나지 않는다. (전투 중 사용 가능한 아이템만)
   const useItem = useCallback(
-    (id) => {
+    async (id, target) => {
       const item = itemOf(id)
       const cur = playerRef.current
       if (!item) return
+      // 다인 전투 중: 효과는 서버가 판에 적용한다. (체력·의지력은 서버 값이 곧바로 반영된다.)
+      if (mbLiveRef.current) {
+        const ok = canUseItem(item, { inBattle: true, countNow: cur.inventory?.[id] || 0, reviveOn: false, boostOn: false })
+        if (!ok.ok) return
+        const to = target && target !== 'self' ? target : undefined
+        const r = await mbItem(id, to)
+        if (!r.ok) {
+          notify(r.error === 'already' ? '이미 효과가 걸려 있다.' : r.error === 'bad-target' ? '그 사람에게는 쓸 수 없다.' : '지금은 쓸 수 없다.')
+          return
+        }
+        const now = playerRef.current
+        const next = { ...now, inventory: { ...now.inventory, [id]: (now.inventory?.[id] || 0) - 1 } }
+        playerRef.current = next
+        setPlayer(next)
+        setItemsUsed((n) => n + 1)
+        addLog(`${item.name}을(를) ${to ? '일행에게 건넸다' : '사용했다'}.`)
+        return
+      }
       const ok = canUseItem(item, { inBattle: battleRef.current, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current, boostOn: boostRef.current })
       if (!ok.ok) return
       const e = item.effect
@@ -752,6 +783,82 @@ export default function Game({
     playerRef.current = next
     setPlayer(next)
   }, [])
+
+  // ───────── 다인 전투 ─────────
+  // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
+  const mbSnapshot = () => {
+    const cur = playerRef.current
+    return { stats: effectiveStats(cur), hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+  }
+  const mbLive = !!online.mb && !online.mb.view.over
+  const mbLiveRef = useRef(false)
+  mbLiveRef.current = mbLive
+  const mbRef = useRef({ bid: null, downed: false, finished: false })
+  const setMpAbs = useCallback((value) => {
+    const cur = playerRef.current
+    const mp = Math.max(0, Math.min(cur.mpMax, Math.floor(value)))
+    if (mp === Math.floor(cur.mp)) return
+    const next = { ...cur, mp }
+    playerRef.current = next
+    setPlayer(next)
+  }, [])
+  const mbView = online.mb?.view ?? null
+  const mbBid = online.mb?.bid ?? null
+  useEffect(() => {
+    if (!mbView || !online.me) return
+    const rec = mbRef.current
+    if (rec.bid !== mbBid) {
+      // 새 전투: 하던 동작을 멈추고 전투 화면으로 옮겨 간다.
+      mbRef.current = { bid: mbBid, downed: false, finished: false }
+      interruptAll('다인 전투에 참여해')
+      const cur = playerRef.current
+      const next = { ...cur, seen: { ...cur.seen, [mbView.enemyId]: (cur.seen?.[mbView.enemyId] || 0) + (mbView.over ? 0 : 1) } }
+      playerRef.current = next
+      setPlayer(next)
+      setLocationId('gym')
+      setActivity('battle')
+      setPanel('world')
+      addLog(`${ENEMIES.find((e) => e.id === mbView.enemyId)?.name} 다인 전투에 참여했다.`)
+    }
+    const me = mbView.members.find((m) => m.id === online.me.id)
+    if (!me) return
+    changeHp(Math.max(1, me.php))
+    setMpAbs(me.mp)
+    if (me.reviveUsed && reviveRef.current) {
+      reviveRef.current = false
+      setReviveOn(false)
+    }
+    const rec2 = mbRef.current
+    if (!rec2.downed && (me.status === 'down' || me.pendingDeath)) {
+      rec2.downed = true
+      downed()
+    }
+    if (mbView.over && !rec2.finished) {
+      rec2.finished = true
+      const enemy = ENEMIES.find((e) => e.id === mbView.enemyId)
+      reviveRef.current = false
+      setReviveOn(false)
+      boostRef.current = false
+      setBoostOn(false)
+      finishBattle({ win: me.result === 'win', fled: me.result === 'fled', enemy })
+    }
+  }, [mbView, mbBid]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (mbLive || bgmBattle) bgm.setTrack('battle')
+    else if (!battleActive) bgm.setTrack('main')
+  }, [mbLive, battleActive, bgmBattle])
+  const multiProps = {
+    meId: online.me?.id,
+    view: mbView,
+    onAct: mbAct,
+    onSurvive: mbSurvive,
+    onClose: mbClose,
+    canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online),
+    lobby: online.mbLobby,
+    onStart: (enemyId) => mbStart(enemyId, mbSnapshot()),
+    onCancel: mbCancel,
+  }
+  const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
 
   const finishBattle = useCallback(
     ({ win, fled, enemy }) => {
@@ -876,6 +983,12 @@ export default function Game({
               <Market player={player} admin={admin} online={online.status === 'online'} onSell={marketSell} onBuy={marketBuyIt} onCancel={marketCancelIt} onOpen={claimProceeds} />
             ) : (
               <>
+                {mbLive && !(locationId === 'gym' && activity === 'battle') && (
+                  <p data-mb-away className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
+                    다인 전투가 진행 중이다. 행동을 고르지 않으면 막기로 처리된다.
+                    <button type="button" className="flat-chip" onClick={() => { setLocationId('gym'); setActivity('battle') }}>전투로 돌아가기</button>
+                  </p>
+                )}
                 {isWeak(player) && (
                   <p data-weak-chip className="mb-3 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
                     [쇠약] 모든 육조 스탯이 5할 · 남은 시간 {weakLeftText(player)} (기숙사에서 6시간 취침하면 바로 회복)
@@ -954,6 +1067,8 @@ export default function Game({
                     onSpotItems={setSpotItems}
                     onOpenItems={() => setInvOpen(true)}
                     onGiveItem={giveItem}
+                    onBgm={setBgmBattle}
+                    multi={multiProps}
                   />
                 )}
                 {locationId === 'shrine' && (
@@ -991,6 +1106,8 @@ export default function Game({
         stats={effStats}
         lesson={course ? lessonOf(player, course.id) : null}
         actions={lessonActions}
+        player={player}
+        onSkin={setSkin2048}
       />
       {confirmQuit && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4">
@@ -1040,7 +1157,27 @@ export default function Game({
         </div>
       )}
       {profileOpen && <ProfileEditModal player={player} onSave={saveProfile} onClose={() => setProfileOpen(false)} />}
-      {adminOpen && <AdminPanel player={player} onApply={applyAdmin} onClose={() => setAdminOpen(false)} />}
+      {online.mbInvite && (
+        <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4" data-mb-invite>
+          <div role="dialog" aria-modal="true" aria-label="다인 전투 초대" className="ink-panel w-full max-w-sm rounded-xl p-5 text-center">
+            <p className="font-serif text-lg text-gold">다인 전투 초대</p>
+            <p className="mt-2 text-sm text-paper/85">
+              <b className="text-paper">{online.mbInvite.from.name}</b> 님이 <b className="text-paper">{online.mbInvite.enemy.name}</b> 전투에 초대를 보냈습니다.
+            </p>
+            <p className="mt-1 text-sm text-paper">전투에 참여하시겠습니까?</p>
+            <p className="mt-1 text-[11px] text-paper/55">참여하면 하던 일을 멈추고 전투 화면으로 이동한다.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button type="button" onClick={() => mbRespond(true, mbSnapshot())} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
+                참여
+              </button>
+              <button type="button" onClick={() => mbRespond(false)} className="rounded border border-gold/40 px-6 py-1.5 text-sm text-gold hover:bg-gold/10">
+                거절
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {adminOpen && <AdminPanel player={player} userId={userId} adminKey={adminKey} onApply={applyAdmin} onClose={() => setAdminOpen(false)} />}
       {profilesOpen && (
         <ProfileSwitchModal
           userId={userId}
@@ -1056,7 +1193,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={player} inBattle={battleActive} reviveOn={reviveOn} boostOn={boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyMates={(online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>
