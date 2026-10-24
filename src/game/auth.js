@@ -333,7 +333,8 @@ function adoptServerUser(serverUser, passwordHash) {
 
 function schedulePush(delay = PUSH_DELAY_MS) {
   if (!getToken()) return
-  clearTimeout(pushTimer)
+  // 이미 예약돼 있으면 그대로 둔다. (저장이 계속 일어나는 동안에도 몇 초에 한 번은 반드시 보낸다 — 매번 예약을 미루면 영영 안 간다)
+  if (pushTimer) return
   pushTimer = setTimeout(() => {
     pushTimer = null
     pushNow()
@@ -440,6 +441,15 @@ export async function syncOnStart() {
   if (!getToken()) {
     const h = await api('/api/health', { method: 'GET', timeout: 4000 })
     if (h.offline) return { user: local } // 서버가 없다 → 이 브라우저만으로 계속
+    // 관리자 계정이 아니면 비밀번호 없이 바로 서버로 옮긴다. (자동 이전)
+    if (!local.admin && /^[0-9a-f]{8}$/.test(String(local.passwordHash ?? ''))) {
+      const a = await api('/api/account/adopt', { body: { local: { id: local.id, passwordHash: local.passwordHash, twitter: local.twitter, createdAt: local.createdAt, ...pickGame(local) } }, timeout: 20000 })
+      if (a.offline) return { user: local }
+      if (a.ok) {
+        setToken(a.data.token)
+        return { user: adoptServerUser(a.data.user, local.passwordHash), migrated: true }
+      }
+    }
     clearSession()
     return { needLogin: true, id: local.id }
   }

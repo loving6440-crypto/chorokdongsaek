@@ -552,7 +552,13 @@ async function handleApi(req, res, url) {
       }
       migrated = true
     } else {
-      if (!A.verifyPassword(password, acc.passwordHash)) {
+      const legacy = typeof acc.passwordHash === 'string' && acc.passwordHash.startsWith('legacy$')
+      const pwOk = legacy ? acc.passwordHash === `legacy$${A.legacyHash(password, id)}` : A.verifyPassword(password, acc.passwordHash)
+      if (pwOk && legacy) {
+        acc.passwordHash = A.hashPassword(password) // 처음 로그인하는 순간 안전한 방식으로 바꾼다
+        delete acc.adopted
+      }
+      if (!pwOk) {
         loginFails.get(id)?.push(Date.now()) ?? loginFails.set(id, [Date.now()])
         return json(res, 401, { error: 'bad-login' })
       }
@@ -566,6 +572,30 @@ async function handleApi(req, res, url) {
     loginFails.delete(id)
     await accounts.put(acc)
     return json(res, 200, { ok: true, migrated, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+  }
+
+  // 자동 이전: 서버 저장이 생기기 전부터 로그인해 있던 브라우저가 접속하자마자 자기 기록을 올린다. (비밀번호 입력 없이)
+  // 서버에 같은 아이디가 이미 있으면 거절(409) → 그 브라우저는 평소처럼 로그인해야 한다. 관리자 표시는 믿지 않는다.
+  // 비밀번호는 브라우저에 있던 옛 해시를 'legacy$' 로 보관했다가, 그 계정이 처음 비밀번호로 로그인하는 순간 안전한 방식으로 바꾼다.
+  if (route === '/api/account/adopt') {
+    const local = body.local && typeof body.local === 'object' ? body.local : null
+    const id = typeof local?.id === 'string' ? local.id.trim() : ''
+    if (!ID_RULE.test(id) || !/^[0-9a-f]{8}$/.test(String(local.passwordHash ?? ''))) return json(res, 400, { error: 'bad-local' })
+    if (rateLimited(`auth:${id}`) || rateLimited('adopt:all')) return json(res, 429, { error: 'slow-down' })
+    if (await accounts.get(id)) return json(res, 409, { error: 'exists' })
+    const acc = {
+      id,
+      passwordHash: `legacy$${local.passwordHash}`,
+      twitter: String(local.twitter ?? '').slice(0, 60),
+      twitterNorm: A.normTwitter(local.twitter),
+      createdAt: Number(local.createdAt) || Date.now(),
+      admin: false,
+      adopted: true,
+      ...A.pickGame(local),
+      updatedAt: Date.now(),
+    }
+    await accounts.put(acc)
+    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
   }
 
   // 게임 저장 (로그인 토큰 필요). 브라우저가 저장할 때마다 몇 초 모아서 보낸다.
