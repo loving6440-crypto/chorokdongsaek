@@ -25,7 +25,6 @@ export const FLOORS = [
         details: [
           { id: 'handle', name: '손잡이' },
           { id: 'notice', name: '비품실 안내사항' },
-          { id: 'workshop', name: '공작소', workshop: true },
         ],
       },
       { id: 'escape', name: '거대한 문', note: '별관 혹은 뒷산으로 이어진다.' },

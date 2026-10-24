@@ -20,6 +20,7 @@ let state = {
   mailTick: 0, // 새 쪽지가 올 때마다 +1 (열려 있는 사물함이 다시 불러오는 신호)
   editReq: null, // 관리자의 스탯 · 디버프 수정 요청(동의 대기) { rid, adminName, changes, expires }
   editResult: null, // 내가 관리자일 때 받은 결과 { rid, status, targetName }
+  club: null, // 내가 속한 동아리 { id, joinedAt, log: [...] } (없으면 null)
 }
 const listeners = new Set()
 const emit = () => listeners.forEach((l) => l())
@@ -51,6 +52,7 @@ function handle(ev) {
         party: ev.party ?? null,
         mb: ev.mb ?? null,
         mailUnread: ev.mailUnread ?? 0,
+        club: ev.club ?? null,
       })
       break
     case 'presence':
@@ -88,6 +90,9 @@ function handle(ev) {
         seenGifts.add(ev.gift.id)
         giftListeners.forEach((l) => l(ev.gift))
       }
+      break
+    case 'clubChat':
+      if (state.club?.id === ev.club) set({ club: { ...state.club, log: [...state.club.log, ev.msg].slice(-200) } })
       break
     case 'mail':
       set({ mailUnread: state.mailUnread + 1, mailTick: state.mailTick + 1 })
@@ -215,6 +220,20 @@ export const respondEdit = async (rid, accept) => {
   return r
 }
 export const clearEditResult = () => set({ editResult: null })
+
+// ───────── 동아리 ─────────
+export const applyClub = async (club, name, grade, age, hope) => {
+  const r = await post('/api/club/apply', { club, name, grade, age, hope })
+  if (r?.ok) set({ club: { id: r.club, joinedAt: Date.now(), log: [] } })
+  return r
+}
+export const leaveClub = async () => {
+  const r = await post('/api/club/leave', {})
+  if (r?.ok) set({ club: null })
+  return r
+}
+export const fetchClubMembers = (club) => post('/api/club/members', { club })
+export const sendClubChat = (text) => post('/api/club/chat', { text })
 
 // ───────── 벼룩시장 ─────────
 /** 내 물건이 팔렸다는 알림이 오면 cb() 를 부른다. */

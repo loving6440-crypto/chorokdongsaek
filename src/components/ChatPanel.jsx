@@ -192,7 +192,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
                   </button>
                 )}
                 <ul className="space-y-1">
-                  {net.online.map((p) => {
+                  {[...net.online].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map((p) => {
                     const mine = p.id === net.me?.id
                     const mate = net.party?.members.some((m) => m.id === p.id)
                     return (

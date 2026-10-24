@@ -1,4 +1,4 @@
-import { LogOut, Pencil, RotateCcw, Shield, Trophy, Users } from 'lucide-react'
+import { LogOut, Pencil, RotateCcw, Shield, Trophy, Users, UsersRound } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -70,7 +70,7 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onReplayIntro, admin = false, onSwitchProfile, onOpenAdmin }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onSwitchProfile, onOpenAdmin }) {
   const location = LOCATIONS[locationId]
   const spiritMax = spiritGaugeMax(player.spirit)
 
@@ -199,14 +199,25 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         >
           내 소지품 확인하기
         </button>
-        <button
-          type="button"
-          onClick={onOpenCodex}
-          className="flat-btn absolute bottom-[40px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center"
-        >
-          <Trophy size={15} aria-hidden />
-          업적/도감 확인하기
-        </button>
+        <div className="absolute bottom-[40px] left-1/2 flex h-[48px] w-[248px] -translate-x-1/2 gap-2">
+          <button
+            type="button"
+            onClick={onOpenCodex}
+            className="flat-btn flex-1 justify-center !px-1 text-xs sm:text-sm"
+          >
+            <Trophy size={15} aria-hidden />
+            업적/도감
+          </button>
+          <button
+            type="button"
+            onClick={onOpenClub}
+            className="flat-btn relative flex-1 justify-center !px-1 text-xs sm:text-sm"
+          >
+            <UsersRound size={15} aria-hidden />
+            동아리
+            {inClub && <span className="absolute top-1.5 right-2.5 size-1.5 rounded-full bg-gold" aria-hidden />}
+          </button>
+        </div>
         {/* 맨 왼쪽 아래: 인트로 다시보기 */}
         <button
           type="button"

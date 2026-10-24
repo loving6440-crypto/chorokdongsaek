@@ -646,7 +646,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             버티기를 쓰면 의지력 <b className="text-gold">{Math.max(0, have - 1)}</b>을(를) 전부 쏟고 체력 1로 일어선다.
             포기하면 여기서 패배하지만 남은 의지력은 지킨다.
           </p>
-          <p className="mt-1 text-[11px] text-paper/60">버티기는 한 전투에 한 번뿐이다. 인내 {Math.min(100, stats.endurance)}% 확률로 의지력을 쓰지 않는다.</p>
+          <p className="mt-1 text-[11px] text-paper/60">버티기는 한 전투에 한 번뿐이다. 인내 {Math.min(100, stats.endurance * 2)}% 확률로 의지력을 쓰지 않는다.</p>
           <div className="mt-3 flex justify-center gap-2">
             <button type="button" onClick={() => survive(true)} className="flat-btn justify-center">버티기</button>
             <button type="button" onClick={() => survive(false)} className="flat-btn justify-center !bg-crimson">쓰러진다</button>

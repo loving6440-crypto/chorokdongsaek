@@ -29,6 +29,8 @@ export default function StatusPanel({ player, eff, onUpgrade }) {
         {STAT_KEYS.map((key) => {
           const meta = STAT_META[key]
           const value = player.stats[key]
+          const base = weak ? Math.max(1, Math.floor(value / 2)) : value // [쇠약] 중에는 5할로 줄어든 값이 기준
+          const bonus = shown[key] - base // 장비 · 버프로 붙은 보정만 (쇠약으로 줄어든 몫은 빼고)
           const cost = value * STAT_UPGRADE_COST_PER_POINT
           const maxed = value >= STAT_MAX
           const canAfford = !maxed && player.spirit >= cost
@@ -44,7 +46,7 @@ export default function StatusPanel({ player, eff, onUpgrade }) {
                 </p>
                 <span className="font-serif text-xl leading-none text-gold" data-stat-value={shown[key]}>
                   {shown[key]}
-                  {!weak && shown[key] > value && <sup className="ml-0.5 text-[10px] text-mana">+{shown[key] - value}</sup>}
+                  {bonus > 0 && <sup className="ml-0.5 text-[10px] text-mana">+{bonus}</sup>}
                 </span>
               </div>
               <button

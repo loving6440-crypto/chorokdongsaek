@@ -15,6 +15,7 @@ import { ENEMIES } from '../src/game/battle.js'
 import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
 import * as A from './accounts.js'
+import { CLUB_IDS, CLUB_JOIN_LOCK_MS, CLUB_REJOIN_WAIT_MS } from '../src/game/clubs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GIFT_MAX = 5
@@ -50,6 +51,11 @@ const MARKET_PRICE_MAX = 99999
 let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade, avatar, at } }  (접속자 이름을 눌렀을 때 보여 준다)
 let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
 let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
+let clubs = Object.fromEntries(CLUB_IDS.map((id) => [id, { members: {} }])) // { [clubId]: { members: { [playerId]: {id,name,grade,age,hope,joinedAt} } } }
+let clubOf = {} // playerId → 지금 속한 동아리 id (한 번에 하나)
+let clubLeftAt = {} // playerId → 마지막으로 탈퇴한 시각(재가입 대기용)
+let clubChat = Object.fromEntries(CLUB_IDS.map((id) => [id, []])) // { [clubId]: [메시지…] } (최근 400개)
+const CLUB_CHAT_CAP = 400
 let mail = { seq: 1, log: [] } // 쪽지 · 선물 내역: log [{ id, kind:'note'|'gift', from:{id,name}, to:{id,name}, text, items?, enh?, at, read }] (최신이 뒤). 관리자는 전부 열람.
 const MAIL_MAX = 1000 // 쪽지 글자 수 상한
 const MAIL_LOG_CAP = 5000
@@ -108,6 +114,10 @@ function applyRaw(raw) {
   if (raw?.members && typeof raw.members === 'object') members = raw.members
   if (raw?.stories && Array.isArray(raw.stories.pending)) stories = { pending: raw.stories.pending, papers: raw.stories.papers ?? {}, seq: raw.stories.seq || 1 }
   if (raw?.mail && Array.isArray(raw.mail.log)) mail = { seq: raw.mail.seq || 1, log: raw.mail.log }
+  if (raw?.clubs && typeof raw.clubs === 'object') for (const id of CLUB_IDS) if (raw.clubs[id]?.members) clubs[id] = { members: raw.clubs[id].members }
+  if (raw?.clubOf && typeof raw.clubOf === 'object') clubOf = raw.clubOf
+  if (raw?.clubLeftAt && typeof raw.clubLeftAt === 'object') clubLeftAt = raw.clubLeftAt
+  if (raw?.clubChat && typeof raw.clubChat === 'object') for (const id of CLUB_IDS) if (Array.isArray(raw.clubChat[id])) clubChat[id] = raw.clubChat[id]
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
 }
 if (db) {
@@ -150,7 +160,7 @@ const loginBlocked = (id) => {
 const bearer = (req) => accounts && A.readToken(accounts.secret, (req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''))
 const ID_RULE = /^[a-zA-Z0-9가-힣_]{2,40}$/
 
-const snapshot = () => ({ ranking, rankingWeek, lastWeek, market, cards, members, stories, mail })
+const snapshot = () => ({ ranking, rankingWeek, lastWeek, market, cards, members, stories, mail, clubs, clubOf, clubLeftAt, clubChat })
 async function saveNow() {
   if (db) {
     await db.query(
@@ -527,6 +537,7 @@ async function handleApi(req, res, url) {
       party: partyView(party),
       partyLog: party?.log ?? [],
       mailUnread: mail.log.reduce((n, m) => n + (m.to.id === id && !m.read ? 1 : 0), 0),
+      club: clubOf[id] ? { id: clubOf[id], joinedAt: clubs[clubOf[id]]?.members?.[id]?.joinedAt ?? null, log: clubChat[clubOf[id]]?.slice(-200) ?? [] } : null,
       mb: (() => {
         const g = mbs.get(mbOf.get(id))
         return g?.mb && g.phase === 'fight' ? { bid: g.id, view: MB.viewOf(g.mb, { deadline: g.deadline }) } : null
@@ -1052,6 +1063,60 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, giftId: gift.id, to: { id: target.id, name: target.name } })
   }
 
+
+  // ───────── 동아리 ─────────
+  // 가입 신청서 제출 = 그 자리에서 가입. 한 번에 한 동아리만, 탈퇴 뒤 24시간은 다른 동아리에도 못 들어간다.
+  if (route === '/api/club/apply') {
+    const clubId = typeof body.club === 'string' ? body.club : ''
+    if (!CLUB_IDS.includes(clubId)) return json(res, 400, { error: 'bad-club' })
+    if (clubOf[me.id]) return json(res, 409, { error: 'already-in-club' })
+    const waited = Date.now() - (clubLeftAt[me.id] || 0)
+    if (waited < CLUB_REJOIN_WAIT_MS) return json(res, 429, { error: 'rejoin-wait', waitMs: CLUB_REJOIN_WAIT_MS - waited })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const name = cleanName(body.name).slice(0, 20)
+    const grade = [1, 2, 3].includes(body.grade) ? body.grade : null
+    const age = Number.isInteger(body.age) && body.age >= 10 && body.age <= 40 ? body.age : null
+    const hope = typeof body.hope === 'string' ? body.hope.replace(/\s+/g, ' ').trim().slice(0, 200) : ''
+    if (!name) return json(res, 400, { error: 'bad-app' })
+    clubs[clubId].members[me.id] = { id: me.id, name, grade, age, hope, joinedAt: Date.now() }
+    clubOf[me.id] = clubId
+    scheduleSave()
+    return json(res, 200, { ok: true, club: clubId })
+  }
+  if (route === '/api/club/leave') {
+    const clubId = clubOf[me.id]
+    if (!clubId) return json(res, 400, { error: 'no-club' })
+    const m = clubs[clubId].members[me.id]
+    if (!m || Date.now() - m.joinedAt < CLUB_JOIN_LOCK_MS) return json(res, 403, { error: 'too-soon' })
+    delete clubs[clubId].members[me.id]
+    delete clubOf[me.id]
+    clubLeftAt[me.id] = Date.now()
+    scheduleSave()
+    return json(res, 200, { ok: true })
+  }
+  // 동아리 부실을 방문하면 누구나 멤버 목록(이름·학년·나이·포부)을 열람할 수 있다. (가입 여부와 상관없이)
+  if (route === '/api/club/members') {
+    const clubId = typeof body.club === 'string' ? body.club : ''
+    if (!CLUB_IDS.includes(clubId)) return json(res, 400, { error: 'bad-club' })
+    const list = Object.values(clubs[clubId].members)
+      .map((m) => ({ id: m.id, name: m.name, grade: m.grade, age: m.age, hope: m.hope, joinedAt: m.joinedAt }))
+      .sort((a, b) => a.joinedAt - b.joinedAt)
+    return json(res, 200, { ok: true, club: clubId, members: list })
+  }
+  // 동아리 채팅: 멤버만 보내고, 지금 접속해 있는 멤버에게만 실시간으로 간다(접속하면 hello 로 최근 기록을 받는다).
+  if (route === '/api/club/chat') {
+    const clubId = clubOf[me.id]
+    if (!clubId) return json(res, 400, { error: 'no-club' })
+    const text = typeof body.text === 'string' ? body.text.replace(/\s+/g, ' ').trim().slice(0, TEXT_MAX) : ''
+    if (!text) return json(res, 400, { error: 'empty' })
+    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
+    const msg = makeMsg(me, text)
+    clubChat[clubId].push(msg)
+    if (clubChat[clubId].length > CLUB_CHAT_CAP) clubChat[clubId].shift()
+    scheduleSave()
+    for (const pid of Object.keys(clubs[clubId].members)) sendTo(pid, { t: 'clubChat', club: clubId, msg })
+    return json(res, 200, { ok: true })
+  }
 
   // ───────── 다인 전투 ─────────
   if (route === '/api/mb/start') {

@@ -141,6 +141,16 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </span>
       </div>
 
+      {view.log.length > 0 && (
+        <ul className="mt-2 space-y-0.5 rounded-lg bg-shade/20 px-3 py-1.5 font-mono text-[11px] leading-relaxed" aria-live="polite" aria-label="방금 일어난 일" data-mb-recent>
+          {[...view.log].slice(-2).reverse().map((l) => (
+            <li key={l.id} className={l.kind === 'enemy' ? 'text-crimson' : l.kind === 'warn' || l.kind === 'end' || l.kind === 'rash' || l.kind === 'special' ? 'text-gold' : 'text-paper/85'}>
+              {textOf(l)}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {view.boss && (
         <p className="mt-2 rounded-lg bg-crimson/15 px-3 py-1.5 text-[11px] text-paper/80" data-boss-note>
           보스 전투 — 가져온 아이템만 쓸 수 있다{me?.bring ? ` (남은 ${Object.values(me.bring).reduce((a, b) => a + b, 0)}개)` : ''}.
@@ -332,7 +342,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
           <p className="mt-1 text-sm text-paper/80">
             버티기를 쓰면 의지력 <b className="text-gold">{Math.max(0, have - 1)}</b>을(를) 전부 쏟고 체력 1로 일어선다. 포기하면 이 전투에서 쓰러진다. (일행은 계속 싸운다)
           </p>
-          <p className="mt-1 text-[11px] text-paper/60">버티기는 한 전투에 한 번뿐이다. 인내 {Math.min(100, stats.endurance)}% 확률로 의지력을 쓰지 않는다.{left != null && ` · ${left}초 안에 고르지 않으면 쓰러진다.`}</p>
+          <p className="mt-1 text-[11px] text-paper/60">버티기는 한 전투에 한 번뿐이다. 인내 {Math.min(100, stats.endurance * 2)}% 확률로 의지력을 쓰지 않는다.{left != null && ` · ${left}초 안에 고르지 않으면 쓰러진다.`}</p>
           <div className="mt-3 flex justify-center gap-2">
             <button type="button" onClick={() => onSurvive(true)} disabled={have < 2} className="flat-btn justify-center disabled:opacity-40">버티기</button>
             <button type="button" onClick={() => onSurvive(false)} className="flat-btn justify-center !bg-crimson">쓰러진다</button>
@@ -359,7 +369,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </div>
       )}
 
-      <ul className="mt-3 max-h-48 space-y-1 overflow-auto rounded-xl bg-shade/30 p-3 font-mono text-[11px] leading-relaxed" aria-live="polite" aria-label="전투 기록">
+      <ul className="mt-3 max-h-48 space-y-1 overflow-auto rounded-xl bg-shade/30 p-3 font-mono text-[11px] leading-relaxed" aria-label="전체 전투 기록">
         {[...view.log].reverse().map((l) => (
           <li key={l.id} className={l.kind === 'enemy' ? 'text-crimson' : l.kind === 'warn' || l.kind === 'end' || l.kind === 'rash' || l.kind === 'special' ? 'text-gold' : 'text-paper/80'}>
             {textOf(l)}

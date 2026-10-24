@@ -26,6 +26,7 @@ import ProfileSwitchModal from './components/ProfileSwitchModal'
 import ProfileSidebar from './components/ProfileSidebar'
 import StatusPanel from './components/StatusPanel'
 import Annex from './components/locations/Annex'
+import { playHoljjak as playHoljjakGame } from './game/holjjak'
 import Dormitory from './components/locations/Dormitory'
 import Gym from './components/locations/Gym'
 import Infirmary from './components/locations/Infirmary'
@@ -67,7 +68,8 @@ import {
   isWeak,
   weakLeftText,
 } from './game/progress'
-import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline } from './net/online'
+import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers } from './net/online'
+import ClubModal from './components/ClubModal'
 import Market from './components/Market'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
@@ -128,6 +130,7 @@ export default function Game({
   const [giftTo, setGiftTo] = useState(null) // { id, name }
   const [cardTo, setCardTo] = useState(null) // 인적사항 카드로 보는 사람 { id, name }
   const [codexOpen, setCodexOpen] = useState(false)
+  const [clubOpen, setClubOpen] = useState(false)
   // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다. 전투 교육 중에는 끝난 뒤에 모아서 보여 준다.
   const [codexNew, setCodexNew] = useState([])
   const codexSeen = useRef(null)
@@ -659,6 +662,20 @@ export default function Game({
     setPlayer((prev) => ({ ...prev, achievements: { ...Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, { at: Date.now() }])), ...(prev.achievements ?? {}) } }))
   }, [admin, player.achievements])
 
+  // 패 놀이터 홀/짝. 시스템과 1:1로만 한다.
+  const playHoljjak = useCallback(
+    (bet, pick) => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const r = playHoljjakGame(playerRef.current, bet, pick, admin)
+      if (r.error) return r
+      playerRef.current = r.player
+      setPlayer(r.player)
+      addLog(`홀/짝 : ${pick === 'odd' ? '홀' : '짝'}을 걸었다 → 시스템 ${r.sysPick === 'odd' ? '홀' : '짝'}. ${r.win ? `승리! +${r.bet}냥` : `패배… -${r.bet}냥`}`)
+      return r
+    },
+    [addLog, admin],
+  )
+
   // NPC 에게 마이쮸를 건네 호감도를 올린다. (전투 중엔 불가)
   const giveNpc = useCallback(
     (npcId, itemId = 'chewy') => {
@@ -1035,6 +1052,8 @@ export default function Game({
         onSwitchProfile={() => setProfilesOpen(true)}
         onOpenAdmin={() => setAdminOpen(true)}
         onOpenCodex={() => setCodexOpen(true)}
+        onOpenClub={() => setClubOpen(true)}
+        inClub={!!online.club}
         onReplayIntro={() => setIntroReplay(true)}
         spotItems={spotItems}
       />
@@ -1090,7 +1109,21 @@ export default function Game({
                     onStopRest={() => guardTraining(() => endRest('스스로 멈춰'))}
                   />
                 )}
-                {locationId === 'annex' && <Annex view={activity} />}
+                {locationId === 'annex' && (
+                  <Annex
+                    view={activity}
+                    player={viewPlayer}
+                    admin={admin}
+                    onCraft={craftItem}
+                    onMeet={meetNpc}
+                    onLineSeen={lineSeen}
+                    onGiveNpc={giveNpc}
+                    onHoljjak={playHoljjak}
+                    myClub={online.club}
+                    onApplyClub={applyClub}
+                    onFetchMembers={fetchClubMembers}
+                  />
+                )}
                 {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />}
                 {locationId === 'dorm' && activity === 'cafeteria' && <Cafeteria online={online.status === 'online'} />}
                 {locationId === 'dorm' && activity !== 'store' && activity !== 'cafeteria' && (
@@ -1297,6 +1330,7 @@ export default function Game({
       {cardTo && <ProfileCardModal target={cardTo} onClose={() => setCardTo(null)} />}
       {codexNew.length > 0 && <CodexToast entries={codexNew} onClose={() => setCodexNew([])} onOpen={() => { setCodexNew([]); setCodexOpen(true) }} />}
       {codexOpen && <CodexModal player={player} admin={admin} onGet={adminGive} onClose={() => setCodexOpen(false)} />}
+      {clubOpen && <ClubModal onClose={() => setClubOpen(false)} onProfile={setCardTo} onFetchMembers={fetchClubMembers} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (

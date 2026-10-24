@@ -632,7 +632,7 @@ export function enemyTurn(state, ctx, rng = Math.random) {
 
 /**
  * 버티기: 한 전투에 한 번만. 체력 1로 일어서고, 의지력은 1만 남기고 모두 쓴다.
- * 단 (인내)% 확률로 의지력을 쓰지 않는다. 거절하면 그대로 패배.
+ * 단 (인내×2)%(최대 100%) 확률로 의지력을 쓰지 않는다. 거절하면 그대로 패배.
  */
 export function resolveSurvive(state, accept, mp, stats = { endurance: 0 }, rng = Math.random) {
   const s = { ...state, pendingDeath: false }
@@ -640,7 +640,7 @@ export function resolveSurvive(state, accept, mp, stats = { endurance: 0 }, rng 
   if (accept && have >= 2 && (state.survived | 0) < maxSurvives(stats)) {
     s.php = 1
     s.survived = (state.survived | 0) + 1
-    const pct = Math.max(0, Math.min(100, stats.endurance || 0))
+    const pct = Math.max(0, Math.min(100, (stats.endurance || 0) * 2))
     const d = Math.floor(rng() * 100) + 1
     const free = d <= pct
     const cost = free ? 0 : mpCostOf(stats, have - 1)
