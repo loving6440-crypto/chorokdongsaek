@@ -1056,7 +1056,14 @@ async function handleApi(req, res, url) {
     })
     if (party) pushParty(party)
     pushPresence()
-    const ping = setInterval(() => res.write(': ping\n\n'), 20_000)
+    // 이미 끊긴 연결에 쓰다가 예외가 나면(close 이벤트가 아직 안 와도 생길 수 있다) 서버 전체가 죽는다 — 반드시 감싼다.
+    const ping = setInterval(() => {
+      try {
+        res.write(': ping\n\n')
+      } catch {
+        clearInterval(ping)
+      }
+    }, 20_000)
     req.on('close', () => {
       clearInterval(ping)
       if (clients.get(id) === client) {
@@ -2182,3 +2189,8 @@ async function shutdown(sig) {
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
+
+// 어딘가에서 예외를 못 잡고 흘렸다고 해서 접속해 있는 모두의 연결이 통째로 끊기면 안 된다.
+// 로그만 남기고 서버는 계속 돌린다(이미 깨진 요청 하나는 응답을 못 받겠지만, 그게 전체가 죽는 것보단 낫다).
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e))
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e))

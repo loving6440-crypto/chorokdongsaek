@@ -2,6 +2,17 @@ import { useMemo, useState } from 'react'
 import { Flag, Grid3x3, Swords } from 'lucide-react'
 import { closeOmok, inviteOmok, moveOmok, resignOmok, respondOmok, useOnline } from '../../net/online'
 
+const CELL = 24 // 줄 사이 간격(px)
+const PAD = 14 // 테두리 줄과 판 가장자리 사이 여백(px)
+const HIT = 22 // 교차점 하나를 누르는 클릭 영역(px) — 돌 자체보다 넉넉하게 잡는다.
+
+/** 바둑판의 화점(귀·변·천원) 표시. 15줄 기준(귀 4, 중앙 1)이고, 다른 크기는 중앙에만 하나 찍는다. */
+function hoshi(size) {
+  if (size === 15) return [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]]
+  if (size % 2 === 1) return [[(size - 1) / 2, (size - 1) / 2]]
+  return []
+}
+
 /** 패 놀이터 '오목'. 2인, 같은 일행(파티)의 다른 멤버에게 신청해서 시작한다. */
 export default function OmokGame() {
   const net = useOnline()
@@ -86,12 +97,24 @@ function OmokBoard({ game, me }) {
         <p className="mt-2 text-xs text-paper/60">{myTurn ? '내 차례다.' : `${players[turn]?.name}님의 차례를 기다린다.`}</p>
       )}
 
+      {/* 바둑판처럼: 돌은 칸 안이 아니라 줄이 교차하는 점(모서리) 위에 놓는다. */}
       <div
-        className="mt-3 inline-grid overflow-hidden rounded-lg bg-[#dcb77a] p-1.5"
-        style={{ gridTemplateColumns: `repeat(${size}, 1.5rem)`, gridTemplateRows: `repeat(${size}, 1.5rem)` }}
+        className="relative mt-3 rounded-lg bg-[#dcb77a]"
+        style={{ width: (size - 1) * CELL + PAD * 2, height: (size - 1) * CELL + PAD * 2 }}
         role="grid"
         aria-label="오목판"
       >
+        <svg className="absolute inset-0" width="100%" height="100%" aria-hidden>
+          {Array.from({ length: size }, (_, k) => (
+            <line key={`h${k}`} x1={PAD} y1={PAD + k * CELL} x2={PAD + (size - 1) * CELL} y2={PAD + k * CELL} stroke="#8a6a3a" strokeOpacity="0.55" strokeWidth="1" />
+          ))}
+          {Array.from({ length: size }, (_, k) => (
+            <line key={`v${k}`} x1={PAD + k * CELL} y1={PAD} x2={PAD + k * CELL} y2={PAD + (size - 1) * CELL} stroke="#8a6a3a" strokeOpacity="0.55" strokeWidth="1" />
+          ))}
+          {hoshi(size).map(([hx, hy]) => (
+            <circle key={`${hx},${hy}`} cx={PAD + hx * CELL} cy={PAD + hy * CELL} r="2.5" fill="#8a6a3a" fillOpacity="0.6" />
+          ))}
+        </svg>
         {board.map((cell, i) => {
           const x = i % size
           const y = Math.floor(i / size)
@@ -104,13 +127,13 @@ function OmokBoard({ game, me }) {
               aria-label={`${x + 1},${y + 1}${cell != null ? `, ${colorText(cell)}` : ''}`}
               disabled={!myTurn || cell != null}
               onClick={() => place(x, y)}
-              className="relative border border-[#8a6a3a]/40"
-              style={{ width: '1.5rem', height: '1.5rem' }}
+              className="absolute flex items-center justify-center"
+              style={{ left: PAD + x * CELL - HIT / 2, top: PAD + y * CELL - HIT / 2, width: HIT, height: HIT }}
             >
               {cell != null && (
                 <span
                   data-stone={cell}
-                  className={`absolute inset-[2px] rounded-full ${cell === 0 ? 'bg-[#1a1a1a]' : 'bg-[#f5f0e6]'} ${isWin ? 'ring-2 ring-crimson' : ''}`}
+                  className={`size-[1.15rem] rounded-full shadow ${cell === 0 ? 'bg-[#1a1a1a]' : 'bg-[#f5f0e6]'} ${isWin ? 'ring-2 ring-crimson' : ''}`}
                 />
               )}
             </button>
