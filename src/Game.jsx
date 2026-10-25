@@ -1331,7 +1331,6 @@ export default function Game({
         onOpenItems={() => setInvOpen(true)}
         onEditProfile={() => setProfileOpen(true)}
         admin={admin}
-        onSwitchProfile={() => setProfilesOpen(true)}
         onOpenAdmin={() => setAdminOpen(true)}
         onOpenCodex={() => setCodexOpen(true)}
         onOpenClub={() => setClubOpen(true)}
@@ -1448,6 +1447,7 @@ export default function Game({
                     onAdminGive={adminGive}
                     onGather={startGatherAction}
                     onVisit={visitSpot}
+                    onGiveNpc={giveNpc}
                     stats={effStats}
                     mp={player.mp}
                     hp={player.hp}
@@ -1647,7 +1647,18 @@ export default function Game({
           </div>
         </div>
       )}
-      {profileOpen && <ProfileEditModal player={player} onSave={saveProfile} onClose={() => setProfileOpen(false)} />}
+      {profileOpen && (
+        <ProfileEditModal
+          player={player}
+          admin={admin}
+          onSave={saveProfile}
+          onClose={() => setProfileOpen(false)}
+          onSwitchProfile={() => {
+            setProfileOpen(false)
+            setProfilesOpen(true)
+          }}
+        />
+      )}
       {online.mbInvite && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4" data-mb-invite>
           <div role="dialog" aria-modal="true" aria-label="다인 전투 초대" className="ink-panel w-full max-w-sm rounded-xl p-5 text-center">

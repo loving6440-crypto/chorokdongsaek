@@ -14,6 +14,7 @@ export default function Gym({ view, ...rest }) {
         onAdminGive={rest.onAdminGive}
         onGather={rest.onGather}
         onVisit={rest.onVisit}
+        onGiveNpc={rest.onGiveNpc}
       />
     )
   return <Battle {...rest} />

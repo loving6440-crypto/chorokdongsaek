@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { Users, X } from 'lucide-react'
 import ProfileForm from './ProfileForm'
 import { cleanGreeting, cleanName } from '../game/character'
 
-/** 프로필 수정: 사진 · 이름 · 나이 · 학년을 바꾼다. 스탯과 진행 상황은 그대로다. */
-export default function ProfileEditModal({ player, onSave, onClose }) {
+/** 프로필 수정: 사진 · 이름 · 나이 · 학년을 바꾼다. 스탯과 진행 상황은 그대로다.
+ *  관리자 계정은 여기서 '프로필 바꾸기'(계정의 다른 캐릭터로 전환)도 들어갈 수 있다. */
+export default function ProfileEditModal({ player, admin = false, onSave, onClose, onSwitchProfile }) {
   const [value, setValue] = useState({
     name: player.name,
     greeting: player.greeting ?? '',
@@ -24,6 +25,16 @@ export default function ProfileEditModal({ player, onSave, onClose }) {
           </button>
         </div>
         <ProfileForm title="인적 사항" value={value} onChange={(patch) => setValue((v) => ({ ...v, ...patch }))} />
+        {admin && onSwitchProfile && (
+          <button
+            type="button"
+            onClick={onSwitchProfile}
+            className="ink-panel mt-3 flex w-full items-center gap-2 rounded-xl p-3 text-left text-sm text-gold hover:bg-gold/10"
+          >
+            <Users size={15} aria-hidden />
+            프로필 바꾸기 (관리자 · 이 계정의 다른 캐릭터로 전환하거나 새로 만들기)
+          </button>
+        )}
         <div className="mt-3 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="flat-btn-ghost">
             취소

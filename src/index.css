@@ -82,9 +82,9 @@
   --facet-main: var(--panel-border);
   --facet-beast: color-mix(in srgb, var(--c-gold) 55%, transparent);
 
-  --c-ink: #f6f1dc;
-  --c-ink-raised: #fffbea;
-  --c-ink-muted: #e8eed2;
+  --c-ink: #f7f5ef;
+  --c-ink-raised: #fcfbf6;
+  --c-ink-muted: #f0f2ea;
   --c-gold: #d8506a;          /* 강조 글자: [관리자] 표시와 같은 색 */
   --c-gold-dim: #f0b6c1;
   --c-gold-fill: #d8506a;     /* 강조 버튼·막대 */
@@ -95,14 +95,14 @@
   --c-shade: #6f9a78;
   --c-edge: #213427;
 
-  --panel-from: #fffdf1;
-  --panel-to: #f7f3de;
+  --panel-from: #fdfdf9;
+  --panel-to: #f8f6f0;
   --panel-border: color-mix(in srgb, var(--c-gold) 30%, transparent);
   --panel-lip: transparent;
   --panel-shadow: none;
 
-  --stage-glow: #fffbea;
-  --stage-base: #f0ecd0;
+  --stage-glow: #fcfbf6;
+  --stage-base: #f3f2e9;
   --dot: color-mix(in srgb, #6fa676 22%, transparent);
   --scrim: rgb(33 52 39 / 0.5);
 

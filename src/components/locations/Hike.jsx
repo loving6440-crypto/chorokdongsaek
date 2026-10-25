@@ -4,6 +4,7 @@ import { HIKE_PATHS, hikeSpotKey, OUTSIDE_BARI_LINES } from '../../game/hike'
 import { GATHER_MINUTES } from '../../game/gather'
 import Armory from './Armory'
 import NpcDialog from '../NpcDialog'
+import NpcGift from '../NpcGift'
 
 const leftText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -48,7 +49,7 @@ function GatherSpot({ player, spotId, onGather }) {
 }
 
 /** 둘레길 · 교외: NPC 바리가 나타나 돌아가라고 말린다. */
-function OutsideBari({ onMeet }) {
+function OutsideBari({ player, onMeet, onGiveNpc }) {
   const [line, setLine] = useState(null)
   const speak = () => {
     const l = OUTSIDE_BARI_LINES[Math.floor(Math.random() * OUTSIDE_BARI_LINES.length)]
@@ -68,6 +69,7 @@ function OutsideBari({ onMeet }) {
           {line}
         </NpcDialog>
       )}
+      {line && <NpcGift npcId="bari" player={player} onGive={onGiveNpc} />}
     </div>
   )
 }
@@ -79,7 +81,7 @@ const Placeholder = ({ name }) => (
 )
 
 /** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. */
-export default function Hike({ player, admin, onEnhance, onMeet, onAdminGive, onGather, onVisit }) {
+export default function Hike({ player, admin, onEnhance, onMeet, onAdminGive, onGather, onVisit, onGiveNpc }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
@@ -164,7 +166,7 @@ export default function Hike({ player, admin, onEnhance, onMeet, onAdminGive, on
           ) : spot.id === 'garden' ? (
             <GatherSpot player={player} spotId={spot.id} onGather={onGather} />
           ) : spot.id === 'outside' ? (
-            <OutsideBari onMeet={onMeet} />
+            <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />
           ) : (
             <Placeholder name={spot.name} />
           )}

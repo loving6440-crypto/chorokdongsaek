@@ -1,4 +1,4 @@
-import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Trophy, Users, UsersRound } from 'lucide-react'
+import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Trophy, UsersRound } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -70,7 +70,7 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onSwitchProfile, onOpenAdmin, onOpenGuide }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onOpenAdmin, onOpenGuide }) {
   const location = LOCATIONS[locationId]
   const spiritMax = spiritGaugeMax(player.spirit)
 
@@ -78,26 +78,13 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
     <aside className="order-1 shrink-0 lg:w-[22rem] lg:overflow-x-hidden lg:overflow-y-auto" aria-label="프로필">
       {/* 352 × 640 고정 구도: 같은 모양의 정마름모를 격자로 맞물려 쌓는다. */}
       <div className="sidebar-canvas relative mx-auto mb-9 h-[804px] w-[352px]">
-        <div aria-hidden className="absolute top-3 left-3 h-[72px] w-[200px] rounded-[50%] border-2 border-gold/35" />
-        <div className="logo-tag absolute top-0 left-0 grid h-[72px] w-[200px] place-items-center !rounded-[50%]">
-          <img src={logo} alt="草綠同色 초록동색" className="block h-12 w-auto select-none" draggable={false} />
-          <span className="sparkle absolute top-1 right-5 text-base" aria-hidden="true" />
-        </div>
-
-        <div className="absolute top-1 right-0 flex flex-col items-end gap-2">
-          <SoundToggle />
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-          {onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              title="로그아웃"
-              aria-label="로그아웃"
-              className="grid size-8 place-items-center rounded border border-edge/20 text-paper/50 transition hover:border-crimson/40 hover:bg-crimson/10 hover:text-crimson"
-            >
-              <LogOut size={15} />
-            </button>
-          )}
+        {/* 로고: 위쪽 전체 폭 가운데로. */}
+        <div className="absolute top-0 left-1/2 h-[76px] w-[204px] -translate-x-1/2">
+          <div aria-hidden className="absolute top-3 left-3 h-[72px] w-[200px] rounded-[50%] border-2 border-gold/35" />
+          <div className="logo-tag absolute top-0 left-0 grid h-[72px] w-[200px] place-items-center !rounded-[50%]">
+            <img src={logo} alt="草綠同色 초록동색" className="block h-12 w-auto select-none" draggable={false} />
+            <span className="sparkle absolute top-1 right-5 text-base" aria-hidden="true" />
+          </div>
         </div>
 
         {/* 프로필: 큰 정마름모 (중심 176,196) */}
@@ -113,6 +100,25 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
           </div>
         </Facet>
 
+        {/* 프로필 마름모 왼쪽 위 빈 모서리: 효과음 · 배경음악 · 테마 전환 · 로그아웃 */}
+        <div className="absolute top-[88px] left-[56px] z-10 flex flex-col items-start gap-1.5">
+          <SoundToggle />
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                title="로그아웃"
+                aria-label="로그아웃"
+                className="grid size-8 shrink-0 place-items-center rounded-lg bg-edge/[0.09] text-paper/70 transition hover:bg-crimson/15 hover:text-crimson"
+              >
+                <LogOut size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+
         {onEditProfile && (
           <button
             type="button"
@@ -122,18 +128,6 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
             className="absolute top-[118px] left-[238px] z-10 grid size-7 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
           >
             <Pencil size={13} />
-          </button>
-        )}
-
-        {admin && onSwitchProfile && (
-          <button
-            type="button"
-            onClick={onSwitchProfile}
-            title="프로필 바꾸기"
-            aria-label="프로필 바꾸기"
-            className="absolute top-[118px] left-[86px] z-10 grid size-7 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
-          >
-            <Users size={13} />
           </button>
         )}
 

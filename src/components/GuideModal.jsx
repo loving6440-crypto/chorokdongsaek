@@ -139,8 +139,9 @@ export default function GuideModal({ open, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[95]" role="dialog" aria-modal="true" aria-label="안내서">
-      {/* 뒷배경을 살짝 어둡게 (짚어주는 요소는 클릭이 가능하도록 pointer-events 를 꺼 둔다) */}
-      <div className="absolute inset-0 bg-black/55" style={{ pointerEvents: 'none' }} />
+      {/* 뒷배경을 살짝 어둡게. 짚어주는 요소가 있을 땐 그 안쪽은 아래쪽의 box-shadow 스포트라이트가 이미
+          또렷하게 뚫어 주므로, 이 전체 오버레이까지 겹쳐 함께 어두워지지 않도록 그때는 빼 둔다. */}
+      {!rect && <div className="absolute inset-0 bg-black/55" style={{ pointerEvents: 'none' }} />}
 
       {rect && (
         <div
