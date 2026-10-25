@@ -159,7 +159,7 @@ export const PSYCHICS = [
     id: 'survival',
     label: '생존본능',
     note: '불리한 전투라고 판단이 될 때 적을 교란하고 전투에서 도망친다. 후일을 도모하는 것도 결국 살아있는 자들의 특권이 아닌가.',
-    detail: '자신의 턴에 사용. (50% + 1d(신속)×2 − 상대의 영력)% 확률로 전투에서 도주한다.',
+    detail: '자신의 턴에 사용. (50+1d(신속)*2-상대의 영력)% 확률로 전투에서 도주한다.',
     cond: '전투 중 최초로 전투불능이 되어본다.',
     use: true,
   },
@@ -331,25 +331,27 @@ export const SPECIAL_PERCENT = 10
 /** 상대 영능력의 정확한 효과 목록(스탯 숫자 포함). 팝업·전투 기록·도감이 같이 쓴다. */
 export function specialEffects(enemy) {
   const { atk, spirit } = enemy
+  const spiritNote = specialSpiritNote(enemy)
   switch (enemy.id) {
     case 'scarecrow':
-      return [`내 의지력을 1d${spirit}×2 만큼 빨아들인다. (${2}~${spirit * 2}, 남은 의지력이 한도)`, '체력 피해는 없다.']
+      return [`내 의지력을 1d${spirit}×2 만큼 빨아들인다. (${2}~${spirit * 2}, 남은 의지력이 한도)`, '체력 피해는 없다.', spiritNote]
     case 'foxfire':
-      return [`막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}).`, '막기·방어로 줄일 수 없다.']
+      return [`막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}).`, '막기·방어로 줄일 수 없다.', spiritNote]
     case 'dueoksini':
-      return [`막을 수 없는 피해 1d${atk}×2 (${2}~${atk * 2}).`, `내 의지력을 1d${spirit} 만큼 빨아들인다. (남은 의지력이 한도)`, '다음 내 턴엔 막기를 할 수 없다.']
+      return [`막을 수 없는 피해 1d${atk}×2 (${2}~${atk * 2}).`, `내 의지력을 1d${spirit} 만큼 빨아들인다. (남은 의지력이 한도)`, '다음 내 턴엔 막기를 할 수 없다.', spiritNote]
     case 'bulgasari':
       return [
         `《${enemy.special.label}》 한 사람: 막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}), 의지력 1d${spirit}×2 흡수 (남은 의지력이 한도).`,
         `《${enemy.special2.label}》 일행 전원: 막을 수 없는 피해 1d${atk} + ${Math.floor(spirit / 2)} (${1 + Math.floor(spirit / 2)}~${atk + Math.floor(spirit / 2)}), 다음 내 턴엔 막기 불가.`,
         '영능력을 쓸 때 두 가지 중 하나가 나온다.',
+        spiritNote,
       ]
     case 'snake':
-      return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.']
+      return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.', spiritNote]
     case 'wonhon':
-      return [`저주 3턴: 걸린 다음 상대 턴부터 세 번, 매번 1d${Math.max(1, Math.floor(spirit / 2))} 피해 (1~${Math.max(1, Math.floor(spirit / 2))}).`, '막을 수 없고, 저주 중 다시 걸면 3턴으로 갱신된다.']
+      return [`저주 3턴: 걸린 다음 상대 턴부터 세 번, 매번 1d${Math.max(1, Math.floor(spirit / 2))} 피해 (1~${Math.max(1, Math.floor(spirit / 2))}).`, '막을 수 없고, 저주 중 다시 걸면 3턴으로 갱신된다.', spiritNote]
     default:
-      return [enemy.special?.note ?? '상대마다 다른 비기.']
+      return [enemy.special?.note ?? '상대마다 다른 비기.', spiritNote]
   }
 }
 
@@ -358,6 +360,9 @@ export function specialSummary(ev) {
   const eff = (ev.effects ?? []).join(' ')
   return `✦ 영능력 《${ev.label}》 — 발동 확률 ${ev.chance ?? SPECIAL_PERCENT}% (상대 턴마다 d10 = 10). ${eff}${ev.result ? ` ▶ 이번 결과: ${ev.result}` : ''}`
 }
+
+/** 영능력 발동마다 영력을 소모하며, 영력이 다하면 더 이상 쓸 수 없다(대신 약공). */
+export const specialSpiritNote = (enemy) => `영능력을 한 번 쓸 때마다 영력 ${specialSpiritCost(enemy)}을 소모한다. 영력이 다하면 영능력 대신 약공을 쓴다.`
 
 /** 상대가 다음에 할 행동을 한 번 굴린다. 기 모으기 다음은 반드시 강공. */
 function rollIntent(prev, rng, party = false, boss = false) {
@@ -397,8 +402,12 @@ export function newBattle(enemyId, stats, rng = Math.random, startHp, hpCap, opt
     pendingDeath: false,
     survived: 0, // 버티기를 쓴 횟수 (한 전투에 한 번. 무당방울이 있으면 두 번)
     over: null, // 'win' | 'lose' | 'fled'
+    espirit: enemy.spirit, // 영능력 전용 영력 자원. 상대의 영력(enemy.spirit, 보상·대기시간 계산의 기준)과는 별개로, 영능력을 쓸 때마다 줄어들고 0이 되면 더는 영능력을 쓰지 못한다.
   }
 }
+
+/** 영능력 한 번 쓰는 데 드는 영력 자원(적절한 수치로 소모 — 대략 세 번 쓰면 다한다). */
+export const specialSpiritCost = (enemy) => Math.max(1, Math.ceil(enemy.spirit / 3))
 
 /** 선공 판정: 1d10 + 1d(신속) 이 상대의 행동력 이상이면 내가 먼저. 신속이 행동력 이상이면 무조건 선공. */
 export function rollInitiative(enemy, stats, rng = Math.random) {
@@ -622,10 +631,22 @@ export function enemyTurn(state, ctx, rng = Math.random) {
     ev.push({ kind: 'enemy', text: `${enemy.name}이(가) 기를 모은다… 다음 턴엔 강공이 온다!` })
   } else if (intent === 'guard') {
     ev.push({ kind: 'enemy', text: `${enemy.name}이(가) 몸을 웅크려 방어했다.` })
+  } else if (intent === 'special' && !ctx.noSpiritGate && (s.espirit ?? enemy.spirit) <= 0) {
+    // 영력을 모두 소모해 영능력을 쓸 수 없다 — 약공으로 대신한다.
+    const r = die(enemy.spirit, rng)
+    if (r === 1) {
+      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `${enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공을 노리지만 [상대 d${enemy.spirit} = ${r}] 빗나갔다.` })
+    } else {
+      const a = die(enemy.atk, rng)
+      ev.push({ kind: 'enemy', roll: r, text: `${enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공으로. [상대 d${enemy.spirit} = ${r}, 공격 d${enemy.atk} = ${a}]` })
+      hurt(a + r, `${enemy.name}의 약공`, { kind: 'jab' })
+    }
   } else if (intent === 'special') {
+    const spCost = specialSpiritCost(enemy)
+    if (!ctx.noSpiritGate) s.espirit = Math.max(0, (s.espirit ?? enemy.spirit) - spCost)
     const sp2 = !!enemy.special2 && ctx.sp === 2
     const spDef = sp2 ? enemy.special2 : enemy.special
-    const spEv = { kind: 'special', label: spDef.label, note: spDef.note, enemyId: sp2 ? `${enemy.id}-2` : enemy.id, chance: SPECIAL_PERCENT, effects: specialEffects(enemy), result: '' }
+    const spEv = { kind: 'special', label: spDef.label, note: spDef.note, enemyId: sp2 ? `${enemy.id}-2` : enemy.id, chance: SPECIAL_PERCENT, effects: specialEffects(enemy), result: '', spiritCost: spCost, spiritLeft: s.espirit }
     ev.push(spEv)
     if (enemy.id === 'bulgasari') {
       if (sp2) {
@@ -671,6 +692,7 @@ export function enemyTurn(state, ctx, rng = Math.random) {
       spEv.result = `저주 3턴 시작 (매 턴 1d${Math.max(1, Math.floor(enemy.spirit / 2))} 피해)`
       ev.push({ kind: 'enemy', text: `${enemy.name}의 원한의 저주! 앞으로 세 번의 상대 턴 동안 피해가 스며든다.` })
     }
+    if (!ctx.noSpiritGate) spEv.result += ` (영능력에 영력 ${spCost} 소모, 남은 영력 ${s.espirit}/${enemy.spirit})`
   }
 
   // 저주: 방금 건 턴에는 들어가지 않고, 이후 상대 턴마다 들어간다.

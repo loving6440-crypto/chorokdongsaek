@@ -286,6 +286,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
     mp: Math.floor(player.mp),
     mpMax: player.mpMax,
     spirit: Math.floor(player.spirit),
+    clearWeak: false,
   }))
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -304,6 +305,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
       hp: num(v.hp, 0, hpMax),
       mp: num(v.mp, 0, mpMax),
       spirit: num(v.spirit, 0, 9999999),
+      clearWeak: !!v.clearWeak,
     })
     onClose()
   }
@@ -343,6 +345,10 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
             <button type="button" onClick={fill} className="mt-2 rounded border border-edge/25 px-3 py-1 text-xs text-paper/80 hover:bg-edge/10">
               체력·의지력 가득 채우기
             </button>
+            <label className="mt-2 flex items-center gap-1.5 text-sm text-paper/85">
+              <input data-admin-self-weak type="checkbox" checked={!!v.clearWeak} onChange={(e) => setV((p) => ({ ...p, clearWeak: e.target.checked }))} />
+              내 [쇠약] 해제
+            </label>
           </section>
           <PasswordReset userId={userId} adminKey={adminKey} />
           <EditOther userId={userId} adminKey={adminKey} online={online} />

@@ -49,6 +49,7 @@ export default function GameModal({
   actions,
   player,
   onSkin,
+  admin,
 }) {
   // Game 이 1초마다 다시 그려져도 효과가 다시 걸리지 않도록 ref 로 들고 있는다.
   const closeRef = useRef(onClose)
@@ -138,10 +139,10 @@ export default function GameModal({
   }, [])
 
   const skinCtx = useMemo(() => {
-    const open = SKINS.filter((k) => isSkinOpen(k, player)).map((k) => k.id)
+    const open = SKINS.filter((k) => isSkinOpen(k, player, admin)).map((k) => k.id)
     const cur = open.includes(player?.skin2048) ? player.skin2048 : 'talisman'
     return { current: cur, open, set: (id) => onSkin?.(id) }
-  }, [player?.achievements, player?.skin2048, onSkin]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [player?.achievements, player?.skin2048, onSkin, admin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!course) return null
 

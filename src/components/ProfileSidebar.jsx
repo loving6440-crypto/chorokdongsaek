@@ -1,4 +1,4 @@
-import { LogOut, Pencil, RotateCcw, Shield, Trophy, Users, UsersRound } from 'lucide-react'
+import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Trophy, Users, UsersRound } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -70,7 +70,7 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onSwitchProfile, onOpenAdmin }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onSwitchProfile, onOpenAdmin, onOpenGuide }) {
   const location = LOCATIONS[locationId]
   const spiritMax = spiritGaugeMax(player.spirit)
 
@@ -175,7 +175,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         </Facet>
 
         {/* 체력 · 영력 · 의지력: 같은 높이의 세 막대를 가지런히 */}
-        <div className="absolute bottom-[208px] left-1/2 flex -translate-x-1/2 items-end gap-8" aria-label="자원">
+        <div className="absolute bottom-[246px] left-1/2 flex -translate-x-1/2 items-end gap-8" aria-label="자원">
           <VBar label="체력" value={player.hp} max={player.hpMax} height={126} fill="bg-crimson" />
           <VBar label="영력" value={player.spirit} max={spiritMax} height={126} fill="bg-gold-fill" />
           <VBar label="의지력" value={player.mp} max={player.mpMax} height={126} fill="bg-mana" />
@@ -183,7 +183,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
 
         {/* 소지금 + 소지품 버튼 */}
         <div
-          className="absolute bottom-[154px] left-1/2 flex h-[44px] w-[248px] -translate-x-1/2 items-center gap-3 rounded-2xl bg-shade/50 px-4 ring-1 ring-edge/15"
+          className="absolute bottom-[192px] left-1/2 flex h-[44px] w-[248px] -translate-x-1/2 items-center gap-3 rounded-2xl bg-shade/50 px-4 ring-1 ring-edge/15"
           aria-label="소지금"
         >
           <Pouch />
@@ -195,15 +195,26 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         <button
           type="button"
           onClick={onOpenItems}
-          className={`flat-btn absolute bottom-[96px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center ${spotItems ? 'spot' : ''}`}
+          className={`flat-btn absolute bottom-[134px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center ${spotItems ? 'spot' : ''}`}
         >
           내 소지품 확인하기
         </button>
+        {onOpenGuide && (
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            data-guide-btn
+            className="flat-btn absolute bottom-[94px] left-1/2 h-[28px] w-[248px] -translate-x-1/2 justify-center !gap-1.5 text-xs"
+          >
+            <BookOpenText size={13} aria-hidden />
+            안내서 보기
+          </button>
+        )}
         <div className="absolute bottom-[40px] left-1/2 flex h-[48px] w-[248px] -translate-x-1/2 gap-2">
           <button
             type="button"
             onClick={onOpenCodex}
-            className="flat-btn flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
+            className="flat-btn min-w-0 flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
           >
             <Trophy size={13} aria-hidden />
             업적/도감 확인하기
@@ -211,7 +222,8 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
           <button
             type="button"
             onClick={onOpenClub}
-            className="flat-btn relative flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
+            data-guide-club-btn
+            className="flat-btn relative min-w-0 flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
           >
             <UsersRound size={13} aria-hidden />
             동아리 확인하기

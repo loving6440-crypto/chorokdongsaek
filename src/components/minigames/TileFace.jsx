@@ -44,16 +44,25 @@ export { Blossom }
 export default function TileFace({ value, className = '', mode = 'hanja', skin = 'talisman' }) {
   const [bg, fg] = tileStyle(value, skin)
   const cute = skin === 'changnok'
+  const round = skinOf(skin).round === true // 황금빛 백일몽: 타일이 금메달처럼 완전한 원형
   const lines = toHanjaLines(value)
   const longest = Math.max(...lines.map((l) => [...l].length))
   const digits = String(value).length
   return (
     <div
-      className={`relative grid size-full place-items-center select-none ${cute ? 'rounded-xl' : 'rounded'} ${className}`}
+      className={`relative grid size-full place-items-center select-none ${round ? 'rounded-full' : cute ? 'rounded-xl' : 'rounded'} ${className}`}
       style={{
         backgroundColor: bg,
-        backgroundImage: cute ? 'linear-gradient(160deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 55%)' : undefined,
-        boxShadow: cute ? `0 2px 0 rgba(168, 48, 77, 0.28), inset 0 0 0 1.5px rgba(255,255,255,0.45)` : undefined,
+        backgroundImage: cute
+          ? 'linear-gradient(160deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 55%)'
+          : round
+            ? 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0) 55%)'
+            : undefined,
+        boxShadow: cute
+          ? `0 2px 0 rgba(168, 48, 77, 0.28), inset 0 0 0 1.5px rgba(255,255,255,0.45)`
+          : round
+            ? `0 2px 3px rgba(80, 50, 0, 0.35), inset 0 0 0 3px rgba(255,255,255,0.4), inset 0 0 0 4.5px rgba(0,0,0,0.12)`
+            : undefined,
         color: fg,
         containerType: 'inline-size',
       }}

@@ -47,7 +47,7 @@ function MealCard({ meal }) {
 }
 
 /** 기숙사 · 급식실: 그날의 교내 신문 + 익명 사연 투고함 + 그날의 급식 식단표. */
-export default function Cafeteria({ online }) {
+export default function Cafeteria({ online, onSubmitted }) {
   const [date] = useState(() => kstDate())
   const menu = menuOf(date)
   const [paper, setPaper] = useState({ loading: true, stories: [] })
@@ -75,6 +75,7 @@ export default function Cafeteria({ online }) {
     if (r.ok) {
       setText('')
       setNote({ ok: true, text: '투고함에 넣었어요. 관리자가 살펴보고 신문에 올릴지 정해요. (쓴 사람은 알려지지 않아요)' })
+      onSubmitted?.()
     } else setNote({ ok: false, text: ERR[r.error] ?? '투고하지 못했어요.' })
   }
 

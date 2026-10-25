@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dices, Eye, Flame, Shield, Sparkles, Swords, Zap } from 'lucide-react'
+import { Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import {
   specialSummary,
   mpCostOf,
@@ -21,6 +21,12 @@ import {
   recLabel,
   partyLabel,
 } from '../../game/battle'
+import { slowFightMinutes, SLOW_FIGHT_COST_PER_SPIRIT } from '../../game/progress'
+
+const leftTimeText = (ms) => {
+  const m = Math.max(0, Math.ceil(ms / 60000))
+  return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`
+}
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
@@ -34,8 +40,14 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems, onBgm, multi }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems, onBgm, multi, slowFight, onStartSlow, onStopSlow }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
+  const [, setSlowTick] = useState(0)
+  useEffect(() => {
+    if (!slowFight) return undefined
+    const t = setInterval(() => setSlowTick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [slowFight])
   const [b, setB] = useState(null)
   const [fights, setFights] = useState(0)
   const [log, setLog] = useState([])
@@ -376,6 +388,20 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
           붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
           오늘 영력을 얻는 승리는 <b className="text-gold">{rewardLeft}회</b> 남았다. 지면 영력을 조금 잃는다. 체력과 의지력은 전투가 끝나도 그대로 이어지고, 양호실에서만 찬다.
         </p>
+        {slowFight && (
+          <div className="ink-panel mt-4 w-full rounded-xl p-5" data-slow-fight={slowFight.enemyId}>
+            <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700">
+              <Hourglass size={12} aria-hidden />
+              느린 싸움 중
+            </p>
+            <p className="mt-2 font-serif text-base text-paper">{ENEMIES.find((x) => x.id === slowFight.enemyId)?.name}을(를) 상대로 느린 싸움을 벌이고 있다.</p>
+            <p className="mt-1 text-xs text-paper/60">끝까지 기다리면 무조건 승리 판정을 받는다. 중간에 나가면 보상 없이 취소된다.</p>
+            <p className="mt-2 text-sm text-gold" data-slow-fight-left>
+              남은 시간: {(() => { const left = slowFight.startedAt + slowFight.minutes * 60000 - Date.now(); return left > 0 ? leftTimeText(left) : '거의 다 됐다' })()}
+            </p>
+            <button type="button" onClick={() => onStopSlow?.()} className="flat-btn mt-3 text-xs">느린 싸움 그만두기</button>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -434,7 +460,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                     <button
                       type="button"
                       data-multi-start={e.id}
-                      disabled={!multi?.canParty || !!multi?.lobby}
+                      disabled={!multi?.canParty || !!multi?.lobby || !!slowFight}
                       onClick={() => multi.onStart(e.id)}
                       className="flat-btn mt-3 justify-center !bg-crimson disabled:opacity-40"
                     >
@@ -444,10 +470,27 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                     <p className="mt-1 text-[10px] text-paper/50">{multi?.canParty ? `‘${MULTI_TAG}’ — 일행에게 초대가 가고, 수락한 사람들이 함께 싸운다.` : multi?.isLeader === false && multi?.hasParty ? `‘${MULTI_TAG}’ — 파티장만 신청할 수 있다. 파티장의 초대를 받으면 참여한다.` : `‘${MULTI_TAG}’ — 일행(파티) 상태로만 참여할 수 있다.`}</p>
                   </>
                 ) : (
-                  <button type="button" onClick={() => start(e.id)} className="flat-btn mt-3 justify-center !bg-crimson">
+                  <button type="button" disabled={!!slowFight} onClick={() => start(e.id)} className="flat-btn mt-3 justify-center !bg-crimson disabled:opacity-40">
                     <Swords size={15} aria-hidden />
                     {e.name}과 겨루기
                   </button>
+                )}
+                {!e.boss && (
+                  <button
+                    type="button"
+                    data-slow-start={e.id}
+                    disabled={!!slowFight}
+                    onClick={() => onStartSlow?.(e.id)}
+                    className="flat-btn mt-2 justify-center !bg-shade/40 text-paper/85 disabled:opacity-40"
+                  >
+                    <Hourglass size={14} aria-hidden />
+                    느린 싸움으로 보상 얻기
+                  </button>
+                )}
+                {!e.boss && (
+                  <p className="mt-1 text-[10px] text-paper/50">
+                    직접 싸우는 대신 {slowFightMinutes(e)}분을 기다리면 무조건 승리 판정 — 대신 체력·의지력 각 {e.spirit * SLOW_FIGHT_COST_PER_SPIRIT} 소모.
+                  </p>
                 )}
               </li>
             )

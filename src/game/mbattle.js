@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, enemyTurn, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp } from './battle.js'
+import { ENEMIES, auraOf, enemyTurn, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -65,6 +65,7 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
   const mb = {
     enemy,
     ehp: enemy.hp,
+    espirit: enemy.spirit, // 영능력 전용 영력 자원(다인 전투는 일행 수와 무관하게 한 번 쓸 때마다 한 번만 깎인다)
     party: true,
     queue: base.queue,
     known: 0,
@@ -360,8 +361,17 @@ function enemyPhase(mb, rng) {
   }
   mb.turn = null
   const gim = bossGimmick(mb, mb.queue[0])
-  const intent = gim.intent
+  let intent = gim.intent
   for (const n of gim.notes) evs.push(...addLog(mb, [{ kind: 'warn', text: n }], 'enemy'))
+  // 영능력 전용 영력이 다하면 영능력 대신 약공으로 대신한다(다인 전투에서는 일행 수와 무관하게 한 번만 깎인다).
+  if (intent === 'special' && (mb.espirit ?? mb.enemy.spirit) <= 0) {
+    intent = 'jab'
+    evs.push(...addLog(mb, [{ kind: 'warn', text: `${mb.enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공으로.` }], 'enemy'))
+  } else if (intent === 'special') {
+    const spCost = specialSpiritCost(mb.enemy)
+    mb.espirit = Math.max(0, (mb.espirit ?? mb.enemy.spirit) - spCost)
+    evs.push(...addLog(mb, [{ kind: 'info', text: `(영능력에 영력 ${spCost} 소모, 남은 영력 ${mb.espirit}/${mb.enemy.spirit})` }], 'enemy'))
+  }
   if (intent !== mb.queue[0]) mb.queue = [intent, ...mb.queue.slice(1)]
   const sp = intent === 'special' && mb.enemy.special2 ? (rng() < 0.5 ? 2 : 1) : 1
   const group = intent === 'group' || (intent === 'special' && sp === 2)
@@ -392,7 +402,7 @@ function enemyPhase(mb, rng) {
     const q = [...mb.queue]
     if (intent === 'group') q[0] = 'jab'
     const v = { ...viewOfMember(mb, t), guard: t.guard, queue: q }
-    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp }, rng)
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true }, rng)
     if (last) {
       mb.queue = r.state.queue
       mb.known = r.state.known

@@ -41,10 +41,12 @@ import {
   STAT_META,
   STAT_MAX,
   STAT_UPGRADE_COST_PER_POINT,
+  COURSES,
 } from './game/constants'
 import { LESSON_WAIT_MINUTES } from './game/courseInfo'
 import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
+import { bumpWeekly, markWeeklySet, EXPLORE_SPOTS } from './game/clubQuests'
 import {
   GYM_DAILY_REWARDS,
   applyBattleResult,
@@ -69,9 +71,14 @@ import {
   effectiveStats,
   isWeak,
   weakLeftText,
+  startSlowFight,
+  cancelSlowFight,
+  slowFightMinutes,
+  dayKey,
 } from './game/progress'
-import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers } from './net/online'
+import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers, fetchRanking } from './net/online'
 import ClubModal from './components/ClubModal'
+import GuideModal from './components/GuideModal'
 import Market from './components/Market'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
@@ -134,6 +141,7 @@ export default function Game({
   const [codexOpen, setCodexOpen] = useState(false)
   const [codexFocus, setCodexFocus] = useState(null) // { chapterId, id }: 알림에서 바로 보여줄 항목 하나
   const [clubOpen, setClubOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다. 전투 교육 중에는 끝난 뒤에 모아서 보여 준다.
   const [codexNew, setCodexNew] = useState([])
   const codexSeen = useRef(null)
@@ -201,6 +209,29 @@ export default function Game({
     connect(userId, player.name, admin ? adminKey : '')
     return () => disconnect()
   }, [userId, player.name, admin, adminKey])
+
+  // [나는야 모범생]: 어느 수업이건 지난주 1위로 다음 주를 맞았는지 확인한다. 접속 직후와 그 뒤 주기적으로 들여다본다.
+  useEffect(() => {
+    if (admin || !userId) return undefined
+    const check = async () => {
+      if (playerRef.current.achievements?.['model-student']) return
+      for (const c of COURSES) {
+        if (c.id === 'divination-fortune') continue // 점복학은 랭킹/점수 제도가 없다
+        const r = await fetchRanking(c.id, userId, 'last')
+        if (r?.top?.[0]?.id === userId) {
+          const cur = playerRef.current
+          if (cur.achievements?.['model-student'] || cur.weeklyTop1At) return
+          const next = { ...cur, weeklyTop1At: Date.now() }
+          playerRef.current = next
+          setPlayer(next)
+          return
+        }
+      }
+    }
+    check()
+    const t = setInterval(check, 10 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [userId, admin])
 
   // 1초마다: 영력 자연 회복 / 수련 진행 / 수업 대기 종료.
   // 탭을 백그라운드에 두거나 창을 내려도 시계는 계속 간다. (수련·대기는 시각 기준으로 계산하고, 돌아오면 그 사이 분량이 반영된다.)
@@ -349,6 +380,18 @@ export default function Game({
     [addLog],
   )
 
+  /** 느린 싸움(퇴마 실습) 대기를 끊는다. 보상 없이 취소된다. */
+  const endSlowFight = useCallback(
+    (why) => {
+      const cur = playerRef.current
+      if (!cur.slowFight) return
+      playerRef.current = cancelSlowFight(cur)
+      setPlayer((prev) => (prev.slowFight ? cancelSlowFight(prev) : prev))
+      addLog(`${why} 느린 싸움을 멈췄다. (보상을 받지 못한다)`)
+    },
+    [addLog],
+  )
+
   const interruptAll = useCallback(
     (why, at) => {
       endTraining(why, at)
@@ -356,8 +399,9 @@ export default function Game({
       endSleep(why)
       endWaits(why)
       endCraft(why)
+      endSlowFight(why)
     },
-    [endTraining, endRest, endSleep, endWaits, endCraft],
+    [endTraining, endRest, endSleep, endWaits, endCraft, endSlowFight],
   )
 
   // 수련·제작 등 '대기 활동' 중에 다른 곳으로 가거나 다른 동작을 하려 하면 먼저 경고하고, 확인해야 진행한다.
@@ -371,6 +415,7 @@ export default function Game({
     else if (cur.resting) setConfirmQuit({ run, kind: 'rest' })
     else if (Object.values(cur.lessons ?? {}).some((l) => l.waitUntil)) setConfirmQuit({ run, kind: 'wait' })
     else if (cur.crafting) setConfirmQuit({ run, kind: 'craft' })
+    else if (cur.slowFight) setConfirmQuit({ run, kind: 'slowFight' })
     else run()
   }
 
@@ -383,6 +428,13 @@ export default function Game({
     interruptAll('다른 곳으로 이동해')
     setActivity('intro') // 들어서면 묘사부터
     setLocationId(id)
+    if (EXPLORE_SPOTS.includes(id)) {
+      const next = markWeeklySet(playerRef.current, 'exploreVisited', id)
+      if (next !== playerRef.current) {
+        playerRef.current = next
+        setPlayer(next)
+      }
+    }
     const nm = LOCATIONS[id].name
     const last = nm.charCodeAt(nm.length - 1) - 0xac00
     const jong = last >= 0 && last % 28
@@ -390,14 +442,17 @@ export default function Game({
   }
 
   const closeCourse = () => setCourse(null)
-  const setSkin2048 = useCallback((id) => {
-    const cur = playerRef.current
-    const k = SKINS.find((x) => x.id === id)
-    if (!k || !isSkinOpen(k, cur)) return
-    const next = { ...cur, skin2048: id }
-    playerRef.current = next
-    setPlayer(next)
-  }, [])
+  const setSkin2048 = useCallback(
+    (id) => {
+      const cur = playerRef.current
+      const k = SKINS.find((x) => x.id === id)
+      if (!k || !isSkinOpen(k, cur, admin)) return
+      const next = { ...cur, skin2048: id }
+      playerRef.current = next
+      setPlayer(next)
+    },
+    [admin],
+  )
 
   const saveProfile = (v) => {
     setPlayer((prev) => ({ ...prev, name: v.name, greeting: v.greeting ?? '', age: v.age, grade: v.grade, avatar: v.avatar, profileEdited: true }))
@@ -466,7 +521,7 @@ export default function Game({
       const n = Math.max(1, Math.min(99, Math.floor(qty)))
       if (!item || item.price == null || (!admin && cur.money < item.price * n) || !isStoreOpen()) return
       const cost = item.price * n
-      const next = { ...cur, money: admin ? cur.money : cur.money - cost, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + n } }
+      const next = bumpWeekly({ ...cur, money: admin ? cur.money : cur.money - cost, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + n } }, 'shopBuy')
       playerRef.current = next
       setPlayer(next)
       addLog(`매점에서 ${item.name} ${n}개를 샀다. (${admin ? '관리자: 무료' : `-${cost}냥`})`)
@@ -862,6 +917,23 @@ export default function Game({
     [interruptAll],
   )
 
+  /** 퇴마 실습: 느린 싸움으로 보상 얻기. 직접 싸우는 대신 영력×5분을 기다려 무조건 승리 판정을 받는다. */
+  const startSlowFightAction = useCallback(
+    (enemyId) => {
+      guardTraining(() => {
+        interruptAll('느린 싸움을 시작해')
+        const cur = playerRef.current
+        const r = startSlowFight(cur, enemyId)
+        if (r.error) return addLog(r.error)
+        playerRef.current = r.player
+        setPlayer(r.player)
+        const enemy = ENEMIES.find((e) => e.id === enemyId)
+        addLog(`퇴마 실습(느린 싸움): ${enemy?.name}을(를) 상대로 ${slowFightMinutes(enemy)}분을 기다리기 시작했다.`)
+      })
+    },
+    [interruptAll, addLog],
+  )
+
   // 전투 중 처음으로 전투불능이 되면 영능력 [생존본능]을 얻는다.
   const downed = useCallback(() => {
     const cur = playerRef.current
@@ -1042,7 +1114,11 @@ export default function Game({
   // 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 곧바로 고친다.
   const applyAdmin = useCallback(
     (v) => {
-      const next = { ...playerRef.current, stats: { ...v.stats }, hpMax: v.hpMax, mpMax: v.mpMax, hp: v.hp, mp: v.mp, spirit: v.spirit }
+      let next = { ...playerRef.current, stats: { ...v.stats }, hpMax: v.hpMax, mpMax: v.mpMax, hp: v.hp, mp: v.mp, spirit: v.spirit }
+      if (v.clearWeak && next.weakUntil) {
+        const { weakUntil: _w, ...rest } = next
+        next = rest
+      }
       playerRef.current = next
       setPlayer(next)
       addLog('관리자 도구로 수치를 조정했다.')
@@ -1109,6 +1185,7 @@ export default function Game({
         onOpenAdmin={() => setAdminOpen(true)}
         onOpenCodex={() => setCodexOpen(true)}
         onOpenClub={() => setClubOpen(true)}
+        onOpenGuide={() => setGuideOpen(true)}
         inClub={!!online.club}
         onReplayIntro={() => setIntroReplay(true)}
         spotItems={spotItems}
@@ -1183,7 +1260,18 @@ export default function Game({
                   />
                 )}
                 {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />}
-                {locationId === 'dorm' && activity === 'cafeteria' && <Cafeteria online={online.status === 'online'} />}
+                {locationId === 'dorm' && activity === 'cafeteria' && (
+                  <Cafeteria
+                    online={online.status === 'online'}
+                    onSubmitted={() => {
+                      const next = markWeeklySet(playerRef.current, 'newsDays', dayKey())
+                      if (next !== playerRef.current) {
+                        playerRef.current = next
+                        setPlayer(next)
+                      }
+                    }}
+                  />
+                )}
                 {locationId === 'dorm' && activity !== 'store' && activity !== 'cafeteria' && (
                   <Dormitory
                     view={activity}
@@ -1213,6 +1301,9 @@ export default function Game({
                     seen={player.seen}
                     rewardLeft={Math.max(0, GYM_DAILY_REWARDS - gymToday(player).wins)}
                     onStart={startBattle}
+                    slowFight={player.slowFight}
+                    onStartSlow={startSlowFightAction}
+                    onStopSlow={() => guardTraining(() => endSlowFight('스스로 멈춰'))}
                     onMp={changeMp}
                     onFinish={finishBattle}
                     onDown={downed}
@@ -1292,15 +1383,22 @@ export default function Game({
         actions={lessonActions}
         player={player}
         onSkin={setSkin2048}
+        admin={admin}
       />
       {confirmQuit && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4">
-          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : confirmQuit.kind === 'craft' ? '제작 중지 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
+          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : confirmQuit.kind === 'craft' ? '제작 중지 확인' : confirmQuit.kind === 'slowFight' ? '느린 싸움 중지 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
             {confirmQuit.kind === 'craft' ? (
               <>
                 <p className="font-serif text-lg text-gold">현재 제작 중입니다.</p>
                 <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
                 <p className="mt-1 text-[11px] text-paper/50">끝까지 기다려야 완성품이 나옵니다. 중간에 나가면 재료도 완성품도 돌아오지 않습니다.</p>
+              </>
+            ) : confirmQuit.kind === 'slowFight' ? (
+              <>
+                <p className="font-serif text-lg text-gold">현재 느린 싸움으로 전투 중입니다.</p>
+                <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
+                <p className="mt-1 text-[11px] text-paper/50">끝까지 기다려야 승리 판정과 보상이 들어옵니다. 중간에 나가면 보상 없이 취소됩니다.</p>
               </>
             ) : confirmQuit.kind === 'wait' ? (
               <>
@@ -1337,10 +1435,10 @@ export default function Game({
                 }}
                 className="flat-btn justify-center !bg-crimson"
               >
-                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' || confirmQuit.kind === 'wait' || confirmQuit.kind === 'craft' ? '나간다' : '포기한다'}
+                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' || confirmQuit.kind === 'wait' || confirmQuit.kind === 'craft' || confirmQuit.kind === 'slowFight' ? '나간다' : '포기한다'}
               </button>
               <button type="button" onClick={() => setConfirmQuit(null)} className="flat-btn justify-center">
-                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '계속 쉬기' : confirmQuit.kind === 'wait' ? '계속 기다리기' : confirmQuit.kind === 'craft' ? '계속 제작하기' : '계속 수련'}
+                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '계속 쉬기' : confirmQuit.kind === 'wait' ? '계속 기다리기' : confirmQuit.kind === 'craft' ? '계속 제작하기' : confirmQuit.kind === 'slowFight' ? '계속 기다리기' : '계속 수련'}
               </button>
             </div>
           </div>
@@ -1439,7 +1537,8 @@ export default function Game({
         />
       )}
       {codexOpen && <CodexModal player={player} admin={admin} onGet={adminGive} onClose={() => setCodexOpen(false)} />}
-      {clubOpen && <ClubModal onClose={() => setClubOpen(false)} onProfile={setCardTo} onFetchMembers={fetchClubMembers} />}
+      {clubOpen && <ClubModal player={player} onClose={() => setClubOpen(false)} onProfile={setCardTo} onFetchMembers={fetchClubMembers} />}
+      <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (

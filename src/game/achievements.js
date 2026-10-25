@@ -27,6 +27,14 @@ export const ACHIEVEMENTS = [
     at: (p) => p.cleared?.['talisman-2048'] ?? null,
   },
   {
+    id: 'model-student',
+    name: '나는야 모범생',
+    desc: '한 주 내내 어느 수업에서건 주간 랭킹 1위 자리를 지켜냈다. 다음 주로 넘어가는 순간까지 그 자리는 흔들리지 않았다.',
+    hint: '어느 수업이건 주간 랭킹 1위를 달성한 채로 다음 주로 넘어간다.',
+    reward: { money: 20, skin: 'golden-dream' },
+    at: (p) => p.weeklyTop1At ?? null,
+  },
+  {
     id: 'skin-master',
     name: '부적 만들기의 달인',
     desc: '최초 게임이 열리는 시점부터 얻을 수 있는 모든 2048 타일 스킨을 모았다.',

@@ -5,6 +5,8 @@ import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
 import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx } from './items'
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
+import { ENEMIES } from './battle'
+import { bumpWeekly, markWeeklySet, checkClubQuests } from './clubQuests'
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
@@ -225,23 +227,31 @@ export function tickPlayer(player, now, dtSec) {
   }
   // 대기(수련·취침·휴식·수업 대기·제작) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
   const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
-  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting)
+  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting || p.slowFight)
 
   // 제작: 끝까지 기다려야 완성품이 한꺼번에 나온다. 중간에 나가면(crafting이 끊기면) 재료도 완성품도 없다.
   const cf = p.crafting
   if (cf && now >= cf.startedAt + cf.minutes * 60000) {
     const r = finishCraft(p)
     if (r) {
-      p = r.player
+      p = bumpWeekly(r.player, 'craft', 1, now)
       logs.push(`제작을 마쳤다. ${r.item.name}${r.qty > 1 ? ` ${r.qty}개를` : '을(를)'} 얻었다.`)
     }
+  }
+
+  // 퇴마 실습(느린 싸움): 끝까지 기다리면 무조건 승리 판정을 받는다.
+  const sf = p.slowFight
+  if (sf && now >= sf.startedAt + sf.minutes * 60000) {
+    const r = finishSlowFight(p, now)
+    p = r.player
+    logs.push(...r.logs)
   }
 
   const tr = p.training
   if (tr) {
     const total = tr.reward ?? tr.minutes / TRAIN_UNIT_MIN
     if (now >= tr.startedAt + tr.minutes * 60000) {
-      p = { ...p, spirit: p.spirit + total, training: null }
+      p = bumpWeekly({ ...p, spirit: p.spirit + total, training: null }, 'trainMs', tr.minutes * 60000, now)
       logs.push(`수련을 마쳤다. (${tr.minutes}분 · 영력 +${total})`)
     }
   }
@@ -264,6 +274,7 @@ export function tickPlayer(player, now, dtSec) {
       k.stat === 'hp'
         ? { ...p, resting: null, hp: Math.min(p.hpMax, p.hp + rs.minutes) }
         : { ...p, resting: null, mp: Math.min(p.mpMax, p.mp + rs.minutes) }
+    p = bumpWeekly(p, rs.kind === 'bed' ? 'nurseRest' : 'nurseCounsel', 1, now)
     logs.push(`${k.label}를 마쳤다. (${rs.minutes}분 · ${k.stat === 'hp' ? '체력' : '의지력'} +${rs.minutes})`)
   }
 
@@ -281,13 +292,18 @@ export function tickPlayer(player, now, dtSec) {
     if (!st) continue
     if (st.waitUntil && now >= st.waitUntil) {
       const r = completeLesson(p, id, st.waitUntil)
-      p = r.player
+      p = bumpWeekly(r.player, 'lesson', 1, now)
       logs.push(`${courseTitle(id)}: 30분의 대기가 끝났다.`, ...r.logs)
     } else if (st.day !== today && !st.waitUntil && !st.pendingStat) {
       const { [id]: _drop, ...rest } = p.lessons
       p = { ...p, lessons: rest }
     }
   }
+  // 동아리 주간 활동(새 주로 넘어갔으면 초기화하고, 채운 활동이 있으면 보상)
+  const cq = checkClubQuests(p, now)
+  p = cq.player
+  logs.push(...cq.logs)
+
   // 도감 · 업적
   p = syncCodex(p)
   const ach = checkAchievements(p, now)
@@ -319,8 +335,48 @@ export function applyBattleResult(player, win, reward0, now = Date.now()) {
   }
   if (g.wins >= GYM_DAILY_REWARDS) return { player: { ...player, gym: g }, granted: 0, lost: 0 }
   return {
-    player: { ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } },
+    player: bumpWeekly({ ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } }, 'battleReward', 1, now),
     granted: reward,
     lost: 0,
   }
+}
+
+// ── 퇴마 실습: 느린 싸움으로 보상 얻기 ──
+// 전투 화면에서 직접 싸우는 대신, 상대의 영력×5분을 기다리면 무조건 승리 판정을 받는다(대신 체력·의지력이 영력×2만큼 깎인다).
+// 보스 전투는 느린 싸움으로 할 수 없다 — 반드시 직접 싸워야 한다.
+export const SLOW_FIGHT_WAIT_PER_SPIRIT = 5
+export const SLOW_FIGHT_COST_PER_SPIRIT = 2
+export const slowFightMinutes = (enemy) => Math.max(1, Math.round(enemy.spirit * SLOW_FIGHT_WAIT_PER_SPIRIT))
+
+export function startSlowFight(player, enemyId, now = Date.now()) {
+  if (player.slowFight) return { error: '이미 느린 싸움을 진행하는 중이다.' }
+  const enemy = ENEMIES.find((e) => e.id === enemyId)
+  if (!enemy) return { error: '그런 상대가 없다.' }
+  if (enemy.boss) return { error: '보스 전투는 느린 싸움으로 할 수 없다. 직접 싸워야 한다.' }
+  return { player: { ...player, slowFight: { enemyId, startedAt: now, minutes: slowFightMinutes(enemy) } } }
+}
+
+/** 중간에 나가면(확인 후) 보상 없이 취소된다. */
+export function cancelSlowFight(player) {
+  const { slowFight: _s, ...rest } = player
+  return rest
+}
+
+/** 대기가 끝나는 순간 호출된다. 체력·의지력을 영력×2만큼 깎고, 무조건 승리 판정으로 applyBattleResult 를 돌린다. */
+export function finishSlowFight(player, now = Date.now()) {
+  const sf = player.slowFight
+  const { slowFight: _s, ...rest } = player
+  if (!sf) return { player: rest, logs: [] }
+  const enemy = ENEMIES.find((e) => e.id === sf.enemyId)
+  if (!enemy) return { player: rest, logs: [] }
+  const cost = enemy.spirit * SLOW_FIGHT_COST_PER_SPIRIT
+  const curHp = Math.floor(rest.hp)
+  const curMp = Math.floor(rest.mp)
+  const hp = Math.max(1, curHp - cost)
+  const mp = Math.max(0, curMp - cost)
+  const r = applyBattleResult({ ...rest, hp, mp }, true, enemy.reward, now)
+  const logs = [
+    `퇴마 실습(느린 싸움): ${sf.minutes}분을 들여 ${enemy.name}을(를) 확실하게 쓰러뜨렸다. 체력 -${curHp - hp}, 의지력 -${curMp - mp}.${r.granted ? ` 영력 +${r.granted}, 돈 +${r.granted}냥.` : ' (오늘의 보상은 모두 받았다)'}`,
+  ]
+  return { player: r.player, logs }
 }

@@ -73,10 +73,33 @@ export const SKINS = [
     over: ['#083f3f', '#e9e2d0'],
     board: { frame: '#0b6a6a', cell: '#e9e2d0', panel: '#f5efe2', ink: '#2e2a24' },
   },
+  {
+    id: 'golden-dream',
+    name: '황금빛 백일몽',
+    desc: '주황에서 샛노랑까지, 금메달처럼 동그랗게 빛나는 스킨. 타일이 네모가 아니라 완전한 원형이다.',
+    unlock: 'model-student',
+    round: true, // 타일을 완전한 원형으로 그린다(움직이는 논리는 보통 타일과 똑같다).
+    tiles: {
+      2: ['#fdf3da', '#8a5a12'],
+      4: ['#fbe9b8', '#7d4e0f'],
+      8: ['#f7de93', '#70420c'],
+      16: ['#f2d36e', '#5e360a'],
+      32: ['#edd377', '#4a2c08'],
+      64: ['#f2e829', '#4a3c05'],
+      128: ['#f2c93c', '#432f02'],
+      256: ['#f2b949', '#3a2800'],
+      512: ['#ed9f2e', '#fff8e4'],
+      1024: ['#f27430', '#fff3dd'],
+      2048: ['#e8601c', '#fff3dd'],
+    },
+    over: ['#c44c12', '#fff3dd'],
+    board: { frame: '#f2c040', cell: '#fdf3da', panel: '#fff8e4', ink: '#7d4e0f' },
+  },
 ]
 
 export const skinOf = (id) => SKINS.find((s) => s.id === id) ?? SKINS[0]
-export const isSkinOpen = (skin, player) => !skin.unlock || !!player?.achievements?.[skin.unlock]
+/** 관리자 계정은 2048은 물론 앞으로 추가될 모든 게임 스킨을 자동으로 쓸 수 있다. */
+export const isSkinOpen = (skin, player, admin = false) => admin || !skin.unlock || !!player?.achievements?.[skin.unlock]
 // 최초 게임이 열리는 시점(현재 버전)부터 얻을 수 있는 스킨들. [부적 만들기의 달인] 업적이 기준으로 쓴다.
 // 취득 경로가 아직 정해지지 않은 스킨(흩날리는 눈의 겨울 · 도깨비불)은 나중에 경로가 생기면 여기에도 추가한다.
 export const LAUNCH_SKIN_IDS = ['talisman', 'changnok']
