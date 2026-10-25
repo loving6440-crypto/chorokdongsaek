@@ -77,7 +77,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const inputPhase = view.phase === 'input' && fighting && !view.over
   const acted = !!me?.acted || sending
   const myTurn = !!me && view.turn === me.id
-  const canAct = inputPhase && !acted && myTurn // 한 사람씩 차례대로: 내 차례일 때만
+  const canAct = inputPhase && !acted && myTurn && !me?.fire // 한 사람씩 차례대로: 내 차례일 때만 (도깨비불로 기를 모으는 중엔 자동으로 진행되어 입력하지 않는다)
   const turnName = view.members.find((m) => m.id === view.turn)?.name
   const rv = revealOf(enemy, stats, seen?.[enemy.id] || 0)
   const q = (ok, v) => (ok ? v : '???')
@@ -148,9 +148,13 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               ? '쓰러지는 중…'
               : !fighting
                 ? '관전 중'
-                : canAct
-                  ? `내 차례 — 행동을 고른다${left != null ? ` · ${left}초` : ''}`
-                  : `${turnName ? `${turnName} 님의 차례` : '상대의 차례'}를 기다리는 중${left != null && turnName ? ` · ${left}초` : ''}`}
+                : myTurn && me?.fire
+                  ? '✦ 도깨비불에 기를 모으는 중…'
+                  : canAct
+                    ? `내 차례 — 행동을 고른다${left != null ? ` · ${left}초` : ''}`
+                    : turnName && view.members.find((x) => x.id === view.turn)?.fire
+                      ? `${turnName} 님이 도깨비불에 기를 모으는 중…`
+                      : `${turnName ? `${turnName} 님의 차례` : '상대의 차례'}를 기다리는 중${left != null && turnName ? ` · ${left}초` : ''}`}
         </span>
       </div>
 

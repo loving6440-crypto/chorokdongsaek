@@ -70,9 +70,26 @@ function handle(ev) {
         yacht: ev.yacht ?? null,
       })
       break
-    case 'presence':
-      set({ online: ev.online })
+    case 'presence': {
+      // 서버가 전체 명부를 매번 다시 보내지 않고 바뀐 부분만 보낸다: add(새로 접속) · remove(접속 종료) · update(일행 등 항목 갱신).
+      let online = state.online
+      if (ev.remove?.length) {
+        const gone = new Set(ev.remove)
+        online = online.filter((o) => !gone.has(o.id))
+      }
+      if (ev.add?.length) {
+        const ids = new Set(ev.add.map((o) => o.id))
+        online = [...online.filter((o) => !ids.has(o.id)), ...ev.add]
+      }
+      if (ev.update?.length) {
+        const byId = new Map(ev.update.map((o) => [o.id, o]))
+        online = online.map((o) => byId.get(o.id) ?? o)
+        // 명부에 아직 없던 사람의 갱신이면(있을 일은 거의 없지만) 추가해 둔다.
+        for (const o of ev.update) if (!online.some((x) => x.id === o.id)) online = [...online, o]
+      }
+      set({ online })
       break
+    }
     case 'chat': {
       const ch = ev.channel
       const history = { ...state.history, [ch]: cap([...state.history[ch], ev.msg]) }

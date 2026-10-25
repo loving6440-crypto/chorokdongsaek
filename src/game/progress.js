@@ -8,6 +8,8 @@ import { finishCraft } from './crafting'
 import { ENEMIES } from './battle'
 import { bumpWeekly, bumpDaily, markWeeklySet, ensureDaily, checkClubQuests } from './clubQuests'
 import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
+import { SKINS } from './skins2048'
+import { SKINS_RUNNER } from './skinsRunner'
 
 // (다른 '대기 활동'들과 이름 규칙을 맞추기 위한 재수출)
 export const startGather = startGatherAt
@@ -185,6 +187,14 @@ export const weakLeftText = (player, now = Date.now()) => {
 export function acquirePsychic(player, id) {
   if (player.psychics?.includes(id)) return player
   return { ...player, psychics: [...(player.psychics ?? []), id] }
+}
+
+/** 관리자가 2048/퇴마 실습 스킨을 선물: 그 스킨이 걸려 있는 업적을 직접 달성시켜 준다(실제 업적 해금과 똑같은 모양). */
+export function grantSkin(player, kind, skinId, now = Date.now()) {
+  const skin = (kind === 'runner' ? SKINS_RUNNER : SKINS).find((s) => s.id === skinId)
+  if (!skin || !skin.unlock) return player // 기본 스킨(처음부터 열려 있음)이면 선물할 게 없다
+  if (player.achievements?.[skin.unlock]) return player
+  return { ...player, achievements: { ...(player.achievements ?? {}), [skin.unlock]: { at: now } } }
 }
 
 export function markNpc(player, id) {

@@ -35,7 +35,7 @@ export const SKINS = [
     id: 'winter-snow',
     name: '흩날리는 눈의 겨울',
     desc: '흰빛에서 짙은 겨울 하늘색까지, 눈이 휘날리듯 번지는 스킨.',
-    unlock: 'unset', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라 지금은 아무도 열 수 없다.
+    unlock: 'unset-winter-snow-2048', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라, 관리자가 선물해 주지 않으면 아무도 열 수 없다.
     tiles: {
       2: ['#f8fbff', '#355d82'],
       4: ['#eef6ff', '#2c5374'],
@@ -56,7 +56,7 @@ export const SKINS = [
     id: 'dokkaebi-fire',
     name: '도깨비불',
     desc: '베이지에서 짙은 청록까지, 불이 타오르듯 번지는 스킨.',
-    unlock: 'unset', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라 지금은 아무도 열 수 없다.
+    unlock: 'unset-dokkaebi-fire-2048', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라, 관리자가 선물해 주지 않으면 아무도 열 수 없다.
     tiles: {
       2: ['#e9e2d0', '#2e2a24'],
       4: ['#e2d8c0', '#2e2a24'],

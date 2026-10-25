@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, bellTick, enemyTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
+import { ENEMIES, auraOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -13,8 +13,8 @@ export const MB_SURVIVE_MS = 20_000
 export const MB_LOG_MAX = 80
 
 const STAT_KEYS = ['insight', 'aggression', 'endurance', 'control', 'agility', 'comprehension']
-// 다인 전투에서 쓸 수 있는 영능력 id 전체(기존엔 생존본능뿐이었으나, 솔로 전투에서 구현된 5종도 모두 받아들인다).
-const PSYCHIC_IDS = ['survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense']
+// 다인 전투에서 쓸 수 있는 영능력 id 전체(기존엔 생존본능뿐이었으나, 솔로 전투에서 구현된 6종도 모두 받아들인다).
+const PSYCHIC_IDS = ['survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense', 'dokkaebi-fire']
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? +v : lo))
 
 /** 클라이언트가 보낸 스탯을 안전한 정수로 고친다. */
@@ -45,6 +45,7 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     guard: false,
     bound: false,
     stun: 0, // 남은 행동불능 턴 수(0이면 정상). 폭죽 등으로 걸린다.
+    fire: 0, // 도깨비불: 기를 모으는 중 남은 자동 턴 수(0이면 정상). 쓰고 나면 다음 턴들은 입력 없이 자동으로 진행된다.
     curse: 0,
     survived: 0,
     myTurns: 0, // 지금까지 실제로 행동(일반 공격·부적·영능력 등)한 횟수 — '맨 첫 턴' 제한이 있는 영능력(내려쬐는 빛·업인과보)에 쓴다.
@@ -115,6 +116,7 @@ const viewOfMember = (mb, m) => ({
   usedItems: m.usedItems,
   party: true,
   over: null,
+  fire: m.fire || 0,
 })
 
 /** 시작 선공 판정: 일행에서 가장 신속한 사람의 굴림. 상대가 먼저면 첫 라운드 앞에 상대가 한 번 움직인다. */
@@ -167,15 +169,16 @@ function nextActor(mb, rng = Math.random) {
   }
 }
 
-/** 지금 행동을 골라야 하는 사람(없거나 이미 골랐으면 빈 목록) */
+/** 지금 행동을 골라야 하는 사람(없거나 이미 골랐으면 빈 목록) — 도깨비불로 기를 모으는 중이면 입력을 기다리지 않는다. */
 export const waitingOn = (mb) => {
   if (mb.phase !== 'input' || !mb.turn) return []
   const m = mb.members.find((x) => x.id === mb.turn)
-  return m && m.status === 'alive' && !m.act ? [m] : []
+  return m && m.status === 'alive' && !m.act && !(m.fire > 0) ? [m] : []
 }
 export const ready = (mb) => {
   if (mb.phase !== 'input' || !mb.turn) return false
   const m = mb.members.find((x) => x.id === mb.turn)
+  if (m && m.fire > 0) return true // 도깨비불: 입력 없이 자동으로 진행된다
   return !!m && !!m.act
 }
 
@@ -300,6 +303,44 @@ export function resolveTurn(mb, rng = Math.random) {
   const evs = []
   const m = mb.members.find((x) => x.id === mb.turn)
   if (!m || m.status !== 'alive' || mb.phase !== 'input') return evs
+  // 도깨비불을 쓴 상태라면 내 턴은 자동으로 기를 모으거나(마지막엔) 터뜨린다 — 입력을 기다리지 않는다.
+  if (m.fire > 0) {
+    const v0 = viewOfMember(mb, m)
+    const f = fireTurn(v0, { stats: m.stats, mp: m.mp, boost: m.boost }, rng)
+    m.fire = f.state.fire || 0
+    m.guard = false
+    mb.ehp = f.state.ehp
+    m.php = Math.max(0, Math.min(m.phpMax, f.state.php))
+    m.act = null
+    evs.push(...addLog(mb, f.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
+    if (mb.ehp <= 0) {
+      mb.over = 'win'
+      mb.phase = 'over'
+      mb.turn = null
+      return evs
+    }
+    // 무당방울: 유효한 행동을 한 소지자는 매 턴 확률적으로 일행 전원의 체력을 회복시킨다. (기 모으는 턴도 '유효한 행동'으로 친다)
+    const bell = bellTick(m.stats, rng)
+    if (bell) {
+      const healedNames = []
+      for (const x of aliveOf(mb)) {
+        const before = x.php
+        x.php = Math.min(x.phpMax, x.php + bell.heal)
+        if (x.php > before) healedNames.push(x.name)
+      }
+      if (healedNames.length) {
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ 무당방울! [이해 ${bell.chance}%, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
+      }
+    }
+    evs.push(...nextActor(mb, rng))
+    if (mb.turn) return evs // 다음 사람의 차례
+    if (!aliveOf(mb).length) {
+      finishIfOver(mb)
+      return evs
+    }
+    evs.push(...enemyPhase(mb, rng))
+    return evs
+  }
   // 폭죽 등으로 행동불능인 턴: 아무것도 하지 못하고 그대로 넘어간다.
   if (m.stun > 0) {
     m.stun -= 1
@@ -351,6 +392,7 @@ export function resolveTurn(mb, rng = Math.random) {
   m.guard = r.state.guard
   m.charms = r.state.charms
   m.bound = r.state.bound
+  m.fire = r.state.fire || 0 // 도깨비불을 썼다면 여기서 세팅되어, 다음 턴부터 자동으로 진행된다
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
@@ -621,6 +663,7 @@ export function viewOf(mb, extra = {}) {
       bring: m.bring,
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
+      fire: m.fire || 0,
       acted: !!m.act,
       result: resultOf(mb, m.id),
     })),

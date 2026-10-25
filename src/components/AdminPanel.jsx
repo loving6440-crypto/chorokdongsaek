@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
 import { STAT_KEYS, STAT_META } from '../game/constants'
 import { PSYCHICS } from '../game/battle'
+import { SKINS } from '../game/skins2048'
+import { SKINS_RUNNER } from '../game/skinsRunner'
 import { clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
 import { adminResetPassword } from '../game/auth'
 import { itemsText } from './MailboxPanel'
 
 /** 지급 · 선물 대상으로 고를 수 있는 영능력: 처음부터 있는 [효험]은 뺀다. */
 const GRANTABLE_PSYCHICS = PSYCHICS.filter((p) => !p.default)
+/** 선물로 고를 수 있는 스킨: 업적으로 거는 기본 스킨(unlock 없음)은 뺀다 — 선물할 게 없으니까. */
+const GRANTABLE_SKINS_2048 = SKINS.filter((s) => s.unlock)
+const GRANTABLE_SKINS_RUNNER = SKINS_RUNNER.filter((s) => s.unlock)
 
 const fmtAt = (t) => {
   if (!t) return '—'
@@ -105,6 +110,8 @@ function EditOther({ userId, adminKey, online }) {
   const [clearBuffs, setClearBuffs] = useState(false)
   const [refill, setRefill] = useState(false)
   const [addPsychic, setAddPsychic] = useState('')
+  const [addSkin2048, setAddSkin2048] = useState('')
+  const [addSkinRunner, setAddSkinRunner] = useState('')
   const [msg, setMsg] = useState({ ok: true, text: '' })
   const [busy, setBusy] = useState(false)
   const res = online.editResult
@@ -124,11 +131,13 @@ function EditOther({ userId, adminKey, online }) {
       ...(clearBuffs ? { clearBuffs: true } : {}),
       ...(refill ? { refill: true } : {}),
       ...(addPsychic ? { addPsychic } : {}),
+      ...(addSkin2048 ? { addSkin2048 } : {}),
+      ...(addSkinRunner ? { addSkinRunner } : {}),
     }
     if (!Object.keys(changes).length) return setMsg({ ok: false, text: '바꿀 항목을 골라 줘.' })
     setBusy(true)
     const r = await requestEdit(userId, adminKey, to, changes)
-    if (r.ok) { setMsg({ ok: true, text: '동의를 기다리는 중… (60초)' }); setAddPsychic('') }
+    if (r.ok) { setMsg({ ok: true, text: '동의를 기다리는 중… (60초)' }); setAddPsychic(''); setAddSkin2048(''); setAddSkinRunner('') }
     else {
       setBusy(false)
       setMsg({ ok: false, text: r.error === 'target-offline' ? '상대가 접속 중이 아니다.' : r.error === 'no-changes' ? '바꿀 항목이 없다.' : '요청을 보내지 못했다.' })
@@ -160,6 +169,20 @@ function EditOther({ userId, adminKey, online }) {
         <select data-edit-psychic value={addPsychic} onChange={(e) => setAddPsychic(e.target.value)} aria-label="선물할 영능력" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper">
           <option value="">(선택 안 함)</option>
           {GRANTABLE_PSYCHICS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-sm text-paper/85">
+        부적학(2048) 스킨 선물
+        <select data-edit-skin2048 value={addSkin2048} onChange={(e) => setAddSkin2048(e.target.value)} aria-label="선물할 2048 스킨" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper">
+          <option value="">(선택 안 함)</option>
+          {GRANTABLE_SKINS_2048.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-sm text-paper/85">
+        퇴마 실습 스킨 선물
+        <select data-edit-skin-runner value={addSkinRunner} onChange={(e) => setAddSkinRunner(e.target.value)} aria-label="선물할 퇴마 실습 스킨" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper">
+          <option value="">(선택 안 함)</option>
+          {GRANTABLE_SKINS_RUNNER.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </label>
       <div className="mt-2 flex items-center gap-2">

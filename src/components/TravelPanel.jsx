@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Footprints } from 'lucide-react'
+import { Footprints, Zap } from 'lucide-react'
 import { LOCATIONS } from '../game/constants'
 
 const leftText = (ms) => {
@@ -23,7 +23,7 @@ const TRAVEL_LINES = [
 ]
 
 /** 건물이 아예 바뀌는 이동 중일 때, 그 구역의 화면 대신 보여 주는 대기 패널. */
-export default function TravelPanel({ traveling }) {
+export default function TravelPanel({ traveling, mp, onFastTravel }) {
   const [, setTick] = useState(0)
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 1000)
@@ -33,6 +33,8 @@ export default function TravelPanel({ traveling }) {
   const left = traveling.startedAt + traveling.minutes * 60000 - Date.now()
   // 이동을 시작한 시각을 씨앗 삼아 하나를 고른다 — 도착할 때까지(재렌더링돼도) 같은 대사가 유지된다.
   const line = useMemo(() => TRAVEL_LINES[Math.abs(Math.floor(traveling.startedAt)) % TRAVEL_LINES.length], [traveling.startedAt])
+  const fastCost = Math.ceil(traveling.minutes / 2)
+  const canFast = typeof onFastTravel === 'function' && typeof mp === 'number' && mp >= fastCost
   return (
     <section aria-label="이동 중" className="grid min-h-[16rem] place-items-center py-10 text-center">
       <Footprints size={28} className="text-gold/70" aria-hidden />
@@ -43,6 +45,19 @@ export default function TravelPanel({ traveling }) {
       <p className="mt-3 text-lg text-gold" data-travel-left>
         남은 시간: {left > 0 ? leftText(left) : '거의 다 됐다'}
       </p>
+      {typeof onFastTravel === 'function' && (
+        <button
+          type="button"
+          className="mt-4 flat-chip inline-flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={onFastTravel}
+          disabled={!canFast}
+          data-fast-travel
+          title={canFast ? '' : '의지력이 부족하다'}
+        >
+          <Zap size={16} aria-hidden />
+          빠른 이동 (의지력 -{fastCost})
+        </button>
+      )}
     </section>
   )
 }

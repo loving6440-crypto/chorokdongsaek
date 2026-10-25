@@ -4,6 +4,7 @@ dist-ssr
 .git
 *.log
 server/data.json
+server/cards.json
 server/accounts.json
 .vscode
 .idea

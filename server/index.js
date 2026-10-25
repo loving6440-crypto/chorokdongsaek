@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
 import { ENEMIES, PSYCHICS } from '../src/game/battle.js'
+import { SKINS } from '../src/game/skins2048.js'
+import { SKINS_RUNNER } from '../src/game/skinsRunner.js'
 import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
 import * as A from './accounts.js'
@@ -27,6 +29,10 @@ const GIFT_MAX = 5
 const PORT = Number(process.env.PORT) || 8787
 const DIST = process.env.CHOROK_DIST ? path.resolve(process.env.CHOROK_DIST) : path.resolve(__dirname, '../dist')
 const DATA_FILE = process.env.CHOROK_DATA || path.join(__dirname, 'data.json')
+// 인적사항 카드(cards)는 따로 저장한다 — 프로필 사진(최대 250KB)이 들어 있어서 커질 수 있는데,
+// 한 덩어리로 같이 저장하면 채팅 한 줄만 와도 카드 전체(모든 사람의 사진 포함)를 매번 다시 굳혀서 써야 한다.
+// 1000명 규모로 접속자가 늘면 그 직렬화·디스크 쓰기 자체가 (짧게나마) 서버 전체를 멈추게 만들 수 있어 분리했다.
+const CARDS_FILE = process.env.CHOROK_CARDS_DATA || path.join(__dirname, 'cards.json')
 // 관리자: 환경변수 CHOROK_ADMIN_KEY 를 아는 계정만 관리자가 된다. (키가 없으면 관리자 기능은 꺼진다.)
 //  - 접속할 때 키를 보내 서버가 확인하면 채팅에 [관리자] 직함이 붙는다.
 //  - 관리자 계정은 마음대로 스탯을 조절하므로 랭킹에는 오르지 않는다.
@@ -80,6 +86,7 @@ let seq = 1 // 쪽지·선물·채팅·일행 id 에 함께 쓰는 전역 번호
 // Supabase 테이블:  create table saves (id text primary key, data jsonb not null, updated_at timestamptz default now());
 const DATABASE_URL = process.env.DATABASE_URL || ''
 const DB_ROW_ID = 'server'
+const DB_ROW_ID_CARDS = 'server-cards' // 인적사항 카드만 따로 담는 행(위 CARDS_FILE 설명 참고)
 let db = null // pg Pool (DATABASE_URL 이 있을 때만)
 if (DATABASE_URL) {
   const { default: pg } = await import('pg')
@@ -169,6 +176,22 @@ if (db) {
     /* 첫 실행이면 빈 랭킹으로 시작 */
   }
 }
+// 인적사항 카드: 메인 기록과 분리된 자리에서 따로 읽는다. (예전 data.json 에 같이 있었다면 위 applyRaw 가 이미 cards 를 채웠을 수 있는데, 여기서 더 최신 것이 있으면 덮어쓴다)
+if (db) {
+  try {
+    const r = await db.query('select data from saves where id = $1', [DB_ROW_ID_CARDS])
+    if (r.rows[0]?.data?.cards) cards = r.rows[0].data.cards
+  } catch (e) {
+    console.error('인적사항 카드를 DB 에서 불러오지 못했습니다:', e.message)
+  }
+} else {
+  try {
+    const raw = JSON.parse(fs.readFileSync(CARDS_FILE, 'utf8'))
+    if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
+  } catch {
+    /* 따로 저장된 파일이 아직 없으면(예전 버전) data.json 에 실려 있던 것을 그대로 쓴다 */
+  }
+}
 
 // 계정 · 캐릭터 저장소 (server/accounts.js). DB 가 없으면 accounts.json 파일.
 const ACCOUNTS_FILE = process.env.CHOROK_ACCOUNTS || path.join(__dirname, 'accounts.json')
@@ -188,7 +211,6 @@ const snapshot = () => ({
   rankingWeek,
   lastWeek,
   market,
-  cards,
   members,
   stories,
   mail,
@@ -208,7 +230,8 @@ async function saveNow() {
       [DB_ROW_ID, JSON.stringify(snapshot())]
     )
   } else {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(snapshot(), null, 1))
+    // 동기 쓰기(writeFileSync)는 쓰는 동안 이벤트 루프 전체를 멈춘다 — 접속자가 많을 때는 비동기로.
+    await fs.promises.writeFile(DATA_FILE, JSON.stringify(snapshot(), null, 1))
   }
 }
 let saveTimer = null
@@ -226,6 +249,33 @@ function scheduleSave() {
       if (!saveTimer) setTimeout(() => !saveTimer && scheduleSave(), 10_000)
     }
   }, db ? 1500 : 400)
+}
+
+// 인적사항 카드(cards)는 따로, 더 느긋하게 저장한다 — 사진이 커서 매번 다시 굳히는 비용이 있고,
+// 프로필을 자주 고치는 사람도 적어서 급하게 저장할 필요가 없다. (서버가 중간에 죽어도 카드는 잠깐 전 상태로만 복구된다)
+async function saveCardsNow() {
+  if (db) {
+    await db.query(
+      `insert into saves (id, data, updated_at) values ($1, $2, now())
+       on conflict (id) do update set data = excluded.data, updated_at = now()`,
+      [DB_ROW_ID_CARDS, JSON.stringify({ cards })]
+    )
+  } else {
+    await fs.promises.writeFile(CARDS_FILE, JSON.stringify({ cards }, null, 1))
+  }
+}
+let cardsSaveTimer = null
+function scheduleCardsSave() {
+  clearTimeout(cardsSaveTimer)
+  cardsSaveTimer = setTimeout(async () => {
+    cardsSaveTimer = null
+    try {
+      await saveCardsNow()
+    } catch (e) {
+      console.error('인적사항 카드 저장 실패(10초 뒤 다시 시도):', e.message)
+      if (!cardsSaveTimer) setTimeout(() => !cardsSaveTimer && scheduleCardsSave(), 10_000)
+    }
+  }, db ? 5_000 : 2_000)
 }
 
 // ───────── 접속 상태(메모리) ─────────
@@ -248,6 +298,11 @@ const sendTo = (id, payload) => {
 const broadcast = (payload) => clients.forEach((c) => send(c, payload))
 const onlineList = () =>
   [...clients.values()].map((c) => ({ id: c.id, name: c.name, title: c.title, partyId: partyOf.get(c.id) ?? null }))
+// 접속 중인 사람 한 명의 명부 항목(접속 중이 아니면 null).
+const presenceEntry = (id) => {
+  const c = clients.get(id)
+  return c ? { id, name: c.name, title: c.title, partyId: partyOf.get(id) ?? null } : null
+}
 const partyView = (p) =>
   p && {
     id: p.id,
@@ -260,7 +315,12 @@ const partyView = (p) =>
     })),
   }
 const pushParty = (p) => p.members.forEach((id) => sendTo(id, { t: 'party', party: partyView(p), log: p.log }))
-const pushPresence = () => broadcast({ t: 'presence', online: onlineList() })
+// 명부가 바뀔 때마다 전체 목록을 다시 보내지 않고, 바뀐 부분만 보낸다 — 인원이 많을수록(접속자 수)^2 로 커지는 걸 막는다.
+// delta = { add?: [entry,…], remove?: [id,…], update?: [entry,…] } (update 는 partyId 등 기존 항목의 변경)
+const pushPresence = (delta) => {
+  if (!delta || (!delta.add?.length && !delta.remove?.length && !delta.update?.length)) return
+  broadcast({ t: 'presence', ...delta })
+}
 
 const makeMsg = (from, text, extra = {}) => ({
   id: seq++,
@@ -281,7 +341,12 @@ function leaveParty(id, reason = 'leave') {
   if (!pid) return
   const p = parties.get(pid)
   partyOf.delete(id)
-  if (!p) return
+  // partyId 가 바뀌는 사람들(명부 갱신용) — 이 아이디가 아직 접속 중이 아니면(연결이 끊겨서 호출된 경우) 명부엔 안 보낸다.
+  const presenceChanged = [id]
+  if (!p) {
+    pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
+    return
+  }
   const name = clients.get(id)?.name ?? id
   p.members = p.members.filter((m) => m !== id)
   partyStats.delete(id)
@@ -291,6 +356,7 @@ function leaveParty(id, reason = 'leave') {
     p.members.forEach((m) => {
       partyOf.delete(m)
       partyStats.delete(m)
+      presenceChanged.push(m)
       sendTo(m, { t: 'party', party: null, log: [] })
       sendTo(m, { t: 'notice', text: `${name}님이 일행을 ${reason === 'drop' ? '떠났다' : '떠나 일행이 해산되었다'}.` })
     })
@@ -299,6 +365,7 @@ function leaveParty(id, reason = 'leave') {
     pushPartyMsg(p, makeMsg(null, `${name}님이 일행을 떠났다.`, { system: true }))
     pushParty(p)
   }
+  pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
   scheduleSave()
 }
 
@@ -1096,7 +1163,7 @@ async function handleApi(req, res, url) {
       })(),
     })
     if (party) pushParty(party)
-    pushPresence()
+    pushPresence({ add: [presenceEntry(id)] })
     // 이미 끊긴 연결에 쓰다가 예외가 나면(close 이벤트가 아직 안 와도 생길 수 있다) 서버 전체가 죽는다 — 반드시 감싼다.
     const ping = setInterval(() => {
       try {
@@ -1119,7 +1186,7 @@ async function handleApi(req, res, url) {
         setTimeout(() => {
           if (!clients.has(id)) leaveParty(id, 'drop')
         }, 30_000)
-        pushPresence()
+        pushPresence({ remove: [id] })
       }
     })
     return
@@ -1386,6 +1453,8 @@ async function handleApi(req, res, url) {
     if (ch.clearBuffs) changes.clearBuffs = true
     if (ch.refill) changes.refill = true
     if (ch.addPsychic && PSYCHICS.some((p) => p.id === ch.addPsychic && !p.default)) changes.addPsychic = ch.addPsychic
+    if (ch.addSkin2048 && SKINS.some((s) => s.id === ch.addSkin2048 && s.unlock)) changes.addSkin2048 = ch.addSkin2048
+    if (ch.addSkinRunner && SKINS_RUNNER.some((s) => s.id === ch.addSkinRunner && s.unlock)) changes.addSkinRunner = ch.addSkinRunner
     if (!Object.keys(changes).length) return json(res, 400, { error: 'no-changes' })
     const rid = `e${seq++}`
     const adminName = members[id]?.name ?? id
@@ -1541,7 +1610,7 @@ async function handleApi(req, res, url) {
     const age = Number.isInteger(c.age) && c.age >= 10 && c.age <= 40 ? c.age : null
     const grade = [1, 2, 3].includes(c.grade) ? c.grade : null
     cards[me.id] = { name: clean(c.name, 12) || me.name, greeting: clean(c.greeting, 30), age, grade, avatar, at: Date.now() }
-    scheduleSave()
+    scheduleCardsSave()
     return json(res, 200, { ok: true })
   }
 
@@ -2148,23 +2217,24 @@ async function handleApi(req, res, url) {
     if (!from) return json(res, 410, { error: 'inviter-gone' })
     if (partyOf.has(me.id)) return json(res, 409, { error: 'already-in-party' })
     let p = parties.get(partyOf.get(from.id))
+    const presenceChanged = [me.id]
     if (!p) {
       p = { id: `p${seq++}`, members: [from.id], log: [] }
       parties.set(p.id, p)
       partyOf.set(from.id, p.id)
+      presenceChanged.push(from.id)
     }
     p.members.push(me.id)
     partyOf.set(me.id, p.id)
     pushPartyMsg(p, makeMsg(null, `${me.name}님이 일행으로 합류했다.`, { system: true }))
     pushParty(p)
-    pushPresence()
+    pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
     scheduleSave()
     return json(res, 200, { ok: true })
   }
 
   if (route === '/api/party/leave') {
     leaveParty(me.id)
-    pushPresence()
     return json(res, 200, { ok: true })
   }
 

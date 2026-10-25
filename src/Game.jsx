@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPlayer, gradeOf } from './game/character'
 import ChatPanel from './components/ChatPanel'
+import GlobalBoardGames from './components/GlobalBoardGames'
 import InventoryModal from './components/InventoryModal'
 import CodexToast from './components/CodexToast'
 import ProfileCardModal from './components/ProfileCardModal'
@@ -75,6 +76,7 @@ import {
   syncCodex,
   REST_KINDS,
   acquirePsychic,
+  grantSkin,
   effectiveStats,
   isWeak,
   weakLeftText,
@@ -499,6 +501,23 @@ export default function Game({
     playerRef.current = next
     setPlayer(next)
     addLog(`${LOCATIONS[t.toId].name}(으)로 이동을 시작했다. (${t.minutes}분)`)
+  }
+
+  // 빠른 이동: 이동 중일 때만 쓸 수 있다(휴식·수업 대기 등 다른 대기에는 없다). 이동 시간의 절반만큼 의지력을 써서 곧장 도착한다.
+  const fastTravelCost = (minutes) => Math.ceil(minutes / 2)
+  const fastTravel = () => {
+    const cur = playerRef.current
+    const trv = cur.traveling
+    if (!trv) return
+    const cost = fastTravelCost(trv.minutes)
+    if (cur.mp < cost) return
+    const { traveling: _t, ...rest } = cur
+    const next = { ...rest, mp: cur.mp - cost }
+    playerRef.current = next
+    setPlayer(next)
+    setActivity('intro')
+    setLocationId(trv.toId)
+    addLog(`의지력 ${cost}을 써서 ${LOCATIONS[trv.toId].name}에 곧장 이동했다.`)
   }
 
   const doMove = (id) => {
@@ -1307,6 +1326,8 @@ export default function Game({
       if (ch.clearBuffs) next = { ...next, buffs: [] }
       if (ch.refill) next = { ...next, hp: next.hpMax, mp: next.mpMax }
       if (ch.addPsychic) next = acquirePsychic(next, ch.addPsychic)
+      if (ch.addSkin2048) next = grantSkin(next, '2048', ch.addSkin2048)
+      if (ch.addSkinRunner) next = grantSkin(next, 'runner', ch.addSkinRunner)
       playerRef.current = next
       setPlayer(next)
       addLog('관리자의 수정 요청에 동의해 상태가 바뀌었다.')
@@ -1386,7 +1407,7 @@ export default function Game({
         <main className="ink-panel flex min-h-[16rem] min-w-0 flex-1 lg:min-h-0 flex-col overflow-hidden rounded-2xl" aria-label="활동 화면">
           <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' || panel === 'mailbox' ? panel : `${locationId}-${activity}`}>
             {player.traveling ? (
-              <TravelPanel traveling={player.traveling} />
+              <TravelPanel traveling={player.traveling} mp={player.mp} onFastTravel={fastTravel} />
             ) : panel === 'mailbox' ? (
               <MailboxPanel online={online} meId={online.me?.id} />
             ) : panel === 'market' ? (
@@ -1681,6 +1702,7 @@ export default function Game({
           }}
         />
       )}
+      <GlobalBoardGames active={locationId === 'annex'} />
       {online.mbInvite && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4" data-mb-invite>
           <div role="dialog" aria-modal="true" aria-label="다인 전투 초대" className="ink-panel w-full max-w-sm rounded-xl p-5 text-center">

@@ -9,6 +9,7 @@ import {
   INTENTS,
   bellTick,
   enemyTurn,
+  fireTurn,
   newBattle,
   playerTurn,
   ownedPsychics,
@@ -255,6 +256,20 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   // 내 턴이 돌아오는 시작 시점마다 돌발 판정(1d100)을 항상 굴린다. 터지면 이번 턴은 무조건 일반 공격.
   const beginTurn = useCallback(
     (state) => {
+      // 도깨비불을 쓴 상태라면 내 턴은 자동으로 기를 모으거나(마지막엔) 터뜨린다 — 돌발 판정도 건너뛴다.
+      if (state.fire) {
+        setBusy(true)
+        timer.current = setTimeout(() => {
+          const f = fireTurn(state, { stats, mp: mpRef.current, boost: boostRef.current }, Math.random)
+          const bell = applyBell(f.state)
+          setB(bell.state)
+          push([...f.events, ...bell.events])
+          setBusy(false)
+          if (bell.state.over) finish(bell.state)
+          else runEnemy(bell.state)
+        }, 800)
+        return
+      }
       const rr = rollRash(stats)
       if (rr.percent > 0) {
         push([{ kind: rr.hit ? 'rash' : 'info', text: `돌발 판정 d100 = ${rr.roll} (확률 ${rr.percent}%) → ${rr.hit ? '돌발 행동 발생!' : '이상 없음'}` }])
@@ -267,7 +282,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         resolve(state, 'attack')
       }, 800)
     },
-    [stats, push, resolve],
+    [stats, push, resolve, finish, runEnemy],
   )
   beginRef.current = beginTurn
 
@@ -532,7 +547,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   const rv = revealOf(b.enemy, stats, fights)
   const danger = b.php <= b.phpMax * 0.3 && !b.over
-  const myTurn = !busy && !b.over && !b.pendingDeath
+  const myTurn = !busy && !b.over && !b.pendingDeath && !b.fire // 도깨비불로 기를 모으는 중엔 자동으로 진행되어 입력하지 않는다
   const shown = b.over ? 0 : Math.min(b.known, b.queue.length)
   const SHOW_MAX = 14
   const have = Math.floor(mpRef.current)
