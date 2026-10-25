@@ -290,6 +290,46 @@ const getToken = () => {
 const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY))
 const pickGame = (u) => Object.fromEntries(GAME_FIELDS.filter((k) => u && k in u).map((k) => [k, u[k]]))
 
+// 프로필 사진(업로드한 이미지)은 수십~수백 KB 짜리 data URL 이라, 바뀌지도 않았는데 자동저장(몇 초마다)에
+// 실려서 매번 다시 왕복하면 트래픽이 금방 쌓인다. 그래서 이미 서버에 보낸 적 있는 사진과 같으면
+// { kind:'image', unchanged:true } 표시만 보내고, 서버는 그걸 보면 원래 갖고 있던 사진을 그대로 둔다.
+// (이 세션 안에서만 기억하면 충분 — 새로고침 직후엔 한 번 더 보내도 손해가 크지 않다.)
+const lastAvatarSrc = new Map() // `${userId}:${pid}` → 마지막으로 서버에 보낸 image avatar 의 src
+const avatarKey = (userId, pid) => `${userId}:${pid}`
+const isImageAvatar = (a) => a && a.kind === 'image' && typeof a.src === 'string'
+const markIfUnchanged = (avatar, key) => (isImageAvatar(avatar) && lastAvatarSrc.get(key) === avatar.src ? { kind: 'image', unchanged: true } : avatar)
+
+/** pickGame(u) 결과에서, 바뀌지 않은 이미지 아바타는 가벼운 표시로 바꿔치기한다. 바뀐 건 그대로 둔다
+ *  (서버가 받아서 저장해야 다음부터 '바뀌지 않음'으로 취급할 수 있으므로). */
+function pickGameForPush(u) {
+  const out = pickGame(u)
+  const active = activeProfileId(u)
+  if (out.save?.character) {
+    out.save = { ...out.save, character: { ...out.save.character, avatar: markIfUnchanged(out.save.character.avatar, avatarKey(u.id, active)) } }
+  }
+  if (out.profiles) {
+    const profiles = {}
+    for (const [pid, p] of Object.entries(out.profiles)) {
+      profiles[pid] = p?.character
+        ? { ...p, character: { ...p.character, avatar: markIfUnchanged(p.character.avatar, avatarKey(u.id, pid)) } }
+        : p
+    }
+    out.profiles = profiles
+  }
+  return out
+}
+
+/** 푸시가 성공했으면, 이번에 (표시로 바꾸지 않고) 실제로 보낸 이미지 아바타들을 '마지막으로 보낸 것'으로 기억해 둔다. */
+function rememberSentAvatars(u) {
+  const active = activeProfileId(u)
+  if (isImageAvatar(u.save?.character?.avatar)) lastAvatarSrc.set(avatarKey(u.id, active), u.save.character.avatar.src)
+  if (u.profiles) {
+    for (const [pid, p] of Object.entries(u.profiles)) {
+      if (isImageAvatar(p?.character?.avatar)) lastAvatarSrc.set(avatarKey(u.id, pid), p.character.avatar.src)
+    }
+  }
+}
+
 /** 서버 연결 상태: 'online'(동기화 중) | 'offline'(서버 연결 안 됨, 이 브라우저에만 저장) */
 export const syncMode = () => (getToken() ? 'online' : 'offline')
 
@@ -349,7 +389,7 @@ export async function pushNow({ keepalive = false } = {}) {
   if (pushing) return schedulePush(1000)
   pushing = true
   const seq = changeSeq
-  const body = { base: u.syncBase ?? 0, account: pickGame(u) }
+  const body = { base: u.syncBase ?? 0, account: pickGameForPush(u) }
   // 페이지를 닫을 때 쓰는 keepalive 는 64KB 까지만 보낼 수 있다. (넘으면 다음 접속 때 이어서 보낸다)
   const r = await api('/api/account/save', { body, auth: true, keepalive: keepalive && JSON.stringify(body).length < 60_000 })
   pushing = false
@@ -357,6 +397,7 @@ export async function pushNow({ keepalive = false } = {}) {
   const cur = users[sid]
   if (!cur) return
   if (r.ok) {
+    rememberSentAvatars(u) // 이번에 실제로 보낸(표시로 바꾸지 않은) 이미지 아바타를 기억해 다음부턴 생략한다
     cur.syncBase = r.data.updatedAt
     if (seq === changeSeq) cur.dirty = false // 보내는 동안 또 바뀌었으면 dirty 를 남겨 다음에 또 보낸다
     saveUsers(users, { fromServer: true })

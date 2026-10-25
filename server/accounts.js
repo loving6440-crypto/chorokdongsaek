@@ -170,3 +170,22 @@ export function pickGame(src) {
   for (const k of GAME_FIELDS) if (src && k in src) out[k] = src[k]
   return out
 }
+
+// 프로필 사진은 바뀌지 않았으면 브라우저가 { kind:'image', unchanged:true } 표시만 보낸다(트래픽 절약).
+// 그 표시를 보면 지금까지 저장돼 있던 사진으로 그대로 채워 넣는다. (한 번도 저장된 적 없는데 이 표시가 오면
+// — 보통은 일어나지 않지만 — 표시 자체는 지워 사진이 영영 빈 채로 저장되는 일은 막는다)
+const isUnchangedAvatarMark = (a) => a && a.kind === 'image' && a.unchanged === true
+export function resolveAvatarMarkers(incoming, acc) {
+  if (incoming.save?.character && isUnchangedAvatarMark(incoming.save.character.avatar)) {
+    incoming.save.character.avatar = acc?.save?.character?.avatar ?? null
+  }
+  if (incoming.profiles) {
+    for (const pid of Object.keys(incoming.profiles)) {
+      const p = incoming.profiles[pid]
+      if (p?.character && isUnchangedAvatarMark(p.character.avatar)) {
+        p.character.avatar = acc?.profiles?.[pid]?.character?.avatar ?? null
+      }
+    }
+  }
+  return incoming
+}

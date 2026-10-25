@@ -1272,7 +1272,8 @@ async function handleApi(req, res, url) {
     if (!acc) return json(res, 401, { error: 'no-account' })
     // base: 이 브라우저가 마지막으로 서버와 맞춘 저장 번호. 그 사이 다른 기기가 저장했다면 덮어쓰지 않고 최신 기록을 돌려준다.
     if (Number(body.base) !== (acc.updatedAt || 0)) return json(res, 409, { error: 'stale', user: A.publicAccount(acc) })
-    Object.assign(acc, A.pickGame(body.account), { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
+    const incoming = A.resolveAvatarMarkers(A.pickGame(body.account), acc)
+    Object.assign(acc, incoming, { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
     await accounts.put(acc)
     return json(res, 200, { ok: true, updatedAt: acc.updatedAt })
   }
