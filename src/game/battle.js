@@ -163,7 +163,7 @@ export const PSYCHICS = [
     cond: '전투 중 최초로 전투불능이 되어본다.',
     use: true,
   },
-  // ───────── 아래 세 영능력은 데이터만 정의되어 있다. (취득 경로는 아직 정해지지 않았다) ─────────
+  // ───────── 아래 영능력들은 실제 전투 로직까지 구현되어 있다(psychicTurn). 다만 정식 취득 경로는 아직 정해지지 않아, 관리자 도구로만 얻을 수 있다. ─────────
   {
     id: 'cotton-mist',
     label: '솜구름 안개',
@@ -235,13 +235,103 @@ export function fleeChance(roll, enemy) {
   return Math.max(0, Math.min(100, 50 + roll * 2 - enemy.spirit))
 }
 
-/** 영능력 사용(내 턴). 지금은 생존본능만. 반환: { state, events, mpCost, fled } — 실패하면 내 턴을 쓴 것으로 치고 상대 턴으로 넘어간다. */
+/** 영능력 사용(내 턴). 반환: { state, events, mpCost, fled } — 실패하면 내 턴을 쓴 것으로 치고 상대 턴으로 넘어간다. 못 쓰면 invalid: true (턴을 쓰지 않는다). */
 export function psychicTurn(state, id, ctx, rng = Math.random) {
   const { stats } = ctx
-  const s = { ...state, guard: false }
+  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1 }
+  const mpNow0 = Math.floor(ctx.mp ?? 0)
+  const needMp = (amount) => {
+    const need = mpCostOf(stats, amount)
+    return need > mpNow0 ? need : 0
+  }
   if (id === 'dokkaebi-fire') {
     s.fire = FIRE_TURNS
     return { state: s, events: [{ kind: 'warn', text: `✦ 도깨비불! 푸른 불꽃에 기를 모은다… (1/${FIRE_TURNS}) 앞으로 ${FIRE_TURNS - 1}턴은 아무 행동도 할 수 없다.` }], mpCost: 0, fled: false, boostUsed: false }
+  }
+  if (id === 'cotton-mist') {
+    const shortfall = needMp(20)
+    if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    const mpCost = mpCostOf(stats, 20)
+    const prevIntent = s.queue[0]
+    const reroll = rollIntent(null, rng, s.party, !!s.enemy.boss)
+    s.queue = [reroll, ...s.queue.slice(1)]
+    const same = reroll === prevIntent
+    return {
+      state: s,
+      events: [{ kind: 'player', text: `✦ 솜구름 안개! 의지력 ${mpCost}을 써서 상대의 다음 행동을 다시 정했다.${same ? ' (다시 굴렸지만 결과가 똑같아 그대로 행해진다)' : ''}` }],
+      mpCost,
+    }
+  }
+  if (id === 'monkey-paw') {
+    const curPhp = Math.floor(state.php)
+    const maxSac = Math.max(0, curPhp - 1)
+    const amt = Math.max(0, Math.min(maxSac, Math.floor(ctx.sacrifice ?? 0)))
+    if (amt <= 0) return { state, events: [{ kind: 'warn', text: '깎을 체력이 없다! (체력은 0 이하로 내려갈 수 없다)' }], mpCost: 0, invalid: true }
+    const mpCost = Math.ceil(amt / 2)
+    if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    s.php = curPhp - amt
+    const aura = ctx.aura ?? auraOf(stats)
+    const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
+    const braced = s.queue[0] === 'guard'
+    const r = attackRoll(stats, rng)
+    const extra = amt * 2
+    let dmg = 0, note = ''
+    if (!r.miss) {
+      const fb = fxBase(r.dmg + extra, stats, s.ehp, s.enemy.hp, aura, rng)
+      const cr = fxCrit(fb.base * boostMult, stats, rng)
+      dmg = cr.dmg
+      note = `${noteOf(fb.notes)}${cr.note}`
+      if (braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
+      s.ehp = Math.max(0, s.ehp - dmg)
+    }
+    const ev = [{
+      kind: 'player',
+      roll: r.hit,
+      dmg,
+      text: `✦ 원숭이 손! 체력 ${amt}을 깎아 공격력 +${extra}, 의지력 ${mpCost} 소모. ${r.miss ? `공격이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` : `[안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}`}`,
+    }]
+    if (s.ehp <= 0) {
+      s.over = 'win'
+      ev.push({ kind: 'end', text: `${s.enemy.name}이(가) 쓰러졌다.` })
+    }
+    return { state: s, events: ev, mpCost }
+  }
+  if (id === 'echo-form') {
+    const itemId = ctx.recycleItemId
+    const price = Math.max(0, Math.floor(ctx.recyclePrice ?? 0))
+    if (!itemId) return { state, events: [{ kind: 'warn', text: '재활용할 아이템을 먼저 골라야 한다.' }], mpCost: 0, invalid: true }
+    if (price > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${price}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    return {
+      state: s,
+      events: [{ kind: 'player', text: `✦ 형상 기억! 의지력 ${price}을 써서, 이미 쓴 아이템 하나를 다시 쓸 수 있게 했다.` }],
+      mpCost: price,
+      recycleItemId: itemId,
+    }
+  }
+  if (id === 'falling-light') {
+    if (state.myTurns) return { state, events: [{ kind: 'warn', text: '전투의 맨 첫 턴에서만 쓸 수 있다.' }], mpCost: 0, invalid: true }
+    if (s.fallingLight) return { state, events: [{ kind: 'warn', text: '이번 전투에서는 이미 썼다.' }], mpCost: 0, invalid: true }
+    const shortfall = needMp(40)
+    if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    const mpCost = mpCostOf(stats, 40)
+    s.fallingLight = true
+    return {
+      state: s,
+      events: [{ kind: 'player', text: `✦ 내려쬐는 빛! 의지력 ${mpCost}을 써서, 이번 전투 동안 상대의 모든 단일 대상 공격이 나에게 향하게 했다. (1인 전투에서는 원래도 모든 공격이 나에게 오므로 체감되지는 않는다)` }],
+      mpCost,
+    }
+  }
+  if (id === 'karmic-recompense') {
+    if (state.myTurns) return { state, events: [{ kind: 'warn', text: '전투의 첫 턴에만 사용할 수 있다.' }], mpCost: 0, invalid: true }
+    const shortfall = needMp(10)
+    if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    const mpCost = mpCostOf(stats, 10)
+    s.karmicTarget = ctx.target ?? 'self'
+    return {
+      state: s,
+      events: [{ kind: 'player', text: `✦ 업인과보! 의지력 ${mpCost}을 써서, 이번 전투에 나오는 단체 공격·다중 타겟 영능력이 모두 지정한 대상에게 쏠리도록 했다. (일행과 함께하는 전투에서만 효과가 나타난다)` }],
+      mpCost,
+    }
   }
   if (id !== 'survival') return { state, events: [], mpCost: 0, invalid: true }
   const buffed = !!ctx.buff
@@ -492,7 +582,7 @@ const noteOf = (notes) => (notes.length ? ` (${notes.join(', ')})` : '')
 export function playerTurn(state, action, ctx, rng = Math.random) {
   const { stats } = ctx
   const mp = Math.floor(ctx.mp)
-  const s = { ...state, guard: false }
+  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1 }
   const ev = []
   let mpCost = 0
   const act = action

@@ -22,6 +22,7 @@ import {
   partyLabel,
 } from '../../game/battle'
 import { slowFightMinutes, SLOW_FIGHT_COST_PER_SPIRIT } from '../../game/progress'
+import { itemOf } from '../../game/items'
 
 const leftTimeText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -40,7 +41,7 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, onSpotItems, onGiveItem, onOpenItems, onBgm, multi, slowFight, onStartSlow, onStopSlow }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, usedItems = [], onSpotItems, onGiveItem, onOpenItems, onBgm, multi, slowFight, onStartSlow, onStopSlow }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [, setSlowTick] = useState(0)
   useEffect(() => {
@@ -56,6 +57,8 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const [psyOpen, setPsyOpen] = useState(false) // 영능력 탭
   const [scanOpen, setScanOpen] = useState(false) // 간파: 의지력을 얼마나 쓸지 고르는 칸
   const [scanN, setScanN] = useState(1)
+  const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
+  const [echoItemId, setEchoItemId] = useState('') // 형상 기억: 재활용할 아이템
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
   useEffect(() => {
     if (!spBanner) return undefined
@@ -292,18 +295,23 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     resolve(cur, 'scan', { scanAmount: amount })
   }
 
-  const usePsychic = (id) => {
+  const usePsychic = (id, extra = {}) => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
-    setPsyOpen(false)
     const buffed = buffArmed && id === 'survival'
-    const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current, buff: buffed })
-    if (r.invalid) return
+    const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current, buff: buffed, ...extra }, Math.random)
+    if (r.invalid) {
+      if (r.events?.length) push(r.events)
+      return
+    }
+    setPsyOpen(false)
     if (buffed) setBuffArmed(false)
     if (r.boostUsed) {
       boostRef.current = false
       onBoostUsed?.()
     }
+    spend(-r.mpCost)
+    if (r.recycleItemId) onGiveItem?.(r.recycleItemId, 1)
     setB(r.state)
     push(r.events)
     if (r.state.over) finish(r.state)
@@ -679,6 +687,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
           {(() => {
             const mine = ownedPsychics(psychics)
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65" data-psychic-empty>획득한 영능력이 없습니다.</p>
+            const pawMax = Math.max(1, Math.floor(b.php) - 1)
             return (
               <ul className="mt-2 space-y-2">
                 {mine.map((s) => (
@@ -697,6 +706,56 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                       >
                         {buffArmed ? '켜짐 (끄기)' : '켜기'}
                       </button>
+                    ) : s.id === 'monkey-paw' ? (
+                      <>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <button type="button" aria-label="깎을 체력 줄이기" onClick={() => setPawAmt((n) => Math.max(1, n - 1))} disabled={pawAmt <= 1} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">−</button>
+                          <input
+                            aria-label="깎을 체력"
+                            inputMode="numeric"
+                            value={pawAmt}
+                            onChange={(e) => setPawAmt(Math.max(1, Math.min(pawMax, parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)))}
+                            className="h-7 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50"
+                          />
+                          <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
+                          <span className="text-[11px] text-paper/60">의지력 {Math.ceil(Math.min(pawMax, pawAmt) / 2)} 소모</span>
+                        </div>
+                        <button type="button" data-psychic-use="monkey-paw" disabled={!myTurn} onClick={() => usePsychic('monkey-paw', { sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                          사용
+                        </button>
+                      </>
+                    ) : s.id === 'echo-form' ? (
+                      <>
+                        {usedItems.length ? (
+                          <select
+                            data-echo-item-pick
+                            aria-label="재활용할 아이템"
+                            value={echoItemId || usedItems[0]}
+                            onChange={(e) => setEchoItemId(e.target.value)}
+                            className="mt-2 w-full rounded-lg border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper"
+                          >
+                            {usedItems.map((id) => {
+                              const it = itemOf(id)
+                              return (
+                                <option key={id} value={id}>
+                                  {it?.name ?? id} (의지력 {it?.price ?? 0})
+                                </option>
+                              )
+                            })}
+                          </select>
+                        ) : (
+                          <p className="mt-2 text-[11px] text-paper/50">이번 전투에서 아직 쓴 아이템이 없다.</p>
+                        )}
+                        <button
+                          type="button"
+                          data-psychic-use="echo-form"
+                          disabled={!myTurn || !usedItems.length}
+                          onClick={() => usePsychic('echo-form', { recycleItemId: echoItemId || usedItems[0], recyclePrice: itemOf(echoItemId || usedItems[0])?.price ?? 0 })}
+                          className="flat-btn mt-2 justify-center disabled:opacity-40"
+                        >
+                          사용
+                        </button>
+                      </>
                     ) : (
                       s.use && (
                         <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">

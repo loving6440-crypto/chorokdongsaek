@@ -188,6 +188,7 @@ export default function Game({
   const boostRef = useRef(false)
   boostRef.current = boostOn
   const [itemsUsed, setItemsUsed] = useState(0)
+  const [battleUsedItems, setBattleUsedItems] = useState([]) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다
   const [spotItems, setSpotItems] = useState(false)
   battleRef.current = battleActive
   reviveRef.current = reviveOn
@@ -984,6 +985,7 @@ export default function Game({
         boostRef.current = true
         setBoostOn(true)
       }
+      if (battleRef.current) setBattleUsedItems((arr) => (arr.includes(id) ? arr : [...arr, id]))
       setItemsUsed((n) => n + 1)
       addLog(
         `${item.name}을(를) 사용했다. (${
@@ -1013,6 +1015,7 @@ export default function Game({
       const next = { ...cur, seen: { ...cur.seen, [enemyId]: (cur.seen?.[enemyId] || 0) + 1 } }
       playerRef.current = next
       setPlayer(next)
+      setBattleUsedItems([])
     },
     [interruptAll],
   )
@@ -1499,6 +1502,7 @@ export default function Game({
                       }
                     }}
                     itemsUsed={itemsUsed}
+                    usedItems={battleUsedItems}
                     onSpotItems={setSpotItems}
                     onOpenItems={() => setInvOpen(true)}
                     onGiveItem={giveItem}
