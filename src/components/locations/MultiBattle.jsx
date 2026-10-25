@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
 import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, ownedPsychics, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { itemOf } from '../../game/items'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 import { Bar, vague } from './battleUi'
@@ -21,6 +22,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능에 적용)
+  const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
+  const [echoItemId, setEchoItemId] = useState('') // 형상 기억: 재활용할 아이템
+  const [karmicTarget, setKarmicTarget] = useState(meId) // 업인과보: 지정할 대상(기본값은 자기 자신)
   const [sending, setSending] = useState(false)
   const [spBanner, setSpBanner] = useState(null)
   const [dice, setDice] = useState(null)
@@ -332,10 +336,13 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
           {(() => {
             const mine = ownedPsychics(psychics)
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
+            const pawMax = Math.max(1, Math.floor(me?.php ?? 1) - 1)
+            const usedItems = me?.usedItems ?? []
+            const aliveMates = view.members.filter((x) => x.status === 'alive')
             return (
               <ul className="mt-2 space-y-2">
                 {mine.map((s) => (
-                  <li key={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
+                  <li key={s.id} data-psychic={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
                     <p className="text-sm text-paper">{s.label}</p>
                     <p className="text-[11px] text-paper/60">{s.note}</p>
                     {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
@@ -349,9 +356,84 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       >
                         {buffArmed ? '켜짐 (끄기)' : '켜기'}
                       </button>
+                    ) : s.id === 'monkey-paw' ? (
+                      <>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <button type="button" aria-label="깎을 체력 줄이기" onClick={() => setPawAmt((n) => Math.max(1, n - 1))} disabled={pawAmt <= 1} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">−</button>
+                          <input
+                            aria-label="깎을 체력"
+                            inputMode="numeric"
+                            value={pawAmt}
+                            onChange={(e) => setPawAmt(Math.max(1, Math.min(pawMax, parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)))}
+                            className="h-7 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50"
+                          />
+                          <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
+                          <span className="text-[11px] text-paper/60">의지력 {Math.ceil(Math.min(pawMax, pawAmt) / 2)} 소모</span>
+                        </div>
+                        <button type="button" data-psychic-use="monkey-paw" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: 'monkey-paw', sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                          사용
+                        </button>
+                      </>
+                    ) : s.id === 'echo-form' ? (
+                      <>
+                        {usedItems.length ? (
+                          <select
+                            data-echo-item-pick
+                            aria-label="재활용할 아이템"
+                            value={echoItemId || usedItems[0]}
+                            onChange={(e) => setEchoItemId(e.target.value)}
+                            className="mt-2 w-full rounded-lg border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper"
+                          >
+                            {usedItems.map((id) => {
+                              const it = itemOf(id)
+                              return (
+                                <option key={id} value={id}>
+                                  {it?.name ?? id} (의지력 {it?.price ?? 0})
+                                </option>
+                              )
+                            })}
+                          </select>
+                        ) : (
+                          <p className="mt-2 text-[11px] text-paper/50">이번 전투에서 아직 쓴 아이템이 없다.</p>
+                        )}
+                        <button
+                          type="button"
+                          data-psychic-use="echo-form"
+                          disabled={!canAct || !usedItems.length}
+                          onClick={() => send({ action: 'psychic', psychic: 'echo-form', recycleItemId: echoItemId || usedItems[0], recyclePrice: itemOf(echoItemId || usedItems[0])?.price ?? 0 })}
+                          className="flat-btn mt-2 justify-center disabled:opacity-40"
+                        >
+                          사용
+                        </button>
+                      </>
+                    ) : s.id === 'karmic-recompense' ? (
+                      <>
+                        <select
+                          data-karmic-target-pick
+                          aria-label="지정할 대상"
+                          value={karmicTarget || meId}
+                          onChange={(e) => setKarmicTarget(e.target.value)}
+                          className="mt-2 w-full rounded-lg border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper"
+                        >
+                          {aliveMates.map((x) => (
+                            <option key={x.id} value={x.id}>
+                              {x.name}{x.id === meId ? ' (나)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          data-psychic-use="karmic-recompense"
+                          disabled={!canAct}
+                          onClick={() => send({ action: 'psychic', psychic: 'karmic-recompense', target: karmicTarget || meId })}
+                          className="flat-btn mt-2 justify-center disabled:opacity-40"
+                        >
+                          사용
+                        </button>
+                      </>
                     ) : (
                       s.use && (
-                        <button type="button" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use={s.id} disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       )

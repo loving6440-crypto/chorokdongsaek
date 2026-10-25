@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, enemyTurn, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
+import { ENEMIES, auraOf, enemyTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -13,6 +13,8 @@ export const MB_SURVIVE_MS = 20_000
 export const MB_LOG_MAX = 80
 
 const STAT_KEYS = ['insight', 'aggression', 'endurance', 'control', 'agility', 'comprehension']
+// 다인 전투에서 쓸 수 있는 영능력 id 전체(기존엔 생존본능뿐이었으나, 솔로 전투에서 구현된 5종도 모두 받아들인다).
+const PSYCHIC_IDS = ['survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense']
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? +v : lo))
 
 /** 클라이언트가 보낸 스탯을 안전한 정수로 고친다. */
@@ -45,6 +47,8 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     stun: 0, // 남은 행동불능 턴 수(0이면 정상). 폭죽 등으로 걸린다.
     curse: 0,
     survived: 0,
+    myTurns: 0, // 지금까지 실제로 행동(일반 공격·부적·영능력 등)한 횟수 — '맨 첫 턴' 제한이 있는 영능력(내려쬐는 빛·업인과보)에 쓴다.
+    usedItems: [], // 이번 전투에서 쓴 아이템 id 목록(형상 기억 재활용용). 중복 없이 쌓인다.
     fx: fxId,
     status: 'alive', // alive | down | fled
     pendingDeath: false,
@@ -77,6 +81,8 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
     members,
     over: null, // 'win' | 'lose'
     log: [],
+    fallingLight: null, // 내려쬐는 빛을 쓴 일행의 id(쓰면 상대의 모든 단일 대상 공격이 그 사람에게 쏠린다). 일행 전체에 한 번만.
+    karmicTarget: null, // 업인과보로 지정한 대상의 id(쓰면 단체 공격·다중 타겟 영능력이 모두 이 사람에게, 인원수만큼 곱해져서 쏠린다).
   }
   addLog(mb, [{ kind: 'info', text: `${enemy.name}이(가) 나타났다. (${members.length}인 전투: ${members.map((m) => m.name).join(', ')})` }])
   return mb
@@ -104,6 +110,9 @@ const viewOfMember = (mb, m) => ({
   curse: m.curse,
   pendingDeath: false,
   survived: m.survived,
+  myTurns: m.myTurns,
+  fallingLight: !!mb.fallingLight,
+  usedItems: m.usedItems,
   party: true,
   over: null,
 })
@@ -187,8 +196,18 @@ export function submit(mb, id, act) {
   if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
-  if (a === 'psychic' && act.psychic !== 'survival') return { error: 'bad-psychic' }
-  m.act = { action: a, scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined, psychic: act.psychic, buff }
+  if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
+  m.act = {
+    action: a,
+    scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined,
+    psychic: act.psychic,
+    buff,
+    // 원숭이 손: 깎을 체력. 형상 기억: 재활용할 아이템과 그 가격. 업인과보: 지정한 대상.
+    sacrifice: a === 'psychic' && act.psychic === 'monkey-paw' ? Math.max(0, Math.floor(act.sacrifice ?? 0)) : undefined,
+    recycleItemId: a === 'psychic' && act.psychic === 'echo-form' && typeof act.recycleItemId === 'string' ? act.recycleItemId : undefined,
+    recyclePrice: a === 'psychic' && act.psychic === 'echo-form' ? Math.max(0, Math.floor(act.recyclePrice ?? 0)) : undefined,
+    target: a === 'psychic' && act.psychic === 'karmic-recompense' && typeof act.target === 'string' ? act.target : undefined,
+  }
   return { ok: true }
 }
 
@@ -200,9 +219,10 @@ export function autoFill(mb) {
 /** 아이템 효과(전투 중). 반환 { ok, text } 또는 { error } */
 export function useItemMB(mb, id, item, targetId) {
   const r = useItemCore(mb, id, item, targetId)
-  if (r.ok && mb.enemy.boss) {
+  if (r.ok) {
     const m = mb.members.find((x) => x.id === id)
-    m.bring = { ...m.bring, [item.id]: m.bring[item.id] - 1 }
+    if (m && item?.id && !m.usedItems.includes(item.id)) m.usedItems = [...m.usedItems, item.id] // 형상 기억이 나중에 재활용할 수 있도록 기록
+    if (mb.enemy.boss) m.bring = { ...m.bring, [item.id]: m.bring[item.id] - 1 }
   }
   return r
 }
@@ -299,8 +319,21 @@ export function resolveTurn(mb, rng = Math.random) {
   const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격에 붙는 보정
   let r
   if (act.action === 'psychic') {
-    r = psychicTurn(v, act.psychic ?? 'survival', { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff }, rng)
-    if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: '쓸 수 없는 영능력이다.' }], mpCost: 0 }
+    // 업인과보의 대상: 지정했고 아직 살아 있으면 그 사람, 아니면 자기 자신.
+    const targetId = act.target && mb.members.some((x) => x.id === act.target && x.status === 'alive') ? act.target : m.id
+    r = psychicTurn(
+      v,
+      act.psychic ?? 'survival',
+      { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff, sacrifice: act.sacrifice, recycleItemId: act.recycleItemId, recyclePrice: act.recyclePrice, target: targetId },
+      rng,
+    )
+    if (r.invalid) {
+      r = { state: v, events: r.events?.length ? r.events : [{ kind: 'warn', text: '쓸 수 없는 영능력이다.' }], mpCost: 0 }
+    } else {
+      if (r.state.fallingLight) mb.fallingLight = m.id // 일행 전체에 한 번만(쓴 사람에게 쏠린다)
+      if (r.state.karmicTarget) mb.karmicTarget = targetId
+      if (r.recycleItemId && mb.enemy.boss) m.bring = { ...m.bring, [r.recycleItemId]: (m.bring?.[r.recycleItemId] || 0) + 1 } // 보스 전투: 가져온 수량 한도를 1개 되살린다
+    }
   } else {
     r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff }, rng)
     if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: `[${m.name}] 의지력이 모자라 행동하지 못했다.` }], mpCost: 0 }
@@ -313,6 +346,8 @@ export function resolveTurn(mb, rng = Math.random) {
   m.guard = r.state.guard
   m.charms = r.state.charms
   m.bound = r.state.bound
+  m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
+  m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 v를 그대로 되돌리므로 안 늘어난다)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
   evs.push(...addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}${forced}] ${e.text}` })), m.id))
   m.act = null
@@ -377,20 +412,38 @@ function enemyPhase(mb, rng) {
   const group = intent === 'group' || (intent === 'special' && sp === 2)
   const hits = intent === 'jab' || intent === 'smash' || intent === 'special'
   let targets
+  let karmicMult = 1
   if (group) {
-    targets = alive
-    evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+    // 업인과보: 단체 공격·다중 타겟 영능력을 지정한 한 사람에게만, 인원수만큼 곱해서 쏠리게 한다.
+    const krTarget = mb.karmicTarget && mb.members.find((x) => x.id === mb.karmicTarget && x.status === 'alive' && x.php > 0)
+    if (krTarget) {
+      targets = [krTarget]
+      karmicMult = alive.length
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 업인과보! ${mb.enemy.name}의 단체 공격이 ${krTarget.name}에게 단일로 쏠린다. (인원 ${karmicMult}명치)` }], 'enemy'))
+    } else {
+      targets = alive
+      evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+    }
   } else {
     // 칼: 매 턴마다 (호전×2)% 확률로, 칼을 든 사람이 체력과 상관없이 강제로 표적이 된다.
     const swordDraws = alive.filter((m) => m.fx === 'sword' && rng() * 100 < (m.stats.aggression || 0) * 2)
     const forced = swordDraws.length ? swordDraws[Math.floor(rng() * swordDraws.length)] : null
-    const pick = forced ? { id: forced.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
+    // 내려쬐는 빛: 단일 대상 공격은 무조건 그걸 쓴 사람에게 향한다(칼의 강제 표적보다도 우선한다).
+    const flTarget = mb.fallingLight && mb.members.find((x) => x.id === mb.fallingLight && x.status === 'alive' && x.php > 0)
+    const pick = flTarget ? { id: flTarget.id } : forced ? { id: forced.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
     targets = [mb.members.find((m) => m.id === pick.id)]
     if (hits) {
       evs.push(
         ...addLog(
           mb,
-          [{ kind: 'info', text: forced ? `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (칼의 기세에 이끌렸다)` : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)` }],
+          [{
+            kind: flTarget ? 'warn' : 'info',
+            text: flTarget
+              ? `▶ 내려쬐는 빛! ${mb.enemy.name}이(가) ${targets[0].name}을(를) 향한다.`
+              : forced
+                ? `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (칼의 기세에 이끌렸다)`
+                : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)`,
+          }],
           'enemy',
         ),
       )
@@ -402,7 +455,27 @@ function enemyPhase(mb, rng) {
     const q = [...mb.queue]
     if (intent === 'group') q[0] = 'jab'
     const v = { ...viewOfMember(mb, t), guard: t.guard, queue: q }
+    const prevPhp = t.php
     const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true }, rng)
+    if (karmicMult > 1) {
+      const dealt = Math.max(0, prevPhp - r.state.php)
+      const extra = dealt * (karmicMult - 1)
+      if (extra > 0) {
+        r.state.php = Math.max(0, r.state.php - extra)
+        r.events = [...r.events, { kind: 'warn', text: `업인과보로 피해가 ${karmicMult}배가 되어 추가로 ${extra} 피해를 입었다.` }]
+        // 기본 피해로는 쓰러지지 않았는데 곱해진 추가 피해로 체력이 0이 된 경우: enemyTurn 내부에선 보지 못했으므로 여기서 같은 판정을 한다.
+        if (r.state.php <= 0 && !r.state.pendingDeath && r.state.over !== 'lose') {
+          const mpLeft = Math.floor(t.mp) - (r.mpDrain || 0)
+          if ((t.survived | 0) < maxSurvives(t.stats) && mpLeft >= 2) {
+            r.state.pendingDeath = true
+            r.events = [...r.events, { kind: 'warn', text: '체력이 바닥났다…! 버티기를 쓸 수 있다.' }]
+          } else {
+            r.state.over = 'lose'
+            r.events = [...r.events, { kind: 'end', text: '더는 버티지 못하고 쓰러졌다.' }]
+          }
+        }
+      }
+    }
     if (last) {
       mb.queue = r.state.queue
       mb.known = r.state.known
