@@ -177,7 +177,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         {/* 체력 · 영력 · 의지력: 같은 높이의 세 막대를 가지런히 */}
         <div className="absolute bottom-[246px] left-1/2 flex -translate-x-1/2 items-end gap-8" aria-label="자원">
           <VBar label="체력" value={player.hp} max={player.hpMax} height={126} fill="bg-crimson" />
-          <VBar label="영력" value={player.spirit} max={spiritMax} height={126} fill="bg-gold-fill" />
+          <VBar label="영력" value={player.spirit} max={spiritMax} height={126} fill="bg-spirit" />
           <VBar label="의지력" value={player.mp} max={player.mpMax} height={126} fill="bg-mana" />
         </div>
 

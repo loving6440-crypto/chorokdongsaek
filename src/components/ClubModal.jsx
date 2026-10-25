@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, LogOut, Send, Users, X } from 'lucide-react'
 import { leaveClub, sendClubChat, useOnline } from '../net/online'
 import { CLUB_JOIN_LOCK_MS, clubOf as clubMetaOf } from '../game/clubs'
-import { CLUB_QUESTS, CLUB_META_QUESTS, ensureWeekly, claimedCount, rewardText } from '../game/clubQuests'
+import { CLUB_QUESTS, CLUB_META_QUESTS, DAILY_QUESTS, DAILY_META_QUEST, ensureWeekly, ensureDaily, claimedCount, dailyClaimedCount, rewardText } from '../game/clubQuests'
 
 const timeOf = (at) => new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 const fmtLeft = (ms) => {
@@ -12,12 +12,14 @@ const fmtLeft = (ms) => {
 }
 
 /** 왼쪽 하단 [동아리 확인하기] 에서 열리는 팝업: 동아리 채팅 / 멤버 목록 / 이번주 활동 / 탈퇴. */
-export default function ClubModal({ player, onClose, onProfile, onFetchMembers, onClaimQuest, onClaimMeta }) {
+export default function ClubModal({ player, onClose, onProfile, onFetchMembers, onClaimQuest, onClaimMeta, onClaimDaily, onClaimDailyMeta }) {
   const net = useOnline()
   const club = net.club
   const meta = club ? clubMetaOf(club.id) : null
   const weekly = ensureWeekly(player ?? {}).weekly
   const doneCount = claimedCount(weekly)
+  const daily = ensureDaily(player ?? {}).daily
+  const dailyDoneCount = dailyClaimedCount(daily)
   const [text, setText] = useState('')
   const [members, setMembers] = useState(null)
   const listRef = useRef(null)
@@ -148,6 +150,11 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers, 
                     </span>
                     <span className="flex-1">
                       {q.label}
+                      {q.progress && !claimed && (
+                        <span className="ml-1 text-[10px] text-paper/50" data-quest-progress>
+                          ({q.progress(weekly)[0]}/{q.progress(weekly)[1]}회)
+                        </span>
+                      )}
                       {q.reward && <span className="ml-1 text-[10px] text-paper/45">({rewardText(q.reward)})</span>}
                     </span>
                     {achieved && q.reward && (
@@ -191,6 +198,69 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers, 
                   </li>
                 )
               })}
+            </ul>
+
+            {/* 오늘의 동아리 활동(일일 퀘스트) */}
+            <p className="mt-4 flex items-center justify-between text-[11px] tracking-widest text-paper/50">
+              <span>오늘의 동아리 활동</span>
+              <span className="text-paper/40">({dailyDoneCount}/{DAILY_QUESTS.length} · 매일 낮 12시 초기화)</span>
+            </p>
+            <ul className="mt-1.5 space-y-1 rounded-lg bg-shade/25 p-2.5" data-club-daily-quests>
+              {DAILY_QUESTS.map((q) => {
+                const claimed = !!daily.claimed?.[q.id]
+                const achieved = !claimed && q.done(daily)
+                return (
+                  <li key={q.id} data-quest={q.id} data-quest-done={claimed} className={`flex items-start gap-1.5 text-xs leading-relaxed ${claimed ? 'text-gold' : achieved ? 'text-paper' : 'text-paper/75'}`}>
+                    <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${claimed ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
+                      {claimed && <Check size={10} aria-hidden />}
+                    </span>
+                    <span className="flex-1">
+                      {q.label}
+                      {q.progress && !claimed && (
+                        <span className="ml-1 text-[10px] text-paper/50" data-quest-progress>
+                          ({q.progress(daily)[0]}/{q.progress(daily)[1]}회)
+                        </span>
+                      )}
+                      <span className="ml-1 text-[10px] text-paper/45">({rewardText(q.reward)})</span>
+                    </span>
+                    {achieved && (
+                      <button
+                        type="button"
+                        data-claim-quest={q.id}
+                        onClick={() => onClaimDaily?.(q.id)}
+                        className="shrink-0 rounded border border-gold bg-gold px-2 py-0.5 text-[10px] font-medium text-ink hover:brightness-110"
+                      >
+                        보상 받기
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+              {(() => {
+                const claimed = !!daily.claimed?.[DAILY_META_QUEST.id]
+                const achieved = !claimed && dailyDoneCount >= DAILY_META_QUEST.threshold
+                return (
+                  <li data-quest={DAILY_META_QUEST.id} data-quest-done={claimed} className={`flex items-start gap-1.5 text-xs leading-relaxed ${claimed ? 'text-gold' : achieved ? 'text-paper' : 'text-paper/75'}`}>
+                    <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${claimed ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
+                      {claimed && <Check size={10} aria-hidden />}
+                    </span>
+                    <span className="flex-1">
+                      {DAILY_META_QUEST.label}
+                      <span className="ml-1 text-[10px] text-paper/45">({rewardText(DAILY_META_QUEST.reward)})</span>
+                    </span>
+                    {achieved && (
+                      <button
+                        type="button"
+                        data-claim-quest={DAILY_META_QUEST.id}
+                        onClick={() => onClaimDailyMeta?.()}
+                        className="shrink-0 rounded border border-gold bg-gold px-2 py-0.5 text-[10px] font-medium text-ink hover:brightness-110"
+                      >
+                        보상 받기
+                      </button>
+                    )}
+                  </li>
+                )
+              })()}
             </ul>
 
             {/* 탈퇴 */}

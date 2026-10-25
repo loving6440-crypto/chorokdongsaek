@@ -6,7 +6,7 @@ import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx } f
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
 import { ENEMIES } from './battle'
-import { bumpWeekly, markWeeklySet, checkClubQuests } from './clubQuests'
+import { bumpWeekly, bumpDaily, markWeeklySet, ensureDaily, checkClubQuests } from './clubQuests'
 import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
 
 // (다른 '대기 활동'들과 이름 규칙을 맞추기 위한 재수출)
@@ -239,7 +239,7 @@ export function tickPlayer(player, now, dtSec) {
   if (cf && now >= cf.startedAt + cf.minutes * 60000) {
     const r = finishCraft(p)
     if (r) {
-      p = bumpWeekly(r.player, 'craft', 1, now)
+      p = bumpDaily(bumpWeekly(r.player, 'craft', 1, now), 'craft', 1, now)
       logs.push(`제작을 마쳤다. ${r.item.name}${r.qty > 1 ? ` ${r.qty}개를` : '을(를)'} 얻었다.`)
     }
   }
@@ -256,7 +256,7 @@ export function tickPlayer(player, now, dtSec) {
   const gt = p.gathering
   if (gt && now >= gt.startedAt + gt.minutes * 60000) {
     const r = finishGather(p, now)
-    p = r.player
+    p = bumpDaily(r.player, 'gather', 1, now)
     logs.push(...r.logs)
   }
 
@@ -305,7 +305,7 @@ export function tickPlayer(player, now, dtSec) {
     if (!st) continue
     if (st.waitUntil && now >= st.waitUntil) {
       const r = completeLesson(p, id, st.waitUntil)
-      p = bumpWeekly(r.player, 'lesson', 1, now)
+      p = bumpDaily(bumpWeekly(r.player, 'lesson', 1, now), 'lesson', 1, now)
       logs.push(`${courseTitle(id)}: 30분의 대기가 끝났다.`, ...r.logs)
     } else if (st.day !== today && !st.waitUntil && !st.pendingStat) {
       const { [id]: _drop, ...rest } = p.lessons
@@ -316,6 +316,8 @@ export function tickPlayer(player, now, dtSec) {
   const cq = checkClubQuests(p, now)
   p = cq.player
   logs.push(...cq.logs)
+  // 오늘의 동아리 활동(하루가 바뀌었으면 비운다 — 낮 12시 KST 기준)
+  p = ensureDaily(p, now)
 
   // 도감 · 업적
   p = syncCodex(p)
@@ -348,7 +350,7 @@ export function applyBattleResult(player, win, reward0, now = Date.now()) {
   }
   if (g.wins >= GYM_DAILY_REWARDS) return { player: { ...player, gym: g }, granted: 0, lost: 0 }
   return {
-    player: bumpWeekly({ ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } }, 'battleReward', 1, now),
+    player: bumpDaily(bumpWeekly({ ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } }, 'battleReward', 1, now), 'battleReward', 1, now),
     granted: reward,
     lost: 0,
   }

@@ -46,7 +46,7 @@ import {
 import { LESSON_WAIT_MINUTES } from './game/courseInfo'
 import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
-import { bumpWeekly, markWeeklySet, claimQuest, claimMetaQuest, setExploreAreaSpots } from './game/clubQuests'
+import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
 import { GATHER_MINUTES } from './game/gather'
 import { travelMinutes } from './game/travel'
 import TravelPanel from './components/TravelPanel'
@@ -541,6 +541,21 @@ export default function Game({
     setPlayer(r.player)
     if (r.log) addLog(r.log)
   }
+  // 오늘의 동아리 활동(일일 퀘스트): 달성한 퀘스트의 보상을 직접 받는다.
+  const claimDaily = (questId) => {
+    const r = claimDailyQuest(playerRef.current, questId)
+    if (!r.ok) return
+    playerRef.current = r.player
+    setPlayer(r.player)
+    if (r.log) addLog(r.log)
+  }
+  const claimDailyAll = () => {
+    const r = claimDailyMeta(playerRef.current)
+    if (!r.ok) return
+    playerRef.current = r.player
+    setPlayer(r.player)
+    if (r.log) addLog(r.log)
+  }
 
   const upgradeStat = (key) => {
     const current = player.stats[key]
@@ -803,10 +818,11 @@ export default function Game({
       if (battleRef.current) return { error: '전투 중이다.' }
       const r = enhanceWeapon(playerRef.current, weaponId, stat, admin)
       if (r.error) return r
-      playerRef.current = r.player
-      setPlayer(r.player)
+      const bumped = bumpWeekly(r.player, 'enhance')
+      playerRef.current = bumped
+      setPlayer(bumped)
       addLog(`${itemOf(weaponId).name}을(를) 강화했다. (${STAT_META[stat].label} +${r.to})`)
-      return r
+      return { ...r, player: bumped }
     },
     [addLog, admin],
   )
@@ -1401,7 +1417,7 @@ export default function Game({
                   <Cafeteria
                     online={online.status === 'online'}
                     onSubmitted={() => {
-                      const next = markWeeklySet(playerRef.current, 'newsDays', dayKey())
+                      const next = markDaily(markWeeklySet(playerRef.current, 'newsDays', dayKey()), 'newsDone')
                       if (next !== playerRef.current) {
                         playerRef.current = next
                         setPlayer(next)
@@ -1712,6 +1728,8 @@ export default function Game({
           onFetchMembers={fetchClubMembers}
           onClaimQuest={claimClubQuest}
           onClaimMeta={claimClubMeta}
+          onClaimDaily={claimDaily}
+          onClaimDailyMeta={claimDailyAll}
         />
       )}
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
