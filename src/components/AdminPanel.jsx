@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
 import { STAT_KEYS, STAT_META } from '../game/constants'
+import { PSYCHICS } from '../game/battle'
 import { clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
 import { adminResetPassword } from '../game/auth'
 import { itemsText } from './MailboxPanel'
+
+/** 지급 · 선물 대상으로 고를 수 있는 영능력: 처음부터 있는 [효험]은 뺀다. */
+const GRANTABLE_PSYCHICS = PSYCHICS.filter((p) => !p.default)
 
 const fmtAt = (t) => {
   if (!t) return '—'
@@ -100,6 +104,7 @@ function EditOther({ userId, adminKey, online }) {
   const [clearWeak, setClearWeak] = useState(false)
   const [clearBuffs, setClearBuffs] = useState(false)
   const [refill, setRefill] = useState(false)
+  const [addPsychic, setAddPsychic] = useState('')
   const [msg, setMsg] = useState({ ok: true, text: '' })
   const [busy, setBusy] = useState(false)
   const res = online.editResult
@@ -118,11 +123,12 @@ function EditOther({ userId, adminKey, online }) {
       ...(clearWeak ? { clearWeak: true } : {}),
       ...(clearBuffs ? { clearBuffs: true } : {}),
       ...(refill ? { refill: true } : {}),
+      ...(addPsychic ? { addPsychic } : {}),
     }
     if (!Object.keys(changes).length) return setMsg({ ok: false, text: '바꿀 항목을 골라 줘.' })
     setBusy(true)
     const r = await requestEdit(userId, adminKey, to, changes)
-    if (r.ok) setMsg({ ok: true, text: '동의를 기다리는 중… (60초)' })
+    if (r.ok) { setMsg({ ok: true, text: '동의를 기다리는 중… (60초)' }); setAddPsychic('') }
     else {
       setBusy(false)
       setMsg({ ok: false, text: r.error === 'target-offline' ? '상대가 접속 중이 아니다.' : r.error === 'no-changes' ? '바꿀 항목이 없다.' : '요청을 보내지 못했다.' })
@@ -149,6 +155,13 @@ function EditOther({ userId, adminKey, online }) {
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={clearBuffs} onChange={(e) => setClearBuffs(e.target.checked)} />버프 초기화</label>
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={refill} onChange={(e) => setRefill(e.target.checked)} />체력·의지력 채우기</label>
       </div>
+      <label className="mt-2 flex items-center gap-2 text-sm text-paper/85">
+        영능력 선물
+        <select data-edit-psychic value={addPsychic} onChange={(e) => setAddPsychic(e.target.value)} aria-label="선물할 영능력" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper">
+          <option value="">(선택 안 함)</option>
+          {GRANTABLE_PSYCHICS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+      </label>
       <div className="mt-2 flex items-center gap-2">
         <button type="button" data-edit-send disabled={!to || busy} onClick={send} className="flat-btn disabled:cursor-not-allowed disabled:opacity-40">수정 요청 보내기</button>
         <span className={`text-xs ${msg.ok ? 'text-gold/80' : 'text-crimson'}`} aria-live="polite" data-edit-msg>{msg.text}</span>
@@ -287,7 +300,9 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
     mpMax: player.mpMax,
     spirit: Math.floor(player.spirit),
     clearWeak: false,
+    acquirePsychic: '',
   }))
+  const myPsychics = GRANTABLE_PSYCHICS.filter((p) => !player.psychics?.includes(p.id))
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -306,6 +321,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
       mp: num(v.mp, 0, mpMax),
       spirit: num(v.spirit, 0, 9999999),
       clearWeak: !!v.clearWeak,
+      acquirePsychic: v.acquirePsychic || null,
     })
     onClose()
   }
@@ -349,6 +365,17 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
               <input data-admin-self-weak type="checkbox" checked={!!v.clearWeak} onChange={(e) => setV((p) => ({ ...p, clearWeak: e.target.checked }))} />
               내 [쇠약] 해제
             </label>
+          </section>
+          <section>
+            <p className="mb-1.5 text-xs tracking-widest text-paper/55">영능력</p>
+            <label className="flex items-center gap-2 text-sm text-paper/85">
+              내가 직접 취득
+              <select data-admin-psychic value={v.acquirePsychic} onChange={(e) => setV((p) => ({ ...p, acquirePsychic: e.target.value }))} aria-label="취득할 영능력" className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper">
+                <option value="">(선택 안 함)</option>
+                {myPsychics.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </label>
+            <p className="mt-1 text-[11px] text-paper/50">[적용]을 눌러야 들어온다. 이미 가진 영능력은 목록에서 빠진다. 다른 사람에게 선물하려면 아래 '다른 사람 상태 고치기'를 쓴다.</p>
           </section>
           <PasswordReset userId={userId} adminKey={adminKey} />
           <EditOther userId={userId} adminKey={adminKey} online={online} />

@@ -87,6 +87,7 @@ import {
 import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, sendPartyStats, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers, fetchRanking } from './net/online'
 import ClubModal from './components/ClubModal'
 import GuideModal from './components/GuideModal'
+import UpdateNotesModal from './components/UpdateNotesModal'
 import Market from './components/Market'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
@@ -173,6 +174,7 @@ export default function Game({
     setCodexNew((prev) => [...prev, ...fresh.map((k) => ({ key: k, ...now[k] }))])
   }, [player])
   const [adminOpen, setAdminOpen] = useState(false)
+  const [updateNotesOpen, setUpdateNotesOpen] = useState(false)
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
   const [battleActive, setBattleActive] = useState(false)
@@ -1269,6 +1271,7 @@ export default function Game({
         const { weakUntil: _w, ...rest } = next
         next = rest
       }
+      if (v.acquirePsychic) next = acquirePsychic(next, v.acquirePsychic)
       playerRef.current = next
       setPlayer(next)
       addLog('관리자 도구로 수치를 조정했다.')
@@ -1288,6 +1291,7 @@ export default function Game({
       }
       if (ch.clearBuffs) next = { ...next, buffs: [] }
       if (ch.refill) next = { ...next, hp: next.hpMax, mp: next.mpMax }
+      if (ch.addPsychic) next = acquirePsychic(next, ch.addPsychic)
       playerRef.current = next
       setPlayer(next)
       addLog('관리자의 수정 요청에 동의해 상태가 바뀌었다.')
@@ -1335,6 +1339,7 @@ export default function Game({
         onOpenCodex={() => setCodexOpen(true)}
         onOpenClub={() => setClubOpen(true)}
         onOpenGuide={() => setGuideOpen(true)}
+        onOpenUpdateNotes={() => setUpdateNotesOpen(true)}
         inClub={!!online.club}
         onReplayIntro={() => setIntroReplay(true)}
         spotItems={spotItems}
@@ -1744,6 +1749,7 @@ export default function Game({
         />
       )}
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+      {updateNotesOpen && <UpdateNotesModal onClose={() => setUpdateNotesOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (

@@ -12,7 +12,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
-import { ENEMIES } from '../src/game/battle.js'
+import { ENEMIES, PSYCHICS } from '../src/game/battle.js'
 import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
 import * as A from './accounts.js'
@@ -1384,6 +1384,7 @@ async function handleApi(req, res, url) {
     if (ch.clearWeak) changes.clearWeak = true
     if (ch.clearBuffs) changes.clearBuffs = true
     if (ch.refill) changes.refill = true
+    if (ch.addPsychic && PSYCHICS.some((p) => p.id === ch.addPsychic && !p.default)) changes.addPsychic = ch.addPsychic
     if (!Object.keys(changes).length) return json(res, 400, { error: 'no-changes' })
     const rid = `e${seq++}`
     const adminName = members[id]?.name ?? id

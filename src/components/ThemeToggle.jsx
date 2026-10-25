@@ -1,6 +1,6 @@
 import { Moon, Sun } from 'lucide-react'
 
-// 왼쪽 = 다크(달), 오른쪽 = 화이트(해). 손잡이에는 현재 모드의 아이콘이 표시된다.
+// 원형 아이콘 버튼 하나로 다크/화이트 모드를 바로 전환한다. 아이콘은 지금 모드를 나타낸다.
 export default function ThemeToggle({ theme, onToggle }) {
   const isLight = theme === 'light'
   const label = isLight ? '다크 모드로 전환' : '화이트 모드로 전환'
@@ -8,16 +8,13 @@ export default function ThemeToggle({ theme, onToggle }) {
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={isLight}
-      aria-label="화이트 모드"
+      aria-pressed={isLight}
+      aria-label={label}
       title={label}
       onClick={onToggle}
-      className="flat-switch shrink-0 self-center"
+      className="grid size-8 shrink-0 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
     >
-      <span className="flat-switch-knob">
-        {isLight ? <Sun size={13} aria-hidden /> : <Moon size={13} aria-hidden />}
-      </span>
+      {isLight ? <Sun size={15} aria-hidden /> : <Moon size={15} aria-hidden />}
     </button>
   )
 }

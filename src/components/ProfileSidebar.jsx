@@ -1,4 +1,4 @@
-import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Trophy, UsersRound } from 'lucide-react'
+import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Sparkles, Trophy, UsersRound } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -70,7 +70,7 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onOpenAdmin, onOpenGuide }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onOpenAdmin, onOpenGuide, onOpenUpdateNotes }) {
   const location = LOCATIONS[locationId]
   const spiritMax = spiritGaugeMax(player.spirit)
 
@@ -100,23 +100,21 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
           </div>
         </Facet>
 
-        {/* 프로필 마름모 왼쪽 위 빈 모서리: 효과음 · 배경음악 · 테마 전환 · 로그아웃 */}
-        <div className="absolute top-[88px] left-[56px] z-10 flex flex-col items-start gap-1.5">
+        {/* 프로필 마름모 위, 왼쪽: 음악 설정 · 테마 전환 · 로그아웃 — 원형 + 아이콘으로 통일 */}
+        <div className="absolute top-[78px] left-[52px] z-10 flex items-center gap-1.5">
           <SoundToggle />
-          <div className="flex items-center gap-1.5">
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                title="로그아웃"
-                aria-label="로그아웃"
-                className="grid size-8 shrink-0 place-items-center rounded-lg bg-edge/[0.09] text-paper/70 transition hover:bg-crimson/15 hover:text-crimson"
-              >
-                <LogOut size={15} />
-              </button>
-            )}
-          </div>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              title="로그아웃"
+              aria-label="로그아웃"
+              className="grid size-8 shrink-0 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-crimson/15 hover:text-crimson"
+            >
+              <LogOut size={15} />
+            </button>
+          )}
         </div>
 
         {onEditProfile && (
@@ -237,10 +235,20 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
           <button
             type="button"
             onClick={onOpenAdmin}
-            className="tilt absolute -bottom-8 right-0 inline-flex h-8 items-center gap-1.5 rounded-lg border border-crimson/50 px-3 text-xs text-crimson hover:bg-crimson/10"
+            className="tilt absolute -bottom-8 left-1/2 inline-flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-lg border border-crimson/50 px-3 text-xs whitespace-nowrap text-crimson hover:bg-crimson/10"
           >
             <Shield size={13} aria-hidden />
             관리자 도구
+          </button>
+        )}
+        {onOpenUpdateNotes && (
+          <button
+            type="button"
+            onClick={onOpenUpdateNotes}
+            className="tilt absolute -bottom-8 right-0 inline-flex h-8 items-center gap-1.5 rounded-lg border border-edge/25 px-3 text-xs text-paper/70 hover:bg-edge/[0.1] hover:text-paper"
+          >
+            <Sparkles size={13} aria-hidden />
+            업데이트 노트
           </button>
         )}
       </div>

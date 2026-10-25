@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Shield } from 'lucide-react'
 import { STAT_META } from '../game/constants'
+import { PSYCHICS } from '../game/battle'
 import { respondEdit, clearEditResult } from '../net/online'
 
 export const describeChanges = (ch = {}) => {
@@ -9,6 +10,7 @@ export const describeChanges = (ch = {}) => {
   if (ch.clearWeak) out.push('[쇠약] 해제')
   if (ch.clearBuffs) out.push('버프 · 디버프 초기화')
   if (ch.refill) out.push('체력 · 의지력 가득 채우기')
+  if (ch.addPsychic) out.push(`영능력 [${PSYCHICS.find((p) => p.id === ch.addPsychic)?.label ?? ch.addPsychic}] 선물받기`)
   return out
 }
 
