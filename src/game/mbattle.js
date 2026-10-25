@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, enemyTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
+import { ENEMIES, auraOf, bellTick, enemyTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -316,27 +316,32 @@ export function resolveTurn(mb, rng = Math.random) {
   }
   const act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
   const v = viewOfMember(mb, m)
-  const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격에 붙는 보정
+  const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격·반격에 붙는 보정
   let r
+  let targetId = null
   if (act.action === 'psychic') {
     // 업인과보의 대상: 지정했고 아직 살아 있으면 그 사람, 아니면 자기 자신.
-    const targetId = act.target && mb.members.some((x) => x.id === act.target && x.status === 'alive') ? act.target : m.id
+    targetId = act.target && mb.members.some((x) => x.id === act.target && x.status === 'alive') ? act.target : m.id
     r = psychicTurn(
       v,
       act.psychic ?? 'survival',
       { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff, sacrifice: act.sacrifice, recycleItemId: act.recycleItemId, recyclePrice: act.recyclePrice, target: targetId },
       rng,
     )
-    if (r.invalid) {
-      r = { state: v, events: r.events?.length ? r.events : [{ kind: 'warn', text: '쓸 수 없는 영능력이다.' }], mpCost: 0 }
-    } else {
-      if (r.state.fallingLight) mb.fallingLight = m.id // 일행 전체에 한 번만(쓴 사람에게 쏠린다)
-      if (r.state.karmicTarget) mb.karmicTarget = targetId
-      if (r.recycleItemId && mb.enemy.boss) m.bring = { ...m.bring, [r.recycleItemId]: (m.bring?.[r.recycleItemId] || 0) + 1 } // 보스 전투: 가져온 수량 한도를 1개 되살린다
-    }
   } else {
     r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff }, rng)
-    if (r.invalid) r = { state: v, events: [{ kind: 'warn', text: `[${m.name}] 의지력이 모자라 행동하지 못했다.` }], mpCost: 0 }
+  }
+  if (r.invalid) {
+    // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 같은 사람이 다시 고를 수 있도록 그대로 둔다.
+    m.act = null
+    const fallback = act.action === 'psychic' ? '쓸 수 없는 영능력이다.' : `의지력이 모자라 행동하지 못했다.`
+    evs.push(...addLog(mb, (r.events?.length ? r.events : [{ kind: 'warn', text: fallback }]).map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
+    return evs
+  }
+  if (act.action === 'psychic') {
+    if (r.state.fallingLight) mb.fallingLight = m.id // 일행 전체에 한 번만(쓴 사람에게 쏠린다)
+    if (r.state.karmicTarget) mb.karmicTarget = targetId
+    if (r.recycleItemId && mb.enemy.boss) m.bring = { ...m.bring, [r.recycleItemId]: (m.bring?.[r.recycleItemId] || 0) + 1 } // 보스 전투: 가져온 수량 한도를 1개 되살린다
   }
   if (r.boostUsed) m.boost = false
   m.mp = Math.max(0, m.mp - (r.mpCost || 0))
@@ -347,7 +352,7 @@ export function resolveTurn(mb, rng = Math.random) {
   m.charms = r.state.charms
   m.bound = r.state.bound
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
-  m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 v를 그대로 되돌리므로 안 늘어난다)
+  m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
   evs.push(...addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}${forced}] ${e.text}` })), m.id))
   m.act = null
@@ -357,6 +362,19 @@ export function resolveTurn(mb, rng = Math.random) {
     mb.phase = 'over'
     mb.turn = null
     return evs
+  }
+  // 무당방울: 유효한 행동을 한 소지자는 매 턴 확률적으로 일행 전원의 체력을 회복시킨다.
+  const bell = bellTick(m.stats, rng)
+  if (bell) {
+    const healedNames = []
+    for (const x of aliveOf(mb)) {
+      const before = x.php
+      x.php = Math.min(x.phpMax, x.php + bell.heal)
+      if (x.php > before) healedNames.push(x.name)
+    }
+    if (healedNames.length) {
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ 무당방울! [이해 ${bell.chance}%, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
+    }
   }
   evs.push(...nextActor(mb, rng))
   if (mb.turn) return evs // 다음 사람의 차례
@@ -449,6 +467,7 @@ function enemyPhase(mb, rng) {
       )
     }
   }
+  const partyAura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 반격에도 똑같이 붙는다
   targets.forEach((t, i) => {
     if (mb.ehp <= 0) return
     const last = i === targets.length - 1
@@ -456,7 +475,7 @@ function enemyPhase(mb, rng) {
     if (intent === 'group') q[0] = 'jab'
     const v = { ...viewOfMember(mb, t), guard: t.guard, queue: q }
     const prevPhp = t.php
-    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true }, rng)
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: partyAura }, rng)
     if (karmicMult > 1) {
       const dealt = Math.max(0, prevPhp - r.state.php)
       const extra = dealt * (karmicMult - 1)

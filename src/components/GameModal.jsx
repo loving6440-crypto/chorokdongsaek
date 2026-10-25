@@ -18,6 +18,7 @@ import {
 } from '../game/courseInfo'
 import { LessonContext, SkinContext } from '../game/lessonContext'
 import { SKINS, isSkinOpen } from '../game/skins2048'
+import { SKINS_RUNNER, isRunnerSkinOpen } from '../game/skinsRunner'
 import { submitScore } from '../net/online'
 
 // 과목 id → 미니게임. 여기에 등록하면 해당 과목에서 바로 플레이할 수 있다.
@@ -49,6 +50,7 @@ export default function GameModal({
   actions,
   player,
   onSkin,
+  onSkinRunner,
   admin,
 }) {
   // Game 이 1초마다 다시 그려져도 효과가 다시 걸리지 않도록 ref 로 들고 있는다.
@@ -139,10 +141,16 @@ export default function GameModal({
   }, [])
 
   const skinCtx = useMemo(() => {
+    if (course?.id === 'exorcism-space') {
+      const open = SKINS_RUNNER.filter((k) => isRunnerSkinOpen(k, player, admin)).map((k) => k.id)
+      const cur = open.includes(player?.skinRunner) ? player.skinRunner : 'fox'
+      return { current: cur, open, set: (id) => onSkinRunner?.(id) }
+    }
     const open = SKINS.filter((k) => isSkinOpen(k, player, admin)).map((k) => k.id)
     const cur = open.includes(player?.skin2048) ? player.skin2048 : 'talisman'
     return { current: cur, open, set: (id) => onSkin?.(id) }
-  }, [player?.achievements, player?.skin2048, onSkin, admin]) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course?.id, player?.achievements, player?.skin2048, player?.skinRunner, onSkin, onSkinRunner, admin])
 
   if (!course) return null
 

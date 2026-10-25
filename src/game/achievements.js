@@ -5,8 +5,10 @@
 //  - reward: { spirit } 달성하는 순간 자동으로 들어온다.
 //  - at(player, now): 달성 조건을 채운 시각(ms)을 돌려준다. 아직이면 null.
 import { SKINS, LAUNCH_SKIN_IDS } from './skins2048'
+import { SKINS_RUNNER } from './skinsRunner'
 
 const SKIN_NAME = Object.fromEntries(SKINS.map((k) => [k.id, k.name]))
+const RUNNER_SKIN_NAME = Object.fromEntries(SKINS_RUNNER.map((k) => [k.id, k.name]))
 const DAY = 24 * 60 * 60 * 1000
 
 export const ACHIEVEMENTS = [
@@ -27,6 +29,14 @@ export const ACHIEVEMENTS = [
     at: (p) => p.cleared?.['talisman-2048'] ?? null,
   },
   {
+    id: 'first-practice',
+    name: '첫 실습',
+    desc: '엉성했지만 첫 퇴마 실습을 무사히 마쳤다. 다음번엔 조금 더 멀리 달려 보자.',
+    hint: '퇴마 실습 수업을 처음으로 마친다.',
+    reward: { spirit: 10, skinRunner: 'changnok-bloom' },
+    at: (p) => p.cleared?.['exorcism-space'] ?? null,
+  },
+  {
     id: 'model-student',
     name: '나는야 모범생',
     desc: '한 주 내내 어느 수업에서건 주간 랭킹 1위 자리를 지켜냈다. 다음 주로 넘어가는 순간까지 그 자리는 흔들리지 않았다.',
@@ -45,7 +55,12 @@ export const ACHIEVEMENTS = [
 ]
 
 export const rewardText = (r) =>
-  [r?.spirit ? `영력 +${r.spirit}` : '', r?.money ? `돈 +${r.money}냥` : '', r?.skin ? `2048 스킨 [${SKIN_NAME[r.skin] ?? r.skin}] 해금` : '']
+  [
+    r?.spirit ? `영력 +${r.spirit}` : '',
+    r?.money ? `돈 +${r.money}냥` : '',
+    r?.skin ? `2048 스킨 [${SKIN_NAME[r.skin] ?? r.skin}] 해금` : '',
+    r?.skinRunner ? `퇴마 실습 스킨 [${RUNNER_SKIN_NAME[r.skinRunner] ?? r.skinRunner}] 해금` : '',
+  ]
     .filter(Boolean)
     .join(' · ')
 

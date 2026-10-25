@@ -46,6 +46,7 @@ import {
 import { LESSON_WAIT_MINUTES } from './game/courseInfo'
 import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
+import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
 import { GATHER_MINUTES } from './game/gather'
 import { travelMinutes } from './game/travel'
@@ -517,6 +518,17 @@ export default function Game({
       const k = SKINS.find((x) => x.id === id)
       if (!k || !isSkinOpen(k, cur, admin)) return
       const next = { ...cur, skin2048: id }
+      playerRef.current = next
+      setPlayer(next)
+    },
+    [admin],
+  )
+  const setSkinRunner = useCallback(
+    (id) => {
+      const cur = playerRef.current
+      const k = SKINS_RUNNER.find((x) => x.id === id)
+      if (!k || !isRunnerSkinOpen(k, cur, admin)) return
+      const next = { ...cur, skinRunner: id }
       playerRef.current = next
       setPlayer(next)
     },
@@ -1547,6 +1559,7 @@ export default function Game({
         actions={lessonActions}
         player={player}
         onSkin={setSkin2048}
+        onSkinRunner={setSkinRunner}
         admin={admin}
       />
       {confirmQuit && (

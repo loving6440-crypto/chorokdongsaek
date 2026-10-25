@@ -44,6 +44,13 @@ export default function ClubRoomPanel({ clubId, myClub, onApply, onFetchMembers 
         <Users size={12} aria-hidden />
         {meta?.name ?? '동아리'} 부실
       </p>
+      {meta?.desc && (
+        <div className="mt-2 space-y-0.5">
+          {meta.desc.map((line, i) => (
+            <p key={i} className="text-xs leading-relaxed break-keep text-paper/70">{line}</p>
+          ))}
+        </div>
+      )}
       {sameClub && <p className="mt-2 text-xs text-gold">이미 이 동아리의 멤버다.</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={already} onClick={() => { setTab('apply'); setMsg('') }} className="flat-btn !py-1 text-xs disabled:opacity-40">

@@ -547,6 +547,20 @@ export const auraOf = (stats) => (stats.fx === 'instrument' ? Math.max(0, Math.f
 /** 버티기를 쓸 수 있는 최대 횟수 (무당방울이 있으면 2) */
 export const maxSurvives = (stats) => (stats.fx === 'bell' ? 2 : 1)
 
+/**
+ * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) (이해/2, 내림)% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
+ * 무당방울이 없거나 발동하지 않으면 null.
+ */
+export function bellTick(stats, rng = Math.random) {
+  if (stats.fx !== 'bell') return null
+  const chance = Math.floor((stats.comprehension || 0) / 2)
+  if (chance <= 0) return null
+  const roll = die(100, rng)
+  if (roll > chance) return null
+  const heal = die(stats.comprehension, rng)
+  return { chance, roll, heal }
+}
+
 /** 굴림으로 나온 기본 공격력(base)에 악기 · 단검 · 철퇴가 얹힌다. 반환 { base, notes[] } */
 function fxBase(base, stats, ehp, enemyHp, aura, rng) {
   const notes = []
@@ -565,12 +579,12 @@ function fxBase(base, stats, ehp, enemyHp, aura, rng) {
   }
   return { base, notes }
 }
-/** 창: (10 + ⌊호전/2⌋)% 확률로 치명타 — 그 공격이 2배 */
+/** 창: (10 + ⌊호전/2⌋)% 확률로 치명타 — 그 공격이 1.5배 */
 function fxCrit(dmg, stats, rng) {
   if (stats.fx !== 'spear' || dmg <= 0) return { dmg, note: '' }
   const chance = 10 + Math.floor(stats.aggression / 2)
   const roll = die(100, rng)
-  if (roll <= chance) return { dmg: dmg * 2, note: ` 치명타! (창 ${chance}%, d100 = ${roll}) ×2` }
+  if (roll <= chance) return { dmg: Math.floor(dmg * 1.5), note: ` 치명타! (창 ${chance}%, d100 = ${roll}) ×1.5` }
   return { dmg, note: '' }
 }
 const noteOf = (notes) => (notes.length ? ` (${notes.join(', ')})` : '')
@@ -682,6 +696,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
 export function enemyTurn(state, ctx, rng = Math.random) {
   const { stats } = ctx
   const mp = Math.floor(ctx.mp)
+  const aura = ctx.aura ?? auraOf(stats) // 악기: 반격에도 똑같이 붙는다
   const s = { ...state, queue: [...state.queue] }
   const ev = []
   let mpDrain = 0
@@ -707,9 +722,15 @@ export function enemyTurn(state, ctx, rng = Math.random) {
       const crit = extra === stats.aggression
       const sword = stats.fx === 'sword' // 칼: 모든 방어에 반격
       if (strong || crit || sword) {
-        const counter = extra * 2
+        let counter = extra * 2
+        let auraNote = ''
+        if (aura > 0) {
+          const a = die(aura, rng)
+          counter += a
+          auraNote = ` (악기 +${a})`
+        }
         s.ehp = Math.max(0, s.ehp - counter)
-        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해!${strong ? '' : sword && !crit ? ' (칼의 반격)' : ' (최대 굴림)'}` })
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해!${strong ? '' : sword && !crit ? ' (칼의 반격)' : ' (최대 굴림)'}${auraNote}` })
       } else {
         ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다. [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받았다.` })
       }

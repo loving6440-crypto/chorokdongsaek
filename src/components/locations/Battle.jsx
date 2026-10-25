@@ -7,6 +7,7 @@ import {
   ACTIONS,
   ENEMIES,
   INTENTS,
+  bellTick,
   enemyTurn,
   newBattle,
   playerTurn,
@@ -215,21 +216,38 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     else beginTurn(s)
   }
 
+  // 무당방울: 유효한 행동을 했을 때마다(매 턴) 확률적으로 체력을 회복시킨다. (1인 전투라 "파티원 전원"은 자기 자신뿐이다)
+  const applyBell = (state) => {
+    const t = bellTick(stats, Math.random)
+    if (!t) return { state, events: [] }
+    const healed = Math.min(state.phpMax, state.php + t.heal)
+    if (healed === state.php) {
+      return { state, events: [{ kind: 'info', text: `무당방울이 울렸지만 체력이 이미 가득해 소용이 없었다. [이해 ${t.chance}%, d100 = ${t.roll}]` }] }
+    }
+    return { state: { ...state, php: healed }, events: [{ kind: 'warn', text: `✦ 무당방울! [이해 ${t.chance}%, d100 = ${t.roll}] 체력 +${t.heal}.` }] }
+  }
+
   // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
   const resolve = useCallback(
     (cur, action, extra = {}) => {
       const buffed = buffArmed && (action === 'attack' || action === 'charm')
       const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
-      if (!r.invalid && buffed) setBuffArmed(false)
+      // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 다시 고를 수 있게 그대로 둔다.
+      if (r.invalid) {
+        push(r.events)
+        return
+      }
+      if (buffed) setBuffArmed(false)
       if (r.boostUsed) {
         boostRef.current = false
         onBoostUsed?.()
       }
       spend(-r.mpCost)
-      setB(r.state)
-      push(r.events)
-      if (r.state.over) finish(r.state)
-      else runEnemy(r.state)
+      const bell = applyBell(r.state)
+      setB(bell.state)
+      push([...r.events, ...bell.events])
+      if (bell.state.over) finish(bell.state)
+      else runEnemy(bell.state)
     },
     [stats, push, finish, runEnemy, spend, onBoostUsed, buffArmed],
   )
@@ -312,10 +330,11 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     }
     spend(-r.mpCost)
     if (r.recycleItemId) onGiveItem?.(r.recycleItemId, 1)
-    setB(r.state)
-    push(r.events)
-    if (r.state.over) finish(r.state)
-    else runEnemy(r.state)
+    const bell = applyBell(r.state)
+    setB(bell.state)
+    push([...r.events, ...bell.events])
+    if (bell.state.over) finish(bell.state)
+    else runEnemy(bell.state)
   }
 
   const survive = (accept) => {
