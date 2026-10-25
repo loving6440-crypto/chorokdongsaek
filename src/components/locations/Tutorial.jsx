@@ -5,7 +5,7 @@ import SpBanner from '../SpBanner'
 import { Bar } from './battleUi'
 
 const ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, buff: Flame, psychic: Zap }
-const ORDER = ['attack', 'guard', 'charm', 'scan', 'buff', 'psychic']
+const ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
 const FILL = ['jab', 'jab', 'jab', 'jab', 'jab']
 const q = (list) => [...list, ...FILL].slice(0, 5)
 
@@ -51,7 +51,7 @@ const NODES = [
     say: [
       '상대의 턴에는 상대가 10면체를 굴려서 행동을 정해요. 1~2는 기 모으기, 3~7은 약공, 8~9는 방어 태세, 10은 상대마다 다른 영능력이에요.',
       '기 모으기를 하면 다음 턴엔 반드시 강공이 와요. 강공은 위험하니까 조심하세요… 약공은 일반 공격, 방어 태세에는 내 공격이 절반이 돼요.',
-      '내 턴에 할 수 있는 건 여섯 가지예요. 일반 공격, 막기, 부적, 간파, 효험, 그리고 영능력. 영능력은 조금 뒤에 따로 알려드릴게요. 먼저 나머지를 하나씩 직접 해 볼 거예요.',
+      '내 턴에 할 수 있는 건 다섯 가지예요. 일반 공격, 막기, 부적, 간파, 그리고 영능력. 영능력은 조금 뒤에 따로 알려드릴게요. 먼저 나머지를 하나씩 직접 해 볼 거예요.',
     ],
   },
   {
@@ -98,9 +98,6 @@ const NODES = [
   {
     say: [
       '잘하셨어요! 이제 의지력을 쓰는 기술을 하나씩 해 볼게요. 의지력은 체력처럼 저절로 차지 않아요. 아껴 쓰세요.',
-      '아, 전투 중 의지력이 부족할 때는 걱정 마세요. 의지력은 0 미만으로 떨어지지 않아요.',
-      '의지력이 현재 내야 할 대가보다 모자라더라도 0까지 떨어지고 그 능력을 사용할 수 있어요.',
-      '하지만, 0인 상태에서는 더 이상 그 어떤 것도 사용할 수 없으니 주의해요.',
       '첫 번째는 “간파”예요. 의지력 1을 쓰면 상대의 다음 행동을 세 턴 앞서 볼 수 있어요. 안목이 상대의 영력보다 높으면 처음부터 다섯 턴이에요.',
       '그리고 의지력을 1 더 쓸 때마다 한 턴씩 더 멀리 볼 수 있어요. 예를 들어 의지력 5를 쓰면 처음 3턴에 4턴이 더해져서, 7턴 동안 상대의 행동이 보여요!',
       '단, 상대가 영능력을 쓰는 턴은 간파로 봐도 “영능력”이라고만 보이고, 어떤 영능력인지는 알 수 없어요.',
@@ -142,19 +139,8 @@ const NODES = [
   },
   {
     say: [
-      '마지막은 “효험”이에요. 의지력 10을 쓰고, 이번 공격을 두 번 굴려서 더 좋은 쪽을 골라요. 둘 다 나쁘면… 어쩔 수 없지만요.',
-      '명중이 불안할 때나, 확실히 큰 피해가 필요할 때 좋아요.',
-    ],
-  },
-  {
-    do: true,
-    allow: ['buff'],
-    prompt: '“효험”을 눌러 보세요. (숫자 키 5)',
-  },
-  {
-    say: [
       '상대는 10분의 1 확률로 영능력을 써요. 예를 들어 저, 바리는 이런 주술을 써요.',
-      '제 영능력은 “도깨비불”이에요. 3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 4배의 공격을 때려요.',
+      '제 영능력은 “도깨비불”이에요. 3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 6배의 공격을 때려요.',
       '이건 강공격이 아니라서 방어해도 절반밖에 방어가 안 된답니다. 무시무시하죠? 이처럼 \'영능력\'이라는 건 상대의 궁극기나 필살기 같은 느낌으로 이해하면 돼요.',
       '여러분도 성장할 수록 이런 영능력을 배울 수 있게 될 거예요!',
     ],
@@ -162,39 +148,39 @@ const NODES = [
   },
   {
     say: [
-      '말로만 들으면 와닿지 않죠? 이번엔 특별히 제 “도깨비불”을 잠깐 빌려드릴게요!',
+      '여러분도 간단한 영능력 하나를 지금도 갖고 계세요! 바로 “효험”이에요. 한 번 직접 사용해 볼까요?',
       '영능력은 행동 칸의 “영능력”에서 쓸 수 있어요. 지금까지 익힌 영능력이 목록으로 나와요.',
     ],
-    fx: 'fire',
-    enter: { lend: true },
   },
   {
     do: true,
     allow: ['psychic'],
     wait: 'psyopen',
-    prompt: '“영능력”을 눌러 목록을 열어 보세요. (숫자 키 6)',
+    prompt: '“영능력”을 눌러 목록을 열어 보세요. (숫자 키 5)',
   },
   {
     say: [
-      '“도깨비불”이 보이죠? 빌려드린 거라 교육이 끝나면 돌려받을 거예요.',
-      '쓰면 그 턴부터 3턴 동안은 아무 행동도 할 수 없어요. 기를 모으는 동안에도 상대는 계속 공격해 와요!',
-      '대신 모으고 나면 다음 턴에 일반 공격의 4배 피해가 자동으로 나가요. 방어 태세인 상대에겐 절반이 되니 타이밍을 잘 봐요!',
+      '“효험”이 보이죠? 토글을 켜 두면, 다음에 고르는 일반 공격·부적·생존본능이 자동으로 두 번 굴러 더 나은 쪽으로 들어가요.',
+      '토글을 켜는 것 자체로는 턴을 쓰지 않아요. 실제로 공격을 고르는 순간 의지력 10(모자라면 0까지)이 들고, 토글은 그때 꺼져요.',
     ],
-    fx: 'fire',
   },
   {
     do: true,
-    allow: ['psychic'],
-    useFire: true,
-    prompt: '영능력 목록에서 “도깨비불”의 [사용]을 눌러 보세요. 상대는 약공만 할 거예요.',
-    prep: (s) => ({ ...s, queue: q(['jab']), fire: 0 }),
+    allow: [],
+    wait: 'buffToggle',
+    prompt: '영능력 목록에서 “효험”의 [켜기]를 눌러 보세요.',
   },
   {
-    say: [
-      '어때요, 한 방이 묵직하죠? 대신 기를 모으는 세 턴 동안은 무방비예요. 영능력은 이렇게 쓸 때를 잘 가려야 해요.',
-      '그럼 빌려드린 도깨비불은 돌려받을게요! 여러분만의 영능력은 싸우다 보면 언젠가 익히게 될 거예요.',
-    ],
-    enter: { unlend: true },
+    say: ['효험이 켜졌어요! 이 상태에서 “일반 공격”을 하면 두 번 굴려서 더 나은 쪽으로 들어가요.'],
+  },
+  {
+    do: true,
+    allow: ['attack'],
+    prompt: '효험이 켜진 채로 “일반 공격”을 눌러 보세요. (숫자 키 1)',
+    prep: (s) => ({ ...s, queue: q(['jab']) }),
+  },
+  {
+    say: ['어때요, 한 방이 묵직하죠? 명중이 불안할 때나, 확실히 큰 피해가 필요할 때 좋아요. 여러분만의 또 다른 영능력은 싸우다 보면 언젠가 익히게 될 거예요.'],
   },
   {
     say: ['이제 상대도 영능력을 쓸 차례예요. 일단 아무 공격이나 해 볼래요?'],
@@ -319,6 +305,8 @@ const DELAY = 800
 export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed = 0, psychics = [], onLent, onSpotItems, onGiveItem, onExit, onDone }) {
   const [psyOpen, setPsyOpen] = useState(false) // 영능력 목록
   const [lent, setLent] = useState(false) // 바리가 도깨비불을 빌려준 동안
+  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격에 적용)
+  const toggleBuff = useCallback(() => setBuffArmed((v) => !v), [])
   const [idx, setIdx] = useState(0)
   const [line, setLine] = useState(0)
   const [b, setB] = useState(() => ({ ...newBattle(TUTOR_ENEMY, stats, Math.random, hp, hpMax), queue: q(['jab']) }))
@@ -374,6 +362,11 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
     if (NODES[idx].wait === 'item' && itemsUsed > baseItems.current) enter(idx + 1)
   }, [itemsUsed, idx, enter])
 
+  // 효험 토글을 켜면 다음 단계로
+  useEffect(() => {
+    if (NODES[idx].wait === 'buffToggle' && buffArmed) enter(idx + 1)
+  }, [buffArmed, idx, enter])
+
   const next = useCallback(() => {
     if (busy) return
     const n = NODES[idx]
@@ -396,15 +389,15 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
       setBusy(true)
       // 연습을 끝까지 볼 수 있도록, 기술을 쓸 의지력이 모자라면 바리가 조금 채워 준다.
       let mpNow = mpRef.current
-      if ((action === 'charm' || action === 'scan' || action === 'buff') && mpNow < 1) {
+      if ((action === 'charm' || action === 'scan' || (action === 'attack' && buffArmed)) && mpNow < 1) {
         onMp?.(10)
         mpNow = 10
         push([{ kind: 'warn', text: '(의지력이 0이라 바리가 연습용으로 조금 채워 주었다.)' }])
       }
-      // '효험'은 이제 독립된 행동이 아니라 일반 공격에 거는 토글이지만, 연습에서는 누르면 바로 그 효과로 때린다.
-      const realAction = action === 'buff' ? 'attack' : action
-      const ctx = { stats, mp: mpNow, noRash: true, buff: action === 'buff', ...(n.scanAmount && action === 'scan' ? { scanAmount: n.scanAmount } : {}) }
-      const r = playerTurn(cur, realAction, ctx)
+      const useBuff = action === 'attack' && buffArmed
+      const ctx = { stats, mp: mpNow, noRash: true, buff: useBuff, ...(n.scanAmount && action === 'scan' ? { scanAmount: n.scanAmount } : {}) }
+      const r = playerTurn(cur, action, ctx)
+      if (useBuff) setBuffArmed(false)
       onMp?.(-r.mpCost)
       mpNow -= r.mpCost
       mpRef.current = mpNow
@@ -438,10 +431,10 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
         enter(idx + 1)
       }, won ? 400 : DELAY)
     },
-    [idx, busy, stats, enter, onMp, onHp],
+    [idx, busy, stats, enter, onMp, onHp, buffArmed],
   )
 
-  // 도깨비불 시연: 기를 모으는 3턴(상대는 계속 공격) → 4배 공격
+  // 도깨비불 시연: 기를 모으는 3턴(상대는 계속 공격) → 6배 공격
   const runFire = useCallback(async () => {
     const n = NODES[idx]
     if (!n.useFire || busy) return
@@ -625,16 +618,28 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
                     </p>
                     <p className="text-[11px] text-paper/60">{x.note}</p>
                     {x.detail && <p className="mt-1 text-[11px] text-gold/80">{x.detail}</p>}
-                    {x.use && (
+                    {x.toggle ? (
                       <button
                         type="button"
-                        data-psychic-use={x.id}
-                        disabled={!(x.id === 'dokkaebi-fire' && node.useFire && !busy)}
-                        onClick={runFire}
-                        className={`flat-btn mt-2 justify-center disabled:opacity-40 ${x.id === 'dokkaebi-fire' && node.useFire && !busy ? 'spot' : ''}`}
+                        data-psychic-toggle={x.id}
+                        aria-pressed={buffArmed}
+                        onClick={toggleBuff}
+                        className={`flat-btn mt-2 justify-center ${buffArmed ? 'bg-gold-fill text-ink' : ''} ${node.wait === 'buffToggle' && !buffArmed ? 'spot' : ''}`}
                       >
-                        {x.id === 'dokkaebi-fire' ? '사용' : '사용 (연습에선 쓸 수 없다)'}
+                        {buffArmed ? '켜짐 (끄기)' : '켜기'}
                       </button>
+                    ) : (
+                      x.use && (
+                        <button
+                          type="button"
+                          data-psychic-use={x.id}
+                          disabled={!(x.id === 'dokkaebi-fire' && node.useFire && !busy)}
+                          onClick={runFire}
+                          className={`flat-btn mt-2 justify-center disabled:opacity-40 ${x.id === 'dokkaebi-fire' && node.useFire && !busy ? 'spot' : ''}`}
+                        >
+                          {x.id === 'dokkaebi-fire' ? '사용' : '사용 (연습에선 쓸 수 없다)'}
+                        </button>
+                      )
                     )}
                   </li>
                 ))}

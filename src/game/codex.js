@@ -10,6 +10,7 @@ import { ENEMIES, PSYCHICS, LENT_FIRE, specialEffects, SPECIAL_PERCENT } from '.
 import { ITEMS } from './items'
 import { ISHI } from './shrine'
 import { SHINAH } from './armory'
+import { DANAE } from './danae'
 
 export const CODEX_CHAPTERS = [
   { id: 'items', no: 1, title: '재료 및 아이템' },
@@ -19,11 +20,14 @@ export const CODEX_CHAPTERS = [
 ]
 
 // NPC 도감. portrait 는 /public 의 이미지.
+// NPC를 새로 추가할 때는: (1) 아래 목록에 한 줄 추가 (2) 그 NPC가 있는 방·화면에서 onMeet(id) 를 호출하면,
+// Game.jsx 의 meetNpc → progress.js 의 markNpc 가 자동으로 도감에 등록해 준다. (추가 작업 불필요)
 export const NPC_ENTRIES = [
   { id: 'bari', name: '바리', portrait: '/bari.png', where: '뒷산 · 퇴마 실습 교육', desc: '' },
   { id: 'yumin', name: '강유민', portrait: '/yumin-smile.webp', where: '기숙사 · 매점', desc: '' },
   { id: 'shinah', name: SHINAH.name, portrait: SHINAH.portrait, where: SHINAH.where, desc: SHINAH.codex },
   { id: 'ishi', name: ISHI.name, portrait: ISHI.portrait, where: '사당 · 문지기', desc: ISHI.codex },
+  { id: 'danae', name: DANAE.name, portrait: DANAE.faces.plain, where: '별관 2층 · 조리실', desc: '' },
 ]
 
 /**

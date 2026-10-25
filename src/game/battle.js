@@ -163,6 +163,34 @@ export const PSYCHICS = [
     cond: '전투 중 최초로 전투불능이 되어본다.',
     use: true,
   },
+  // ───────── 아래 세 영능력은 데이터만 정의되어 있다. (취득 경로는 아직 정해지지 않았다) ─────────
+  {
+    id: 'cotton-mist',
+    label: '솜구름 안개',
+    note: '적의 다음 턴 행동을 강제로 다시 결정하게 한다.',
+    detail: '의지력 20 소모. 적의 다음 턴이 이미 정해져 있었다면(강공·영능력 등) 그걸 무르고 1d10을 다시 굴려 새로 정한다. 다시 굴린 결과가 똑같이 나왔을 경우에는 그냥 그대로 행한다.',
+    cond: '(취득 경로 미정)',
+    mp: 20,
+    use: true,
+  },
+  {
+    id: 'echo-form',
+    label: '형상 기억',
+    note: '지금까지의 전투에서 이미 사용을 마친 아이템 하나를 재활용해서, 전투 중 다시 쓸 수 있게 한다.',
+    detail: '의지력 소모량은 재활용하는 아이템의 가격과 같다. 해당 전투에서 쓰지 않고 넘어가면 전투가 끝나는 순간 사라진다.',
+    cond: '(취득 경로 미정)',
+    use: true,
+  },
+  {
+    id: 'falling-light',
+    label: '내려쬐는 빛',
+    note: '상대의 모든 단일 대상 공격이 무조건 이 영능력을 쓴 사람에게 향하게 만든다.',
+    detail:
+      '의지력 40 소모. 전투의 맨 첫 턴에서만 쓸 수 있다(두 번째로 돌아온 턴부터는 쓸 수 없다). 일행 중 한 명이 이미 사용했다면, 같은 전투에서 다른 일행은 이 영능력을 쓸 수 없다.',
+    cond: '(취득 경로 미정)',
+    mp: 40,
+    use: true,
+  },
 ]
 
 /** 효험 등 default 인 영능력을 포함해, 지금 쓸 수 있는 영능력 목록. psychics = player.psychics (익힌 id 배열). */
@@ -170,15 +198,15 @@ export const ownedPsychics = (psychics = []) => PSYCHICS.filter((p) => p.default
 
 /**
  * 도깨비불 (바리의 영능력): 쓴 턴을 포함해 3턴 동안 아무 행동도 하지 않고 기를 모은 뒤,
- * 그 다음 내 턴에 일반 공격의 4배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
+ * 그 다음 내 턴에 일반 공격의 6배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
  * 쓰고 나면 state.fire 가 남은 자동 턴 수(3)로 세팅되고, 내 턴이 올 때마다 fireTurn 을 불러 진행한다.
  */
 export const FIRE_TURNS = 3
 export const LENT_FIRE = {
   id: 'dokkaebi-fire',
   label: '도깨비불',
-  note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-  detail: '쓴 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격.',
+  note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 6배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
+  detail: '쓴 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 6배 공격.',
   use: true,
 }
 
@@ -230,7 +258,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   }
 }
 
-/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 4배 공격. 반환: { state, events, done } */
+/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 6배 공격. 반환: { state, events, done } */
 export function fireTurn(state, ctx, rng = Math.random) {
   const { stats } = ctx
   const s = { ...state, guard: false }
@@ -244,14 +272,14 @@ export function fireTurn(state, ctx, rng = Math.random) {
   const r = attackRoll(stats, rng)
   const mult = ctx.boost ? 2 : 1
   const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
-  const cr = fxCrit(fb.base * 4 * mult, stats, rng)
+  const cr = fxCrit(fb.base * 6 * mult, stats, rng)
   let dmg = cr.dmg
   if (!r.miss && braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
     r.miss
       ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발… 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` }
-      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}` },
+      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×6 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'
@@ -452,8 +480,9 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   }
   const aura = ctx.aura ?? auraOf(stats)
   const braced = s.queue[0] === 'guard'
-  const mult = ctx.boost ? 2 : 1 // 마이쭈: 이번 턴 피해 2배
-  const bn = ctx.boost ? ' (마이쭈 ×2)' : ''
+  const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
+  const mult = boostMult // 마이쭈: 이번 턴 피해 2배, 폭죽: 3배
+  const bn = ctx.boost ? ` (×${boostMult})` : ''
 
   const strike = (r, label = '공격') => {
     if (r.miss) return `${label}이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]`
@@ -500,7 +529,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
       const cr = fxCrit(fb.base * 2 * mult, stats, rng)
       const dmg = cr.dmg
       s.ehp = Math.max(0, s.ehp - dmg)
-      ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${ctx.boost ? ' ×2(마이쭈)' : ''} = ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)${buffNote}` })
+      ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${bn} = ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)${buffNote}` })
     }
   } else if (act === 'scan') {
     const amount = Math.max(1, Math.min(mp, Math.floor(ctx.scanAmount ?? 1)))
@@ -541,6 +570,15 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   const intent0 = s.queue[0]
   const intent = intent0 === 'group' ? 'jab' : intent0 // 단체 공격은 다인 전투에서 일행 한 명씩 약공으로 풀어낸다
   const hurt = (raw, label, { blockable = true, kind } = {}) => {
+    // 부채: 적의 모든 공격 명중률이 (10 + 1d이해)% 만큼 줄어든다 — 막기 여부와 상관없이 아예 빗나간다.
+    if (stats.fx === 'fan') {
+      const chance = 10 + die(stats.comprehension, rng)
+      const roll = die(100, rng)
+      if (roll <= chance) {
+        ev.push({ kind: 'enemy', dmg: 0, text: `${label}이 부채 바람에 휩쓸려 빗나갔다! (회피 ${chance}%, d100 = ${roll})` })
+        return
+      }
+    }
     let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.5) : raw // 철퇴: 받는 피해 ×1.5
     if (blockable && s.guard) {
       const reduced = Math.ceil(dmg / (kind === 'smash' ? 3 : 2))

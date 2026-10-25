@@ -4,6 +4,7 @@ import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './course
 import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
 import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx } from './items'
 import { checkAchievements } from './achievements'
+import { finishCraft } from './crafting'
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
@@ -222,9 +223,19 @@ export function tickPlayer(player, now, dtSec) {
     p = rest
     logs.push('[쇠약]이 풀렸다. 몸에 힘이 돌아온다.')
   }
-  // 대기(수련·취침·휴식·수업 대기) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
+  // 대기(수련·취침·휴식·수업 대기·제작) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
   const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
-  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting)
+  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting)
+
+  // 제작: 끝까지 기다려야 완성품이 한꺼번에 나온다. 중간에 나가면(crafting이 끊기면) 재료도 완성품도 없다.
+  const cf = p.crafting
+  if (cf && now >= cf.startedAt + cf.minutes * 60000) {
+    const r = finishCraft(p)
+    if (r) {
+      p = r.player
+      logs.push(`제작을 마쳤다. ${r.item.name}${r.qty > 1 ? ` ${r.qty}개를` : '을(를)'} 얻었다.`)
+    }
+  }
 
   const tr = p.training
   if (tr) {
@@ -282,11 +293,11 @@ export function tickPlayer(player, now, dtSec) {
   const ach = checkAchievements(p, now)
   p = ach.player
   logs.push(...ach.logs)
-  return { player: p, logs }
+  return { player: p, logs, unlocked: ach.unlocked }
 }
 
 // ── 체육관 전투 보상: 하루에 보상이 나오는 승리는 3번까지, 패배하면 영력을 조금 잃는다 ──
-export const GYM_DAILY_REWARDS = 1
+export const GYM_DAILY_REWARDS = 3
 export const GYM_LOSS_PENALTY = 2
 
 export function gymToday(player, now = Date.now()) {
@@ -294,6 +305,10 @@ export function gymToday(player, now = Date.now()) {
   return g && g.day === dayKey(now) ? g : { day: dayKey(now), wins: 0 }
 }
 
+/**
+ * 전투 승리 보상: 영력과 돈(냥)을 똑같이(상대 영력 × REWARD_MULT) 받는다.
+ * 낫을 들고 있으면 둘 다 1.5배(올림)로 늘어난다.
+ */
 export function applyBattleResult(player, win, reward0, now = Date.now()) {
   const g = gymToday(player, now)
   const reward = weaponFx(player) === 'sickle' ? Math.ceil(reward0 * 1.5) : reward0 // 낫: 보상 1.5배(올림)
@@ -303,5 +318,9 @@ export function applyBattleResult(player, win, reward0, now = Date.now()) {
     return { player: { ...player, spirit: player.spirit - lost, gym: g, weakUntil: now + WEAK_MS }, granted: 0, lost }
   }
   if (g.wins >= GYM_DAILY_REWARDS) return { player: { ...player, gym: g }, granted: 0, lost: 0 }
-  return { player: { ...player, spirit: player.spirit + reward, gym: { ...g, wins: g.wins + 1 } }, granted: reward, lost: 0 }
+  return {
+    player: { ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } },
+    granted: reward,
+    lost: 0,
+  }
 }

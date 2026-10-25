@@ -30,10 +30,11 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   const eq = equipOf(player)
   const picked = sel ? owned.find((i) => i.id === sel) : null
   const pn = picked ? countOf(player, picked.id) : 0
-  const pu = picked ? canUseItem(picked, { inBattle, countNow: pn, reviveOn, boostOn }) : null
+  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: pn, reviveOn, boostOn }) : null
   const slotItem = slotSel && eq[slotSel] ? itemOf(eq[slotSel]) : null
   const shown = picked ?? slotItem
-  const chewyTarget = picked?.effect?.boost && inBattle
+  // 마이쭈(boost)·쌍쌍바(giveHp): 누구에게 줄지 고르는 아이템.
+  const chewyTarget = (picked?.effect?.boost || picked?.effect?.giveHp) && inBattle
 
   const doEquip = () => {
     const r = onEquip?.(picked.id)

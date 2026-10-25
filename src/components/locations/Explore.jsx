@@ -21,7 +21,7 @@ const Paras = ({ list }) =>
   ))
 
 /** 본관 탐사: 층 → 구역 → 세부 조사 순으로 살핀다. 누를 때마다 그 자리의 스크립트가 나온다. */
-export default function Explore({ stats, player, admin, onCraft, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
+export default function Explore({ stats, player, admin, onCraft, onStopCraft, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
   const [floorId, setFloorId] = useState(null)
   const [areaId, setAreaId] = useState(null)
   const [detailId, setDetailId] = useState(null)
@@ -116,7 +116,7 @@ export default function Explore({ stats, player, admin, onCraft, onInvestigate, 
               </div>
             </>
           )}
-          {shown?.workshop && <div className="mt-4"><Workshop player={player} admin={admin} onCraft={onCraft} /></div>}
+          {shown?.workshop && <div className="mt-4"><Workshop player={player} admin={admin} onCraft={onCraft} onStopCraft={onStopCraft} /></div>}
           {shown && !shown.workshop && (
             <div className="ink-panel mt-4 w-full rounded-xl p-5" aria-live="polite">
               <p className="text-[11px] tracking-widest text-gold">{shown.label}</p>

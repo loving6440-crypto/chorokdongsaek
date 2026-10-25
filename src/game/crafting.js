@@ -31,8 +31,58 @@ export function learnRecipe(player, id) {
   return { ...player, recipes: { ...(player.recipes ?? {}), [id]: true } }
 }
 export const canCraft = (player, r) => r.inputs.every(([id, n]) => countOf(player, id) >= n)
+export const canCraftQty = (player, r, qty, admin = false) => admin || r.inputs.every(([id, n]) => countOf(player, id) >= n * qty)
 
-/** 제작: 제작법을 모르면 { error }. 관리자는 재료를 쓰지 않는다. 성공하면 { player, item } */
+// 제작 소요 시간: 한 번 만드는 데 소모하는 재료 총 개수 × 10분. (갯수만큼 비례해서 늘어난다.)
+export const CRAFT_MIN_PER_MATERIAL = 10
+export const totalInputCount = (r) => r.inputs.reduce((s, [, n]) => s + n, 0)
+export const craftMinutes = (r, qty = 1) => totalInputCount(r) * CRAFT_MIN_PER_MATERIAL * Math.max(1, Math.floor(qty))
+export const maxCraftQty = (player, r, admin = false) => {
+  if (admin) return 99
+  const n = r.inputs.reduce((min, [id, need]) => Math.min(min, Math.floor(countOf(player, id) / need)), Infinity)
+  return Number.isFinite(n) ? n : 0
+}
+
+/**
+ * 제작 시작: 재료를 그 즉시 소모하고 player.crafting 에 대기를 건다. (완료는 progress.js 의 tickPlayer 가 처리)
+ * 끝까지 기다려야 완성품이 나온다. 중간에 나가면(끊기면) 재료도 완성품도 돌아오지 않는다.
+ * 제작법을 모르거나 재료가 모자라면 { error }. 이미 제작 중이면 { error }. 성공하면 { player, minutes }
+ */
+export function startCraft(player, recipeId, qty = 1, admin = false, now = Date.now()) {
+  if (player.crafting) return { error: '이미 제작 중이다.' }
+  const r = recipeOf(recipeId)
+  if (!r) return { error: '그런 제작법은 없다.' }
+  if (!knowsRecipe(player, recipeId, admin)) return { error: '제작법을 모른다. 제작법이 없으면 아무것도 만들 수 없다.' }
+  const q = Math.max(1, Math.floor(qty))
+  if (!admin && !canCraftQty(player, r, q)) return { error: '재료가 모자란다.' }
+  const inv = { ...(player.inventory ?? {}) }
+  if (!admin) {
+    for (const [id, n] of r.inputs) {
+      inv[id] -= n * q
+      if (inv[id] <= 0) delete inv[id]
+    }
+  }
+  const minutes = craftMinutes(r, q)
+  return { player: { ...player, inventory: inv, crafting: { recipeId, qty: q, startedAt: now, minutes } }, minutes }
+}
+
+/** 제작 대기를 끊는다. 재료도 완성품도 돌아오지 않는다. */
+export function cancelCraft(player) {
+  if (!player.crafting) return player
+  return { ...player, crafting: null }
+}
+
+/** 제작 완료 처리 (tickPlayer 에서 부른다). 반환 { player, item, qty } 또는 null(제작 중이 아니면) */
+export function finishCraft(player) {
+  const c = player.crafting
+  if (!c) return null
+  const r = recipeOf(c.recipeId)
+  const inv = { ...(player.inventory ?? {}) }
+  inv[r.result] = (inv[r.result] || 0) + c.qty
+  return { player: { ...player, inventory: inv, crafting: null }, item: itemOf(r.result), qty: c.qty }
+}
+
+/** (옛 1회성 즉석 제작. 지금은 쓰지 않지만 혹시 참조하는 곳이 있을까봐 남겨둔다.) */
 export function craft(player, recipeId, admin = false) {
   const r = recipeOf(recipeId)
   if (!r) return { error: '그런 제작법은 없다.' }

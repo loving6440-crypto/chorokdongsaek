@@ -28,13 +28,9 @@ const Flavor = ({ paras }) =>
     </p>
   ))
 
-/** 공작소: 제작(단애와 함께) / 미술 동아리 */
-function CraftRoom({ player, admin, onCraft, onMeet, onLineSeen, onGiveNpc, myClub, onApplyClub, onFetchMembers }) {
+/** 공작소: 제작 / 미술 동아리 (오단애는 조리실로 자리를 옮겼다) */
+function CraftRoom({ player, admin, onCraft, onStopCraft, myClub, onApplyClub, onFetchMembers }) {
   const [tab, setTab] = useState('craft') // craft | club
-  const [{ line }] = useState(() => pickNpcLine(DANAE.id, DANAE.lines, player, player.lineSeen))
-  useEffect(() => {
-    onMeet?.('danae')
-  }, [onMeet])
 
   return (
     <div className="mt-4">
@@ -55,13 +51,7 @@ function CraftRoom({ player, admin, onCraft, onMeet, onLineSeen, onGiveNpc, myCl
         ))}
       </div>
       {tab === 'craft' ? (
-        <>
-          <NpcDialog npc={DANAE.name} src={DANAE.faces[line.face ?? 'plain']} face={line.face} dataNpc="danae">
-            {line.text}
-          </NpcDialog>
-          <NpcGift npcId="danae" player={player} onGive={onGiveNpc} />
-          <Workshop player={player} admin={admin} onCraft={onCraft} />
-        </>
+        <Workshop player={player} admin={admin} onCraft={onCraft} onStopCraft={onStopCraft} />
       ) : (
         <ClubRoomPanel clubId="craft" myClub={myClub} onApply={onApplyClub} onFetchMembers={onFetchMembers} />
       )}
@@ -99,9 +89,14 @@ function BoardRoom({ player, admin, onHoljjak, myClub, onApplyClub, onFetchMembe
   )
 }
 
-/** 조리실: 조리하기 / 요리 동아리 */
-function CookRoom({ player, admin, onCook, myClub, onApplyClub, onFetchMembers }) {
+/** 조리실: 조리(단애와 함께) / 요리 동아리 */
+function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub, onApplyClub, onFetchMembers }) {
   const [tab, setTab] = useState('cook')
+  const [{ line }] = useState(() => pickNpcLine(DANAE.id, DANAE.lines, player, player.lineSeen))
+  useEffect(() => {
+    onMeet?.('danae')
+  }, [onMeet])
+
   return (
     <div className="mt-4">
       <div className="flex flex-wrap gap-2" role="group" aria-label="조리실 활동">
@@ -121,7 +116,13 @@ function CookRoom({ player, admin, onCook, myClub, onApplyClub, onFetchMembers }
         ))}
       </div>
       {tab === 'cook' ? (
-        <Cooking player={player} admin={admin} onCook={onCook} />
+        <>
+          <NpcDialog npc={DANAE.name} src={DANAE.faces[line.face ?? 'plain']} face={line.face} dataNpc="danae">
+            {line.text}
+          </NpcDialog>
+          <NpcGift npcId="danae" player={player} onGive={onGiveNpc} />
+          <Cooking player={player} admin={admin} onCook={onCook} />
+        </>
       ) : (
         <ClubRoomPanel clubId="cook" myClub={myClub} onApply={onApplyClub} onFetchMembers={onFetchMembers} />
       )}
@@ -135,7 +136,7 @@ function ClubOnlyRoom({ room, myClub, onApplyClub, onFetchMembers }) {
 }
 
 /** 별관 탐사: 층 → 방 순으로 살핀다. 2층 공작소 · 패 놀이터는 전용 화면을, 그 외 동아리 방은 공용 동아리 화면을 더 보여 준다. */
-export default function Annex({ view, player, admin, onCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers }) {
+export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers }) {
   const [floorId, setFloorId] = useState(null)
   const [roomId, setRoomId] = useState(null)
   const floor = ANNEX_FLOORS.find((f) => f.id === floorId)
@@ -195,9 +196,7 @@ export default function Annex({ view, player, admin, onCraft, onCook, onMeet, on
                   player={player}
                   admin={admin}
                   onCraft={onCraft}
-                  onMeet={onMeet}
-                  onLineSeen={onLineSeen}
-                  onGiveNpc={onGiveNpc}
+                  onStopCraft={onStopCraft}
                   myClub={myClub}
                   onApplyClub={onApplyClub}
                   onFetchMembers={onFetchMembers}
@@ -207,7 +206,17 @@ export default function Annex({ view, player, admin, onCraft, onCook, onMeet, on
                 <BoardRoom player={player} admin={admin} onHoljjak={onHoljjak} myClub={myClub} onApplyClub={onApplyClub} onFetchMembers={onFetchMembers} />
               )}
               {room.id === 'cook' && (
-                <CookRoom player={player} admin={admin} onCook={onCook} myClub={myClub} onApplyClub={onApplyClub} onFetchMembers={onFetchMembers} />
+                <CookRoom
+                  player={player}
+                  admin={admin}
+                  onCook={onCook}
+                  onMeet={onMeet}
+                  onLineSeen={onLineSeen}
+                  onGiveNpc={onGiveNpc}
+                  myClub={myClub}
+                  onApplyClub={onApplyClub}
+                  onFetchMembers={onFetchMembers}
+                />
               )}
               {room.club && room.id !== 'craft' && room.id !== 'board' && room.id !== 'cook' && (
                 <ClubOnlyRoom room={room} myClub={myClub} onApplyClub={onApplyClub} onFetchMembers={onFetchMembers} />

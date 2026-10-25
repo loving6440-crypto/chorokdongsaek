@@ -17,9 +17,10 @@ import EditConsent from './components/EditConsent'
 import ProfileEditModal from './components/ProfileEditModal'
 import GiftModal from './components/GiftModal'
 import CodexModal from './components/CodexModal'
+import CodexEntryModal from './components/CodexEntryModal'
 import BringPicker from './components/BringPicker'
-import { ACHIEVEMENTS } from './game/achievements'
-import { craft } from './game/crafting'
+import { ACHIEVEMENTS, rewardText } from './game/achievements'
+import { cancelCraft, recipeOf, startCraft } from './game/crafting'
 import { cook } from './game/cooking'
 import Intro from './components/Intro'
 import AdminPanel from './components/AdminPanel'
@@ -131,6 +132,7 @@ export default function Game({
   const [giftTo, setGiftTo] = useState(null) // { id, name }
   const [cardTo, setCardTo] = useState(null) // 인적사항 카드로 보는 사람 { id, name }
   const [codexOpen, setCodexOpen] = useState(false)
+  const [codexFocus, setCodexFocus] = useState(null) // { chapterId, id }: 알림에서 바로 보여줄 항목 하나
   const [clubOpen, setClubOpen] = useState(false)
   // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다. 전투 교육 중에는 끝난 뒤에 모아서 보여 준다.
   const [codexNew, setCodexNew] = useState([])
@@ -213,6 +215,7 @@ export default function Game({
       playerRef.current = r.player
       setPlayer((prev) => tickPlayer(prev, now, dt).player)
       r.logs.forEach(addLog)
+      if (r.unlocked?.length) setAchPopupQueue((q) => [...q, ...r.unlocked])
     }
     const timer = window.setInterval(tick, 1000)
     return () => window.clearInterval(timer)
@@ -334,24 +337,40 @@ export default function Game({
     [addLog],
   )
 
+  /** 제작 대기를 끊는다. 재료도 완성품도 돌아오지 않는다. */
+  const endCraft = useCallback(
+    (why) => {
+      const cur = playerRef.current
+      if (!cur.crafting) return
+      playerRef.current = cancelCraft(cur)
+      setPlayer((prev) => (prev.crafting ? cancelCraft(prev) : prev))
+      addLog(`${why} 제작을 멈췄다. (재료도 완성품도 돌아오지 않는다)`)
+    },
+    [addLog],
+  )
+
   const interruptAll = useCallback(
     (why, at) => {
       endTraining(why, at)
       endRest(why)
       endSleep(why)
       endWaits(why)
+      endCraft(why)
     },
-    [endTraining, endRest, endSleep, endWaits],
+    [endTraining, endRest, endSleep, endWaits, endCraft],
   )
 
-  // 수련 중에 다른 곳으로 가거나 다른 동작을 하려 하면 먼저 경고하고, 확인해야 진행한다.
+  // 수련·제작 등 '대기 활동' 중에 다른 곳으로 가거나 다른 동작을 하려 하면 먼저 경고하고, 확인해야 진행한다.
+  // 앞으로 새로 생기는 대기 활동도 여기 한 줄만 추가하면 같은 확인 절차를 따르게 된다.
   const [confirmQuit, setConfirmQuit] = useState(null) // { run }
+  const [achPopupQueue, setAchPopupQueue] = useState([]) // 새로 달성한 업적들. 하나씩 팝업으로 보여준다.
   const guardTraining = (run) => {
     const cur = playerRef.current
     if (cur.training) setConfirmQuit({ run, kind: 'train' })
     else if (cur.sleeping) setConfirmQuit({ run, kind: 'sleep' })
     else if (cur.resting) setConfirmQuit({ run, kind: 'rest' })
     else if (Object.values(cur.lessons ?? {}).some((l) => l.waitUntil)) setConfirmQuit({ run, kind: 'wait' })
+    else if (cur.crafting) setConfirmQuit({ run, kind: 'craft' })
     else run()
   }
 
@@ -610,15 +629,18 @@ export default function Game({
     [addLog],
   )
 
-  // 제작 (비품실 › 공작소). 제작법이 없으면 만들 수 없다.
+  // 제작 (비품실 › 공작소): 몇 개 만들지 고르면 그만큼 비례한 시간(소모 재료 총개수×10분×개수)을 기다려야 완성품이 나온다.
   const craftItem = useCallback(
-    (recipeId) => {
+    (recipeId, qty = 1) => {
       if (battleRef.current) return { error: '전투 중이다.' }
-      const r = craft(playerRef.current, recipeId, admin)
+      const cur = playerRef.current
+      if (cur.crafting) return { error: '이미 제작 중이다.' }
+      const r = startCraft(cur, recipeId, qty, admin)
       if (r.error) return r
       playerRef.current = r.player
       setPlayer(r.player)
-      addLog(`공작소에서 ${r.item.name}을(를) 만들었다.`)
+      const m = r.minutes
+      addLog(`공작소에서 ${recipeOf(recipeId)?.id ? itemOf(recipeOf(recipeId).result).name : ''}을(를) 만들기 시작했다. (${qty}개 · ${m}분 대기)`)
       return r
     },
     [addLog, admin],
@@ -699,7 +721,7 @@ export default function Game({
       if (!(cur.inventory?.[itemId] > 0)) return { error: '건넬 물건이 없다.' }
       const inv = { ...cur.inventory, [itemId]: cur.inventory[itemId] - 1 }
       if (inv[itemId] <= 0) delete inv[itemId]
-      const lv = (cur.affinity?.[npcId] || 0) + 1
+      const lv = (cur.affinity?.[npcId] || 0) + (itemOf(itemId)?.giftAffinity || 1)
       const next = { ...cur, inventory: inv, affinity: { ...(cur.affinity ?? {}), [npcId]: lv } }
       playerRef.current = next
       setPlayer(next)
@@ -764,7 +786,7 @@ export default function Game({
       if (!item) return
       // 다인 전투 중: 효과는 서버가 판에 적용한다. (체력·의지력은 서버 값이 곧바로 반영된다.)
       if (mbLiveRef.current) {
-        const ok = canUseItem(item, { inBattle: true, countNow: cur.inventory?.[id] || 0, reviveOn: false, boostOn: false })
+        const ok = canUseItem(item, { inBattle: true, isParty: true, countNow: cur.inventory?.[id] || 0, reviveOn: false, boostOn: false })
         if (!ok.ok) return
         const to = target && target !== 'self' ? target : undefined
         const r = await mbItem(id, to)
@@ -780,19 +802,22 @@ export default function Game({
         addLog(`${item.name}을(를) ${to ? '일행에게 건넸다' : '사용했다'}.`)
         return
       }
-      const ok = canUseItem(item, { inBattle: battleRef.current, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current, boostOn: boostRef.current })
+      const ok = canUseItem(item, { inBattle: battleRef.current, isParty: false, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current, boostOn: boostRef.current })
       if (!ok.ok) return
       const e = item.effect
       const now0 = Date.now()
       const buffs = e.buff
         ? [...(cur.buffs ?? []).filter((b) => b.until > now0 && !(b.src === id)), { src: id, stat: e.buff.stat, amount: e.buff.amount, until: now0 + e.buff.hours * 3600 * 1000 }]
         : cur.buffs
+      const giveHp = e.giveHp ? e.giveHp.self : 0 // 쌍쌍바 등: 혼자 쓸 때는 self 쪽 회복량
+      const weakUntilNext = e.cureWeak ? 0 : e.weakCap != null ? Math.min(cur.weakUntil || 0, now0 + e.weakCap) : cur.weakUntil
       const next = {
         ...cur,
         ...(buffs ? { buffs } : {}),
         inventory: { ...cur.inventory, [id]: cur.inventory[id] - 1 },
-        hp: e.hp ? Math.min(cur.hpMax, cur.hp + e.hp) : cur.hp,
+        hp: e.hp || giveHp ? Math.min(cur.hpMax, cur.hp + (e.hp || 0) + giveHp) : cur.hp,
         mp: e.mp ? Math.min(cur.mpMax, cur.mp + e.mp) : cur.mp,
+        weakUntil: weakUntilNext,
       }
       playerRef.current = next
       setPlayer(next)
@@ -805,7 +830,23 @@ export default function Game({
         setBoostOn(true)
       }
       setItemsUsed((n) => n + 1)
-      addLog(`${item.name}을(를) 사용했다. (${e.buff ? `${STAT_META[e.buff.stat].label} +${e.buff.amount} (${e.buff.hours}시간)` : e.revive ? '전투불능 시 1회 부활 대기' : e.boost ? '나의 다음 행동 피해 2배 (1턴)' : item.effectText})`)
+      addLog(
+        `${item.name}을(를) 사용했다. (${
+          e.buff
+            ? `${STAT_META[e.buff.stat].label} +${e.buff.amount} (${e.buff.hours}시간)`
+            : e.revive
+              ? '전투불능 시 1회 부활 대기'
+              : e.boost
+                ? '나의 다음 행동 피해 2배 (1턴)'
+                : e.cureWeak
+                  ? '[쇠약] 즉시 회복'
+                  : e.weakCap != null
+                    ? '[쇠약] 남은 시간이 1시간으로 줄었다'
+                    : e.giveHp
+                      ? `체력 +${e.giveHp.self}`
+                      : item.effectText
+        })`,
+      )
     },
     [addLog],
   )
@@ -970,7 +1011,7 @@ export default function Game({
       if (win) {
         addLog(
           r.granted
-            ? `퇴마 실습: ${enemy.name}을(를) 쓰러뜨렸다! 영력 +${r.granted}.`
+            ? `퇴마 실습: ${enemy.name}을(를) 쓰러뜨렸다! 영력 +${r.granted}, 돈 +${r.granted}냥.`
             : `퇴마 실습: ${enemy.name}을(를) 쓰러뜨렸다. (오늘의 보상은 모두 받았다)`,
         )
       } else {
@@ -1115,7 +1156,7 @@ export default function Game({
                     [쇠약] 모든 육조 스탯이 5할 · 남은 시간 {weakLeftText(player)} (기숙사에서 6시간 취침하면 바로 회복)
                   </p>
                 )}
-                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} admin={admin} onCraft={craftItem} />}
+                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} admin={admin} onCraft={craftItem} onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))} />}
                 {locationId === 'infirmary' && (
                   <Infirmary
                     view={activity}
@@ -1130,6 +1171,7 @@ export default function Game({
                     player={viewPlayer}
                     admin={admin}
                     onCraft={craftItem}
+                    onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))}
                     onCook={cookItem}
                     onMeet={meetNpc}
                     onLineSeen={lineSeen}
@@ -1253,8 +1295,14 @@ export default function Game({
       />
       {confirmQuit && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4">
-          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
-            {confirmQuit.kind === 'wait' ? (
+          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : confirmQuit.kind === 'craft' ? '제작 중지 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
+            {confirmQuit.kind === 'craft' ? (
+              <>
+                <p className="font-serif text-lg text-gold">현재 제작 중입니다.</p>
+                <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
+                <p className="mt-1 text-[11px] text-paper/50">끝까지 기다려야 완성품이 나옵니다. 중간에 나가면 재료도 완성품도 돌아오지 않습니다.</p>
+              </>
+            ) : confirmQuit.kind === 'wait' ? (
               <>
                 <p className="font-serif text-lg text-gold">현재 수업 중입니다.</p>
                 <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
@@ -1289,12 +1337,32 @@ export default function Game({
                 }}
                 className="flat-btn justify-center !bg-crimson"
               >
-                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' || confirmQuit.kind === 'wait' ? '나간다' : '포기한다'}
+                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' || confirmQuit.kind === 'wait' || confirmQuit.kind === 'craft' ? '나간다' : '포기한다'}
               </button>
               <button type="button" onClick={() => setConfirmQuit(null)} className="flat-btn justify-center">
-                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '계속 쉬기' : confirmQuit.kind === 'wait' ? '계속 기다리기' : '계속 수련'}
+                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '계속 쉬기' : confirmQuit.kind === 'wait' ? '계속 기다리기' : confirmQuit.kind === 'craft' ? '계속 제작하기' : '계속 수련'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {achPopupQueue.length > 0 && (
+        <div className="modal-scrim fixed inset-0 z-[90] grid place-items-center p-4" onClick={() => setAchPopupQueue((q) => q.slice(1))}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="업적 달성"
+            data-ach-popup={achPopupQueue[0].id}
+            className="ink-panel w-full max-w-sm rounded-2xl p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[11px] tracking-[0.3em] text-gold">업적 달성!</p>
+            <p className="mt-2 font-serif text-xl text-paper">{achPopupQueue[0].name}</p>
+            <p className="mt-2 text-sm leading-relaxed text-paper/75">{achPopupQueue[0].desc}</p>
+            {rewardText(achPopupQueue[0].reward) && <p className="mt-2 text-sm text-gold">{rewardText(achPopupQueue[0].reward)}</p>}
+            <button type="button" onClick={() => setAchPopupQueue((q) => q.slice(1))} className="flat-btn mt-4 justify-center">
+              확인
+            </button>
           </div>
         </div>
       )}
@@ -1344,7 +1412,32 @@ export default function Game({
         />
       )}
       {cardTo && <ProfileCardModal target={cardTo} onClose={() => setCardTo(null)} />}
-      {codexNew.length > 0 && <CodexToast entries={codexNew} onClose={() => setCodexNew([])} onOpen={() => { setCodexNew([]); setCodexOpen(true) }} />}
+      {codexNew.length > 0 && (
+        <CodexToast
+          entries={codexNew}
+          onClose={() => setCodexNew([])}
+          onOpen={() => {
+            const first = codexNew[0]
+            const i = first.key.indexOf(':')
+            setCodexNew([])
+            setCodexFocus({ chapterId: first.key.slice(0, i), id: first.key.slice(i + 1) })
+          }}
+        />
+      )}
+      {codexFocus && (
+        <CodexEntryModal
+          chapterId={codexFocus.chapterId}
+          id={codexFocus.id}
+          player={player}
+          admin={admin}
+          onGet={adminGive}
+          onClose={() => setCodexFocus(null)}
+          onOpenFull={() => {
+            setCodexFocus(null)
+            setCodexOpen(true)
+          }}
+        />
+      )}
       {codexOpen && <CodexModal player={player} admin={admin} onGet={adminGive} onClose={() => setCodexOpen(false)} />}
       {clubOpen && <ClubModal onClose={() => setClubOpen(false)} onProfile={setCardTo} onFetchMembers={fetchClubMembers} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}

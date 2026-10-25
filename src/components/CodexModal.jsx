@@ -20,7 +20,7 @@ function Unknown({ size = 44 }) {
   )
 }
 
-function Entry({ e, admin, onGet, have }) {
+export function Entry({ e, admin, onGet, have }) {
   if (!e.known) {
     return (
       <li className="flex items-center gap-3 rounded-xl bg-edge/[0.05] p-3" data-codex={e.id} data-known="0">

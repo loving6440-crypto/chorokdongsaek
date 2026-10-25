@@ -4,7 +4,7 @@
 //  - hint:   달성하기 전에는 보이지 않는다. 달성한 뒤 '달성 조건'으로 보인다.
 //  - reward: { spirit } 달성하는 순간 자동으로 들어온다.
 //  - at(player, now): 달성 조건을 채운 시각(ms)을 돌려준다. 아직이면 null.
-import { SKINS } from './skins2048'
+import { SKINS, LAUNCH_SKIN_IDS } from './skins2048'
 
 const SKIN_NAME = Object.fromEntries(SKINS.map((k) => [k.id, k.name]))
 const DAY = 24 * 60 * 60 * 1000
@@ -26,15 +26,27 @@ export const ACHIEVEMENTS = [
     reward: { spirit: 10, skin: 'changnok' },
     at: (p) => p.cleared?.['talisman-2048'] ?? null,
   },
+  {
+    id: 'skin-master',
+    name: '부적 만들기의 달인',
+    desc: '최초 게임이 열리는 시점부터 얻을 수 있는 모든 2048 타일 스킨을 모았다.',
+    hint: '최초 게임이 열리는 시점에 얻을 수 있는 2048 타일 스킨을 모두 해금한다.',
+    reward: { money: 20 },
+    at: (p, now) => (LAUNCH_SKIN_IDS.every((id) => p.achievements?.[SKINS.find((s) => s.id === id)?.unlock] || !SKINS.find((s) => s.id === id)?.unlock) ? now : null),
+  },
 ]
 
 export const rewardText = (r) =>
-  [r?.spirit ? `영력 +${r.spirit}` : '', r?.skin ? `2048 스킨 [${SKIN_NAME[r.skin] ?? r.skin}] 해금` : ''].filter(Boolean).join(' · ')
+  [r?.spirit ? `영력 +${r.spirit}` : '', r?.money ? `돈 +${r.money}냥` : '', r?.skin ? `2048 스킨 [${SKIN_NAME[r.skin] ?? r.skin}] 해금` : '']
+    .filter(Boolean)
+    .join(' · ')
 
-/** 새로 달성한 업적이 있으면 기록하고 보상을 준다. 바뀐 게 없으면 같은 player 를 돌려준다. */
+/** 새로 달성한 업적이 있으면 기록하고 보상을 준다. 바뀐 게 없으면 같은 player 를 돌려준다.
+ *  반환의 unlocked: 이번에 새로 달성한 업적 객체들. (화면에서 팝업으로 띄우는 용도) */
 export function checkAchievements(player, now = Date.now()) {
   let p = player
   const logs = []
+  const unlocked = []
   for (const a of ACHIEVEMENTS) {
     if (p.achievements?.[a.id]) continue
     const t = a.at(p, now)
@@ -42,9 +54,11 @@ export function checkAchievements(player, now = Date.now()) {
     p = {
       ...p,
       spirit: p.spirit + (a.reward?.spirit ?? 0),
+      money: p.money + (a.reward?.money ?? 0),
       achievements: { ...(p.achievements ?? {}), [a.id]: { at: t } },
     }
     logs.push(`업적 달성! [${a.name}] ${rewardText(a.reward)}`.trim())
+    unlocked.push(a)
   }
-  return { player: p, logs }
+  return { player: p, logs, unlocked }
 }

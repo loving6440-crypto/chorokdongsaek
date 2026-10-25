@@ -687,7 +687,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       {phase === 'result' && b.over && (
         <div className="ink-panel mt-3 rounded-xl p-4 text-center">
           <p className={`font-serif text-2xl ${b.over === 'win' ? 'text-gold' : b.over === 'fled' ? 'text-paper' : 'text-crimson'}`}>{b.over === 'win' ? '승리' : b.over === 'fled' ? '도주' : '패배'}</p>
-          {b.over === 'win' && <p className="mt-1 text-xs text-paper/70">쓰러진 {b.enemy.name}의 영력이 흘러든다. (영력 +{b.enemy.reward}) (하루 {rewardLeft <= 0 ? '보상 소진' : '보상 한도 내'})</p>}
+          {b.over === 'win' && <p className="mt-1 text-xs text-paper/70">쓰러진 {b.enemy.name}의 영력과 돈이 흘러든다. (영력 +{b.enemy.reward}, 돈 +{b.enemy.reward}냥) (하루 {rewardLeft <= 0 ? '보상 소진' : '보상 한도 내'})</p>}
           <button type="button" onClick={() => setPhase('pick')} className="flat-btn mt-3 justify-center">
             상대 고르기
           </button>

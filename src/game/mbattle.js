@@ -42,6 +42,7 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     charms: 3,
     guard: false,
     bound: false,
+    stun: 0, // 남은 행동불능 턴 수(0이면 정상). 폭죽 등으로 걸린다.
     curse: 0,
     survived: 0,
     fx: fxId,
@@ -221,6 +222,33 @@ function useItemCore(mb, id, item, targetId) {
     addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. ${t.name}의 다음 행동 피해가 2배가 된다.` }], m.id)
     return { ok: true }
   }
+  // 봉지 과자 / 조각 케이크: 파티(살아있는 전원) 체력·의지력 회복.
+  if (e.partyHp || e.partyMp) {
+    const alive = mb.members.filter((x) => x.status === 'alive')
+    for (const x of alive) {
+      if (e.partyHp) x.php = Math.min(x.phpMax, x.php + e.partyHp)
+      if (e.partyMp) x.mp = Math.min(x.mpMax, x.mp + e.partyMp)
+    }
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.` }], m.id)
+    return { ok: true }
+  }
+  // 폭죽: 일행 전원 다음 공격력 ×3, 사용한 자신은 2턴 행동불능.
+  if (e.partyBoost) {
+    const alive = mb.members.filter((x) => x.status === 'alive')
+    for (const x of alive) x.boost = e.partyBoost
+    if (e.selfStun) m.stun = Math.max(m.stun || 0, e.selfStun)
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 터뜨렸다! 일행 전원의 다음 공격력이 ×${e.partyBoost}가 된다. ${m.name}은 ${e.selfStun}턴 동안 움직일 수 없다.` }], m.id)
+    return { ok: true }
+  }
+  // 쌍쌍바: 파티원에게 주면 더 크게, 자기 자신이면 조금 회복.
+  if (e.giveHp) {
+    if (t.status !== 'alive') return { error: 'bad-target' }
+    const amount = t.id === m.id ? e.giveHp.self : e.giveHp.party
+    t.php = Math.min(t.phpMax, t.php + amount)
+    const who = t.id === m.id ? '자신' : t.name
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. 체력 +${amount}.` }], m.id)
+    return { ok: true }
+  }
   if (t.id !== m.id) return { error: 'self-only' }
   if (e.revive) {
     if (m.revive) return { error: 'already' }
@@ -251,6 +279,20 @@ export function resolveTurn(mb, rng = Math.random) {
   const evs = []
   const m = mb.members.find((x) => x.id === mb.turn)
   if (!m || m.status !== 'alive' || mb.phase !== 'input') return evs
+  // 폭죽 등으로 행동불능인 턴: 아무것도 하지 못하고 그대로 넘어간다.
+  if (m.stun > 0) {
+    m.stun -= 1
+    m.act = null
+    evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] 행동불능 상태라 움직이지 못했다. (남은 ${m.stun}턴)` }], m.id))
+    evs.push(...nextActor(mb, rng))
+    if (mb.turn) return evs // 다음 사람의 차례
+    if (!aliveOf(mb).length) {
+      finishIfOver(mb)
+      return evs
+    }
+    evs.push(...enemyPhase(mb, rng))
+    return evs
+  }
   const act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
   const v = viewOfMember(mb, m)
   const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격에 붙는 보정
@@ -329,9 +371,20 @@ function enemyPhase(mb, rng) {
     targets = alive
     evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
   } else {
-    const pick = pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
+    // 칼: 매 턴마다 (호전×2)% 확률로, 칼을 든 사람이 체력과 상관없이 강제로 표적이 된다.
+    const swordDraws = alive.filter((m) => m.fx === 'sword' && rng() * 100 < (m.stats.aggression || 0) * 2)
+    const forced = swordDraws.length ? swordDraws[Math.floor(rng() * swordDraws.length)] : null
+    const pick = forced ? { id: forced.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
     targets = [mb.members.find((m) => m.id === pick.id)]
-    if (hits) evs.push(...addLog(mb, [{ kind: 'info', text: `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)` }], 'enemy'))
+    if (hits) {
+      evs.push(
+        ...addLog(
+          mb,
+          [{ kind: 'info', text: forced ? `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (칼의 기세에 이끌렸다)` : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)` }],
+          'enemy',
+        ),
+      )
+    }
   }
   targets.forEach((t, i) => {
     if (mb.ehp <= 0) return

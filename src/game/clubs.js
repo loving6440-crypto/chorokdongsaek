@@ -1,5 +1,6 @@
 // 별관의 동아리. 가입은 한 번에 하나만, 탈퇴는 가입 24시간 뒤부터, 탈퇴 뒤엔 24시간 동안 새 동아리에 들어갈 수 없다.
 export const CLUBS = [
+  { id: 'martial', name: '무예 동아리', room: '체력단련실', floor: '1층' },
   { id: 'craft', name: '미술 동아리', room: '공작소', floor: '2층' },
   { id: 'music', name: '음악 동아리', room: '음악실', floor: '2층' },
   { id: 'board', name: '판놀이 동아리', room: '패 놀이터', floor: '2층' },
