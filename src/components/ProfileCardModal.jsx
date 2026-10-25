@@ -2,9 +2,64 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import Avatar from './Avatar'
 import { fetchCard } from '../net/online'
+import { STAT_KEYS, STAT_META } from '../game/constants'
+import { baseIdOf, itemOf } from '../game/items'
+
+const EQUIP_SLOTS = [
+  ['weapon', '무구'],
+  ['body', '복장'],
+  ['trinket', '장신구'],
+]
+
+/** 일행일 때만: 체력·영력·의지력, 육조 스탯, 장비. 서버가 몇 초마다 보내 주는 값을 그대로 보여 준다. */
+function PartyStatus({ stats }) {
+  if (!stats) return <p className="mt-2 text-xs text-paper/45">아직 상태를 받지 못했다. (잠시 후 다시 열어 보면 보인다)</p>
+  return (
+    <>
+      <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+        <div>
+          <p className="text-[10px] text-paper/55">체력</p>
+          <p className="font-serif text-sm text-crimson">
+            {Math.floor(stats.hp)}/{stats.hpMax}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] text-paper/55">영력</p>
+          <p className="font-serif text-sm text-gold">{Math.floor(stats.spirit)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-paper/55">의지력</p>
+          <p className="font-serif text-sm text-mana">
+            {Math.floor(stats.mp)}/{stats.mpMax}
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[11px] sm:grid-cols-6">
+        {STAT_KEYS.map((k) => (
+          <div key={k} className="rounded-lg bg-edge/[0.07] py-1.5">
+            <p className="text-paper/55">{STAT_META[k].label}</p>
+            <p className="font-serif text-paper">{stats.stats?.[k] ?? 0}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+        {EQUIP_SLOTS.map(([slot, label]) => {
+          const id = stats.equip?.[slot]
+          const it = id ? itemOf(baseIdOf(id)) : null
+          return (
+            <span key={slot} className="rounded-md border border-edge/20 px-2 py-0.5 text-[11px] text-paper/75">
+              {label} · {it?.name ?? '없음'}
+            </span>
+          )
+        })}
+      </div>
+    </>
+  )
+}
 
 /** 접속자·채팅의 닉네임을 눌렀을 때 뜨는 인적사항 카드. */
-export default function ProfileCardModal({ target, onClose }) {
+export default function ProfileCardModal({ target, party, meId, onClose }) {
+  const mate = target.id !== meId && party?.members?.some((m) => m.id === target.id) ? party.members.find((m) => m.id === target.id) : null
   const [state, setState] = useState({ loading: true })
   useEffect(() => {
     let alive = true
@@ -54,6 +109,12 @@ export default function ProfileCardModal({ target, onClose }) {
               {c.greeting ? `“${c.greeting}”` : <span className="text-paper/40">한 줄 인사가 없다.</span>}
             </p>
             <p className="mt-2 text-[10px] text-paper/35">@{target.id}</p>
+            {mate && (
+              <div className="mt-4 w-full border-t border-edge/15 pt-3" data-party-status>
+                <p className="text-[11px] tracking-[0.2em] text-gold/70">일행 상태</p>
+                <PartyStatus stats={mate.stats} />
+              </div>
+            )}
           </div>
         )}
       </div>

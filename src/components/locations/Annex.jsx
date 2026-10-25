@@ -136,7 +136,7 @@ function ClubOnlyRoom({ room, myClub, onApplyClub, onFetchMembers }) {
 }
 
 /** 별관 탐사: 층 → 방 순으로 살핀다. 2층 공작소 · 패 놀이터는 전용 화면을, 그 외 동아리 방은 공용 동아리 화면을 더 보여 준다. */
-export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers }) {
+export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers, onVisit }) {
   const [floorId, setFloorId] = useState(null)
   const [roomId, setRoomId] = useState(null)
   const floor = ANNEX_FLOORS.find((f) => f.id === floorId)
@@ -147,6 +147,10 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
   const pickFloor = (id) => {
     setFloorId(id)
     setRoomId(null)
+  }
+  const pickRoom = (r) => {
+    setRoomId(r.id)
+    onVisit?.(`annex:${floor.id}:${r.id}`)
   }
 
   return (
@@ -176,7 +180,7 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
                 key={r.id}
                 type="button"
                 aria-pressed={r.id === roomId}
-                onClick={() => setRoomId(r.id)}
+                onClick={() => pickRoom(r)}
                 className={`tilt rounded-xl px-4 py-2 text-sm text-paper ${r.id === roomId ? 'bg-gold-fill/30' : 'bg-edge/[0.07] hover:bg-gold-fill/20'}`}
               >
                 {r.name}

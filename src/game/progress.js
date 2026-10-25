@@ -7,6 +7,11 @@ import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
 import { ENEMIES } from './battle'
 import { bumpWeekly, markWeeklySet, checkClubQuests } from './clubQuests'
+import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
+
+// (다른 '대기 활동'들과 이름 규칙을 맞추기 위한 재수출)
+export const startGather = startGatherAt
+export const cancelGather = cancelGatherAt
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
@@ -227,7 +232,7 @@ export function tickPlayer(player, now, dtSec) {
   }
   // 대기(수련·취침·휴식·수업 대기·제작) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
   const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
-  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting || p.slowFight)
+  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting || p.slowFight || p.gathering || p.traveling)
 
   // 제작: 끝까지 기다려야 완성품이 한꺼번에 나온다. 중간에 나가면(crafting이 끊기면) 재료도 완성품도 없다.
   const cf = p.crafting
@@ -243,6 +248,14 @@ export function tickPlayer(player, now, dtSec) {
   const sf = p.slowFight
   if (sf && now >= sf.startedAt + sf.minutes * 60000) {
     const r = finishSlowFight(p, now)
+    p = r.player
+    logs.push(...r.logs)
+  }
+
+  // 채집: 20분을 기다리면 확률표에 따라 무엇을 얼마나 얻었는지가 정해진다.
+  const gt = p.gathering
+  if (gt && now >= gt.startedAt + gt.minutes * 60000) {
+    const r = finishGather(p, now)
     p = r.player
     logs.push(...r.logs)
   }

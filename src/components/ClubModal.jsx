@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Check, LogOut, Send, Users, X } from 'lucide-react'
 import { leaveClub, sendClubChat, useOnline } from '../net/online'
 import { CLUB_JOIN_LOCK_MS, clubOf as clubMetaOf } from '../game/clubs'
-import { CLUB_QUESTS, CLUB_META_QUESTS, ensureWeekly, completedCount, rewardText } from '../game/clubQuests'
+import { CLUB_QUESTS, CLUB_META_QUESTS, ensureWeekly, claimedCount, rewardText } from '../game/clubQuests'
 
 const timeOf = (at) => new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 const fmtLeft = (ms) => {
@@ -12,12 +12,12 @@ const fmtLeft = (ms) => {
 }
 
 /** 왼쪽 하단 [동아리 확인하기] 에서 열리는 팝업: 동아리 채팅 / 멤버 목록 / 이번주 활동 / 탈퇴. */
-export default function ClubModal({ player, onClose, onProfile, onFetchMembers }) {
+export default function ClubModal({ player, onClose, onProfile, onFetchMembers, onClaimQuest, onClaimMeta }) {
   const net = useOnline()
   const club = net.club
   const meta = club ? clubMetaOf(club.id) : null
   const weekly = ensureWeekly(player ?? {}).weekly
-  const doneCount = completedCount(weekly)
+  const doneCount = claimedCount(weekly)
   const [text, setText] = useState('')
   const [members, setMembers] = useState(null)
   const listRef = useRef(null)
@@ -139,16 +139,27 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers }
             </p>
             <ul className="mt-1.5 space-y-1 rounded-lg bg-shade/25 p-2.5" data-club-quests>
               {CLUB_QUESTS.map((q) => {
-                const done = !!weekly.claimed?.[q.id]
+                const claimed = !!weekly.claimed?.[q.id]
+                const achieved = !claimed && q.done(weekly)
                 return (
-                  <li key={q.id} data-quest={q.id} data-quest-done={done} className={`flex items-start gap-1.5 text-xs leading-relaxed ${done ? 'text-gold' : 'text-paper/75'}`}>
-                    <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${done ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
-                      {done && <Check size={10} aria-hidden />}
+                  <li key={q.id} data-quest={q.id} data-quest-done={claimed} className={`flex items-start gap-1.5 text-xs leading-relaxed ${claimed ? 'text-gold' : achieved ? 'text-paper' : 'text-paper/75'}`}>
+                    <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${claimed ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
+                      {claimed && <Check size={10} aria-hidden />}
                     </span>
                     <span className="flex-1">
                       {q.label}
                       {q.reward && <span className="ml-1 text-[10px] text-paper/45">({rewardText(q.reward)})</span>}
                     </span>
+                    {achieved && q.reward && (
+                      <button
+                        type="button"
+                        data-claim-quest={q.id}
+                        onClick={() => onClaimQuest?.(q.id)}
+                        className="shrink-0 rounded border border-gold bg-gold px-2 py-0.5 text-[10px] font-medium text-ink hover:brightness-110"
+                      >
+                        보상 받기
+                      </button>
+                    )}
                   </li>
                 )
               })}
@@ -156,16 +167,27 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers }
             <p className="mt-2 text-[11px] tracking-widest text-paper/50">동아리 활동 달성 개수 보상</p>
             <ul className="mt-1.5 space-y-1 rounded-lg bg-shade/25 p-2.5" data-club-meta-quests>
               {CLUB_META_QUESTS.map((q) => {
-                const done = !!weekly.claimed?.[q.id]
+                const claimed = !!weekly.claimed?.[q.id]
+                const achieved = !claimed && doneCount >= q.threshold
                 return (
-                  <li key={q.id} data-quest={q.id} data-quest-done={done} className={`flex items-start gap-1.5 text-xs leading-relaxed ${done ? 'text-gold' : 'text-paper/75'}`}>
-                    <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${done ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
-                      {done && <Check size={10} aria-hidden />}
+                  <li key={q.id} data-quest={q.id} data-quest-done={claimed} className={`flex items-start gap-1.5 text-xs leading-relaxed ${claimed ? 'text-gold' : achieved ? 'text-paper' : 'text-paper/75'}`}>
+                    <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${claimed ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
+                      {claimed && <Check size={10} aria-hidden />}
                     </span>
                     <span className="flex-1">
                       {q.label}
                       <span className="ml-1 text-[10px] text-paper/45">({rewardText(q.reward)})</span>
                     </span>
+                    {achieved && (
+                      <button
+                        type="button"
+                        data-claim-quest={q.id}
+                        onClick={() => onClaimMeta?.(q.id)}
+                        className="shrink-0 rounded border border-gold bg-gold px-2 py-0.5 text-[10px] font-medium text-ink hover:brightness-110"
+                      >
+                        보상 받기
+                      </button>
+                    )}
                   </li>
                 )
               })}

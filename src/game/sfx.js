@@ -277,10 +277,16 @@ const SOUNDS = {
     tone({ f: midi(69), f2: midi(74), d: 0.1, type: 'sine', v: 0.09 })
     tone({ f: midi(74), t: 0.08, d: 0.12, type: 'sine', v: 0.07 })
   },
+
+  // 일행(파티) 채팅에서 메시지 끝에 <se.1> 이 붙으면 울리는 짧은 '삐릭' 알림음
+  partyPing: () => {
+    tone({ f: midi(81), f2: midi(86), d: 0.07, type: 'square', v: 0.07 })
+    tone({ f: midi(86), t: 0.06, d: 0.09, type: 'square', v: 0.055 })
+  },
 }
 
 // 너무 자주 울리면 시끄러운 소리의 최소 간격(ms)
-const MIN_GAP = { hwatuFlip: 60, key: 22, tetrisMove: 28, g2048Move: 40, click: 30, point: 150, myTurn: 400 }
+const MIN_GAP = { hwatuFlip: 60, key: 22, tetrisMove: 28, g2048Move: 40, click: 30, point: 150, myTurn: 400, partyPing: 120 }
 
 export const sfx = {
   play(name, arg) {

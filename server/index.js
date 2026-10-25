@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ITEMS } from '../src/game/items.js'
+import { STAT_KEYS } from '../src/game/constants.js'
 import { ENEMIES } from '../src/game/battle.js'
 import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
@@ -64,6 +65,12 @@ let mail = { seq: 1, log: [] } // 쪽지 · 선물 내역: log [{ id, kind:'note
 const MAIL_MAX = 1000 // 쪽지 글자 수 상한
 const MAIL_LOG_CAP = 5000
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
+// 연락(rp)·담화(talk) 채팅 내역과 일행(파티) 상태: 서버가 재시작돼도 사라지지 않도록 snapshot/applyRaw 에 함께 싣는다.
+// (parties·partyOf 는 Map 이라 그대로는 저장할 수 없으니, parties 는 배열로 접었다 펴고 partyOf 는 그 배열에서 다시 만든다.)
+const history = { rp: [], talk: [] }
+const parties = new Map() // partyId → { id, members: [id], log: [] }
+const partyOf = new Map() // playerId → partyId
+let seq = 1 // 쪽지·선물·채팅·일행 id 에 함께 쓰는 전역 번호. 재시작해도 이어지도록 snapshot 에 싣는다.
 
 // ───────── 영속 데이터(랭킹 · 벼룩시장 · 인적사항 카드 · 회원 명부 · 익명 사연) ─────────
 // 저장 위치는 두 가지:
@@ -123,6 +130,18 @@ function applyRaw(raw) {
   if (raw?.clubLeftAt && typeof raw.clubLeftAt === 'object') clubLeftAt = raw.clubLeftAt
   if (raw?.clubChat && typeof raw.clubChat === 'object') for (const id of CLUB_IDS) if (Array.isArray(raw.clubChat[id])) clubChat[id] = raw.clubChat[id]
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
+  if (Number.isFinite(raw?.seq) && raw.seq > seq) seq = raw.seq
+  if (raw?.history && typeof raw.history === 'object') {
+    if (Array.isArray(raw.history.rp)) history.rp = raw.history.rp
+    if (Array.isArray(raw.history.talk)) history.talk = raw.history.talk
+  }
+  if (Array.isArray(raw?.parties)) {
+    for (const p of raw.parties) {
+      if (!p?.id || !Array.isArray(p.members) || p.members.length < 1) continue
+      parties.set(p.id, { id: p.id, members: [...p.members], log: Array.isArray(p.log) ? p.log : [] })
+      for (const m of p.members) partyOf.set(m, p.id)
+    }
+  }
 }
 if (db) {
   // DB 를 못 읽었는데 빈 상태로 시작하면 다음 저장 때 기존 기록을 덮어쓰므로, 읽기에 실패하면 서버를 띄우지 않는다.
@@ -164,7 +183,23 @@ const loginBlocked = (id) => {
 const bearer = (req) => accounts && A.readToken(accounts.secret, (req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''))
 const ID_RULE = /^[a-zA-Z0-9가-힣_]{2,40}$/
 
-const snapshot = () => ({ ranking, rankingWeek, lastWeek, market, cards, members, stories, mail, clubs, clubOf, clubLeftAt, clubChat })
+const snapshot = () => ({
+  ranking,
+  rankingWeek,
+  lastWeek,
+  market,
+  cards,
+  members,
+  stories,
+  mail,
+  clubs,
+  clubOf,
+  clubLeftAt,
+  clubChat,
+  seq,
+  history,
+  parties: [...parties.values()],
+})
 async function saveNow() {
   if (db) {
     await db.query(
@@ -195,12 +230,9 @@ function scheduleSave() {
 
 // ───────── 접속 상태(메모리) ─────────
 const clients = new Map() // id → { id, name, res, joinedAt }
-const history = { rp: [], talk: [] }
-const parties = new Map() // partyId → { id, members: [id], log: [] }
-const partyOf = new Map() // playerId → partyId
 const invites = new Map() // inviteeId → { fromId, at }
+const partyStats = new Map() // playerId → { hp, hpMax, mp, mpMax, stats:{...육조}, equipment } — 일행에게 보여줄 실시간 상태(재시작 땐 안 남아도 된다. 접속하면 금방 다시 채워진다)
 const rate = new Map() // id → [timestamps]
-let seq = 1
 
 const send = (client, payload) => {
   try {
@@ -219,7 +251,13 @@ const onlineList = () =>
 const partyView = (p) =>
   p && {
     id: p.id,
-    members: p.members.map((id) => ({ id, name: clients.get(id)?.name ?? id, title: clients.get(id)?.title, online: clients.has(id) })),
+    members: p.members.map((id) => ({
+      id,
+      name: clients.get(id)?.name ?? id,
+      title: clients.get(id)?.title,
+      online: clients.has(id),
+      stats: partyStats.get(id) ?? null,
+    })),
   }
 const pushParty = (p) => p.members.forEach((id) => sendTo(id, { t: 'party', party: partyView(p), log: p.log }))
 const pushPresence = () => broadcast({ t: 'presence', online: onlineList() })
@@ -246,11 +284,13 @@ function leaveParty(id, reason = 'leave') {
   if (!p) return
   const name = clients.get(id)?.name ?? id
   p.members = p.members.filter((m) => m !== id)
+  partyStats.delete(id)
   sendTo(id, { t: 'party', party: null, log: [] })
   if (p.members.length <= 1) {
     // 혼자 남으면 일행은 해산한다.
     p.members.forEach((m) => {
       partyOf.delete(m)
+      partyStats.delete(m)
       sendTo(m, { t: 'party', party: null, log: [] })
       sendTo(m, { t: 'notice', text: `${name}님이 일행을 ${reason === 'drop' ? '떠났다' : '떠나 일행이 해산되었다'}.` })
     })
@@ -259,6 +299,7 @@ function leaveParty(id, reason = 'leave') {
     pushPartyMsg(p, makeMsg(null, `${name}님이 일행을 떠났다.`, { system: true }))
     pushParty(p)
   }
+  scheduleSave()
 }
 
 
@@ -1474,12 +1515,14 @@ async function handleApi(req, res, url) {
       history[channel].push(msg)
       if (history[channel].length > HISTORY_MAX) history[channel].shift()
       broadcast({ t: 'chat', channel, msg })
+      scheduleSave()
       return json(res, 200, { ok: true })
     }
     if (channel === 'party') {
       const p = parties.get(partyOf.get(me.id))
       if (!p) return json(res, 400, { error: 'no-party' })
       pushPartyMsg(p, makeMsg(me, text))
+      scheduleSave()
       return json(res, 200, { ok: true })
     }
     return json(res, 400, { error: 'bad-channel' })
@@ -2113,12 +2156,46 @@ async function handleApi(req, res, url) {
     pushPartyMsg(p, makeMsg(null, `${me.name}님이 일행으로 합류했다.`, { system: true }))
     pushParty(p)
     pushPresence()
+    scheduleSave()
     return json(res, 200, { ok: true })
   }
 
   if (route === '/api/party/leave') {
     leaveParty(me.id)
     pushPresence()
+    return json(res, 200, { ok: true })
+  }
+
+  // 일행 중일 때: 체력·영력·의지력·육조 스탯·장비를 일행에게 알린다. (인적사항 밑에서 보여 주는 용도, 재시작 땐 안 남아도 된다)
+  if (route === '/api/party/stats') {
+    const pid = partyOf.get(me.id)
+    if (!pid) return json(res, 200, { ok: true }) // 일행이 아니면 조용히 무시(클라이언트가 늦게 알아도 그만)
+    const s = body.stats && typeof body.stats === 'object' ? body.stats : {}
+    const num = (v, max = 999999) => (Number.isFinite(v) && v >= 0 && v <= max ? v : 0)
+    const stats = Object.fromEntries(STAT_KEYS.map((k) => [k, num(s.stats?.[k], 999)]))
+    const equip = { weapon: null, body: null, trinket: null }
+    if (s.equip && typeof s.equip === 'object') {
+      for (const slot of ['weapon', 'body', 'trinket']) {
+        const v = s.equip[slot]
+        if (typeof v === 'string' && v.length <= 80) equip[slot] = v
+      }
+    }
+    partyStats.set(me.id, {
+      hp: num(s.hp),
+      hpMax: num(s.hpMax),
+      mp: num(s.mp),
+      mpMax: num(s.mpMax),
+      spirit: num(s.spirit),
+      stats,
+      equip,
+      at: Date.now(),
+    })
+    const p = parties.get(pid)
+    if (p) {
+      for (const id of p.members) {
+        if (id !== me.id) sendTo(id, { t: 'partyMemberStats', id: me.id, stats: partyStats.get(me.id) })
+      }
+    }
     return json(res, 200, { ok: true })
   }
 

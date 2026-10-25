@@ -3,6 +3,7 @@ import AuthScreen from './components/AuthScreen'
 import ForcePasswordReset from './components/ForcePasswordReset'
 import CharacterCreation from './components/CharacterCreation'
 import Intro from './components/Intro'
+import InvitationLetter from './components/InvitationLetter'
 import Game from './Game'
 import { hasSeenIntro, markIntroSeen } from './game/intro'
 import { sfx } from './game/sfx'
@@ -35,6 +36,7 @@ export default function App() {
   const [creating, setCreating] = useState(false) // 캐릭터 생성 중
   const [introPlaying, setIntroPlaying] = useState(false) // 첫 캐릭터 생성 전 인트로 재생 중
   const [introLeaving, setIntroLeaving] = useState(false) // 인트로가 끝나가는 중 (뒤에 생성 화면을 미리 깐다)
+  const [letterOpen, setLetterOpen] = useState(false) // 인트로 후, 캐릭터 생성 전 초대장 연출 중
   const [mustReset, setMustReset] = useState(false)
   const [relogin, setRelogin] = useState(null) // 서버 저장으로 바뀌어 다시 로그인해야 하는 아이디
   const [syncKey, setSyncKey] = useState(0) // 다른 기기의 최신 기록을 받으면 올려서 게임 화면을 새로 그린다
@@ -108,6 +110,7 @@ export default function App() {
     if (user) markIntroSeen(user.id)
     setIntroPlaying(false)
     setIntroLeaving(false)
+    setLetterOpen(true)
   }, [user])
 
   const handleCharacterComplete = useCallback(
@@ -207,7 +210,7 @@ export default function App() {
     // 인트로 위에서 빛이 번지는 동안 생성 화면이 뒤에서 올라오도록, 같은 자리(첫 번째 자식)를 유지한다.
     return (
       <>
-        {(!introPlaying || introLeaving) && (
+        {(!introPlaying || introLeaving) && !letterOpen && (
           <CharacterCreation
             theme={theme}
             onToggleTheme={toggleTheme}
@@ -216,6 +219,7 @@ export default function App() {
           />
         )}
         {introPlaying && <Intro onDone={handleIntroDone} onLeaveStart={() => setIntroLeaving(true)} />}
+        {letterOpen && <InvitationLetter onDone={() => setLetterOpen(false)} />}
       </>
     )
   }

@@ -21,7 +21,7 @@ const Paras = ({ list }) =>
   ))
 
 /** 본관 탐사: 층 → 구역 → 세부 조사 순으로 살핀다. 누를 때마다 그 자리의 스크립트가 나온다. */
-export default function Explore({ stats, player, admin, onCraft, onStopCraft, onInvestigate, onEnter, onLockerMove, onLockerOpen }) {
+export default function Explore({ stats, player, admin, onCraft, onStopCraft, onInvestigate, onEnter, onLockerMove, onLockerOpen, onVisit }) {
   const [floorId, setFloorId] = useState(null)
   const [areaId, setAreaId] = useState(null)
   const [detailId, setDetailId] = useState(null)
@@ -41,6 +41,7 @@ export default function Explore({ stats, player, admin, onCraft, onStopCraft, on
     onInvestigate?.(floorName, label, paras.join(' ').replace(/\*+/g, ''))
   }
   const look = (a) => {
+    onVisit?.(`mainHall:${floor.id}:${a.id}`)
     if (a.goto) return onEnter?.(a.goto)
     setAreaId(a.id)
     setDetailId(null)
@@ -52,6 +53,7 @@ export default function Explore({ stats, player, admin, onCraft, onStopCraft, on
     show(a.name, floor.name, a.id)
   }
   const lookDetail = (d) => {
+    onVisit?.(`mainHall:${floor.id}:${d.id}`)
     setDetailId(d.id)
     if (d.workshop) return setShown({ label: `${area.name} · ${d.name}`, paras: [], workshop: true })
     show(`${area.name} · ${d.name}`, floor.name, d.id)

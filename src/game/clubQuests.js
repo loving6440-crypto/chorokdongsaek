@@ -1,7 +1,8 @@
 // 동아리 주간 활동(주간 퀘스트). 동아리에 가입하면 한 주(월요일 0시 KST ~ 다음 월요일 0시) 동안 할 수 있는 활동들이고,
-// 랭킹과 똑같은 주 경계로 초기화된다. player.weekly 에 이번 주의 실적을 쌓아 두고, checkClubQuests 가 매 틱 확인해 보상을 준다.
+// 랭킹과 똑같은 주 경계로 초기화된다. player.weekly 에 이번 주의 실적을 쌓아 두고, checkClubQuests 가 매 틱 '달성' 여부만 갱신한다.
+// 보상은 자동으로 들어오지 않고, 달성한 뒤 플레이어가 직접 [보상 받기] 버튼을 눌러야 claimQuest/claimMetaQuest 로 지급된다.
 //  - 채집 · 동아리별 재료 납품 · 동아리별 적 토벌(14·15번)은 아직 그 시스템이 없어 구현을 생략한다 — 대신 누구나 바로 채운 것으로 쳐서,
-//    '동아리 활동 N개 달성' 메타 퀘스트가 막히지 않게 해 둔다.
+//    '동아리 활동 N개 달성' 메타 퀘스트가 막히지 않게 해 둔다. 어차피 보상이 없는 항목이라 자동으로 '받음' 처리해도 무방하다.
 const KST_MS = 9 * 3600 * 1000
 const DAY_MS = 24 * 3600 * 1000
 
@@ -47,15 +48,23 @@ export function markWeeklySet(player, key, value, now = Date.now()) {
   return { ...p, weekly: { ...p.weekly, [key]: { ...p.weekly[key], [value]: true } } }
 }
 
-// 탐사해야 하는 세 장소(본관 · 별관 · 산=뒷산).
-export const EXPLORE_SPOTS = ['mainHall', 'annex', 'shrine']
+// 탐사해야 하는 장소들(본관 · 별관 · 산=뒷산 각각에 있는, 지금 해금된 모든 하위 장소).
+// EXPLORE_AREA_SPOTS 는 locationId(mainHall/annex/shrine) → 그 안의 세부 장소 id 배열. src/game/explore.js 에서 채운다.
+export let EXPLORE_AREA_SPOTS = { mainHall: ['mainHall'], annex: ['annex'], shrine: ['shrine'] }
+export function setExploreAreaSpots(map) {
+  EXPLORE_AREA_SPOTS = map
+}
+export const EXPLORE_SPOTS = ['mainHall', 'annex', 'shrine'] // (구) 지역 단위 — 하위 호환용
 export const TRAIN_HOURS_GOAL = 3
 
-/** 퀘스트 목록. auto === true 인 항목은 그 시스템(채집 · 동아리별 납품 · 토벌)이 아직 없어 누구나 바로 채운 것으로 친다. */
+const exploreAllDone = (w) =>
+  Object.values(EXPLORE_AREA_SPOTS).every((spots) => spots.every((id) => w.exploreVisited?.[id]))
+
+/** 퀘스트 목록. auto === true 인 항목은 그 시스템(채집 · 동아리별 납품 · 토벌)이 아직 없어 누구나 바로 채운 것으로 친다(보상도 없다). */
 export const CLUB_QUESTS = [
   { id: 'craft5', label: '제작 5회 하기', reward: { money: 10 }, done: (w) => w.craft >= 5 },
   // 채집 시스템이 없어 실제로는 달성 조건을 확인할 수 없다 (사용자 지시: 구현 생략 OK) — 보상 없이 '달성'으로만 쳐서
-  // '15개 전부'를 이룰 수 있게 하고, 매 주 시작마다 공짜 돈이 지급되는 일은 막는다.
+  // '15개 전부'를 이룰 수 있게 한다.
   { id: 'gather5', label: '채집 5회 하기', reward: null, auto: true, done: () => true },
   { id: 'craft3', label: '제작 3회 하기', reward: { money: 10 }, done: (w) => w.craft >= 3 },
   { id: 'battle10', label: '전투 보상 10번 얻기', reward: { money: 30, spirit: 10 }, done: (w) => w.battleReward >= 10 },
@@ -67,7 +76,7 @@ export const CLUB_QUESTS = [
   { id: 'train3h', label: '기숙사에서 총합 3시간 이상 수련하기', reward: { spirit: 20 }, done: (w) => w.trainMs >= TRAIN_HOURS_GOAL * 3600 * 1000 },
   { id: 'shop2', label: '매점에서 물건 2번 구매하기', reward: { money: 10 }, done: (w) => w.shopBuy >= 2 },
   { id: 'news3', label: '교내 신문에 3일 이상 사연 투고하기', reward: { money: 10 }, done: (w) => Object.keys(w.newsDays || {}).length >= 3 },
-  { id: 'exploreAll', label: '본관·별관·산을 모두 한 번 이상 탐사하기', reward: { money: 10, spirit: 10 }, done: (w) => EXPLORE_SPOTS.every((s) => w.exploreVisited?.[s]) },
+  { id: 'exploreAll', label: '본관·별관·산의 모든 장소를 한 번 이상 탐사하기', reward: { money: 10, spirit: 10 }, done: exploreAllDone },
   { id: 'deliver', label: '동아리별 재료 납품하기', reward: null, auto: true, done: () => true },
   { id: 'hunt', label: '동아리별 특수한 적 토벌하기', reward: null, auto: true, done: () => true },
 ]
@@ -77,38 +86,59 @@ export const CLUB_META_QUESTS = [
   { id: 'club15', label: '동아리 활동 15개 전부 달성하기', reward: { spirit: 50, money: 50 }, threshold: CLUB_QUESTS.length },
 ]
 
+const ITEM_NAMES = { nutrient: '영양제' }
 export const rewardText = (r) =>
-  [r?.spirit ? `영력 +${r.spirit}` : '', r?.money ? `돈 +${r.money}냥` : '', r?.item ? `[${r.item}] 획득` : ''].filter(Boolean).join(' · ')
+  [r?.spirit ? `영력 +${r.spirit}` : '', r?.money ? `돈 +${r.money}냥` : '', r?.item ? `[${ITEM_NAMES[r.item] ?? r.item}] 획득` : '']
+    .filter(Boolean)
+    .join(' · ')
 
-/** 이번 주 완료한 일반 퀘스트 개수(메타 퀘스트 자신은 세지 않는다). */
-export const completedCount = (w) => CLUB_QUESTS.filter((q) => q.done(w)).length
+/** 이번 주 '달성'한(보상 수령 여부와 무관) 일반 퀘스트 개수. */
+export const achievedCount = (w) => CLUB_QUESTS.filter((q) => q.done(w)).length
+/** 이번 주 보상까지 '받은' 일반 퀘스트 개수 — 메타 퀘스트 달성 조건은 이 숫자를 쓴다. */
+export const claimedCount = (w) => CLUB_QUESTS.filter((q) => w.claimed?.[q.id]).length
+// (구) 이름 — 다른 파일에서 쓰던 이름을 유지해 둔다.
+export const completedCount = claimedCount
 
-/** 매 틱 호출. 새로 채운 퀘스트(일반 + 메타)가 있으면 보상을 주고 기록한다. */
+/** 매 틱 호출. 보상이 없는(auto) 항목만 자동으로 '받음' 처리한다. 실제 보상이 있는 항목은 claimQuest 로 직접 받아야 한다. */
 export function checkClubQuests(player, now = Date.now()) {
   let p = ensureWeekly(player, now)
   const logs = []
-  const grant = (id, label, reward) => {
-    if (!reward) {
-      p = { ...p, weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [id]: true } } }
-      return
-    }
-    p = {
-      ...p,
-      spirit: p.spirit + (reward.spirit ?? 0),
-      money: p.money + (reward.money ?? 0),
-      inventory: reward.item ? { ...p.inventory, [reward.item]: (p.inventory?.[reward.item] || 0) + 1 } : p.inventory,
-      weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [id]: true } },
-    }
-    logs.push(`동아리 활동: [${label}] 달성! ${rewardText(reward)}`.trim())
-  }
   for (const q of CLUB_QUESTS) {
-    if (p.weekly.claimed?.[q.id]) continue
-    if (q.done(p.weekly)) grant(q.id, q.label, q.reward)
-  }
-  const n = completedCount(p.weekly)
-  for (const q of CLUB_META_QUESTS) {
-    if (p.weekly.claimed?.[q.id]) continue
-    if (n >= q.threshold) grant(q.id, q.label, q.reward)
+    if (q.auto && !q.reward && !p.weekly.claimed?.[q.id] && q.done(p.weekly)) {
+      p = { ...p, weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [q.id]: true } } }
+    }
   }
   return { player: p, logs }
+}
+
+/** 일반 주간 퀘스트 하나의 보상을 직접 받는다. 달성 + 미수령 상태여야 한다. */
+export function claimQuest(player, questId, now = Date.now()) {
+  const p = ensureWeekly(player, now)
+  const q = CLUB_QUESTS.find((x) => x.id === questId)
+  if (!q || p.weekly.claimed?.[questId] || !q.done(p.weekly)) return { player: p, ok: false }
+  if (!q.reward) return { player: { ...p, weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [questId]: true } } }, ok: true, log: null }
+  const r = q.reward
+  const next = {
+    ...p,
+    spirit: p.spirit + (r.spirit ?? 0),
+    money: p.money + (r.money ?? 0),
+    inventory: r.item ? { ...p.inventory, [r.item]: (p.inventory?.[r.item] || 0) + 1 } : p.inventory,
+    weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [questId]: true } },
+  }
+  return { player: next, ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
+}
+
+/** 동아리 활동 달성 개수 보상(메타 퀘스트)을 직접 받는다. */
+export function claimMetaQuest(player, questId, now = Date.now()) {
+  const p = ensureWeekly(player, now)
+  const q = CLUB_META_QUESTS.find((x) => x.id === questId)
+  if (!q || p.weekly.claimed?.[questId] || claimedCount(p.weekly) < q.threshold) return { player: p, ok: false }
+  const r = q.reward
+  const next = {
+    ...p,
+    spirit: p.spirit + (r.spirit ?? 0),
+    money: p.money + (r.money ?? 0),
+    weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [questId]: true } },
+  }
+  return { player: next, ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
 }

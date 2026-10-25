@@ -85,6 +85,16 @@ function handle(ev) {
     case 'party':
       set({ party: ev.party, history: { ...state.history, party: ev.party ? (ev.log ?? state.history.party) : [] } })
       break
+    case 'partyMemberStats':
+      if (state.party) {
+        set({
+          party: {
+            ...state.party,
+            members: state.party.members.map((m) => (m.id === ev.id ? { ...m, stats: ev.stats } : m)),
+          },
+        })
+      }
+      break
     case 'invite':
       set({ invite: { from: ev.from } })
       break
@@ -396,6 +406,8 @@ export const marketCancel = (listing) => post('/api/market/cancel', { listing })
 export const marketClaim = () => post('/api/market/claim', {})
 
 export const leaveParty = () => post('/api/party/leave', {})
+/** 파티 중일 때, 내 체력/영력/의지력·육조 스탯·장비를 일행에게 알린다. (일행 중일 때만 뜻이 있다) */
+export const sendPartyStats = (stats) => post('/api/party/stats', { stats })
 
 // ───────── 다인 전투 ─────────
 /** 내 전투 스냅샷(스탯 · 체력 · 의지력)을 서버에 알려 준다. me = { stats, hp, hpMax, mp, mpMax, revive, boost } */

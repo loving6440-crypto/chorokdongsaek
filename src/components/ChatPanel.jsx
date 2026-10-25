@@ -9,6 +9,11 @@ import {
   setActiveChannel,
   useOnline,
 } from '../net/online'
+import { sfx } from '../game/sfx'
+
+// 파티(일행) 채팅 끝에 이 태그가 붙으면 화면에는 안 보이고 '삐릭' 알림음만 울린다.
+const PING_TAG = '<se.1>'
+const stripPing = (text) => (text?.endsWith(PING_TAG) ? text.slice(0, -PING_TAG.length).trimEnd() : text)
 
 // 연락: RP 용 공개 탭 / 담화: 일반 공개 탭 / 일행: 일행(파티) 사람들끼리만 보이는 비공개 탭
 const TABS = [
@@ -59,6 +64,19 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
 
   const totalUnread = net.unread.rp + net.unread.talk + net.unread.party
   const inParty = !!net.party
+
+  // 일행 채팅 끝에 <se.1> 이 붙은 메시지가 새로 오면 알림음을 울린다 (탭이 열려있지 않아도).
+  const partyMsgs = net.history.party || []
+  const lastPartyId = partyMsgs.length ? partyMsgs[partyMsgs.length - 1].id : null
+  const seenPingRef = useRef(lastPartyId)
+  useEffect(() => {
+    if (lastPartyId == null || lastPartyId === seenPingRef.current) return
+    seenPingRef.current = lastPartyId
+    const last = partyMsgs[partyMsgs.length - 1]
+    if (!last.system && last.from?.id !== net.me?.id && last.text?.endsWith(PING_TAG)) {
+      sfx.play('partyPing')
+    }
+  }, [lastPartyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async (e) => {
     e.preventDefault()
@@ -275,7 +293,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
                         <b className={m.from?.id === net.me?.id ? 'text-gold' : 'text-paper/90'}>{m.from?.name}</b>
                       )}
                       <span className="text-paper/50"> : </span>
-                      {m.text}
+                      {stripPing(m.text)}
                     </p>
                   ),
                 )}
