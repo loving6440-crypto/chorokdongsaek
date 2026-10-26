@@ -60,6 +60,9 @@ const MARKET_MAX_PER_SELLER = 10
 const MARKET_QTY_MAX = 99
 const MARKET_PRICE_MAX = 99999
 let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade, avatar, at } }  (접속자 이름을 눌렀을 때 보여 준다)
+const dirtyCards = new Set() // 마지막 저장 뒤 (다시) 바뀐 카드의 id — 이 사람들 것만 다음 저장 때 내보낸다
+let legacyCardsRowCleared = false // 예전의 "전원분 한 덩어리" 카드 줄을 지웠는지 (DB 연결 뒤 saveCardsNow 에서 확정)
+let cardsSaveTimer = null // scheduleCardsSave 가 부팅 중(마이그레이션)부터 바로 호출될 수 있어, 선언을 위로 올려 둔다
 let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
 let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
 let clubs = Object.fromEntries(CLUB_IDS.map((id) => [id, { members: {} }])) // { [clubId]: { members: { [playerId]: {id,name,grade,age,hope,joinedAt} } } }
@@ -86,7 +89,8 @@ let seq = 1 // 쪽지·선물·채팅·일행 id 에 함께 쓰는 전역 번호
 // Supabase 테이블:  create table saves (id text primary key, data jsonb not null, updated_at timestamptz default now());
 const DATABASE_URL = process.env.DATABASE_URL || ''
 const DB_ROW_ID = 'server'
-const DB_ROW_ID_CARDS = 'server-cards' // 인적사항 카드만 따로 담는 행(위 CARDS_FILE 설명 참고)
+const DB_ROW_ID_CARDS = 'server-cards' // (예전 방식) 인적사항 카드 전원분을 한 덩어리로 담던 행 — 마이그레이션 읽기에만 쓴다
+const CARD_ROW_PREFIX = 'card:' // (지금 방식) 사람별로 한 줄씩: `card:<id>`
 let db = null // pg Pool (DATABASE_URL 이 있을 때만)
 if (DATABASE_URL) {
   const { default: pg } = await import('pg')
@@ -177,10 +181,27 @@ if (db) {
   }
 }
 // 인적사항 카드: 메인 기록과 분리된 자리에서 따로 읽는다. (예전 data.json 에 같이 있었다면 위 applyRaw 가 이미 cards 를 채웠을 수 있는데, 여기서 더 최신 것이 있으면 덮어쓴다)
+//  - DB 에서는 사람별로 한 줄씩(`card:<id>`) 저장한다. 한 사람이 카드(사진)를 고쳐도 그 사람 줄만 다시 쓰면 되게 하려는 것.
+//    (예전엔 전원분을 한 덩어리(`DB_ROW_ID_CARDS`)로 저장해서, 한 명만 사진을 바꿔도 그때까지 쌓인 모든 사람의
+//    사진을 통째로 다시 Supabase 로 내보내고 있었다 — egress 가 실제 사용량보다 훨씬 크게 찍힌 원인)
 if (db) {
   try {
-    const r = await db.query('select data from saves where id = $1', [DB_ROW_ID_CARDS])
-    if (r.rows[0]?.data?.cards) cards = r.rows[0].data.cards
+    const r = await db.query('select id, data from saves where id like $1', [CARD_ROW_PREFIX + '%'])
+    if (r.rows.length) {
+      for (const row of r.rows) {
+        const pid = row.id.slice(CARD_ROW_PREFIX.length)
+        if (pid && row.data) cards[pid] = row.data
+      }
+    } else {
+      // 사람별 줄이 하나도 없으면(예전 버전에서 막 올라온 경우), 옛 방식의 한 덩어리 줄에서 딱 한 번만 옮겨 온다.
+      const legacy = await db.query('select data from saves where id = $1', [DB_ROW_ID_CARDS])
+      if (legacy.rows[0]?.data?.cards) {
+        cards = legacy.rows[0].data.cards
+        for (const pid of Object.keys(cards)) dirtyCards.add(pid) // 다음 저장 때 사람별 줄로 흩어 쓴다
+        scheduleCardsSave() // 곧바로 한 번 흩어 쓰도록 예약 (함수 선언은 호이스팅되어 여기서도 쓸 수 있다)
+        console.log(`인적사항 카드 ${Object.keys(cards).length}명분을 사람별 저장 방식으로 옮깁니다.`)
+      }
+    }
   } catch (e) {
     console.error('인적사항 카드를 DB 에서 불러오지 못했습니다:', e.message)
   }
@@ -253,19 +274,36 @@ function scheduleSave() {
 
 // 인적사항 카드(cards)는 따로, 더 느긋하게 저장한다 — 사진이 커서 매번 다시 굳히는 비용이 있고,
 // 프로필을 자주 고치는 사람도 적어서 급하게 저장할 필요가 없다. (서버가 중간에 죽어도 카드는 잠깐 전 상태로만 복구된다)
+//  - DB 에서는 "고쳐진 사람 것만" 그 사람의 줄(`card:<id>`)에 쓴다. 다른 사람 사진은 안 건드린다 — 이게 핵심.
 async function saveCardsNow() {
   if (db) {
-    await db.query(
-      `insert into saves (id, data, updated_at) values ($1, $2, now())
-       on conflict (id) do update set data = excluded.data, updated_at = now()`,
-      [DB_ROW_ID_CARDS, JSON.stringify({ cards })]
-    )
+    const ids = [...dirtyCards]
+    let wrote = 0
+    for (const pid of ids) {
+      const card = cards[pid]
+      if (!card) {
+        dirtyCards.delete(pid) // 사이에 지워졌으면(있을 일은 거의 없지만) 쓸 게 없으니 그냥 넘어간다
+        continue
+      }
+      await db.query(
+        `insert into saves (id, data, updated_at) values ($1, $2, now())
+         on conflict (id) do update set data = excluded.data, updated_at = now()`,
+        [CARD_ROW_PREFIX + pid, JSON.stringify(card)]
+      )
+      dirtyCards.delete(pid) // 쓰기가 성공했을 때만 지운다 — 도중에 실패하면 남은(및 이 pid 포함) 건 다음 재시도 때 다시 쓴다
+      wrote++
+    }
+    if (!legacyCardsRowCleared && wrote) {
+      // 사람별 줄로 한 번 옮겨졌으니, 예전의 "전원분 한 덩어리" 줄은 이제 다 지난 사본이라 지운다.
+      legacyCardsRowCleared = true
+      await db.query('delete from saves where id = $1', [DB_ROW_ID_CARDS]).catch(() => {})
+    }
   } else {
     await fs.promises.writeFile(CARDS_FILE, JSON.stringify({ cards }, null, 1))
   }
 }
-let cardsSaveTimer = null
-function scheduleCardsSave() {
+function scheduleCardsSave(id) {
+  if (id) dirtyCards.add(id)
   clearTimeout(cardsSaveTimer)
   cardsSaveTimer = setTimeout(async () => {
     cardsSaveTimer = null
@@ -1074,7 +1112,7 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && route === '/api/account/me') {
     const id = bearer(req)
     if (!id) return json(res, 401, { error: 'no-auth' })
-    const acc = await accounts.get(id)
+    const acc = await accounts.get(id, { withAvatar: true })
     if (!acc) return json(res, 401, { error: 'no-account' })
     return json(res, 200, { ok: true, user: A.publicAccount(acc) })
   }
@@ -1251,7 +1289,7 @@ async function handleApi(req, res, url) {
     if (rateLimited(`auth:${id}`) || loginBlocked(id)) return json(res, 429, { error: 'slow-down' })
     const local = body.local && typeof body.local === 'object' && body.local.id === id ? body.local : null
     const localOk = !!local && local.passwordHash === A.legacyHash(password, id)
-    let acc = await accounts.get(id)
+    let acc = await accounts.get(id, { withAvatar: true })
     let migrated = false
     if (!acc) {
       if (!localOk) {
@@ -1335,11 +1373,14 @@ async function handleApi(req, res, url) {
   if (route === '/api/account/save') {
     const id = bearer(req)
     if (!id) return json(res, 401, { error: 'no-auth' })
-    const acc = await accounts.get(id)
+    const acc = await accounts.get(id) // 사진은 해시만 — 평소 자동저장에서는 사진 바이트를 전혀 안 읽는다
     if (!acc) return json(res, 401, { error: 'no-account' })
     // base: 이 브라우저가 마지막으로 서버와 맞춘 저장 번호. 그 사이 다른 기기가 저장했다면 덮어쓰지 않고 최신 기록을 돌려준다.
-    if (Number(body.base) !== (acc.updatedAt || 0)) return json(res, 409, { error: 'stale', user: A.publicAccount(acc) })
-    const incoming = A.resolveAvatarMarkers(A.pickGame(body.account), acc)
+    if (Number(body.base) !== (acc.updatedAt || 0)) {
+      const full = await accounts.get(id, { withAvatar: true }) // 충돌 응답은 브라우저 화면을 통째로 덮어쓰므로 실제 사진이 필요하다
+      return json(res, 409, { error: 'stale', user: A.publicAccount(full ?? acc) })
+    }
+    const incoming = A.reconcileAvatars(A.pickGame(body.account), acc)
     Object.assign(acc, incoming, { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
     await accounts.put(acc)
     return json(res, 200, { ok: true, updatedAt: acc.updatedAt })
@@ -1610,7 +1651,7 @@ async function handleApi(req, res, url) {
     const age = Number.isInteger(c.age) && c.age >= 10 && c.age <= 40 ? c.age : null
     const grade = [1, 2, 3].includes(c.grade) ? c.grade : null
     cards[me.id] = { name: clean(c.name, 12) || me.name, greeting: clean(c.greeting, 30), age, grade, avatar, at: Date.now() }
-    scheduleCardsSave()
+    scheduleCardsSave(me.id)
     return json(res, 200, { ok: true })
   }
 
