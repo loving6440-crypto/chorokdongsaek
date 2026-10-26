@@ -255,8 +255,9 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     return need > mpNow0 ? need : 0
   }
   if (id === 'dokkaebi-fire') {
-    const buffed = !!ctx.buff
-    const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mpNow0) : 0
+    // 효험은 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면 효험 없이 도깨비불만 쓴다. (v70)
+    const buffed = !!ctx.buff && mpNow0 >= mpCostOf(stats, BUFF_COST)
+    const buffCost = buffed ? mpCostOf(stats, BUFF_COST) : 0
     const fireCost = mpCostOf(stats, 20)
     const mpCost = fireCost + buffCost
     if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
@@ -290,8 +291,9 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     const maxSac = Math.max(0, curPhp - 1)
     const amt = Math.max(0, Math.min(maxSac, Math.floor(ctx.sacrifice ?? 0)))
     if (amt <= 0) return { state, events: [{ kind: 'warn', text: '깎을 체력이 없다! (체력은 0 이하로 내려갈 수 없다)' }], mpCost: 0, invalid: true }
-    const buffed = !!ctx.buff
-    const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mpNow0) : 0
+    // 효험은 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면 효험 없이 쓴다. (v70)
+    const buffed = !!ctx.buff && mpNow0 >= mpCostOf(stats, BUFF_COST)
+    const buffCost = buffed ? mpCostOf(stats, BUFF_COST) : 0
     const mpCost = Math.ceil(amt / 2) + buffCost
     if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     s.php = curPhp - amt
@@ -379,10 +381,10 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     }
   }
   if (id !== 'survival') return { state, events: [], mpCost: 0, invalid: true }
-  const buffed = !!ctx.buff
   const mpNow = Math.floor(ctx.mp ?? 0)
-  // 효험은 부적처럼 의지력이 모자라도 있는 만큼만 쓰고(0까지) 그래도 발동한다.
-  const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mpNow) : 0
+  // 효험은 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면 효험 없이 쓴다. (v70)
+  const buffed = !!ctx.buff && mpNow >= mpCostOf(stats, BUFF_COST)
+  const buffCost = buffed ? mpCostOf(stats, BUFF_COST) : 0
   let roll, buffNote = ''
   if (buffed) {
     const roll1 = die(stats.agility, rng)
@@ -656,12 +658,13 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   let mpCost = 0
   const act = action
   // 효험: 메인 턴에 앞서 켜 둔 토글이 있으면, 일반 공격·부적에서 두 번 굴려 더 나은 쪽을 쓴다. (ctx.buff)
-  // 의지력 10이 기본이지만, 부적처럼 모자라면 있는 만큼만 쓰고(0까지) 그래도 발동한다.
-  const buffed = !!ctx.buff && (act === 'attack' || act === 'charm')
-  const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mp) : 0
+  // 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면(있는 만큼만 내고) 발동하는 식이 아니다. (v70)
+  const buffFullCost = mpCostOf(stats, BUFF_COST)
+  const buffed = !!ctx.buff && (act === 'attack' || act === 'charm') && mp >= buffFullCost
+  const buffCost = buffed ? buffFullCost : 0
 
-  // 의지력이 모자라면 그 행동은 할 수 없다. 단 부적·효험만은 모자라도 쓸 수 있다(있는 만큼만 쓰고 터진다).
-  const needMp = act === 'scan' ? mpCostOf(stats, 1) : 0
+  // 의지력이 모자라면 그 행동은 할 수 없다. 단 부적만은 모자라도 쓸 수 있다(있는 만큼만 쓰고 터진다) — 다만 1 미만(0)이면 그마저도 쓸 수 없다.
+  const needMp = act === 'scan' ? mpCostOf(stats, 1) : act === 'charm' ? 1 : 0
   if (needMp > mp) {
     ev.push({ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${needMp}, 지금 ${mp})` })
     return { state: state, events: ev, mpCost: 0, invalid: true }

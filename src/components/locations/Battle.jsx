@@ -3,6 +3,7 @@ import { Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'luc
 import {
   specialSummary,
   mpCostOf,
+  BUFF_COST,
   LENT_FIRE,
   ACTIONS,
   ENEMIES,
@@ -306,6 +307,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
       const have = Math.floor(mpRef.current)
       if (action === 'charm' && cur.charms <= 0) return
+      if (action === 'charm' && have < 1) return
       if (action === 'scan' && have < mpCostOf(stats, 1)) return
       setPsyOpen(false)
       resolve(cur, action)
@@ -314,11 +316,11 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   )
 
   // 효험(모두가 가진 영능력): 켜 두면 턴을 쓰지 않는다. 다음에 고르는 일반 공격·부적·생존본능이 두 번 굴러간다.
-  // 의지력이 모자라도(0까지) 발동하므로 토글 자체는 의지력으로 막지 않는다.
+  // 의지력 10을 정확히 다 낼 수 있어야만 켤 수 있다(모자라면 토글 자체가 막힌다). (v70)
   const toggleBuff = () => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight' || !myTurn) return
-    setBuffArmed((v) => !v)
+    setBuffArmed((v) => (!v && Math.floor(mpRef.current) < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
 
   const doScan = () => {
@@ -652,7 +654,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             const off =
               (id !== 'psychic' && !myTurn) ||
               (id === 'psychic' && (!!b.over || b.pendingDeath)) ||
-              (id === 'charm' && b.charms <= 0) ||
+              (id === 'charm' && (b.charms <= 0 || have < 1)) ||
               (id === 'scan' && have < mpCostOf(stats, 1)) ||
               (id === 'guard' && b.bound)
             return (
@@ -735,11 +737,11 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                         type="button"
                         data-psychic-toggle={s.id}
                         aria-pressed={buffArmed}
-                        disabled={!myTurn}
+                        disabled={!myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
-                        {buffArmed ? '켜짐 (끄기)' : '켜기'}
+                        {buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
                       </button>
                     ) : s.id === 'monkey-paw' ? (
                       <>

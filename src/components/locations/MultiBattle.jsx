@@ -113,15 +113,15 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       setScanN((n) => Math.max(1, Math.min(have, n)))
       return setScanOpen((o) => !o)
     }
-    if (id === 'charm' && me.charms <= 0) return // 의지력이 모자라도 부적은 쓸 수 있다
+    if (id === 'charm' && (me.charms <= 0 || have < 1)) return // 부적은 의지력이 모자라도 쓸 수 있지만, 0일 때는 쓸 수 없다
     if (id === 'guard' && me.bound) return
     send({ action: id })
   }
   // 효험(모두가 가진 영능력): 켜 두면 차례를 쓰지 않는다. 다음에 고르는 일반 공격·부적·생존본능이 두 번 굴러간다.
-  // 의지력이 모자라도(0까지) 발동하므로 토글 자체는 의지력으로 막지 않는다.
+  // 의지력 10을 정확히 다 낼 수 있어야만 켤 수 있다(모자라면 토글 자체가 막힌다). (v70)
   const toggleBuff = () => {
     if (!canAct) return
-    setBuffArmed((v) => !v)
+    setBuffArmed((v) => (!v && have < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
   useEffect(() => {
     const onKey = (e) => {
@@ -289,7 +289,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                 ? true
                 : id === 'psychic'
                   ? !canAct
-                  : (id === 'charm' && me.charms <= 0) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
+                  : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
             return (
               <button
                 key={id}
@@ -359,11 +359,11 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       <button
                         type="button"
                         aria-pressed={buffArmed}
-                        disabled={!canAct}
+                        disabled={!canAct || (!buffArmed && have < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
-                        {buffArmed ? '켜짐 (끄기)' : '켜기'}
+                        {buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
                       </button>
                     ) : s.id === 'monkey-paw' ? (
                       <>
