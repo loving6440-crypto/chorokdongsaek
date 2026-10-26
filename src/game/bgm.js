@@ -83,12 +83,19 @@ function onYtApiReady() {
       },
       onStateChange: (e) => {
         if (playlist.length && e.data === window.YT.PlayerState.ENDED) {
-          ytIndex = (ytIndex + 1) % playlist.length
+          ytIndex = pickNextYtIndex()
           loadCurrentYtVideo(true)
         }
       },
     },
   })
+}
+/** 다음에 틀 곡의 자리를 무작위로 고른다. 두 곡 이상이면 방금 곡이 바로 다시 나오지 않게 한다. */
+function pickNextYtIndex() {
+  if (playlist.length <= 1) return 0
+  let next = ytIndex
+  while (next === ytIndex) next = Math.floor(Math.random() * playlist.length)
+  return next
 }
 /** 지금 ytIndex 가 가리키는 곡을 불러온다. autoplay 가 true 거나 지금 재생 중이어야 하는 상태면 바로 틀고, 아니면 cue 만 해 둔다. */
 function loadCurrentYtVideo(autoplay) {

@@ -13,6 +13,7 @@ export default function Gym({ view, ...rest }) {
         admin={rest.admin}
         onAdminGive={rest.onAdminGive}
         onGather={rest.onGather}
+        onHunt={rest.onHunt}
         onVisit={rest.onVisit}
         onGiveNpc={rest.onGiveNpc}
       />

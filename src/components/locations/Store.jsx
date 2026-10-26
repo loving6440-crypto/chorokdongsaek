@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Minus, Plus, ShoppingBag, X } from 'lucide-react'
-import { STORE_HOURS, STORE_ITEMS, countOf, isStoreOpen } from '../../game/items'
+import { Minus, Plus, ScrollText, ShoppingBag, X } from 'lucide-react'
+import { STORE_HOURS, STORE_ITEMS, countOf, isStoreOpen, itemOf } from '../../game/items'
+import { RECIPE_SHOP, knowsRecipe } from '../../game/crafting'
 import { STORE_INFO, YUMIN } from '../../game/store'
 import { pickNpcLine } from '../../game/npcLines'
 import ItemIcon from '../ItemIcon'
@@ -8,7 +9,7 @@ import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
 
 /** 기숙사 매점. 아래쪽에서 점원 강유민이 들어올 때마다 대사를 하나씩 한다. */
-export default function Store({ player, onBuy, onMeet, onLineSeen, admin = false, onGiveNpc }) {
+export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, admin = false, onGiveNpc }) {
   const [now, setNow] = useState(() => Date.now())
   const [{ line, firstOf }] = useState(() => pickNpcLine(YUMIN.id, YUMIN.lines, player, player.lineSeen))
   useEffect(() => {
@@ -99,6 +100,48 @@ export default function Store({ player, onBuy, onMeet, onLineSeen, admin = false
           )
         })}
       </ul>
+
+      {RECIPE_SHOP.length > 0 && (
+        <>
+          <h3 className="mt-6 flex items-center gap-1.5 font-serif text-lg text-gold">
+            <ScrollText size={16} aria-hidden />
+            제작법
+          </h3>
+          <p className="mt-1 text-xs text-paper/55">한 번 사면 평생 쓸 수 있는 공작소 제작법이다. 이미 아는 제작법은 다시 살 수 없다.</p>
+          <ul className="mt-3 grid gap-3 md:grid-cols-2">
+            {RECIPE_SHOP.map((r) => {
+              const result = itemOf(r.result)
+              const known = knowsRecipe(player, r.id, admin)
+              const can = open && !known && (admin || player.money >= r.price)
+              return (
+                <li key={r.id} className="ink-panel flex flex-col rounded-xl p-4" data-recipe={r.id}>
+                  <div className="flex items-start gap-3">
+                    {result && <ItemIcon item={result} size={44} className="shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="font-serif text-lg text-paper">[{result?.name ?? r.result}] 제작법</p>
+                        <p className="shrink-0 text-sm text-gold">{r.price}냥</p>
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-paper/75">{r.note}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-paper/50">{known ? '이미 아는 제작법' : '모르는 제작법'}</span>
+                    <button
+                      type="button"
+                      disabled={!can}
+                      onClick={() => onBuyRecipe?.(r.id)}
+                      className="flat-btn !py-1 text-sm disabled:opacity-40"
+                    >
+                      {!open ? '영업 종료' : known ? '습득함' : can ? '구매' : '냥이 모자라다'}
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
 
       {/* 점원 강유민: 미연시풍 대화창 (이름·대사는 바리와 같이 초상화 위쪽에 놓는다) */}
       <NpcDialog npc={YUMIN.name} src={YUMIN.faces[line.face ?? 'plain']} face={line.face} dataNpc="yumin">

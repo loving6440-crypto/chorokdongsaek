@@ -45,7 +45,7 @@ export function rollGather(spotId, rng = Math.random) {
 }
 
 export function startGather(player, spotId, now = Date.now()) {
-  if (player.gathering) return { error: '이미 채집을 하는 중이다.' }
+  if (player.gathering || player.hunting) return { error: '이미 다른 일로 바쁘다.' }
   if (!GATHER_TABLES[spotId]) return { error: '이곳에서는 채집할 수 없다.' }
   return { player: { ...player, gathering: { spotId, startedAt: now, minutes: GATHER_MINUTES } } }
 }

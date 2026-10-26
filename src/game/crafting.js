@@ -19,11 +19,24 @@ export const RECIPES = [
   { id: 'r-exorcism-gate', result: 'exorcism-gate', inputs: [['snake-skin', 1], ['mugwort', 3]] },
   { id: 'r-red-fox-charm', result: 'red-fox-charm', inputs: [['fox-fur', 2], ['hanji', 2], ['five-color-thread', 2]] },
   { id: 'r-spirit-disposable', result: 'spirit-disposable', inputs: [['raccoon-claw', 2], ['jangseung-piece', 1]] },
-  { id: 'r-hanji', result: 'hanji', inputs: [['crumpled-hanji', 2]], note: '구김살이 난 종이를 부드러운 종이로 재활용하자.' },
-  { id: 'r-brush', result: 'brush', inputs: [['split-brush', 2]], note: '다 쓴 붓을 모아오면 새 붓으로 교환해준다.' },
+  { id: 'r-hanji', result: 'hanji', inputs: [['crumpled-hanji', 2]], note: '구김살이 난 종이를 부드러운 종이로 재활용하자.', price: 30 },
+  { id: 'r-brush', result: 'brush', inputs: [['split-brush', 2]], note: '다 쓴 붓을 모아오면 새 붓으로 교환해준다.', price: 40 },
 ]
 export const recipeOf = (id) => RECIPES.find((r) => r.id === id)
 export const knowsRecipe = (player, id, admin = false) => admin || !!player.recipes?.[id]
+
+/** 매점에서 파는 제작법 (price 가 있는 것). */
+export const RECIPE_SHOP = RECIPES.filter((r) => r.price != null)
+
+/** 매점에서 제작법을 산다. 이미 아는 제작법은 다시 살 수 없다. */
+export function buyRecipe(player, recipeId, admin = false) {
+  const r = recipeOf(recipeId)
+  if (!r || r.price == null) return { error: '매점에서 팔지 않는 제작법이다.' }
+  if (knowsRecipe(player, recipeId, admin)) return { error: '이미 아는 제작법이다.' }
+  if (!admin && player.money < r.price) return { error: '냥이 모자라다.' }
+  const paid = admin ? player : { ...player, money: player.money - r.price }
+  return { player: learnRecipe(paid, recipeId), recipe: r }
+}
 
 /** 제작법 익히기 (이미 알면 같은 player) */
 export function learnRecipe(player, id) {

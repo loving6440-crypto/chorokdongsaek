@@ -8,12 +8,15 @@ import { finishCraft } from './crafting'
 import { ENEMIES } from './battle'
 import { bumpWeekly, bumpDaily, markWeeklySet, ensureDaily, checkClubQuests } from './clubQuests'
 import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
+import { finishHunt, startHunt as startHuntAt, cancelHunt as cancelHuntAt } from './hunt'
 import { SKINS } from './skins2048'
 import { SKINS_RUNNER } from './skinsRunner'
 
 // (다른 '대기 활동'들과 이름 규칙을 맞추기 위한 재수출)
 export const startGather = startGatherAt
 export const cancelGather = cancelGatherAt
+export const startHunt = startHuntAt
+export const cancelHunt = cancelHuntAt
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
@@ -242,7 +245,7 @@ export function tickPlayer(player, now, dtSec) {
   }
   // 대기(수련·취침·휴식·수업 대기·제작) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
   const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
-  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting || p.slowFight || p.gathering || p.traveling)
+  const waiting = !!(p.training || p.sleeping || p.resting || lessonWaiting || p.crafting || p.slowFight || p.gathering || p.hunting || p.traveling)
 
   // 제작: 끝까지 기다려야 완성품이 한꺼번에 나온다. 중간에 나가면(crafting이 끊기면) 재료도 완성품도 없다.
   const cf = p.crafting
@@ -267,6 +270,14 @@ export function tickPlayer(player, now, dtSec) {
   if (gt && now >= gt.startedAt + gt.minutes * 60000) {
     const r = finishGather(p, now)
     p = bumpDaily(r.player, 'gather', 1, now)
+    logs.push(...r.logs)
+  }
+
+  // 수렵: 20분을 기다리면 1d10으로 조우한 상대가 정해지고, 승리(또는 간파) 보상을 받는다.
+  const ht = p.hunting
+  if (ht && now >= ht.startedAt + ht.minutes * 60000) {
+    const r = finishHunt(p, now)
+    p = bumpDaily(r.player, 'hunt', 1, now)
     logs.push(...r.logs)
   }
 

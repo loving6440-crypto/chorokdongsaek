@@ -21,7 +21,7 @@ import CodexModal from './components/CodexModal'
 import CodexEntryModal from './components/CodexEntryModal'
 import BringPicker from './components/BringPicker'
 import { ACHIEVEMENTS, rewardText } from './game/achievements'
-import { cancelCraft, recipeOf, startCraft } from './game/crafting'
+import { cancelCraft, recipeOf, startCraft, buyRecipe as buyRecipeAt } from './game/crafting'
 import { cook } from './game/cooking'
 import Intro from './components/Intro'
 import AdminPanel from './components/AdminPanel'
@@ -50,6 +50,7 @@ import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
 import { GATHER_MINUTES } from './game/gather'
+import { HUNT_MINUTES } from './game/hunt'
 import { travelMinutes } from './game/travel'
 import TravelPanel from './components/TravelPanel'
 import { HIKE_SPOT_IDS } from './game/hike'
@@ -85,6 +86,8 @@ import {
   slowFightMinutes,
   startGather,
   cancelGather,
+  startHunt,
+  cancelHunt,
   dayKey,
 } from './game/progress'
 import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, sendPartyStats, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers, fetchRanking } from './net/online'
@@ -435,6 +438,18 @@ export default function Game({
     [addLog],
   )
 
+  /** 수렵 대기를 끊는다. 아무것도 받지 못하고 취소된다. */
+  const endHunt = useCallback(
+    (why) => {
+      const cur = playerRef.current
+      if (!cur.hunting) return
+      playerRef.current = cancelHunt(cur)
+      setPlayer((prev) => (prev.hunting ? cancelHunt(prev) : prev))
+      addLog(`${why} 수렵을 멈췄다. (아무것도 얻지 못한다)`)
+    },
+    [addLog],
+  )
+
   /** 이동(건물이 바뀌는 여정)을 중간에 끊는다. 도착하지 못하고 제자리로 남는다. */
   const endTravel = useCallback(
     (why) => {
@@ -461,9 +476,10 @@ export default function Game({
       endCraft(why)
       endSlowFight(why)
       endGather(why)
+      endHunt(why)
       endTravel(why)
     },
-    [endTraining, endRest, endSleep, endWaits, endCraft, endSlowFight, endGather, endTravel],
+    [endTraining, endRest, endSleep, endWaits, endCraft, endSlowFight, endGather, endHunt, endTravel],
   )
 
   // 수련·제작 등 '대기 활동' 중에 다른 곳으로 가거나 다른 동작을 하려 하면 먼저 경고하고, 확인해야 진행한다.
@@ -479,6 +495,7 @@ export default function Game({
     else if (cur.crafting) setConfirmQuit({ run, kind: 'craft' })
     else if (cur.slowFight) setConfirmQuit({ run, kind: 'slowFight' })
     else if (cur.gathering) setConfirmQuit({ run, kind: 'gathering' })
+    else if (cur.hunting) setConfirmQuit({ run, kind: 'hunting' })
     else if (cur.traveling) setConfirmQuit({ run, kind: 'travel' })
     else run()
   }
@@ -656,6 +673,21 @@ export default function Game({
       playerRef.current = next
       setPlayer(next)
       addLog(`매점에서 ${item.name} ${n}개를 샀다. (${admin ? '관리자: 무료' : `-${cost}냥`})`)
+    },
+    [addLog, admin],
+  )
+
+  // 매점 · 제작법 구매
+  const buyRecipe = useCallback(
+    (recipeId) => {
+      const cur = playerRef.current
+      if (!isStoreOpen()) return
+      const r = buyRecipeAt(cur, recipeId, admin)
+      if (r.error) return addLog(r.error)
+      const next = bumpWeekly(r.player, 'shopBuy')
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`매점에서 [${itemOf(r.recipe.result)?.name ?? r.recipe.result}] 제작법을 익혔다. (${admin ? '관리자: 무료' : `-${r.recipe.price}냥`})`)
     },
     [addLog, admin],
   )
@@ -1088,6 +1120,22 @@ export default function Game({
     [interruptAll, addLog],
   )
 
+  /** 수렵 시도: 20분을 기다리면 1d10으로 조우한 상대가 정해지고, 승리(또는 간파) 보상을 받는다. */
+  const startHuntAction = useCallback(
+    (pathId) => {
+      guardTraining(() => {
+        interruptAll('수렵을 시작해')
+        const cur = playerRef.current
+        const r = startHunt(cur, pathId)
+        if (r.error) return addLog(r.error)
+        playerRef.current = r.player
+        setPlayer(r.player)
+        addLog(`수렵을 시작했다. (${HUNT_MINUTES}분)`)
+      })
+    },
+    [interruptAll, addLog],
+  )
+
   // 전투 중 처음으로 전투불능이 되면 영능력 [생존본능]을 얻는다.
   const downed = useCallback(() => {
     const cur = playerRef.current
@@ -1456,7 +1504,9 @@ export default function Game({
                     onVisit={visitSpot}
                   />
                 )}
-                {locationId === 'dorm' && activity === 'store' && <Store player={player} onBuy={buyItem} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />}
+                {locationId === 'dorm' && activity === 'store' && (
+                  <Store player={player} onBuy={buyItem} onBuyRecipe={buyRecipe} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />
+                )}
                 {locationId === 'dorm' && activity === 'cafeteria' && (
                   <Cafeteria
                     online={online.status === 'online'}
@@ -1491,6 +1541,7 @@ export default function Game({
                     onEnhance={enhance}
                     onAdminGive={adminGive}
                     onGather={startGatherAction}
+                    onHunt={startHuntAction}
                     onVisit={visitSpot}
                     onGiveNpc={giveNpc}
                     stats={effStats}
@@ -1589,7 +1640,7 @@ export default function Game({
       />
       {confirmQuit && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4">
-          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : confirmQuit.kind === 'craft' ? '제작 중지 확인' : confirmQuit.kind === 'slowFight' ? '느린 싸움 중지 확인' : confirmQuit.kind === 'gathering' ? '채집 중지 확인' : confirmQuit.kind === 'travel' ? '이동 중지 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
+          <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : confirmQuit.kind === 'craft' ? '제작 중지 확인' : confirmQuit.kind === 'slowFight' ? '느린 싸움 중지 확인' : confirmQuit.kind === 'gathering' ? '채집 중지 확인' : confirmQuit.kind === 'hunting' ? '수렵 중지 확인' : confirmQuit.kind === 'travel' ? '이동 중지 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
             {confirmQuit.kind === 'craft' ? (
               <>
                 <p className="font-serif text-lg text-gold">현재 제작 중입니다.</p>
@@ -1613,6 +1664,12 @@ export default function Game({
                 <p className="font-serif text-lg text-gold">현재 채집 중입니다.</p>
                 <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
                 <p className="mt-1 text-[11px] text-paper/50">끝까지 기다려야 채집물이 들어옵니다. 중간에 나가면 아무것도 얻지 못합니다.</p>
+              </>
+            ) : confirmQuit.kind === 'hunting' ? (
+              <>
+                <p className="font-serif text-lg text-gold">현재 수렵 중입니다.</p>
+                <p className="mt-2 text-sm text-paper/80">정말 나갈까요?</p>
+                <p className="mt-1 text-[11px] text-paper/50">끝까지 기다려야 조우 결과가 나옵니다. 중간에 나가면 아무것도 얻지 못합니다.</p>
               </>
             ) : confirmQuit.kind === 'wait' ? (
               <>
@@ -1649,10 +1706,10 @@ export default function Game({
                 }}
                 className="flat-btn justify-center !bg-crimson"
               >
-                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' || confirmQuit.kind === 'wait' || confirmQuit.kind === 'craft' || confirmQuit.kind === 'slowFight' || confirmQuit.kind === 'gathering' || confirmQuit.kind === 'travel' ? '나간다' : '포기한다'}
+                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' || confirmQuit.kind === 'wait' || confirmQuit.kind === 'craft' || confirmQuit.kind === 'slowFight' || confirmQuit.kind === 'gathering' || confirmQuit.kind === 'hunting' || confirmQuit.kind === 'travel' ? '나간다' : '포기한다'}
               </button>
               <button type="button" onClick={() => setConfirmQuit(null)} className="flat-btn justify-center">
-                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '계속 쉬기' : confirmQuit.kind === 'wait' ? '계속 기다리기' : confirmQuit.kind === 'craft' ? '계속 제작하기' : confirmQuit.kind === 'slowFight' || confirmQuit.kind === 'gathering' || confirmQuit.kind === 'travel' ? '계속 기다리기' : '계속 수련'}
+                {confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '계속 쉬기' : confirmQuit.kind === 'wait' ? '계속 기다리기' : confirmQuit.kind === 'craft' ? '계속 제작하기' : confirmQuit.kind === 'slowFight' || confirmQuit.kind === 'gathering' || confirmQuit.kind === 'hunting' || confirmQuit.kind === 'travel' ? '계속 기다리기' : '계속 수련'}
               </button>
             </div>
           </div>

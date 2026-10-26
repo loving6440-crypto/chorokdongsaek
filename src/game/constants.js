@@ -133,7 +133,7 @@ export const LOCATIONS = {
     navNote: '서쪽, 잡티 없는 하얀 장서각.',
     subtitle: '정보 조회 및 고서적',
     facilities: ['별관 탐사', '체력단련실', '동아리 가입/활동', '패 놀이터'],
-    npcs: ['yumin'],
+    npcs: ['danae'],
   },
   dorm: {
     id: 'dorm',
@@ -144,7 +144,7 @@ export const LOCATIONS = {
     navNote: '북쪽, 빛을 먹는 까만 보금자리.',
     subtitle: '방치형 수련 / 휴식',
     facilities: ['휴식 및 수련', '매점', '급식실'],
-    npcs: ['danae'],
+    npcs: ['yumin'],
   },
   gym: {
     id: 'gym',
