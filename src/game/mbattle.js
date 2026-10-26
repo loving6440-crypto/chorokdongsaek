@@ -219,20 +219,24 @@ export function autoFill(mb) {
   for (const m of waitingOn(mb)) m.act = { action: m.bound ? 'attack' : 'guard', auto: true }
 }
 
-/** 아이템 효과(전투 중). 반환 { ok, text } 또는 { error } */
+/** 아이템 효과(전투 중). 자기 차례에만 쓸 수 있고, 쓰면 그 즉시 자신의 턴이 넘어간다. 반환 { ok, text } 또는 { error } */
 export function useItemMB(mb, id, item, targetId) {
   const r = useItemCore(mb, id, item, targetId)
   if (r.ok) {
     const m = mb.members.find((x) => x.id === id)
     if (m && item?.id && !m.usedItems.includes(item.id)) m.usedItems = [...m.usedItems, item.id] // 형상 기억이 나중에 재활용할 수 있도록 기록
     if (mb.enemy.boss) m.bring = { ...m.bring, [item.id]: m.bring[item.id] - 1 }
+    if (m) m.act = { action: 'item' } // 아이템을 썼으니 이번 턴은 끝 — resolveTurn 이 다음 사람에게 넘긴다.
   }
   return r
 }
 function useItemCore(mb, id, item, targetId) {
   const m = mb.members.find((x) => x.id === id)
   const t = mb.members.find((x) => x.id === (targetId || id))
-  if (!m || !t || m.status !== 'alive' || mb.phase === 'over') return { error: 'not-fighting' }
+  if (!m || !t || m.status !== 'alive' || mb.phase !== 'input') return { error: 'not-fighting' }
+  if (mb.turn !== id) return { error: 'not-your-turn' } // 아이템도 자기 차례에만 쓸 수 있다.
+  if (m.act) return { error: 'already' }
+  if (m.stun > 0 || m.fire > 0) return { error: 'busy' } // 행동불능·도깨비불 충전 중엔 아이템도 쓸 수 없다.
   const e = item?.effect ?? {}
   if (!item?.battle) return { error: 'not-battle-item' }
   if (mb.enemy.boss) {
@@ -256,12 +260,16 @@ function useItemCore(mb, id, item, targetId) {
     addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.` }], m.id)
     return { ok: true }
   }
-  // 폭죽: 일행 전원 다음 공격력 ×3, 사용한 자신은 2턴 행동불능.
+  // 폭죽: 자신을 제외한 일행 전원 다음 공격력 ×3, 사용한 자신은 2턴 행동불능(자신에게는 ×3이 적용되지 않는다).
   if (e.partyBoost) {
     const alive = mb.members.filter((x) => x.status === 'alive')
-    for (const x of alive) x.boost = e.partyBoost
+    for (const x of alive) if (x.id !== m.id) x.boost = e.partyBoost
     if (e.selfStun) m.stun = Math.max(m.stun || 0, e.selfStun)
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 터뜨렸다! 일행 전원의 다음 공격력이 ×${e.partyBoost}가 된다. ${m.name}은 ${e.selfStun}턴 동안 움직일 수 없다.` }], m.id)
+    addLog(
+      mb,
+      [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 터뜨렸다! 자신을 제외한 일행 전원의 다음 공격력이 ×${e.partyBoost}가 된다. ${m.name}은 ${e.selfStun}턴 동안 움직일 수 없다.` }],
+      m.id,
+    )
     return { ok: true }
   }
   // 쌍쌍바: 파티원에게 주면 더 크게, 자기 자신이면 조금 회복.
@@ -332,6 +340,18 @@ export function resolveTurn(mb, rng = Math.random) {
         evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ 무당방울! [이해 ${bell.chance}%, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
       }
     }
+    evs.push(...nextActor(mb, rng))
+    if (mb.turn) return evs // 다음 사람의 차례
+    if (!aliveOf(mb).length) {
+      finishIfOver(mb)
+      return evs
+    }
+    evs.push(...enemyPhase(mb, rng))
+    return evs
+  }
+  // 아이템 사용: 효과는 useItemMB 에서 이미 적용됐다. 이번 턴은 그걸로 끝 — 그대로 다음 사람에게 넘긴다.
+  if (m.act?.action === 'item') {
+    m.act = null
     evs.push(...nextActor(mb, rng))
     if (mb.turn) return evs // 다음 사람의 차례
     if (!aliveOf(mb).length) {

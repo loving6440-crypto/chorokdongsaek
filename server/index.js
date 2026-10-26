@@ -511,8 +511,8 @@ function mbLobbyCheck(g) {
     for (const id of [g.host]) sendTo(id, { t: 'mb', ev: 'lobby', bid: g.id, enemyId: g.enemyId, waiting: Object.keys(g.invited).filter((i) => g.invited[i] === 'wait').map((i) => clients.get(i)?.name ?? i), joined: Object.keys(g.joins).map((i) => clients.get(i)?.name ?? i) })
   }
 }
-/** 보스 전투에 가져가는 아이템: 전투용 아이템만, 한 '개' 단위로 합쳐서 최대 5개 */
-const BOSS_BRING_MAX = 5
+/** 보스 전투에 가져가는 아이템: 전투용 아이템만, 한 '개' 단위로 합쳐서 최대 3개 */
+const BOSS_BRING_MAX = 3
 function cleanBring(raw) {
   const out = {}
   let total = 0
@@ -2274,7 +2274,8 @@ async function handleApi(req, res, url) {
     const item = ITEMS.find((i) => i.id === body.item)
     const r = MB.useItemMB(g.mb, me.id, item, cleanId(body.to) || me.id)
     if (r.error) return json(res, 409, r)
-    mbPush(g)
+    if (MB.ready(g.mb)) mbStep(g)
+    else mbPush(g)
     return json(res, 200, { ok: true })
   }
 

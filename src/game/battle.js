@@ -80,10 +80,10 @@ export const ENEMIES = [
     partySize: 3,
     boss: true,
     tags: ['다인 전투', '보스'],
-    hp: 620,
-    atk: 14,
-    act: 13,
-    spirit: 14,
+    hp: 760,
+    atk: 17,
+    act: 14,
+    spirit: 16,
     special: { label: '쇠 갉아먹기', note: '한 사람의 살과 의지를 갉아먹는다. 막을 수 없는 피해를 주고 의지력을 빨아들인다.' },
     special2: { label: '불길 내뿜기', note: '일행 전원에게 불길을 뿜는다. 막을 수 없는 피해를 입고, 다음 내 턴엔 막기를 할 수 없다.' },
     gimmicks: [
@@ -203,8 +203,8 @@ export const PSYCHICS = [
   {
     id: 'dokkaebi-fire',
     label: '도깨비불',
-    note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 6배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-    detail: '쓴 턴부터 3턴 동안 행동 불가(의지력 소모 없음) → 이어지는 턴에 자동으로 6배 공격. 전투·단체전투 모두에서 쓸 수 있다.',
+    note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
+    detail: '쓴 턴부터 3턴 동안 행동 불가(의지력 소모 없음) → 이어지는 턴에 자동으로 4배 공격. 전투·단체전투 모두에서 쓸 수 있다.',
     cond: '(취득 경로 미정 · 바리가 전투 교육에서 잠깐 빌려주는 것과 같은 영능력이다)',
     mp: 0,
     use: true,
@@ -227,15 +227,15 @@ export const ownedPsychics = (psychics = []) => PSYCHICS.filter((p) => p.default
 
 /**
  * 도깨비불 (바리의 영능력): 쓴 턴을 포함해 3턴 동안 아무 행동도 하지 않고 기를 모은 뒤,
- * 그 다음 내 턴에 일반 공격의 6배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
+ * 그 다음 내 턴에 일반 공격의 4배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
  * 쓰고 나면 state.fire 가 남은 자동 턴 수(3)로 세팅되고, 내 턴이 올 때마다 fireTurn 을 불러 진행한다.
  */
 export const FIRE_TURNS = 3
 export const LENT_FIRE = {
   id: 'dokkaebi-fire',
   label: '도깨비불',
-  note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 6배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-  detail: '쓴 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 6배 공격.',
+  note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
+  detail: '쓴 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격.',
   use: true,
 }
 
@@ -377,7 +377,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   }
 }
 
-/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 6배 공격. 반환: { state, events, done } */
+/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 4배 공격. 반환: { state, events, done } */
 export function fireTurn(state, ctx, rng = Math.random) {
   const { stats } = ctx
   const s = { ...state, guard: false }
@@ -391,14 +391,14 @@ export function fireTurn(state, ctx, rng = Math.random) {
   const r = attackRoll(stats, rng)
   const mult = ctx.boost ? 2 : 1
   const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
-  const cr = fxCrit(fb.base * 6 * mult, stats, rng)
+  const cr = fxCrit(fb.base * 4 * mult, stats, rng)
   let dmg = cr.dmg
   if (!r.miss && braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
     r.miss
       ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발… 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` }
-      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×6 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}` },
+      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'

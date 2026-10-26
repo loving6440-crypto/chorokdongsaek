@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ITEMS, countOf } from '../game/items'
 
-export const BRING_MAX = 5 // 보스 전투에 1인당 가져갈 수 있는 아이템 수 ('묶음'이 아니라 '개' 단위)
+export const BRING_MAX = 3 // 보스 전투에 1인당 가져갈 수 있는 아이템 수 ('묶음'이 아니라 '개' 단위)
 
 /** 보스 전투 전에, 소지품에서 전투에 쓸 아이템을 최대 5개까지 고른다. */
 export default function BringPicker({ player, enemyName, onConfirm, onCancel }) {

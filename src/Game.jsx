@@ -1001,20 +1001,30 @@ export default function Game({
     [addLog],
   )
 
-  // 전투 중에도 턴·상황과 상관없이 쓸 수 있고, 써도 내 턴이 끝나지 않는다. (전투 중 사용 가능한 아이템만)
+  // 전투 중 사용 가능한 아이템만 쓸 수 있다. 다인 전투에서는 자기 차례에만 쓸 수 있고, 쓰면 그 즉시 내 턴이 끝난다.
   const useItem = useCallback(
     async (id, target) => {
       const item = itemOf(id)
       const cur = playerRef.current
       if (!item) return
-      // 다인 전투 중: 효과는 서버가 판에 적용한다. (체력·의지력은 서버 값이 곧바로 반영된다.)
+      // 다인 전투 중: 효과는 서버가 판에 적용한다. (체력·의지력은 서버 값이 곧바로 반영된다.) 자기 차례에만 쓸 수 있고, 쓰면 턴이 넘어간다.
       if (mbLiveRef.current) {
         const ok = canUseItem(item, { inBattle: true, isParty: true, countNow: cur.inventory?.[id] || 0, reviveOn: false, boostOn: false })
         if (!ok.ok) return
         const to = target && target !== 'self' ? target : undefined
         const r = await mbItem(id, to)
         if (!r.ok) {
-          notify(r.error === 'already' ? '이미 효과가 걸려 있다.' : r.error === 'bad-target' ? '그 사람에게는 쓸 수 없다.' : '지금은 쓸 수 없다.')
+          notify(
+            r.error === 'already'
+              ? '이미 효과가 걸려 있다.'
+              : r.error === 'bad-target'
+                ? '그 사람에게는 쓸 수 없다.'
+                : r.error === 'not-your-turn'
+                  ? '아이템은 내 차례에만 쓸 수 있다.'
+                  : r.error === 'busy'
+                    ? '지금은(행동불능·도깨비불 충전 중) 아이템을 쓸 수 없다.'
+                    : '지금은 쓸 수 없다.',
+          )
           return
         }
         const now = playerRef.current

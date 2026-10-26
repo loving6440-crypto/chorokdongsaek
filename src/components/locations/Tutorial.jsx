@@ -139,7 +139,7 @@ const NODES = [
   {
     say: [
       '상대는 10분의 1 확률로 영능력을 써요. 예를 들어 저, 바리는 이런 주술을 써요.',
-      '제 영능력은 “도깨비불”이에요. 3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 6배의 공격을 때려요.',
+      '제 영능력은 “도깨비불”이에요. 3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 4배의 공격을 때려요.',
       '이건 강공격이 아니라서 방어해도 절반밖에 방어가 안 된답니다. 무시무시하죠? 이처럼 \'영능력\'이라는 건 상대의 궁극기나 필살기 같은 느낌으로 이해하면 돼요.',
       '여러분도 성장할 수록 이런 영능력을 배울 수 있게 될 거예요!',
     ],
@@ -432,7 +432,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
     [idx, busy, stats, enter, onMp, onHp, buffArmed],
   )
 
-  // 도깨비불 시연: 기를 모으는 3턴(상대는 계속 공격) → 6배 공격
+  // 도깨비불 시연: 기를 모으는 3턴(상대는 계속 공격) → 4배 공격
   const runFire = useCallback(async () => {
     const n = NODES[idx]
     if (!n.useFire || busy) return
@@ -555,7 +555,7 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
           <p className="inline-block rounded-full bg-gold-fill px-3 py-0.5 text-xs font-medium text-ink light:text-ink">{BARI}</p>
           {node.fx === 'fire' && (
             <p className="mt-2 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
-              🔥 도깨비불 — 기 모으기 ×3턴(행동 없음) → 일반 공격 ×6 (막아도 1/2 피해)
+              🔥 도깨비불 — 기 모으기 ×3턴(행동 없음) → 일반 공격 ×4 (막아도 1/2 피해)
             </p>
           )}
           <p className="mt-2 min-h-[4.5rem] text-sm leading-[1.85] break-keep text-paper/95">
