@@ -185,11 +185,11 @@ export const PSYCHICS = [
   {
     id: 'falling-light',
     label: '내려쬐는 빛',
-    note: '상대의 모든 단일 대상 공격이 무조건 이 영능력을 쓴 사람에게 향하게 만든다.',
+    note: '다음에 적이 하는 공격을 무조건 자신이 맞아내는 탱킹용 영능력. 단일 대상이든 단체 대상(영능력 포함)이든 가리지 않는다.',
     detail:
-      '의지력 40 소모. 전투의 맨 첫 턴에서만 쓸 수 있다(두 번째로 돌아온 턴부터는 쓸 수 없다). 일행 중 한 명이 이미 사용했다면, 같은 전투에서 다른 일행은 이 영능력을 쓸 수 없다.',
+      '쓸 때마다 의지력 10을 소모한다. 턴 제한 없이 아무 때나, 몇 번이든 다시 걸 수 있다. 단체 공격을 대신 맞으면 원래 맞았을 인원 수만큼 피해가 곱해진다.',
     cond: '(취득 경로 미정)',
-    mp: 40,
+    mp: 10,
     use: true,
   },
   {
@@ -355,15 +355,13 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     }
   }
   if (id === 'falling-light') {
-    if (state.myTurns) return { state, events: [{ kind: 'warn', text: '전투의 맨 첫 턴에서만 쓸 수 있다.' }], mpCost: 0, invalid: true }
-    if (s.fallingLight) return { state, events: [{ kind: 'warn', text: '이번 전투에서는 이미 썼다.' }], mpCost: 0, invalid: true }
-    const shortfall = needMp(40)
+    const shortfall = needMp(10)
     if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
-    const mpCost = mpCostOf(stats, 40)
+    const mpCost = mpCostOf(stats, 10)
     s.fallingLight = true
     return {
       state: s,
-      events: [{ kind: 'player', text: `✦ 내려쬐는 빛! 의지력 ${mpCost}을 써서, 이번 전투 동안 상대의 모든 단일 대상 공격이 나에게 향하게 했다. (1인 전투에서는 원래도 모든 공격이 나에게 오므로 체감되지는 않는다)` }],
+      events: [{ kind: 'player', text: `✦ 내려쬐는 빛! 의지력 ${mpCost}을 써서, 다음에 적이 하는 공격(단일·단체 모두)을 무조건 내가 맞아낸다. (1인 전투에서는 원래도 모든 공격이 나에게 오므로 체감되지는 않는다)` }],
       mpCost,
     }
   }

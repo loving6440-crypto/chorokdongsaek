@@ -49,7 +49,7 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     fireBuffed: false, // 도깨비불을 효험과 함께 썼는지 — 터지는 순간(fireTurn)까지 들고 있다가 그때 적용하고 꺼진다.
     curse: 0,
     survived: 0,
-    myTurns: 0, // 지금까지 실제로 행동(일반 공격·부적·영능력 등)한 횟수 — '맨 첫 턴' 제한이 있는 영능력(내려쬐는 빛·업인과보)에 쓴다.
+    myTurns: 0, // 지금까지 실제로 행동(일반 공격·부적·영능력 등)한 횟수 — '맨 첫 턴' 제한이 있는 영능력(업인과보)에 쓴다.
     usedItems: [], // 이번 전투에서 쓴 아이템 id 목록(형상 기억 재활용용). 중복 없이 쌓인다.
     fx: fxId,
     status: 'alive', // alive | down | fled
@@ -83,7 +83,7 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
     members,
     over: null, // 'win' | 'lose'
     log: [],
-    fallingLight: null, // 내려쬐는 빛을 쓴 일행의 id(쓰면 상대의 모든 단일 대상 공격이 그 사람에게 쏠린다). 일행 전체에 한 번만.
+    fallingLight: null, // 내려쬐는 빛을 쓴 일행의 id. 다음 적의 공격(단일·단체 모두)이 그 사람에게 쏠리고, 쓰일 때마다 소모된다(또 쓰면 다시 걸 수 있다).
     karmicTarget: null, // 업인과보로 지정한 대상의 id(쓰면 단체 공격·다중 타겟 영능력이 모두 이 사람에게, 인원수만큼 곱해져서 쏠린다).
   }
   addLog(mb, [{ kind: 'info', text: `${enemy.name}이(가) 나타났다. (${members.length}인 전투: ${members.map((m) => m.name).join(', ')})` }])
@@ -414,10 +414,10 @@ export function resolveTurn(mb, rng = Math.random) {
     return evs
   }
   if (act.action === 'psychic') {
-    // 버그 수정: r.state.fallingLight 는 '이번 턴에 내려쬐는 빛을 썼다'가 아니라 '일행 중 누군가 이미 썼다'를 가리키는 값이라
-    // (viewOfMember 가 매번 그렇게 내려준다), 이 조건만으로 분기하면 falling-light 를 쓴 사람이 아니라 그 뒤에 다른
-    // 영능력을 쓴 사람에게로 계속 표적이 다시 옮겨가 버렸다. 실제로 지금 쓴 영능력이 falling-light 일 때만 갱신한다.
-    if (act.psychic === 'falling-light' && r.state.fallingLight) mb.fallingLight = m.id // 일행 전체에 한 번만(쓴 사람에게 쏠린다)
+    // r.state.fallingLight 는 '일행 중 누군가 내려쬐는 빛을 걸어 뒀다'를 가리키는 공유 신호라(viewOfMember 가 매번
+    // 그렇게 내려준다), 실제로 지금 쓴 영능력이 falling-light 일 때만 표적을 갱신한다(과거 버그 재발 방지).
+    // 다음 적 공격 한 번에 소모되며, enemyPhase 가 쓰고 나면 mb.fallingLight 를 지운다 — 몇 번이든 다시 걸 수 있다.
+    if (act.psychic === 'falling-light' && r.state.fallingLight) mb.fallingLight = m.id
     if (r.state.karmicTarget) mb.karmicTarget = targetId
     // 형상 기억: 자기 자신이면 r.state.php 가 이미 100으로 반영되어 아래에서 그대로 적용되지만,
     // 다른 일행을 대상으로 골랐으면 그 사람의 체력은 이 함수가 알지 못하므로 여기서 직접 100으로 맞춘다.
@@ -516,26 +516,35 @@ function enemyPhase(mb, rng) {
   const hits = intent === 'jab' || intent === 'smash' || intent === 'special'
   let targets
   let karmicMult = 1
+  // 내려쬐는 빛: 다음 적의 공격(단일·단체 모두, 영능력 포함)을 무조건 자신에게 맞게 한다 — 실제로 공격이 들어오는 턴에만 소모된다.
+  const flTarget = mb.fallingLight && mb.members.find((x) => x.id === mb.fallingLight && x.status === 'alive' && x.php > 0)
   if (group) {
-    // 업인과보: 단체 공격·다중 타겟 영능력을 지정한 한 사람에게만, 인원수만큼 곱해서 쏠리게 한다.
-    const krTarget = mb.karmicTarget && mb.members.find((x) => x.id === mb.karmicTarget && x.status === 'alive' && x.php > 0)
-    if (krTarget) {
-      targets = [krTarget]
+    if (flTarget) {
+      targets = [flTarget]
       karmicMult = alive.length
-      evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 업인과보! ${mb.enemy.name}의 단체 공격이 ${krTarget.name}에게 단일로 쏠린다. (인원 ${karmicMult}명치)` }], 'enemy'))
+      mb.fallingLight = null
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 내려쬐는 빛! ${mb.enemy.name}의 단체 공격이 ${flTarget.name}에게 쏠린다. (인원 ${karmicMult}명치)` }], 'enemy'))
     } else {
-      targets = alive
-      evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+      // 업인과보: 단체 공격·다중 타겟 영능력을 지정한 한 사람에게만, 인원수만큼 곱해서 쏠리게 한다.
+      const krTarget = mb.karmicTarget && mb.members.find((x) => x.id === mb.karmicTarget && x.status === 'alive' && x.php > 0)
+      if (krTarget) {
+        targets = [krTarget]
+        karmicMult = alive.length
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 업인과보! ${mb.enemy.name}의 단체 공격이 ${krTarget.name}에게 단일로 쏠린다. (인원 ${karmicMult}명치)` }], 'enemy'))
+      } else {
+        targets = alive
+        evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+      }
     }
   } else {
     // 칼: 매 턴마다 (호전×2)% 확률로, 칼을 든 사람이 체력과 상관없이 강제로 표적이 된다.
     const swordDraws = alive.filter((m) => m.fx === 'sword' && rng() * 100 < (m.stats.aggression || 0) * 2)
     const forced = swordDraws.length ? swordDraws[Math.floor(rng() * swordDraws.length)] : null
-    // 내려쬐는 빛: 단일 대상 공격은 무조건 그걸 쓴 사람에게 향한다(칼의 강제 표적보다도 우선한다).
-    const flTarget = mb.fallingLight && mb.members.find((x) => x.id === mb.fallingLight && x.status === 'alive' && x.php > 0)
+    // 내려쬐는 빛: 단일 대상 공격도 무조건 그걸 쓴 사람에게 향한다(칼의 강제 표적보다도 우선한다).
     const pick = flTarget ? { id: flTarget.id } : forced ? { id: forced.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
     targets = [mb.members.find((m) => m.id === pick.id)]
     if (hits) {
+      if (flTarget) mb.fallingLight = null
       evs.push(
         ...addLog(
           mb,

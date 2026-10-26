@@ -59,13 +59,16 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     const t = setTimeout(() => setSpBanner(null), 6200)
     return () => clearTimeout(t)
   }, [spBanner])
-  // 새 라운드가 시작되면 보냈다는 표시를 푼다
+  // 새 라운드가 시작되거나, 서버가 새 로그를 보내오면(의지력 부족 등으로 행동이 무효가 되어 내 턴이 그대로 유지되는
+  // 경우도 포함) 보냈다는 표시를 푼다. view.turn 등은 그대로인데 로그만 새로 온 경우를 놓치면, 유효한 행동을
+  // 고를 때까지 턴은 넘어가지 않지만 '보내는 중' 표시가 풀리지 않아 아무 행동도 못 하게 되는 문제가 있었다.
+  const lastLogId = view.log?.[view.log.length - 1]?.id
   useEffect(() => {
     setSending(false)
     setPsyOpen(false)
     setScanOpen(false)
     setBuffArmed(false)
-  }, [view.round, view.phase, view.turn])
+  }, [view.round, view.phase, view.turn, lastLogId])
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(t)
