@@ -8,7 +8,8 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { START_MONEY, WEAPONS, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import TutorialGearPicker from './components/TutorialGearPicker'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -1182,6 +1183,7 @@ export default function Game({
     setPlayer(next)
   }, [])
 
+  const [tutorialGearPick, setTutorialGearPick] = useState(false)
   const tutorialEnd = useCallback(
     (done) => {
       const cur = playerRef.current
@@ -1192,10 +1194,28 @@ export default function Game({
       playerRef.current = next
       setPlayer(next)
       addLog(done ? '전투 교육 과정을 마쳤다. 체력과 의지력이 들어오기 전 상태로 돌아왔다.' : '전투 교육 과정에서 나왔다. 체력과 의지력이 들어오기 전 상태로 돌아왔다.')
+      // 전투 교육을 마치면(처음이든, 완료한 뒤 다시 보기든) 아직 안 받았다면 무구 하나를 공짜로 고를 수 있게 한다. (v70)
+      if (done && !next.freeGearClaimed) setTutorialGearPick(true)
     },
     [addLog],
   )
   const tutorialDone = useCallback(() => tutorialEnd(true), [tutorialEnd])
+  // 전투 교육 수료 기념 무구 — 딱 한 번만, 하나만 고를 수 있다. 나머지는 전부 정식 경로로 얻어야 한다. (v70)
+  const claimTutorialGear = useCallback(
+    (baseId) => {
+      const cur = playerRef.current
+      if (cur.freeGearClaimed) return setTutorialGearPick(false)
+      const w = WEAPONS.find((w) => w.id === baseId)
+      if (!w) return
+      const { player: withGear } = giveWeapon(cur, baseId)
+      const next = { ...withGear, freeGearClaimed: true }
+      playerRef.current = next
+      setPlayer(next)
+      setTutorialGearPick(false)
+      addLog(`전투 교육 수료 기념으로 ${w.name}을(를) 받았다.`)
+    },
+    [addLog],
+  )
 
   const changeMp = useCallback((delta) => {
     const cur = playerRef.current
@@ -1859,6 +1879,7 @@ export default function Game({
         />
       )}
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+      {tutorialGearPick && !player.freeGearClaimed && <TutorialGearPicker onPick={claimTutorialGear} />}
       {updateNotesOpen && <UpdateNotesModal onClose={() => setUpdateNotesOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}

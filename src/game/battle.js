@@ -196,7 +196,7 @@ export const PSYCHICS = [
     id: 'monkey-paw',
     label: '원숭이 손',
     note: '얻는 만큼 잃는다. 영구적이게 얻고자 한다면 영구적이게 잃는다.',
-    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 의지력은 깎은 체력의 1/2(올림)만큼 소모한다.',
+    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력의 1/2(올림)만큼 소모한다.',
     cond: '(취득 경로 미정 · 박신아가 가지고 있다)',
     owner: 'shinah',
     use: true,
@@ -205,7 +205,7 @@ export const PSYCHICS = [
     id: 'dokkaebi-fire',
     label: '도깨비불',
     note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-    detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 전투·단체전투 모두에서 쓸 수 있다.',
+    detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 전투·단체전투 모두에서 쓸 수 있다.',
     cond: '(취득 경로 미정 · 바리가 전투 교육에서 잠깐 빌려주는 것과 같은 영능력이다)',
     mp: 20,
     use: true,
@@ -236,7 +236,7 @@ export const LENT_FIRE = {
   id: 'dokkaebi-fire',
   label: '도깨비불',
   note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-  detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격.',
+  detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 안목 판정 없이 무조건 명중한다.',
   use: true,
 }
 
@@ -298,14 +298,15 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     const aura = ctx.aura ?? auraOf(stats)
     const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
     const braced = s.queue[0] === 'guard'
+    // 영능력 공격은 안목 판정(빗나감) 없이 무조건 명중한다. (v70)
     let r, buffNote = ''
     if (buffed) {
-      const r1 = attackRoll(stats, rng)
-      const r2 = attackRoll(stats, rng)
+      const r1 = attackRoll(stats, rng, true)
+      const r2 = attackRoll(stats, rng, true)
       r = r1.dmg >= r2.dmg ? r1 : r2
-      buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.miss ? '빗나감' : r1.dmg}, 두 번째 ${r2.miss ? '빗나감' : r2.dmg} 중 더 나은 쪽)`
+      buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.dmg}, 두 번째 ${r2.dmg} 중 더 나은 쪽)`
     } else {
-      r = attackRoll(stats, rng)
+      r = attackRoll(stats, rng, true)
     }
     const extra = amt * 2
     let dmg = 0, note = ''
@@ -328,7 +329,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
       kind: 'player',
       roll: r.hit,
       dmg,
-      text: `✦ 원숭이 손!${buffed ? ' 효험!' : ''} 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. ${r.miss ? `공격이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` : `[안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}`}${buffNote}`,
+      text: `✦ 원숭이 손!${buffed ? ' 효험!' : ''} 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}${buffNote}`,
     }]
     if (s.ehp <= 0) {
       s.over = 'win'
@@ -426,25 +427,24 @@ export function fireTurn(state, ctx, rng = Math.random) {
   // 효험: 쓸 때 걸어 둔 버프가 터지는 이 순간까지 들고 있다가, 여기서 두 번 굴려 더 나은 쪽을 쓴다.
   const buffed = !!s.fireBuffed
   s.fireBuffed = false
+  // 영능력 공격은 안목 판정(빗나감) 없이 무조건 명중한다. (v70)
   let r, buffNote = ''
   if (buffed) {
-    const r1 = attackRoll(stats, rng)
-    const r2 = attackRoll(stats, rng)
+    const r1 = attackRoll(stats, rng, true)
+    const r2 = attackRoll(stats, rng, true)
     r = r1.dmg >= r2.dmg ? r1 : r2
-    buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.miss ? '빗나감' : r1.dmg}, 두 번째 ${r2.miss ? '빗나감' : r2.dmg} 중 더 나은 쪽)`
+    buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.dmg}, 두 번째 ${r2.dmg} 중 더 나은 쪽)`
   } else {
-    r = attackRoll(stats, rng)
+    r = attackRoll(stats, rng, true)
   }
   const mult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
-  const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
+  const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
   const cr = fxCrit(fb.base * 4 * mult, stats, rng)
   let dmg = cr.dmg
-  if (!r.miss && braced) dmg = Math.ceil(dmg / 2)
+  if (braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
-    r.miss
-      ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발…${buffed ? ' 효험!' : ''} 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]${buffNote}` }
-      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
+    { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'
@@ -769,14 +769,23 @@ export function enemyTurn(state, ctx, rng = Math.random) {
       }
     }
     let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.5) : raw // 철퇴: 받는 피해 ×1.5
+    // 칼: 막기 성공 여부와 상관없이, 공격 대상이 될 때마다(실제로 공격이 들어올 때마다) 반격한다. (v70)
+    const sword = stats.fx === 'sword'
+    let swordNote = ''
+    if (sword) {
+      const se = die(stats.aggression, rng)
+      let swordCounter = se * 2
+      if (aura > 0) swordCounter += die(aura, rng)
+      s.ehp = Math.max(0, s.ehp - swordCounter)
+      swordNote = ` (칼의 반격: [호전 d${stats.aggression} = ${se}] ${swordCounter} 피해)`
+    }
     if (blockable && s.guard) {
       const reduced = Math.ceil(dmg / (kind === 'smash' ? 3 : 2))
       const extra = die(stats.aggression, rng)
       dmg = Math.max(0, reduced - extra)
       const strong = stats.aggression > enemy.atk
       const crit = extra === stats.aggression
-      const sword = stats.fx === 'sword' // 칼: 모든 방어에 반격
-      if (strong || crit || sword) {
+      if (strong || crit) {
         let counter = extra * 2
         let auraNote = ''
         if (aura > 0) {
@@ -785,12 +794,12 @@ export function enemyTurn(state, ctx, rng = Math.random) {
           auraNote = ` (악기 +${a})`
         }
         s.ehp = Math.max(0, s.ehp - counter)
-        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해!${strong ? '' : sword && !crit ? ' (칼의 반격)' : ' (최대 굴림)'}${auraNote}` })
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해! (최대 굴림)${auraNote}${swordNote}` })
       } else {
-        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다. [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받았다.` })
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다. [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받았다.${swordNote}` })
       }
     } else {
-      ev.push({ kind: 'enemy', dmg, text: `${label}! ${dmg} 피해를 입었다.` })
+      ev.push({ kind: 'enemy', dmg, text: `${label}! ${dmg} 피해를 입었다.${swordNote}` })
     }
     s.php -= dmg
   }
