@@ -9,6 +9,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
@@ -2380,7 +2381,11 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.json': 'application/json',
   '.woff2': 'font/woff2',
+  '.webp': 'image/webp', // (v69) 캐릭터 사진들이 이 포맷이라 빠져 있으면 안 됐다
+  '.mp3': 'audio/mpeg', // (v69) 배경음악 파일 — 빠져 있어서 지금까지 전부 application/octet-stream 으로 나가고 있었다
 }
+// (v69) 텍스트 계열만 gzip 으로 다시 압축한다 — mp3/png/webp 는 이미 압축된 포맷이라 다시 묶어도 거의 안 줄고 CPU만 쓴다.
+const COMPRESSIBLE_EXT = new Set(['.html', '.js', '.css', '.svg', '.json'])
 function serveStatic(req, res, url) {
   let rel = decodeURIComponent(url.pathname)
   if (rel.endsWith('/')) rel += 'index.html'
@@ -2391,8 +2396,37 @@ function serveStatic(req, res, url) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
     return res.end('dist 가 없습니다. 먼저 `npm run build` 를 실행하세요.')
   }
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' })
-  fs.createReadStream(file).pipe(res)
+  // (v69) 캐싱 헤더가 하나도 없어서, 다시 들어올 때마다(새로고침·재접속 등) 자바스크립트 번들·이미지·배경음악을
+  // 매번 통째로 다시 내려받고 있었다. 이게 적지 않은 서버 트래픽의 원인이었던 것으로 보인다.
+  //  - /assets/ 밑은 vite 가 파일명에 내용 해시를 넣어 빌드하므로(내용이 바뀌면 파일명도 바뀜) 영구 캐싱해도 안전하다.
+  //  - 그 외(index.html 등)는 매번 서버에 물어보되, ETag/Last-Modified 로 안 바뀌었으면 본문 없이 304만 보낸다.
+  const servedRel = file.slice(DIST.length).split(path.sep).join('/')
+  const isHashedAsset = servedRel.startsWith('/assets/')
+  const ext = path.extname(file)
+  const stat = fs.statSync(file)
+  const etag = `"${stat.size.toString(36)}-${Math.floor(stat.mtimeMs).toString(36)}"`
+  res.setHeader('ETag', etag)
+  res.setHeader('Last-Modified', stat.mtime.toUTCString())
+  res.setHeader('Cache-Control', isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache')
+  const inm = req.headers['if-none-match']
+  const ims = req.headers['if-modified-since']
+  const notModified = (inm && inm === etag) || (!inm && ims && new Date(ims).getTime() >= Math.floor(stat.mtimeMs / 1000) * 1000)
+  if (notModified) {
+    res.statusCode = 304
+    return res.end()
+  }
+  res.statusCode = 200
+  res.setHeader('Content-Type', MIME[ext] ?? 'application/octet-stream')
+  // (v69) 압축도 전혀 안 하고 있어서, 자바스크립트·CSS 같은 텍스트 파일이 원본 그대로(보통 gzip 대비 3~4배 더 큰 용량으로) 나가고 있었다.
+  const acceptsGzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '')
+  if (acceptsGzip && COMPRESSIBLE_EXT.has(ext) && stat.size > 400) {
+    res.setHeader('Content-Encoding', 'gzip')
+    res.setHeader('Vary', 'Accept-Encoding')
+    fs.createReadStream(file).pipe(zlib.createGzip()).pipe(res)
+  } else {
+    res.setHeader('Content-Length', stat.size)
+    fs.createReadStream(file).pipe(res)
+  }
 }
 
 const server = http.createServer((req, res) => {
