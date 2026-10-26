@@ -176,8 +176,8 @@ export const PSYCHICS = [
   {
     id: 'echo-form',
     label: '형상 기억',
-    note: '지금까지의 전투에서 이미 사용을 마친 아이템 하나를 재활용해서, 전투 중 다시 쓸 수 있게 한다.',
-    detail: '의지력 소모량은 재활용하는 아이템의 가격과 같다. 해당 전투에서 쓰지 않고 넘어가면 전투가 끝나는 순간 사라진다.',
+    note: '가장 안전하고 평화로웠던 기억을 떠올려 구현화시킨다.',
+    detail: '의지력을 (50-인내-절제+호전)만큼 소모한다. 자신 또는 일행 중 한 명의 체력을 무조건 100으로 회복시킨다.',
     cond: '(취득 경로 미정)',
     use: true,
   },
@@ -195,7 +195,7 @@ export const PSYCHICS = [
     id: 'monkey-paw',
     label: '원숭이 손',
     note: '얻는 만큼 잃는다. 영구적이게 얻고자 한다면 영구적이게 잃는다.',
-    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더해 공격한다. 의지력은 깎은 체력의 1/2(올림)만큼 소모한다.',
+    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 의지력은 깎은 체력의 1/2(올림)만큼 소모한다.',
     cond: '(취득 경로 미정 · 박신아가 가지고 있다)',
     owner: 'shinah',
     use: true,
@@ -290,14 +290,21 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
       const cr = fxCrit(fb.base * boostMult, stats, rng)
       dmg = cr.dmg
       note = `${noteOf(fb.notes)}${cr.note}`
-      if (braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
-      s.ehp = Math.max(0, s.ehp - dmg)
     }
+    // 부적 1회치 피해를 추가로 더한다 — 실제 부적을 소모하지는 않고, 그만큼의 피해를 따로 한 번 굴려서 더하는 것.
+    // (부적은 빗나감이 없으므로, 위 일반 공격이 빗나가도 이 몫만큼은 반드시 들어간다)
+    const cpr = attackRoll(stats, rng, true)
+    const cfb = fxBase(cpr.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
+    const ccr = fxCrit(cfb.base * 2, stats, rng)
+    const charmDmg = ccr.dmg
+    dmg += charmDmg
+    if (braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
+    s.ehp = Math.max(0, s.ehp - dmg)
     const ev = [{
       kind: 'player',
       roll: r.hit,
       dmg,
-      text: `✦ 원숭이 손! 체력 ${amt}을 깎아 공격력 +${extra}, 의지력 ${mpCost} 소모. ${r.miss ? `공격이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` : `[안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}`}`,
+      text: `✦ 원숭이 손! 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. ${r.miss ? `공격이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` : `[안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}`}`,
     }]
     if (s.ehp <= 0) {
       s.over = 'win'
@@ -306,15 +313,21 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     return { state: s, events: ev, mpCost }
   }
   if (id === 'echo-form') {
-    const itemId = ctx.recycleItemId
-    const price = Math.max(0, Math.floor(ctx.recyclePrice ?? 0))
-    if (!itemId) return { state, events: [{ kind: 'warn', text: '재활용할 아이템을 먼저 골라야 한다.' }], mpCost: 0, invalid: true }
-    if (price > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${price}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    // 의지력 소모 = 50 - 인내 - 절제 + 호전 (최소 0, 지팡이 할인 등 기존 보정은 그대로 적용).
+    const rawCost = Math.max(0, 50 - stats.endurance - stats.control + stats.aggression)
+    const shortfall = needMp(rawCost)
+    if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
+    const cost = mpCostOf(stats, rawCost)
+    // target 이 없거나(1인 전투) 자기 자신이면 그대로 자기 체력을 100으로; 일행 중 다른 사람이면
+    // 그 사람의 체력을 바꾸는 건 이 함수가 알 수 없는 영역이라(파티원 상태는 mbattle.js 쪽에 있다),
+    // healTarget 을 반환해서 mbattle.js가 그 대상의 체력을 직접 100으로 맞추게 한다.
+    const healSelf = !ctx.target || ctx.target === ctx.selfId
+    if (healSelf) s.php = 100
     return {
       state: s,
-      events: [{ kind: 'player', text: `✦ 형상 기억! 의지력 ${price}을 써서, 이미 쓴 아이템 하나를 다시 쓸 수 있게 했다.` }],
-      mpCost: price,
-      recycleItemId: itemId,
+      events: [{ kind: 'player', text: `✦ 형상 기억! 가장 안전하고 평화로웠던 기억을 떠올려, 의지력 ${cost}을 써서 ${healSelf ? '자신의' : '일행의'} 체력을 100으로 되돌렸다.` }],
+      mpCost: cost,
+      healTarget: ctx.target ?? ctx.selfId,
     }
   }
   if (id === 'falling-light') {
@@ -623,7 +636,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   const aura = ctx.aura ?? auraOf(stats)
   const braced = s.queue[0] === 'guard'
   const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
-  const mult = boostMult // 마이쭈: 이번 턴 피해 2배, 폭죽: 3배
+  const mult = boostMult // 마이쭈: 이번 턴 피해 2배, 폭죽: 2배
   const bn = ctx.boost ? ` (×${boostMult})` : ''
 
   const strike = (r, label = '공격') => {

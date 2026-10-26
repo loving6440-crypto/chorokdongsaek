@@ -205,11 +205,9 @@ export function submit(mb, id, act) {
     scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined,
     psychic: act.psychic,
     buff,
-    // 원숭이 손: 깎을 체력. 형상 기억: 재활용할 아이템과 그 가격. 업인과보: 지정한 대상.
+    // 원숭이 손: 깎을 체력. 업인과보·형상 기억: 지정한 대상(형상 기억은 자신 또는 치유할 일행).
     sacrifice: a === 'psychic' && act.psychic === 'monkey-paw' ? Math.max(0, Math.floor(act.sacrifice ?? 0)) : undefined,
-    recycleItemId: a === 'psychic' && act.psychic === 'echo-form' && typeof act.recycleItemId === 'string' ? act.recycleItemId : undefined,
-    recyclePrice: a === 'psychic' && act.psychic === 'echo-form' ? Math.max(0, Math.floor(act.recyclePrice ?? 0)) : undefined,
-    target: a === 'psychic' && act.psychic === 'karmic-recompense' && typeof act.target === 'string' ? act.target : undefined,
+    target: a === 'psychic' && (act.psychic === 'karmic-recompense' || act.psychic === 'echo-form') && typeof act.target === 'string' ? act.target : undefined,
   }
   return { ok: true }
 }
@@ -260,7 +258,7 @@ function useItemCore(mb, id, item, targetId) {
     addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.` }], m.id)
     return { ok: true }
   }
-  // 폭죽: 자신을 제외한 일행 전원 다음 공격력 ×3, 사용한 자신은 2턴 행동불능(자신에게는 ×3이 적용되지 않는다).
+  // 폭죽: 자신을 제외한 일행 전원 다음 공격력 ×2, 사용한 자신은 2턴 행동불능(자신에게는 ×2가 적용되지 않는다).
   if (e.partyBoost) {
     const alive = mb.members.filter((x) => x.status === 'alive')
     for (const x of alive) if (x.id !== m.id) x.boost = e.partyBoost
@@ -381,12 +379,12 @@ export function resolveTurn(mb, rng = Math.random) {
   let r
   let targetId = null
   if (act.action === 'psychic') {
-    // 업인과보의 대상: 지정했고 아직 살아 있으면 그 사람, 아니면 자기 자신.
+    // 업인과보·형상 기억의 대상: 지정했고 아직 살아 있으면 그 사람, 아니면 자기 자신.
     targetId = act.target && mb.members.some((x) => x.id === act.target && x.status === 'alive') ? act.target : m.id
     r = psychicTurn(
       v,
       act.psychic ?? 'survival',
-      { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff, sacrifice: act.sacrifice, recycleItemId: act.recycleItemId, recyclePrice: act.recyclePrice, target: targetId },
+      { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff, sacrifice: act.sacrifice, target: targetId, selfId: m.id },
       rng,
     )
   } else {
@@ -400,9 +398,17 @@ export function resolveTurn(mb, rng = Math.random) {
     return evs
   }
   if (act.action === 'psychic') {
-    if (r.state.fallingLight) mb.fallingLight = m.id // 일행 전체에 한 번만(쓴 사람에게 쏠린다)
+    // 버그 수정: r.state.fallingLight 는 '이번 턴에 내려쬐는 빛을 썼다'가 아니라 '일행 중 누군가 이미 썼다'를 가리키는 값이라
+    // (viewOfMember 가 매번 그렇게 내려준다), 이 조건만으로 분기하면 falling-light 를 쓴 사람이 아니라 그 뒤에 다른
+    // 영능력을 쓴 사람에게로 계속 표적이 다시 옮겨가 버렸다. 실제로 지금 쓴 영능력이 falling-light 일 때만 갱신한다.
+    if (act.psychic === 'falling-light' && r.state.fallingLight) mb.fallingLight = m.id // 일행 전체에 한 번만(쓴 사람에게 쏠린다)
     if (r.state.karmicTarget) mb.karmicTarget = targetId
-    if (r.recycleItemId && mb.enemy.boss) m.bring = { ...m.bring, [r.recycleItemId]: (m.bring?.[r.recycleItemId] || 0) + 1 } // 보스 전투: 가져온 수량 한도를 1개 되살린다
+    // 형상 기억: 자기 자신이면 r.state.php 가 이미 100으로 반영되어 아래에서 그대로 적용되지만,
+    // 다른 일행을 대상으로 골랐으면 그 사람의 체력은 이 함수가 알지 못하므로 여기서 직접 100으로 맞춘다.
+    if (r.healTarget && r.healTarget !== m.id) {
+      const healed = mb.members.find((x) => x.id === r.healTarget && x.status === 'alive')
+      if (healed) healed.php = Math.min(healed.phpMax, 100)
+    }
   }
   if (r.boostUsed) m.boost = false
   m.mp = Math.max(0, m.mp - (r.mpCost || 0))

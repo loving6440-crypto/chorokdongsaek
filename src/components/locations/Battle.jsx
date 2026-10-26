@@ -24,7 +24,6 @@ import {
   partyLabel,
 } from '../../game/battle'
 import { slowFightMinutes, SLOW_FIGHT_COST_PER_SPIRIT } from '../../game/progress'
-import { itemOf } from '../../game/items'
 
 const leftTimeText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -60,7 +59,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const [scanOpen, setScanOpen] = useState(false) // 간파: 의지력을 얼마나 쓸지 고르는 칸
   const [scanN, setScanN] = useState(1)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
-  const [echoItemId, setEchoItemId] = useState('') // 형상 기억: 재활용할 아이템
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
   useEffect(() => {
     if (!spBanner) return undefined
@@ -344,7 +342,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       onBoostUsed?.()
     }
     spend(-r.mpCost)
-    if (r.recycleItemId) onGiveItem?.(r.recycleItemId, 1)
     const bell = applyBell(r.state)
     setB(bell.state)
     push([...r.events, ...bell.events])
@@ -755,38 +752,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
                           <span className="text-[11px] text-paper/60">의지력 {Math.ceil(Math.min(pawMax, pawAmt) / 2)} 소모</span>
                         </div>
                         <button type="button" data-psychic-use="monkey-paw" disabled={!myTurn} onClick={() => usePsychic('monkey-paw', { sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
-                          사용
-                        </button>
-                      </>
-                    ) : s.id === 'echo-form' ? (
-                      <>
-                        {usedItems.length ? (
-                          <select
-                            data-echo-item-pick
-                            aria-label="재활용할 아이템"
-                            value={echoItemId || usedItems[0]}
-                            onChange={(e) => setEchoItemId(e.target.value)}
-                            className="mt-2 w-full rounded-lg border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper"
-                          >
-                            {usedItems.map((id) => {
-                              const it = itemOf(id)
-                              return (
-                                <option key={id} value={id}>
-                                  {it?.name ?? id} (의지력 {it?.price ?? 0})
-                                </option>
-                              )
-                            })}
-                          </select>
-                        ) : (
-                          <p className="mt-2 text-[11px] text-paper/50">이번 전투에서 아직 쓴 아이템이 없다.</p>
-                        )}
-                        <button
-                          type="button"
-                          data-psychic-use="echo-form"
-                          disabled={!myTurn || !usedItems.length}
-                          onClick={() => usePsychic('echo-form', { recycleItemId: echoItemId || usedItems[0], recyclePrice: itemOf(echoItemId || usedItems[0])?.price ?? 0 })}
-                          className="flat-btn mt-2 justify-center disabled:opacity-40"
-                        >
                           사용
                         </button>
                       </>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
 import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, ownedPsychics, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
-import { itemOf } from '../../game/items'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 import { Bar, vague } from './battleUi'
@@ -23,7 +22,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const [scanN, setScanN] = useState(1)
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능에 적용)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
-  const [echoItemId, setEchoItemId] = useState('') // 형상 기억: 재활용할 아이템
+  const [echoTarget, setEchoTarget] = useState(meId) // 형상 기억: 체력을 회복시킬 대상(기본값은 자기 자신)
   const [karmicTarget, setKarmicTarget] = useState(meId) // 업인과보: 지정할 대상(기본값은 자기 자신)
   const [sending, setSending] = useState(false)
   const [spBanner, setSpBanner] = useState(null)
@@ -341,7 +340,6 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
             const mine = ownedPsychics(psychics)
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
             const pawMax = Math.max(1, Math.floor(me?.php ?? 1) - 1)
-            const usedItems = me?.usedItems ?? []
             const aliveMates = view.members.filter((x) => x.status === 'alive')
             return (
               <ul className="mt-2 space-y-2">
@@ -380,31 +378,24 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       </>
                     ) : s.id === 'echo-form' ? (
                       <>
-                        {usedItems.length ? (
-                          <select
-                            data-echo-item-pick
-                            aria-label="재활용할 아이템"
-                            value={echoItemId || usedItems[0]}
-                            onChange={(e) => setEchoItemId(e.target.value)}
-                            className="mt-2 w-full rounded-lg border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper"
-                          >
-                            {usedItems.map((id) => {
-                              const it = itemOf(id)
-                              return (
-                                <option key={id} value={id}>
-                                  {it?.name ?? id} (의지력 {it?.price ?? 0})
-                                </option>
-                              )
-                            })}
-                          </select>
-                        ) : (
-                          <p className="mt-2 text-[11px] text-paper/50">이번 전투에서 아직 쓴 아이템이 없다.</p>
-                        )}
+                        <select
+                          data-echo-target-pick
+                          aria-label="체력을 회복시킬 대상"
+                          value={echoTarget || meId}
+                          onChange={(e) => setEchoTarget(e.target.value)}
+                          className="mt-2 w-full rounded-lg border border-edge/25 bg-ink-muted/60 px-2 py-1.5 text-sm text-paper"
+                        >
+                          {aliveMates.map((x) => (
+                            <option key={x.id} value={x.id}>
+                              {x.name}{x.id === meId ? ' (나)' : ''}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
                           data-psychic-use="echo-form"
-                          disabled={!canAct || !usedItems.length}
-                          onClick={() => send({ action: 'psychic', psychic: 'echo-form', recycleItemId: echoItemId || usedItems[0], recyclePrice: itemOf(echoItemId || usedItems[0])?.price ?? 0 })}
+                          disabled={!canAct}
+                          onClick={() => send({ action: 'psychic', psychic: 'echo-form', target: echoTarget || meId })}
                           className="flat-btn mt-2 justify-center disabled:opacity-40"
                         >
                           사용
