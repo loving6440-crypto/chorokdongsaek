@@ -46,6 +46,7 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     bound: false,
     stun: 0, // 남은 행동불능 턴 수(0이면 정상). 폭죽 등으로 걸린다.
     fire: 0, // 도깨비불: 기를 모으는 중 남은 자동 턴 수(0이면 정상). 쓰고 나면 다음 턴들은 입력 없이 자동으로 진행된다.
+    fireBuffed: false, // 도깨비불을 효험과 함께 썼는지 — 터지는 순간(fireTurn)까지 들고 있다가 그때 적용하고 꺼진다.
     curse: 0,
     survived: 0,
     myTurns: 0, // 지금까지 실제로 행동(일반 공격·부적·영능력 등)한 횟수 — '맨 첫 턴' 제한이 있는 영능력(내려쬐는 빛·업인과보)에 쓴다.
@@ -117,6 +118,7 @@ const viewOfMember = (mb, m) => ({
   party: true,
   over: null,
   fire: m.fire || 0,
+  fireBuffed: !!m.fireBuffed,
 })
 
 /** 시작 선공 판정: 일행에서 가장 신속한 사람의 굴림. 상대가 먼저면 첫 라운드 앞에 상대가 한 번 움직인다. */
@@ -193,7 +195,8 @@ export function submit(mb, id, act) {
   if (!['attack', 'guard', 'charm', 'scan', 'psychic'].includes(a)) return { error: 'bad-action' }
   // 효험(모두가 가진 영능력): 일반 공격·부적·생존본능과 함께, 토글로 켜서 같이 제출한다.
   // 부적처럼 의지력이 모자라도(0까지) 쓸 수 있으므로 제출 자체를 막지는 않는다.
-  const buffable = a === 'attack' || a === 'charm' || (a === 'psychic' && act.psychic === 'survival')
+  // 원숭이 손·도깨비불처럼 영능력 자체가 공격력을 산출하는 경우에도 효험이 적용된다.
+  const buffable = a === 'attack' || a === 'charm' || (a === 'psychic' && ['survival', 'monkey-paw', 'dokkaebi-fire'].includes(act.psychic))
   const buff = !!act?.buff && buffable
   // 의지력이 모자라면 부적 말고는 쓸 수 없다.
   if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
@@ -259,13 +262,22 @@ function useItemCore(mb, id, item, targetId) {
     return { ok: true }
   }
   // 폭죽: 자신을 제외한 일행 전원 다음 공격력 ×2, 사용한 자신은 2턴 행동불능(자신에게는 ×2가 적용되지 않는다).
+  // 사람에게 건네는 공격력 버프(마이쮸·폭죽)는 한 번에 하나만 걸릴 수 있어서, 이미 걸려 있는 사람은 건너뛴다.
   if (e.partyBoost) {
     const alive = mb.members.filter((x) => x.status === 'alive')
-    for (const x of alive) if (x.id !== m.id) x.boost = e.partyBoost
+    let skipped = 0
+    for (const x of alive) {
+      if (x.id === m.id) continue
+      if (x.boost) { skipped += 1; continue }
+      x.boost = e.partyBoost
+    }
     if (e.selfStun) m.stun = Math.max(m.stun || 0, e.selfStun)
     addLog(
       mb,
-      [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 터뜨렸다! 자신을 제외한 일행 전원의 다음 공격력이 ×${e.partyBoost}가 된다. ${m.name}은 ${e.selfStun}턴 동안 움직일 수 없다.` }],
+      [{
+        kind: 'info',
+        text: `${m.name}이(가) ${item.name}을(를) 터뜨렸다! 자신을 제외한 일행 전원의 다음 공격력이 ×${e.partyBoost}가 된다. ${m.name}은 ${e.selfStun}턴 동안 움직일 수 없다.${skipped ? ' (이미 다른 공격력 버프가 걸려 있던 일행은 제외됐다)' : ''}`,
+      }],
       m.id,
     )
     return { ok: true }
@@ -312,8 +324,12 @@ export function resolveTurn(mb, rng = Math.random) {
   // 도깨비불을 쓴 상태라면 내 턴은 자동으로 기를 모으거나(마지막엔) 터뜨린다 — 입력을 기다리지 않는다.
   if (m.fire > 0) {
     const v0 = viewOfMember(mb, m)
-    const f = fireTurn(v0, { stats: m.stats, mp: m.mp, boost: m.boost }, rng)
+    // 악기(무구 버프): 일행 전원의 공격·반격에 붙는 보정이라, 터지는 순간에도 똑같이 더해 줘야 한다.
+    const fireAura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0)
+    const f = fireTurn(v0, { stats: m.stats, mp: m.mp, boost: m.boost, aura: fireAura }, rng)
     m.fire = f.state.fire || 0
+    m.fireBuffed = !!f.state.fireBuffed
+    if (f.boostUsed) m.boost = false // 터지는 순간 공격력 버프(마이쮸·폭죽)를 다 썼으니 끈다 — 이후 행동에 또 적용되지 않게.
     m.guard = false
     mb.ehp = f.state.ehp
     m.php = Math.max(0, Math.min(m.phpMax, f.state.php))
@@ -419,6 +435,7 @@ export function resolveTurn(mb, rng = Math.random) {
   m.charms = r.state.charms
   m.bound = r.state.bound
   m.fire = r.state.fire || 0 // 도깨비불을 썼다면 여기서 세팅되어, 다음 턴부터 자동으로 진행된다
+  m.fireBuffed = !!r.state.fireBuffed // 도깨비불을 효험과 함께 썼다면, 터지는 순간까지 들고 있는다
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''

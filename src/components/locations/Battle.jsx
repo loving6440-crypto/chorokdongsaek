@@ -87,7 +87,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   useEffect(() => () => { bgmCb.current?.(false); if (phaseRef.current === 'tutorial') endRef.current?.(false) }, [])
   const boostRef = useRef(false)
   boostRef.current = boostOn
-  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능에 적용)
+  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
 
   const activeCb = useRef(onActive)
   activeCb.current = onActive
@@ -259,6 +259,10 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         setBusy(true)
         timer.current = setTimeout(() => {
           const f = fireTurn(state, { stats, mp: mpRef.current, boost: boostRef.current }, Math.random)
+          if (f.boostUsed) {
+            boostRef.current = false
+            onBoostUsed?.()
+          }
           const bell = applyBell(f.state)
           setB(bell.state)
           push([...f.events, ...bell.events])
@@ -280,7 +284,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
         resolve(state, 'attack')
       }, 800)
     },
-    [stats, push, resolve, finish, runEnemy],
+    [stats, push, resolve, finish, runEnemy, onBoostUsed],
   )
   beginRef.current = beginTurn
 
@@ -329,7 +333,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   const usePsychic = (id, extra = {}) => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
-    const buffed = buffArmed && id === 'survival'
+    const buffed = buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
     const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current, buff: buffed, ...extra }, Math.random)
     if (r.invalid) {
       if (r.events?.length) push(r.events)

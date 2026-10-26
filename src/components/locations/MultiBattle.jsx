@@ -20,7 +20,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const [psyOpen, setPsyOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
-  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능에 적용)
+  const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [echoTarget, setEchoTarget] = useState(meId) // 형상 기억: 체력을 회복시킬 대상(기본값은 자기 자신)
   const [karmicTarget, setKarmicTarget] = useState(meId) // 업인과보: 지정할 대상(기본값은 자기 자신)
@@ -87,7 +87,11 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
 
   const send = async (act) => {
     if (!canAct) return
-    const buffed = buffArmed && (act.action === 'attack' || act.action === 'charm' || (act.action === 'psychic' && act.psychic === 'survival'))
+    const buffed =
+      buffArmed &&
+      (act.action === 'attack' ||
+        act.action === 'charm' ||
+        (act.action === 'psychic' && (act.psychic === 'survival' || act.psychic === 'monkey-paw' || act.psychic === 'dokkaebi-fire')))
     setSending(true)
     setPsyOpen(false)
     setScanOpen(false)

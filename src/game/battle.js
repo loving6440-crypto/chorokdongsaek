@@ -149,8 +149,9 @@ export const PSYCHICS = [
   {
     id: 'buff',
     label: '효험',
-    note: '모두가 태어날 때부터 가지고 있는 영능력. 자신의 메인 턴에 앞서 켜 두면, 그 다음에 고르는 일반 공격·부적·영능력(생존본능)이 자동으로 두 번 굴러 더 나은 쪽으로 들어간다.',
-    detail: '토글을 켜도 턴을 쓰지 않는다. 실제로 공격을 고르는 순간 의지력 10(모자라면 0까지)이 들고, 토글은 그때 꺼진다.',
+    note: '모두가 태어날 때부터 가지고 있는 영능력. 자신의 메인 턴에 앞서 켜 두면, 그 다음에 고르는 일반 공격·부적·영능력(생존본능·원숭이 손·도깨비불)이 자동으로 두 번 굴러 더 나은 쪽으로 들어간다.',
+    detail:
+      '토글을 켜도 턴을 쓰지 않는다. 실제로 공격을 고르는 순간 의지력 10(모자라면 0까지)이 들고, 토글은 그때 꺼진다. 도깨비불처럼 효과가 몇 턴 뒤에 터지는 영능력은, 걸어 둔 효험이 터지는 순간까지 그대로 유지된다.',
     cond: '처음부터 가지고 있다.',
     default: true,
     toggle: true,
@@ -204,9 +205,9 @@ export const PSYCHICS = [
     id: 'dokkaebi-fire',
     label: '도깨비불',
     note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-    detail: '쓴 턴부터 3턴 동안 행동 불가(의지력 소모 없음) → 이어지는 턴에 자동으로 4배 공격. 전투·단체전투 모두에서 쓸 수 있다.',
+    detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 전투·단체전투 모두에서 쓸 수 있다.',
     cond: '(취득 경로 미정 · 바리가 전투 교육에서 잠깐 빌려주는 것과 같은 영능력이다)',
-    mp: 0,
+    mp: 20,
     use: true,
   },
   {
@@ -235,7 +236,7 @@ export const LENT_FIRE = {
   id: 'dokkaebi-fire',
   label: '도깨비불',
   note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-  detail: '쓴 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격.',
+  detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격.',
   use: true,
 }
 
@@ -254,8 +255,21 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     return need > mpNow0 ? need : 0
   }
   if (id === 'dokkaebi-fire') {
+    const buffed = !!ctx.buff
+    const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mpNow0) : 0
+    const fireCost = mpCostOf(stats, 20)
+    const mpCost = fireCost + buffCost
+    if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     s.fire = FIRE_TURNS
-    return { state: s, events: [{ kind: 'warn', text: `✦ 도깨비불! 푸른 불꽃에 기를 모은다… (1/${FIRE_TURNS}) 앞으로 ${FIRE_TURNS - 1}턴은 아무 행동도 할 수 없다.` }], mpCost: 0, fled: false, boostUsed: false }
+    // 효험은 지금 거는 것이지만, 실제로 공격력을 산출하는 건 몇 턴 뒤의 폭발(fireTurn) 시점이라 그때까지 들고 있는다.
+    s.fireBuffed = buffed
+    return {
+      state: s,
+      events: [{ kind: 'warn', text: `✦ 도깨비불!${buffed ? ' 효험!' : ''} 의지력 ${mpCost}을 써서 푸른 불꽃에 기를 모은다…${buffed ? ' (터질 때 효험이 적용된다)' : ''} (1/${FIRE_TURNS}) 앞으로 ${FIRE_TURNS - 1}턴은 아무 행동도 할 수 없다.` }],
+      mpCost,
+      fled: false,
+      boostUsed: false,
+    }
   }
   if (id === 'cotton-mist') {
     const shortfall = needMp(20)
@@ -276,13 +290,23 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     const maxSac = Math.max(0, curPhp - 1)
     const amt = Math.max(0, Math.min(maxSac, Math.floor(ctx.sacrifice ?? 0)))
     if (amt <= 0) return { state, events: [{ kind: 'warn', text: '깎을 체력이 없다! (체력은 0 이하로 내려갈 수 없다)' }], mpCost: 0, invalid: true }
-    const mpCost = Math.ceil(amt / 2)
+    const buffed = !!ctx.buff
+    const buffCost = buffed ? Math.min(mpCostOf(stats, BUFF_COST), mpNow0) : 0
+    const mpCost = Math.ceil(amt / 2) + buffCost
     if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     s.php = curPhp - amt
     const aura = ctx.aura ?? auraOf(stats)
     const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
     const braced = s.queue[0] === 'guard'
-    const r = attackRoll(stats, rng)
+    let r, buffNote = ''
+    if (buffed) {
+      const r1 = attackRoll(stats, rng)
+      const r2 = attackRoll(stats, rng)
+      r = r1.dmg >= r2.dmg ? r1 : r2
+      buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.miss ? '빗나감' : r1.dmg}, 두 번째 ${r2.miss ? '빗나감' : r2.dmg} 중 더 나은 쪽)`
+    } else {
+      r = attackRoll(stats, rng)
+    }
     const extra = amt * 2
     let dmg = 0, note = ''
     if (!r.miss) {
@@ -304,13 +328,13 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
       kind: 'player',
       roll: r.hit,
       dmg,
-      text: `✦ 원숭이 손! 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. ${r.miss ? `공격이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` : `[안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}`}`,
+      text: `✦ 원숭이 손!${buffed ? ' 효험!' : ''} 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. ${r.miss ? `공격이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` : `[안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}`}${buffNote}`,
     }]
     if (s.ehp <= 0) {
       s.over = 'win'
       ev.push({ kind: 'end', text: `${s.enemy.name}이(가) 쓰러졌다.` })
     }
-    return { state: s, events: ev, mpCost }
+    return { state: s, events: ev, mpCost, boostUsed: !!ctx.boost }
   }
   if (id === 'echo-form') {
     // 의지력 소모 = 50 - 인내 - 절제 + 호전 (최소 0, 지팡이 할인 등 기존 보정은 그대로 적용).
@@ -401,8 +425,19 @@ export function fireTurn(state, ctx, rng = Math.random) {
   }
   s.fire = 0
   const braced = s.queue[0] === 'guard'
-  const r = attackRoll(stats, rng)
-  const mult = ctx.boost ? 2 : 1
+  // 효험: 쓸 때 걸어 둔 버프가 터지는 이 순간까지 들고 있다가, 여기서 두 번 굴려 더 나은 쪽을 쓴다.
+  const buffed = !!s.fireBuffed
+  s.fireBuffed = false
+  let r, buffNote = ''
+  if (buffed) {
+    const r1 = attackRoll(stats, rng)
+    const r2 = attackRoll(stats, rng)
+    r = r1.dmg >= r2.dmg ? r1 : r2
+    buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.miss ? '빗나감' : r1.dmg}, 두 번째 ${r2.miss ? '빗나감' : r2.dmg} 중 더 나은 쪽)`
+  } else {
+    r = attackRoll(stats, rng)
+  }
+  const mult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
   const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
   const cr = fxCrit(fb.base * 4 * mult, stats, rng)
   let dmg = cr.dmg
@@ -410,14 +445,14 @@ export function fireTurn(state, ctx, rng = Math.random) {
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
     r.miss
-      ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발… 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]` }
-      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}` },
+      ? { kind: 'player', roll: r.hit, dmg: 0, text: `✦ 도깨비불 폭발…${buffed ? ' 효험!' : ''} 하지만 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]${buffNote}` }
+      : { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'
     ev.push({ kind: 'end', text: `${s.enemy.name}이(가) 쓰러졌다.` })
   }
-  return { state: s, events: ev, done: true }
+  return { state: s, events: ev, done: true, boostUsed: !!ctx.boost }
 }
 
 export const CHARMS = 3

@@ -448,7 +448,9 @@ export default function Tutorial({ stats, hp, hpMax, mp, onMp, onHp, itemsUsed =
       onHp?.(st.php)
       return st
     }
-    const first = psychicTurn(bRef.current, 'dokkaebi-fire', { stats, mp: mpRef.current })
+    // 연습 시연이라 실제 의지력을 쓰지는 않지만(아래에서 onMp를 부르지 않음), 영능력 자체가 20을 요구하므로
+    // 시연이 의지력 부족으로 실패하지 않도록 최소 20은 있다고 치고 보여준다.
+    const first = psychicTurn(bRef.current, 'dokkaebi-fire', { stats, mp: Math.max(mpRef.current, 20) })
     let s = first.state
     setB(s)
     push(first.events)
