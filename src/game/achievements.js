@@ -39,8 +39,8 @@ export const ACHIEVEMENTS = [
   {
     id: 'model-student',
     name: '나는야 모범생',
-    desc: '한 주 내내 어느 수업에서건 주간 랭킹 1위 자리를 지켜냈다. 다음 주로 넘어가는 순간까지 그 자리는 흔들리지 않았다.',
-    hint: '어느 수업이건 주간 랭킹 1위를 달성한 채로 다음 주로 넘어간다.',
+    desc: '한 주 내내 어느 수업에서건 주간 랭킹 3위 안의 자리를 지켜냈다. 다음 주로 넘어가는 순간까지 그 자리는 흔들리지 않았다.',
+    hint: '어느 수업이건 주간 랭킹 3위 안에 든 채로 다음 주로 넘어간다.',
     reward: { money: 20, skin: 'golden-dream' },
     at: (p) => p.weeklyTop1At ?? null,
   },

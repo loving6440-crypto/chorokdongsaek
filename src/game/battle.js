@@ -60,14 +60,14 @@ export const ENEMIES = [
   {
     id: 'dueoksini',
     name: '두억시니',
-    blurb: '어둠 속에서 사람을 짓누르는 사나운 야차. 셋은 모여야 맞설 수 있다.',
+    blurb: '어둠 속에서 사람을 짓누르는 사나운 야차. 둘은 모여야 맞설 수 있다.',
     tier: 2,
-    partySize: 3,
+    partySize: 2,
     tags: ['다인 전투'],
-    hp: 310,
-    atk: 12,
-    act: 11,
-    spirit: 11,
+    hp: 230,
+    atk: 11,
+    act: 10,
+    spirit: 10,
     special: { label: '짓누르는 그림자', note: '막을 수 없는 일격으로 몸을 짓누르고, 의지력을 빨아들이며, 다음 내 턴엔 막기를 할 수 없다.' },
   },
   // ───────── 보스 (하드 컨텐츠) ─────────
@@ -557,12 +557,12 @@ export const auraOf = (stats) => (stats.fx === 'instrument' ? Math.max(0, Math.f
 export const maxSurvives = (stats) => (stats.fx === 'bell' ? 2 : 1)
 
 /**
- * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) (이해/2, 내림)% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
+ * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) (이해×2, 100% 상한)% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
  * 무당방울이 없거나 발동하지 않으면 null.
  */
 export function bellTick(stats, rng = Math.random) {
   if (stats.fx !== 'bell') return null
-  const chance = Math.floor((stats.comprehension || 0) / 2)
+  const chance = Math.min(100, (stats.comprehension || 0) * 2)
   if (chance <= 0) return null
   const roll = die(100, rng)
   if (roll > chance) return null

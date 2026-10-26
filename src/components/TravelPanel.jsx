@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Footprints, Zap } from 'lucide-react'
 import { LOCATIONS } from '../game/constants'
+import { NPC_ENTRIES } from '../game/codex'
 
 const leftText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -35,6 +36,7 @@ export default function TravelPanel({ traveling, mp, onFastTravel }) {
   const line = useMemo(() => TRAVEL_LINES[Math.abs(Math.floor(traveling.startedAt)) % TRAVEL_LINES.length], [traveling.startedAt])
   const fastCost = Math.ceil(traveling.minutes / 2)
   const canFast = typeof onFastTravel === 'function' && typeof mp === 'number' && mp >= fastCost
+  const npcs = (loc?.npcs ?? []).map((id) => NPC_ENTRIES.find((n) => n.id === id)).filter(Boolean)
   return (
     <section aria-label="이동 중" className="grid min-h-[16rem] place-items-center py-10 text-center">
       <Footprints size={28} className="text-gold/70" aria-hidden />
@@ -42,6 +44,28 @@ export default function TravelPanel({ traveling, mp, onFastTravel }) {
       <p className="mt-2 max-w-sm text-sm leading-relaxed break-keep text-paper/70" data-travel-line>
         {line}
       </p>
+      {!!loc?.facilities?.length && (
+        <div className="mt-4 max-w-sm" data-travel-destination>
+          <p className="text-[11px] tracking-[0.2em] text-gold/60">도착하면 — {loc.name}</p>
+          <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
+            {loc.facilities.map((f) => (
+              <span key={f} className="rounded-md border border-edge/25 px-2 py-0.5 text-xs text-paper/80">
+                {f}
+              </span>
+            ))}
+          </div>
+          {!!npcs.length && (
+            <div className="mt-3 flex flex-wrap justify-center gap-3">
+              {npcs.map((n) => (
+                <div key={n.id} className="flex flex-col items-center gap-1">
+                  <img src={n.portrait} alt={n.name} className="size-10 rounded-full border border-gold/30 object-cover" />
+                  <span className="text-[11px] text-paper/70">{n.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <p className="mt-3 text-lg text-gold" data-travel-left>
         남은 시간: {left > 0 ? leftText(left) : '거의 다 됐다'}
       </p>

@@ -74,6 +74,9 @@ let mail = { seq: 1, log: [] } // 쪽지 · 선물 내역: log [{ id, kind:'note
 const MAIL_MAX = 1000 // 쪽지 글자 수 상한
 const MAIL_LOG_CAP = 5000
 let market = { seq: 1, listings: [], proceeds: {} } // listings: [{ id, seller, item, qty, price(1개당), at }]
+let bgmPlaylist = [] // 관리자가 등록한 배경음악(평소 곡) 재생목록: [{ id: 유튜브 영상ID, title }]. 비어 있으면 클라이언트가 기존 로컬 mp3를 쓴다.
+const BGM_MAX = 30 // 재생목록 최대 곡 수
+const isYoutubeId = (s) => typeof s === 'string' && /^[\w-]{10,20}$/.test(s)
 // 연락(rp)·담화(talk) 채팅 내역과 일행(파티) 상태: 서버가 재시작돼도 사라지지 않도록 snapshot/applyRaw 에 함께 싣는다.
 // (parties·partyOf 는 Map 이라 그대로는 저장할 수 없으니, parties 는 배열로 접었다 펴고 partyOf 는 그 배열에서 다시 만든다.)
 const history = { rp: [], talk: [] }
@@ -141,6 +144,7 @@ function applyRaw(raw) {
   if (raw?.clubLeftAt && typeof raw.clubLeftAt === 'object') clubLeftAt = raw.clubLeftAt
   if (raw?.clubChat && typeof raw.clubChat === 'object') for (const id of CLUB_IDS) if (Array.isArray(raw.clubChat[id])) clubChat[id] = raw.clubChat[id]
   if (raw?.market && Array.isArray(raw.market.listings)) market = { seq: raw.market.seq || 1, listings: raw.market.listings, proceeds: raw.market.proceeds ?? {} }
+  if (Array.isArray(raw?.bgmPlaylist)) bgmPlaylist = raw.bgmPlaylist.filter((t) => isYoutubeId(t?.id)).slice(0, BGM_MAX)
   if (Number.isFinite(raw?.seq) && raw.seq > seq) seq = raw.seq
   if (raw?.history && typeof raw.history === 'object') {
     if (Array.isArray(raw.history.rp)) history.rp = raw.history.rp
@@ -242,6 +246,7 @@ const snapshot = () => ({
   seq,
   history,
   parties: [...parties.values()],
+  bgmPlaylist,
 })
 async function saveNow() {
   if (db) {
@@ -403,6 +408,21 @@ function leaveParty(id, reason = 'leave') {
     pushPartyMsg(p, makeMsg(null, `${name}님이 일행을 떠났다.`, { system: true }))
     pushParty(p)
   }
+  pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
+  scheduleSave()
+}
+
+// 파티장이 일행 전체를 바로 해체한다. (혼자 탈퇴해서 자연 해산되는 leaveParty 와 달리, 인원이 남아 있어도 전원 내보낸다)
+function disbandParty(p) {
+  const name = clients.get(p.members[0])?.name ?? p.members[0]
+  const presenceChanged = [...p.members]
+  for (const m of p.members) {
+    partyOf.delete(m)
+    partyStats.delete(m)
+    sendTo(m, { t: 'party', party: null, log: [] })
+    sendTo(m, { t: 'notice', text: `${name}님이 일행을 해체했다.` })
+  }
+  parties.delete(p.id)
   pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
   scheduleSave()
 }
@@ -1102,6 +1122,11 @@ async function handleApi(req, res, url) {
   }
 
   // 그날의 교내 신문: 누구나 볼 수 있다. ?date=YYYY-MM-DD (없으면 오늘, KST)
+  // 배경음악(평소 곡) 재생목록: 관리자가 올려 둔 유튜브 영상ID 목록. 접속(SSE) 전에도 곧장 받아 쓸 수 있도록 공개 GET 으로도 둔다.
+  if (req.method === 'GET' && route === '/api/bgm') {
+    return json(res, 200, { ok: true, playlist: bgmPlaylist })
+  }
+
   if (req.method === 'GET' && route === '/api/newspaper') {
     const q = url.searchParams.get('date')
     const date = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : kstDate()
@@ -1177,6 +1202,7 @@ async function handleApi(req, res, url) {
       history,
       party: partyView(party),
       partyLog: party?.log ?? [],
+      bgmPlaylist,
       mailUnread: mail.log.reduce((n, m) => n + (m.to.id === id && !m.read ? 1 : 0), 0),
       club: clubOf[id] ? { id: clubOf[id], joinedAt: clubs[clubOf[id]]?.members?.[id]?.joinedAt ?? null, log: clubChat[clubOf[id]]?.slice(-200) ?? [] } : null,
       mb: (() => {
@@ -1425,6 +1451,24 @@ async function handleApi(req, res, url) {
   }
 
   // 회원 목록(관리자 전용): 서버에 데이터가 남은 모든 계정. 명부 + 인적사항 카드 + 랭킹 기록에서 모은다.
+  // 관리자: 배경음악(평소 곡) 재생목록을 통째로 바꾼다 — 유튜브 영상ID 배열. 빈 배열로 보내면 로컬 mp3 로 되돌아간다.
+  if (route === '/api/admin/bgm') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    if (!Array.isArray(body.playlist)) return json(res, 400, { error: 'bad-playlist' })
+    const list = body.playlist
+      .filter((t) => t && isYoutubeId(t.id))
+      .slice(0, BGM_MAX)
+      .map((t) => ({ id: t.id, title: typeof t.title === 'string' ? t.title.slice(0, 80) : '' }))
+    bgmPlaylist = list
+    broadcast({ t: 'bgm', playlist: bgmPlaylist })
+    scheduleSave()
+    return json(res, 200, { ok: true, playlist: bgmPlaylist })
+  }
+
   if (route === '/api/admin/members') {
     const id = cleanId(body.id)
     if (!id) return json(res, 400, { error: 'bad-id' })
@@ -2276,6 +2320,16 @@ async function handleApi(req, res, url) {
 
   if (route === '/api/party/leave') {
     leaveParty(me.id)
+    return json(res, 200, { ok: true })
+  }
+
+  // 파티장 전용: 인원이 몇 명이든 일행을 바로 해체한다.
+  if (route === '/api/party/disband') {
+    const pid = partyOf.get(me.id)
+    const p = pid ? parties.get(pid) : null
+    if (!p) return json(res, 409, { error: 'no-party' })
+    if (p.members[0] !== me.id) return json(res, 403, { error: 'not-leader' })
+    disbandParty(p)
     return json(res, 200, { ok: true })
   }
 

@@ -18,6 +18,7 @@ let state = {
   mbLobby: null, // { bid, enemyId, waiting, joined } — 내가 건 다인 전투에서 응답을 기다리는 중
   mailUnread: 0, // 사물함에서 아직 안 읽은 쪽지 · 선물 수
   mailTick: 0, // 새 쪽지가 올 때마다 +1 (열려 있는 사물함이 다시 불러오는 신호)
+  bgmPlaylist: [], // 관리자가 올린 배경음악(평소 곡) 재생목록: [{ id: 유튜브 영상ID, title }]. 비어 있으면 로컬 mp3.
   editReq: null, // 관리자의 스탯 · 디버프 수정 요청(동의 대기) { rid, adminName, changes, expires }
   editResult: null, // 내가 관리자일 때 받은 결과 { rid, status, targetName }
   club: null, // 내가 속한 동아리 { id, joinedAt, log: [...] } (없으면 null)
@@ -68,7 +69,11 @@ function handle(ev) {
         yut: ev.yut ?? null,
         rummi: ev.rummi ?? null,
         yacht: ev.yacht ?? null,
+        bgmPlaylist: ev.bgmPlaylist ?? [],
       })
+      break
+    case 'bgm':
+      set({ bgmPlaylist: ev.playlist ?? [] })
       break
     case 'presence': {
       // 서버가 전체 명부를 매번 다시 보내지 않고 바뀐 부분만 보낸다: add(새로 접속) · remove(접속 종료) · update(일행 등 항목 갱신).
@@ -423,6 +428,8 @@ export const marketCancel = (listing) => post('/api/market/cancel', { listing })
 export const marketClaim = () => post('/api/market/claim', {})
 
 export const leaveParty = () => post('/api/party/leave', {})
+/** 파티장 전용: 인원이 몇 명이든 일행을 바로 해체한다. */
+export const disbandParty = () => post('/api/party/disband', {})
 /** 파티 중일 때, 내 체력/영력/의지력·육조 스탯·장비를 일행에게 알린다. (일행 중일 때만 뜻이 있다) */
 export const sendPartyStats = (stats) => post('/api/party/stats', { stats })
 
@@ -517,6 +524,19 @@ export async function verifyAdminKey(id, key) {
     return { ok: false, error: 'network' }
   }
 }
+
+/** 배경음악(평소 곡) 재생목록을 서버에서 받아온다. 접속(SSE) 전에도 쓸 수 있다. { ok, playlist, error } */
+export async function fetchBgmPlaylist() {
+  try {
+    const r = await fetch('/api/bgm')
+    const data = await r.json().catch(() => ({}))
+    return r.ok && data.ok ? { ok: true, playlist: data.playlist } : { ok: false, error: data.error ?? 'network' }
+  } catch {
+    return { ok: false, error: 'network' }
+  }
+}
+/** 관리자: 배경음악 재생목록을 통째로 바꾼다. playlist: [{ id, title }]. 빈 배열이면 로컬 mp3 로 되돌아간다. */
+export const adminSetBgmPlaylist = (id, key, playlist) => adminPost('/api/admin/bgm', id, key, { playlist })
 
 /** 관리자: 회원(서버에 데이터가 남은 계정) 목록. { ok, members, total, error } */
 export async function fetchMembers(id, key) {

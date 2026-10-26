@@ -231,7 +231,7 @@ export default function Game({
     return () => disconnect()
   }, [userId, player.name, admin, adminKey])
 
-  // [나는야 모범생]: 어느 수업이건 지난주 1위로 다음 주를 맞았는지 확인한다. 접속 직후와 그 뒤 주기적으로 들여다본다.
+  // [나는야 모범생]: 어느 수업이건 지난주 3위 안으로 다음 주를 맞았는지 확인한다. 접속 직후와 그 뒤 주기적으로 들여다본다.
   useEffect(() => {
     if (admin || !userId) return undefined
     const check = async () => {
@@ -239,7 +239,7 @@ export default function Game({
       for (const c of COURSES) {
         if (c.id === 'divination-fortune') continue // 점복학은 랭킹/점수 제도가 없다
         const r = await fetchRanking(c.id, userId, 'last')
-        if (r?.top?.[0]?.id === userId) {
+        if (r?.top?.slice(0, 3).some((x) => x.id === userId)) {
           const cur = playerRef.current
           if (cur.achievements?.['model-student'] || cur.weeklyTop1At) return
           const next = { ...cur, weeklyTop1At: Date.now() }
@@ -685,6 +685,10 @@ export default function Game({
 
   // ───────── 벼룩시장 ─────────
   const online = useOnline()
+  // 관리자가 관리자 모드에서 등록한 배경음악(평소 곡) 재생목록이 바뀌면 반영한다. (비어 있으면 로컬 mp3)
+  useEffect(() => {
+    bgm.setPlaylist(online.bgmPlaylist ?? [])
+  }, [online.bgmPlaylist])
   // 내 인적사항 카드를 서버에 올려 둔다. (접속할 때, 프로필을 바꿀 때)
   useEffect(() => {
     if (online.status !== 'online') return undefined
@@ -886,15 +890,15 @@ export default function Game({
     setPlayer((prev) => ({ ...prev, achievements: { ...Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, { at: Date.now() }])), ...(prev.achievements ?? {}) } }))
   }, [admin, player.achievements])
 
-  // 패 놀이터 홀/짝. 시스템과 1:1로만 한다.
+  // 패 놀이터 오광 뽑기(화투). 시스템과 1:1로만 한다.
   const playHoljjak = useCallback(
-    (bet, pick) => {
+    (bet, slots, slotIndex) => {
       if (battleRef.current) return { error: '전투 중이다.' }
-      const r = playHoljjakGame(playerRef.current, bet, pick, admin)
+      const r = playHoljjakGame(playerRef.current, bet, slots, slotIndex, admin)
       if (r.error) return r
       playerRef.current = r.player
       setPlayer(r.player)
-      addLog(`홀/짝 : ${pick === 'odd' ? '홀' : '짝'}을 걸었다 → 시스템 ${r.sysPick === 'odd' ? '홀' : '짝'}. ${r.win ? `승리! +${r.bet}냥` : `패배… -${r.bet}냥`}`)
+      addLog(`오광 뽑기 : 참여비 ${r.bet}냥 → ${r.picked.month}월 광 → ${r.payout}냥 (${r.delta >= 0 ? `+${r.delta}` : r.delta}냥)`)
       return r
     },
     [addLog, admin],

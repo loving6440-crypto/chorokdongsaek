@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Gift, MessageCircle, Send, UserPlus, Users, X } from 'lucide-react'
 import {
+  disbandParty,
   dismissNotice,
   inviteToParty,
   leaveParty,
@@ -32,6 +33,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
   const [tab, setTab] = useState('talk')
   const [text, setText] = useState('')
   const [showWho, setShowWho] = useState(false)
+  const [confirmDisband, setConfirmDisband] = useState(false)
   const [seenLog, setSeenLog] = useState(null)
   const isLog = tab === 'log'
   const latestLogId = logs?.[0]?.id ?? null
@@ -64,6 +66,12 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
 
   const totalUnread = net.unread.rp + net.unread.talk + net.unread.party
   const inParty = !!net.party
+  const isPartyLeader = inParty && net.party.members?.[0]?.id === net.me?.id
+  useEffect(() => {
+    if (!confirmDisband) return
+    const t = setTimeout(() => setConfirmDisband(false), 4000) // 4초 안에 다시 안 누르면 확인 취소
+    return () => clearTimeout(t)
+  }, [confirmDisband])
 
   // 일행 채팅 끝에 <se.1> 이 붙은 메시지가 새로 오면 알림음을 울린다 (탭이 열려있지 않아도).
   const partyMsgs = net.history.party || []
@@ -215,6 +223,22 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
                     className="mb-2 w-full rounded border border-crimson/40 py-1 text-[11px] text-crimson hover:bg-crimson/10"
                   >
                     일행에서 나가기
+                  </button>
+                )}
+                {isPartyLeader && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirmDisband) {
+                        disbandParty()
+                        setConfirmDisband(false)
+                      } else {
+                        setConfirmDisband(true)
+                      }
+                    }}
+                    className="mb-2 w-full rounded border border-crimson/60 bg-crimson/10 py-1 text-[11px] font-medium text-crimson hover:bg-crimson/20"
+                  >
+                    {confirmDisband ? '정말로 전원 내보낼까? (다시 누르면 해체)' : '일행 해체하기'}
                   </button>
                 )}
                 <ul className="space-y-1">

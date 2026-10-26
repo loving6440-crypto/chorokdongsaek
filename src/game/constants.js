@@ -121,6 +121,8 @@ export const LOCATIONS = {
     accentLabel: '청',
     navNote: '동쪽, 파란 술식이 각인된 방벽.',
     subtitle: '수업 및 미니게임',
+    facilities: ['수업', '본관 탐사', '양호실', '물품보관소'],
+    npcs: ['bari'],
   },
   annex: {
     id: 'annex',
@@ -130,6 +132,8 @@ export const LOCATIONS = {
     accentLabel: '백',
     navNote: '서쪽, 잡티 없는 하얀 장서각.',
     subtitle: '정보 조회 및 고서적',
+    facilities: ['별관 탐사', '체력단련실', '동아리 가입/활동', '패 놀이터'],
+    npcs: ['yumin'],
   },
   dorm: {
     id: 'dorm',
@@ -139,6 +143,8 @@ export const LOCATIONS = {
     accentLabel: '흑',
     navNote: '북쪽, 빛을 먹는 까만 보금자리.',
     subtitle: '방치형 수련 / 휴식',
+    facilities: ['휴식 및 수련', '매점', '급식실'],
+    npcs: ['danae'],
   },
   gym: {
     id: 'gym',
@@ -148,6 +154,8 @@ export const LOCATIONS = {
     accentLabel: '적',
     navNote: '남쪽, 붉은 천이 걸린 실습터이자 산.',
     subtitle: 'TRPG 다이스 전투 실습',
+    facilities: ['퇴마 실습', '산 탐색', '무구보관소', '도깨비 농장'],
+    npcs: ['bari', 'shinah'],
   },
   shrine: {
     id: 'shrine',
@@ -157,6 +165,8 @@ export const LOCATIONS = {
     accentLabel: '황',
     navNote: '중앙, 노란 기와가 놓인 사당.',
     subtitle: '출입 금지 구역',
+    facilities: ['???'],
+    npcs: ['ishi'],
   },
   infirmary: {
     id: 'infirmary',

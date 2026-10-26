@@ -4,7 +4,7 @@ import { STAT_KEYS, STAT_META } from '../game/constants'
 import { PSYCHICS } from '../game/battle'
 import { SKINS } from '../game/skins2048'
 import { SKINS_RUNNER } from '../game/skinsRunner'
-import { clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
+import { adminSetBgmPlaylist, clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
 import { adminResetPassword } from '../game/auth'
 import { itemsText } from './MailboxPanel'
 
@@ -289,6 +289,110 @@ function StoryReview({ userId, adminKey }) {
   )
 }
 
+// 유튜브 링크(watch?v=, youtu.be/, shorts/, embed/) 또는 영상ID 그 자체에서 영상ID만 뽑아낸다. 못 알아보면 null.
+function extractYoutubeId(input) {
+  const s = (input || '').trim()
+  if (/^[\w-]{10,20}$/.test(s)) return s
+  try {
+    const u = new URL(s)
+    if (/youtu\.be$/.test(u.hostname)) return u.pathname.slice(1).split('/')[0] || null
+    if (/youtube\.com$/.test(u.hostname)) {
+      const v = u.searchParams.get('v')
+      if (v) return v
+      const m = u.pathname.match(/\/(shorts|embed)\/([\w-]{10,20})/)
+      if (m) return m[2]
+    }
+  } catch {
+    /* URL 형태가 아니면 알아보지 못한다 */
+  }
+  return null
+}
+
+/** 관리자: 배경음악(평소 곡) 유튜브 재생목록을 추가·삭제·순서변경하고 저장한다. */
+function BgmManager({ userId, adminKey, playlist }) {
+  const [list, setList] = useState(playlist ?? [])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  useEffect(() => setList(playlist ?? []), [playlist])
+
+  const add = () => {
+    const id = extractYoutubeId(input)
+    if (!id) {
+      setMsg('유튜브 링크나 영상ID를 알아볼 수 없다.')
+      return
+    }
+    if (list.some((t) => t.id === id)) {
+      setMsg('이미 목록에 있다.')
+      return
+    }
+    setList((l) => [...l, { id, title: '' }])
+    setInput('')
+    setMsg('')
+  }
+  const remove = (id) => setList((l) => l.filter((t) => t.id !== id))
+  const move = (i, dir) =>
+    setList((l) => {
+      const j = i + dir
+      if (j < 0 || j >= l.length) return l
+      const next = [...l]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  const save = async () => {
+    setBusy(true)
+    const r = await adminSetBgmPlaylist(userId, adminKey, list)
+    setBusy(false)
+    setMsg(r.ok ? '배경음악 목록을 저장했다. 모두의 화면에 곧바로 반영된다.' : '저장하지 못했다.')
+  }
+  return (
+    <section data-bgm-manager>
+      <p className="mb-1.5 text-xs tracking-widest text-paper/55">배경음악(평소 곡) 재생목록</p>
+      <p className="mb-2 text-[11px] text-paper/50">
+        유튜브 링크나 영상ID를 추가하면, 평소 화면의 배경음악이 이 목록을 순서대로(다 돌면 처음부터) 재생한다. 목록을 비우면 원래 로컬 음악으로 돌아간다. <b className="text-paper/70">[저장]</b>을 눌러야 모두에게 반영된다.
+      </p>
+      <div className="flex gap-1.5">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+          placeholder="유튜브 링크 또는 영상ID"
+          aria-label="유튜브 링크 또는 영상ID"
+          className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper outline-none focus:border-gold/50"
+        />
+        <button type="button" onClick={add} className="rounded border border-edge/25 px-3 text-xs text-paper/80 hover:bg-edge/10">
+          추가
+        </button>
+      </div>
+      <ul className="mt-2 space-y-1" aria-label="배경음악 재생목록">
+        {list.map((t, i) => (
+          <li key={t.id} data-bgm-track={t.id} className="flex items-center gap-1.5 rounded-lg bg-shade/25 px-2 py-1.5 text-xs text-paper/85">
+            <span className="min-w-0 flex-1 truncate font-mono">{t.id}</span>
+            <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="위로" className="rounded border border-edge/20 px-1.5 text-paper/70 hover:bg-edge/10 disabled:opacity-30">
+              ▲
+            </button>
+            <button type="button" onClick={() => move(i, 1)} disabled={i === list.length - 1} aria-label="아래로" className="rounded border border-edge/20 px-1.5 text-paper/70 hover:bg-edge/10 disabled:opacity-30">
+              ▼
+            </button>
+            <button type="button" onClick={() => remove(t.id)} className="rounded border border-crimson/40 px-1.5 text-crimson hover:bg-crimson/10">
+              삭제
+            </button>
+          </li>
+        ))}
+      </ul>
+      {!list.length && <p className="mt-1 text-xs text-paper/45">등록된 곡이 없다. (지금은 로컬 음악이 흐른다)</p>}
+      <button type="button" disabled={busy} onClick={save} className="mt-2 rounded border border-gold/50 px-3 py-1 text-xs text-gold hover:bg-gold/10 disabled:opacity-40" data-bgm-save>
+        저장
+      </button>
+      {msg && (
+        <p className="mt-1 text-[11px] text-paper/60" role="status">
+          {msg}
+        </p>
+      )}
+    </section>
+  )
+}
+
 const num = (v, lo, hi, dec = false) => {
   const n = Number(v)
   if (!Number.isFinite(n)) return lo
@@ -402,6 +506,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
           </section>
           <PasswordReset userId={userId} adminKey={adminKey} />
           <EditOther userId={userId} adminKey={adminKey} online={online} />
+          <BgmManager userId={userId} adminKey={adminKey} playlist={online.bgmPlaylist} />
           <MailAudit userId={userId} adminKey={adminKey} />
           <StoryReview userId={userId} adminKey={adminKey} />
           <MemberList userId={userId} adminKey={adminKey} />
