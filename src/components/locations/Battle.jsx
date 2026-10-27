@@ -42,9 +42,18 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [tutorialOpen, setTutorialOpen] = useState(false) // 바리의 전투 안내(v72: 자동으로 뜨지 않고, 이 화면에서 직접 열 때만 보여 준다)
+  // 튜토리얼이 열려 있는 동안엔 사이드바(ProfileSidebar)의 체력·의지력 표시도 100으로 보여 달라는
+  // 요청이 있어, 상위(Game.jsx)에 튜토리얼이 열려 있는지를 그대로 알려준다 — 실제 player 값은
+  // 전혀 건드리지 않고, 화면에 보여주는 값만 Game.jsx 쪽에서 바꿔치기한다. 화면을 벗어나거나
+  // 컴포넌트가 사라질 때도 반드시 꺼 줘야, 다른 화면으로 가서도 100으로 고정된 채 남지 않는다.
+  useEffect(() => {
+    onTutorialActive?.(tutorialOpen)
+    return () => onTutorialActive?.(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tutorialOpen])
   const [, setSlowTick] = useState(0)
   useEffect(() => {
     if (!slowFight) return undefined

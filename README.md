@@ -751,3 +751,7 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 ### 튜토리얼 완주 보상 — 무구를 이름만 보고 고르지 않고, 효과를 직접 보고 고르게
 - **문제**: `BattleTutorialHub`에서 네 튜토리얼을 다 마치면 뜨는 보상 선택 화면이, `WEAPONS` 10종의 이름만 버튼으로 나열해 둔 목록이었다 — 무슨 효과가 있는지 전혀 안 보여주고 이름만 보고 고르게 되어 있었다.
 - **고침**: 뒷산 > 무구보관소(`Armory.jsx`)의 "탭처럼 고르고 아래에 설명이 뜨는" 패턴을 그대로 가져왔다. 무구 10종을 `role="tablist"` 알약 버튼 줄로 늘어놓고(`selWeapon` state, 기본값은 첫 번째 무구), 하나를 누르면 그 아래 패널에 해당 무구의 `desc`(배경 설명)와 `effectText`(실제 효과, 전투 패널 전체에서 쓰는 것과 동일한 문구)가 뜬다. 그 패널 안에 "○○ 받기" 버튼을 둬서, 효과를 확인한 뒤 바로 그 자리에서 받아갈 수 있게 했다(기존의 "이름만 누르면 즉시 확정"이던 방식 대신, 미리보기 → 확정의 두 단계로 바뀌었다).
+
+### 튜토리얼 중엔 사이드바의 체력·의지력도 100/100으로
+- **문제**: 튜토리얼이 모달이던 시절엔 전체 화면을 덮는 어두운 배경 때문에 몰랐는데, 인라인으로 바뀌면서 왼쪽(모바일은 상단) `ProfileSidebar`가 튜토리얼 화면과 함께 그대로 보이게 됐다. `ProfileSidebar`는 항상 실제 `player.hp`/`player.mp`를 그려 주는데(`VBar`), 연습 전투 패널 안의 체력·의지력은 100으로 고정해 두었지만 사이드바 쪽은 그대로 실제 수치를 보여주고 있어서 "100으로 시작한다"는 원래 의도와 어긋나 보였다.
+- **고침**: `Battle.jsx`의 `tutorialOpen` state가 바뀔 때마다 그 값을 그대로 상위에 알려주는 콜백 prop `onTutorialActive`를 새로 추가했다(`useEffect(() => { onTutorialActive?.(tutorialOpen); return () => onTutorialActive?.(false) }, [tutorialOpen])` — 언마운트되거나 화면을 벗어날 때도 반드시 꺼서, 다른 화면에 가서까지 100으로 고정된 채 남지 않게 했다). `Gym.jsx`는 `{...rest}`로 그대로 전달하므로 손댈 필요가 없었다. `Game.jsx`에 `tutorialStatsPreview` state를 두고 `<Gym onTutorialActive={setTutorialStatsPreview} .../>`로 연결한 뒤, `<ProfileSidebar>`에 넘기는 `player`를 `tutorialStatsPreview`가 참일 때만 `{ ...player, hp: 100, hpMax: 100, mp: 100, mpMax: 100 }`로 바꿔치기해서 넘긴다 — 실제 `player` 객체나 저장되는 값은 전혀 건드리지 않고, 화면에 "보여주는" 값만 바뀌므로 튜토리얼을 닫는 즉시 원래 수치로 돌아온다.

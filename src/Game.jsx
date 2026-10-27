@@ -196,6 +196,9 @@ export default function Game({
   const battleUsedItemsRef = useRef([])
   battleUsedItemsRef.current = battleUsedItems
   const [spotItems, setSpotItems] = useState(false)
+  // 전투 튜토리얼이 열려 있는 동안엔 사이드바의 체력·의지력도 100/100으로 보여준다(실제 player 값은
+  // 건드리지 않는다 — 튜토리얼이 닫히면 이 표시용 값도 같이 꺼져서 원래 값으로 바로 돌아온다).
+  const [tutorialStatsPreview, setTutorialStatsPreview] = useState(false)
   battleRef.current = battleActive
   reviveRef.current = reviveOn
   const [panel, setPanel] = useState('world') // world | log | items | stats  (오른쪽 메뉴)
@@ -1474,7 +1477,7 @@ export default function Game({
       data-spirit={player.spirit.toFixed(3)}
     >
       <ProfileSidebar
-        player={player}
+        player={tutorialStatsPreview ? { ...player, hp: 100, hpMax: 100, mp: 100, mpMax: 100 } : player}
         locationId={locationId}
         theme={theme}
         onToggleTheme={onToggleTheme}
@@ -1630,6 +1633,7 @@ export default function Game({
                     tutorialRewardTaken={player.tutorialRewardTaken}
                     onTutorialDone={onTutorialDone}
                     onClaimTutorialReward={onClaimTutorialReward}
+                    onTutorialActive={setTutorialStatsPreview}
                     specials={player.specials}
                     onSpecialSeen={seeSpecial}
                     reviveOn={reviveOn}
