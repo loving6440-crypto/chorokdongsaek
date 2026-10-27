@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, Eye, Gift, Lock, Shield, Sparkles, Swords, X, Zap } from 'lucide-react'
+import { CheckCircle2, Gift, Lock, Swords, X } from 'lucide-react'
 import {
   ACTIONS,
   enemyTurn,
@@ -11,8 +11,9 @@ import {
   rashPercent,
   scanTurns,
 } from '../game/battle'
-import { ENH_MAX } from '../game/items'
-import { TUTOR_DUMMY, TUTOR_DUMMY_PSY, TUTORIAL_META, forcedQueue } from '../game/battleTutorial2'
+import { ENH_MAX, ITEMS } from '../game/items'
+import { TUTOR_DUMMY, TUTOR_DUMMY_GROUP, TUTOR_DUMMY_PSY, TUTORIAL_META, createDummyMB, forcedQueue } from '../game/battleTutorial2'
+import { afterEnemy, beginRound, openingInitiative, resolveTurn, submit, useItemMB } from '../game/mbattle'
 import { WEAPONS } from '../game/items'
 import { Bar } from './locations/battleUi'
 
@@ -143,6 +144,22 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
   const step = steps[i]
   const next = () => setI((n) => Math.min(steps.length - 1, n + 1))
 
+  // 연습 허수아비는 절대 쓰러지지도, 우리를 쓰러뜨리지도 않는다. 실제 캐릭터 스탯을 그대로 써서
+  // 데미지를 굴리다 보니, 이미 강해진 캐릭터면 허수아비 체력(46~70)이 몇 번만에 바닥나 전투가
+  // 끝나버리고(= over: 'win') 그 뒤의 모든 행동 버튼이 "내 턴 아님" 취급으로 영원히 비활성화되는
+  // 문제가 있었다 — "눌러도 안 눌리고 안 넘어간다"로 보이던 버그의 실제 원인이었다.
+  const clampAlive = (st) => {
+    if (!st) return st
+    if (st.ehp <= 0 || st.php <= 0 || st.over) {
+      const ehpFloor = Math.max(1, Math.ceil((st.enemy?.hp ?? 10) * 0.35))
+      const phpFloor = Math.max(1, Math.ceil((st.phpMax ?? 100) * 0.5))
+      return { ...st, ehp: Math.max(st.ehp, ehpFloor), php: Math.max(st.php, phpFloor), over: false }
+    }
+    return st
+  }
+  // 체력이 0 밑으로 떨어져 전투가 끝났다는 로그 줄은, 실제로는 끝내지 않을 거라 보여주지 않는다.
+  const filterEndLog = (events, wasFinished) => (wasFinished ? (events ?? []).filter((e) => e.kind !== 'end') : events)
+
   const pushLog = (events) => {
     const texts = (events ?? []).map((e) => e.text).filter(Boolean)
     if (!texts.length) return
@@ -170,8 +187,9 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     timer.current = setTimeout(() => {
       const r = enemyTurn(bRef.current, { stats, mp: mpRef.current })
       setMp((m) => Math.max(0, m - r.mpDrain))
-      setB(r.state)
-      pushLog(r.events)
+      const wasFinished = r.state?.over || r.state?.ehp <= 0 || r.state?.php <= 0
+      setB(clampAlive(r.state))
+      pushLog(filterEndLog(r.events, wasFinished))
       setBusy(false)
       next()
     }, 700)
@@ -184,8 +202,9 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     setBusy(true)
     timer.current = setTimeout(() => {
       const r = fireTurn(bRef.current, { stats, mp: mpRef.current, boost: false }, Math.random)
-      setB(r.state)
-      pushLog(r.events)
+      const wasFinished = r.state?.over || r.state?.ehp <= 0 || r.state?.php <= 0
+      setB(clampAlive(r.state))
+      pushLog(filterEndLog(r.events, wasFinished))
       setBusy(false)
       next()
     }, 700)
@@ -215,8 +234,9 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     }
     if (buffed) setBuffArmed(false)
     setMp((m) => Math.max(0, m - r.mpCost))
-    setB(r.state)
-    pushLog(r.events)
+    const wasFinished = r.state?.over || r.state?.ehp <= 0 || r.state?.php <= 0
+    setB(clampAlive(r.state))
+    pushLog(filterEndLog(r.events, wasFinished))
     setBusy(false)
     next()
   }
@@ -231,8 +251,9 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
       return
     }
     setMp((m) => Math.max(0, m - r.mpCost))
-    setB(r.state)
-    pushLog(r.events)
+    const wasFinished = r.state?.over || r.state?.ehp <= 0 || r.state?.php <= 0
+    setB(clampAlive(r.state))
+    pushLog(filterEndLog(r.events, wasFinished))
     setBusy(false)
     next()
   }
@@ -497,50 +518,232 @@ function TutorialScripted({ tutorialId, stats, onLog, onDone, onClose }) {
   return <ScriptedBattle key={tutorialId} dummy={dummy} queue={queue} steps={steps} stats={stats} onLog={onLog} onDone={onDone} onClose={onClose} title={meta?.label ?? ''} />
 }
 
-/** #4 단체 전투 — 서버가 진행하는 실제 다인 전투 대신, 대사로 흐름을 짚어주는 설명형 튜토리얼. */
-function TutorialGroup({ onDone, onClose }) {
-  const steps = [
+/**
+ * #4 단체 전투 연습 대사·순서. 바리(봇, 신속을 아주 높게 둬서 실제 캐릭터가 얼마나 빠르든
+ * 항상 바리가 먼저 움직인다)와 당신, 둘이서 허수아비 한 마리를 실제로(mbattle.js 엔진 그대로) 상대한다.
+ * 라운드1: 바리가 폭죽(단체 버프, #턴소모有) → 당신이 일반 공격.
+ * 라운드2: 바리가 일반 공격 → 당신이 막기.
+ * 라운드3: 바리가 일반 공격 → 당신이 부적(이때 상대가 강제로 '단체 공격'을 쓰도록 큐를 맞춰 둔다).
+ */
+function tutorialGroupSteps() {
+  return [
     { face: 'bari-smile', lines: ['안녕하세요! 이번엔 단체 전투를 해볼 거예요. 저와 당신이 한 팀, 적은 한 명(가끔 둘 이상이 나올 가능성도 있음)이에요.'] },
     { face: 'bari', lines: ['우리 팀 중에서 신속이 가장 높은 사람을 통해 선공 판정을 하고요, 그렇게 적-아군의 순서가 정해져요.', '적보다 내 신속이 낮더라도, 신속이 높은 친구가 선공 판정을 성공하면 적보다 먼저 행동할 수 있답니다! 아군 자체에 턴이 돌아오니까요.'] },
-    { face: 'bari', lines: ['아군 내의 턴 순서는 신속 순서예요. 별도의 판정은 없이 무조건 신속이 높은 순서로 행동해요.'] },
-    { face: 'bari', lines: ['한 가지 더 알아두셔야 할 건, 아이템을 사용할 때 \'단체\' 대상인 경우에는 턴을 사용하는 경우가 많다는 거예요.'] },
-    { face: 'bari', lines: ['제가 우선 단체 대상 아이템인 \'폭죽\'을 사용해볼게요.'], demoLog: '바리가 [폭죽]을 사용했다. 바리의 턴이 끝났다.' },
-    { face: 'bari', lines: ['제 턴이 넘어가버렸죠? 그 대신 파티원인 당신은 폭죽의 공격력 추가 보정을 받게 될 거예요.'] },
-    { face: 'bari', lines: ['적의 약공과 강공은 특수한 적이나 영능력의 영향을 받지 않는 이상 기본적으로 무조건 체력이 많은 사람을 단일로 노려요.'] },
-    { face: 'bari', lines: ['다른 건 일반 전투와 똑같아요! 하지만 적이 가끔 난수에 \'단체 공격\'을 추가하는 경우도 있으니 조심하세요. 단체 공격은 체력이 높은 사람에게만 가지 않고, 모두를 공격해요.'] },
+    { face: 'bari', lines: ['아군 내의 턴 순서는 신속 순서예요. 별도의 판정은 없이 무조건 신속이 높은 순서로 행동해요. 이번엔 제가 신속이 가장 높아서, 제가 먼저 움직일게요. 직접 싸워 볼까요?'], auto: 'start' },
+    { face: 'bari', lines: ['한 가지 더 알아두셔야 할 건, 아이템을 사용할 때 \'단체\' 대상인 경우에는 턴을 사용하는 경우가 많다는 거예요. 저는 우선 단체 대상 아이템인 \'폭죽\'을 사용해볼게요. 대신 저는 쓴 순간부터 2턴 동안 움직일 수 없게 돼요.'], auto: 'bari', bariItem: 'firecracker' },
+    { face: 'bari', lines: ['제 턴이 넘어가버렸죠? 그 대신 파티원인 당신은 폭죽의 공격력 추가 보정을 받게 될 거예요. 이제 당신 차례예요 — 일반 공격을 한 번 해보시겠어요?'], allow: 'attack', highlight: '[data-tutorial-mb-attack-btn]' },
+    { face: 'bari', lines: ['느껴지나요? 폭죽의 버프 덕분에 공격력이 두 배가 됐을 거예요.'] },
+    { face: 'bari', lines: ['저는 아직 폭죽 때문에 움직일 수 없어요. 제 턴은 자동으로 넘어가요 — 아래 제 체력 칸에 \'행동불능\' 표시가 보이실 거예요.'], auto: 'bari' },
+    { face: 'bari', lines: ['적의 약공과 강공은 특수한 적이나 영능력의 영향을 받지 않는 이상 기본적으로 무조건 체력이 많은 사람을 단일로 노려요. 이번엔 당신이 \'막기\'를 해보실래요?'], allow: 'guard', highlight: '[data-tutorial-mb-guard-btn]' },
+    { face: 'bari', lines: ['다른 건 일반 전투와 똑같아요! 하지만 적이 가끔 난수에 \'단체 공격\'을 추가하는 경우도 있으니 조심하세요. 단체 공격은 체력이 높은 사람에게만 가지 않고, 모두를 공격해요. 마침 다음 상대 턴이 단체 공격일 거예요 — 잘 보세요.'] },
+    { face: 'bari', lines: ['저는 아직도 못 움직여요. 한 턴만 더 기다려 주세요.'], auto: 'bari' },
+    { face: 'bari', lines: ['한 번 더 가볼까요? 이번엔 부적을 써보세요.'], allow: 'charm', highlight: '[data-tutorial-mb-charm-btn]' },
+    { face: 'bari', lines: ['보셨죠? 단체 공격은 모두에게 들어가니, 아껴둔 체력 회복 아이템이나 영능력으로 대비하는 게 좋아요.'] },
     { face: 'bari', lines: ['영능력은 단체 대상이 되기도, 한 명 대상이 되기도 해요. 기본적으로 한 명 대상인 경우 체력이 높은 사람을 노리는 게 보통이지만, 영능력에 따라 일부러 체력이 적은 사람을 점사하기도 하니, 상대의 영능력을 만난 후에는 그 영능력도 잘 분석해봐요.'] },
     { face: 'bari-smile', lines: ['이제 밖으로 나가면 무구 하나를 드릴 거예요. 앞선 3개의 튜토리얼을 모두 마쳤으면 받을 수 있어요. 아직 완료하지 않았으면 하러 가보세요! 나머지 무구들은 직접 학교 주변을 돌아다니며 얻어 보세요.'] },
     { face: 'bari-smile', lines: ['여기까지에요! 이걸로 튜토리얼은 모두 마쳤어요. 고생하셨습니다!'], end: true },
   ]
+}
+
+/** #4 단체 전투 — mbattle.js(실제 다인 전투 엔진)를 그대로 써서, 바리(봇)와 2인 파티로 허수아비를 실제로 상대한다. */
+function ScriptedGroupBattle({ stats, onLog, onDone, onClose }) {
+  const steps = useMemo(() => tutorialGroupSteps(), [])
   const [i, setI] = useState(0)
   const [log, setLog] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [, setTick] = useState(0)
+  const mbRef = useRef(null)
+  const rerender = () => setTick((t) => t + 1)
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+
   const step = steps[i]
-  const next = () => {
-    if (step.demoLog) setLog((l) => [{ id: Math.random(), text: step.demoLog }, ...l])
-    setI((n) => Math.min(steps.length - 1, n + 1))
+  const next = () => setI((n) => Math.min(steps.length - 1, n + 1))
+
+  const pushLog = (events) => {
+    const texts = (events ?? []).map((e) => e.text).filter(Boolean)
+    if (!texts.length) return
+    setLog((l) => [...texts.map((t) => ({ id: Math.random(), text: t })), ...l].slice(0, 30))
+    onLog?.(texts)
   }
+
+  // 연습용이라 허수아비도 바리도 당신도 쓰러지지 않는다 — 실제 스탯으로 데미지를 굴리다 보니
+  // 생기는 조로종료 문제(위 솔로 튜토리얼과 같은 원인)를 막는다. '버티기 대기' 단계에서도 멈추지 않게
+  // 바로 되살리고 다음 라운드로 넘긴다.
+  const clampMB = (mb) => {
+    if (!mb) return
+    if (mb.phase === 'survive') {
+      for (const m of mb.members) {
+        if (m.pendingDeath) {
+          m.pendingDeath = false
+          m.php = Math.max(1, Math.ceil(m.phpMax * 0.5))
+          m.status = 'alive'
+        }
+      }
+      afterEnemy(mb, Math.random)
+    }
+    for (const m of mb.members) {
+      if (m.status !== 'alive') m.status = 'alive'
+      if (m.php <= 0) m.php = Math.max(1, Math.ceil(m.phpMax * 0.5))
+    }
+    if (mb.ehp <= 0 || mb.over) {
+      mb.ehp = Math.max(mb.ehp, Math.ceil(mb.enemy.hp * 0.35))
+      mb.over = null
+      if (mb.phase === 'over') mb.phase = 'input'
+      if (!mb.turn) beginRound(mb, Math.random)
+    }
+  }
+
+  // 데미지를 굴리기 '전'에 미리 체력을 넉넉히 채워 둔다 — 그래야 한 방에 쓰러져서 그 라운드 안에서
+  // 상대(허수아비)의 차례가 통째로 건너뛰어지는 일이 없다(쓰러지면 그 라운드엔 상대가 반응하지 않고
+  // 다음 라운드로 바로 넘어가 버린다 — 예고해 둔 '단체 공격' 시연이 조용히 스킵될 수 있었다).
+  // 끝나고는 clampMB 가 다시 보기 좋은 수치로 되돌린다.
+  const preserveEnemyHp = (mb) => {
+    if (mb) mb.ehp = Math.max(mb.ehp, 999_999)
+  }
+
+  // 전투 시작: 바리 + 당신 2인 파티를 만들고 선공 판정을 한다.
+  useEffect(() => {
+    if (step?.auto !== 'start' || mbRef.current) return
+    const bari = {
+      id: 'bari',
+      name: '바리',
+      stats: { insight: 14, aggression: 14, endurance: 12, control: 12, agility: 300, comprehension: 12 },
+      fx: null,
+      hp: 100, hpMax: 100, mp: 100, mpMax: 100,
+    }
+    const me = { id: 'me', name: '당신', stats, fx: stats.fx ?? null, hp: 100, hpMax: 100, mp: 100, mpMax: 100 }
+    const mb = createDummyMB(TUTOR_DUMMY_GROUP, [bari, me], Math.random)
+    mb.queue = forcedQueue(['jab', 'jab', 'group', 'smash'], 20)
+    mbRef.current = mb
+    const evs = openingInitiative(mb, Math.random)
+    if (!mb.turn) evs.push(...beginRound(mb, Math.random))
+    pushLog([{ text: `${TUTOR_DUMMY_GROUP.name}이(가) 나타났다. (2인 전투: 바리, 당신)` }, ...evs])
+    rerender()
+    timer.current = setTimeout(next, 50)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i])
+
+  // 바리(봇)의 자동 턴 — i 에만 반응해서 같은 단계가 두 번 실행되지 않게 한다(솔로 튜토리얼과 같은 이유).
+  useEffect(() => {
+    if (step?.auto !== 'bari' || !mbRef.current || mbRef.current.turn !== 'bari') return
+    setBusy(true)
+    timer.current = setTimeout(() => {
+      const mb = mbRef.current
+      const barM = mb.members.find((x) => x.id === 'bari')
+      // 돌발 행동(낮은 확률로 턴이 시작되기 전에 미리 '무조건 공격'이 정해져 있을 수 있다)이 이미
+      // 걸려 있으면 지운다 — 튜토리얼 대사와 다른 행동이 나가면 안내가 어긋나 보이기 때문이다.
+      if (barM?.act?.forced) barM.act = null
+      // 아이템 사용(useItemMB)의 안내 문구는 resolveTurn 의 반환값이 아니라 mb.log 에 바로 쌓인다 —
+      // 그래서 쓰기 전 길이를 기억해 두고, 쓴 뒤 새로 늘어난 만큼만 떼어내 로그로 보여 준다.
+      let itemEvs = []
+      if (step.bariItem) {
+        const item = ITEMS.find((it) => it.id === step.bariItem)
+        const before = mb.log.length
+        useItemMB(mb, 'bari', item, null)
+        itemEvs = mb.log.slice(before)
+      } else if (step.bariAct) {
+        submit(mb, 'bari', step.bariAct)
+      }
+      // bariItem/bariAct 가 둘 다 없으면(= 폭죽으로 행동불능인 턴) 아무것도 제출하지 않는다 —
+      // resolveTurn 이 stun 을 보고 스스로 건너뛴다.
+      preserveEnemyHp(mb)
+      const evs = resolveTurn(mb, Math.random)
+      clampMB(mb)
+      pushLog([...itemEvs, ...evs])
+      setBusy(false)
+      rerender()
+      next()
+    }, 700)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i])
+
+  const doMe = (action) => {
+    const mb = mbRef.current
+    if (busy || !mb || mb.turn !== 'me' || mb.phase !== 'input') return
+    setBusy(true)
+    const meM = mb.members.find((x) => x.id === 'me')
+    if (meM?.act?.forced) meM.act = null // 돌발로 미리 정해진 행동이 있었다면 지우고, 실제로 누른 행동을 쓴다
+    const r = submit(mb, 'me', { action })
+    if (r.error) {
+      setBusy(false)
+      return
+    }
+    preserveEnemyHp(mb)
+    const evs = resolveTurn(mb, Math.random)
+    clampMB(mb)
+    pushLog(evs)
+    setBusy(false)
+    rerender()
+    next()
+  }
+
+  const mb = mbRef.current
+  const me = mb?.members.find((m) => m.id === 'me')
+  const bari = mb?.members.find((m) => m.id === 'bari')
+  const allow = step?.allow
+  const allowed = (k) => allow === k
+  const myTurn = !busy && mb && mb.phase === 'input' && mb.turn === 'me'
+
   return (
     <section aria-label="#4 단체 전투" className="relative">
+      {step?.highlight && <Spotlight selector={step.highlight} />}
       <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
         <span className="rounded-full bg-gold-fill px-3 py-0.5 text-ink light:text-ink">#4 단체 전투 (연습)</span>
         <button type="button" onClick={onClose} className="flat-chip tilt shrink-0" aria-label="튜토리얼 닫기">
           <X size={13} aria-hidden /> 닫기
         </button>
       </div>
-      <BariCard
-        face={step.face}
-        lines={step.lines}
-        onNext={() => (step.end ? onDone() : next())}
-        nextLabel={step.end ? '마치기' : '다음'}
-      />
-      <div className="ink-panel mt-3 rounded-xl p-3" aria-label="가상 일행 구성">
-        <p className="text-xs text-paper/60">가상의 일행 구성 (예시)</p>
-        <ul className="mt-2 flex flex-wrap gap-2 text-xs">
-          <li className="rounded-full bg-gold-fill/20 px-3 py-1 text-gold">바리 (신속 높음 · 선공)</li>
-          <li className="rounded-full bg-edge/10 px-3 py-1 text-paper/80">당신</li>
-          <li className="rounded-full bg-crimson/20 px-3 py-1 text-crimson">적</li>
-        </ul>
-      </div>
+
+      {step && step.lines?.length > 0 && (
+        <BariCard
+          face={step.face}
+          lines={step.lines}
+          hint={step.allow ? '해당하는 행동 버튼을 직접 눌러 보세요.' : undefined}
+          hideNext={!!step.allow || !!step.auto}
+          onNext={() => (step.end ? onDone() : next())}
+          nextLabel={step.end ? '마치기' : '다음'}
+        />
+      )}
+
+      {mb && (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="ink-panel rounded-xl p-3">
+            <div className="flex items-baseline justify-between">
+              <p className="font-serif text-base text-paper">{mb.enemy.name}</p>
+              <p className="text-xs tabular-nums text-paper/70">{mb.ehp} / {mb.enemy.hp}</p>
+            </div>
+            <div className="mt-1.5"><Bar value={mb.ehp} max={mb.enemy.hp} tone="bg-crimson" label="상대 체력" /></div>
+            <p className="mt-2 text-[11px] text-paper/60">라운드 {mb.round}</p>
+          </div>
+          <div className="grid gap-2">
+            {[bari, me].map((m) => m && (
+              <div key={m.id} className={`ink-panel rounded-xl p-2.5 ${mb.turn === m.id && mb.phase === 'input' ? 'ring-2 ring-gold' : ''}`}>
+                <div className="flex items-baseline justify-between">
+                  <p className="text-sm text-paper">{m.name}{mb.turn === m.id && mb.phase === 'input' ? <span className="ml-1.5 text-[10px] text-gold">(이번 턴)</span> : ''}</p>
+                  <p className="text-[11px] tabular-nums text-paper/70">{m.php} / {m.phpMax}</p>
+                </div>
+                <div className="mt-1"><Bar value={m.php} max={m.phpMax} tone="bg-mana" label={`${m.name} 체력`} /></div>
+                <p className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                  <span className="flat-chip">의지력 {Math.floor(m.mp)}</span>
+                  <span className="flat-chip">부적 {m.charms}장</span>
+                  {m.boost && <span className="flat-chip text-gold">공격력 ×2</span>}
+                  {m.stun > 0 && <span className="flat-chip">행동불능 {m.stun}턴</span>}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {mb && (
+        <div className="mt-2 grid grid-cols-3 gap-1.5" role="group" aria-label="연습 행동 선택">
+          <ActionBtn active={allowed('attack')} disabled={!myTurn || !allowed('attack')} onClick={() => doMe('attack')} dataAttr={{ 'data-tutorial-mb-attack-btn': true }}>일반 공격</ActionBtn>
+          <ActionBtn active={allowed('guard')} disabled={!myTurn || !allowed('guard')} onClick={() => doMe('guard')} dataAttr={{ 'data-tutorial-mb-guard-btn': true }}>막기</ActionBtn>
+          <ActionBtn active={allowed('charm')} disabled={!myTurn || !allowed('charm') || (me?.charms ?? 0) <= 0} onClick={() => doMe('charm')} dataAttr={{ 'data-tutorial-mb-charm-btn': true }}>부적</ActionBtn>
+        </div>
+      )}
+
       {log.length > 0 && (
         <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" data-tutorial-log>
           {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
@@ -565,7 +768,7 @@ export default function BattleTutorialHub({ open, onClose, stats, tutorialDone =
   const allDone = TUTORIAL_META.every((t) => tutorialDone?.[t.id])
 
   if (running === 'group') {
-    return <TutorialGroup onClose={() => setRunning(null)} onDone={() => { onTutorialDone?.('group'); setRunning(null) }} />
+    return <ScriptedGroupBattle stats={stats} onLog={onLog} onClose={() => setRunning(null)} onDone={() => { onTutorialDone?.('group'); setRunning(null) }} />
   }
   if (running) {
     return (
@@ -579,62 +782,60 @@ export default function BattleTutorialHub({ open, onClose, stats, tutorialDone =
     )
   }
 
+  // 목록도 모달 팝업이 아니라, 실제 전투처럼 페이지 흐름 안에 그냥 나온다 — 여기서 하나를 누르면
+  // 곧바로 그 전투 화면(위의 ScriptedBattle/ScriptedGroupBattle)으로 들어간다. 다른 전투를 고를 때처럼.
   return (
-    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-label="전투 튜토리얼">
-      <div className="ink-panel flex max-h-[88vh] w-[min(30rem,94vw)] flex-col overflow-hidden rounded-2xl border-2 border-gold/70 shadow-2xl">
-        <div className="flex items-center justify-between gap-2 border-b border-edge/20 px-4 py-2.5">
-          <p className="flex items-center gap-1.5 font-serif text-base font-bold text-gold">
-            <Swords size={16} aria-hidden />
-            전투 튜토리얼
-          </p>
-          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10">
-            <X size={15} />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
-          <p className="text-xs leading-relaxed text-paper/65">바리가 직접 플레이로 전투를 알려 줍니다. 튜토리얼 중에는 체력·영력·의지력이 모두 100으로 표시되고, 실제 상태는 바뀌지 않아요. 순서는 자유예요.</p>
-          <ul className="mt-3 space-y-2">
-            {TUTORIAL_META.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => setRunning(t.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl bg-edge/[0.07] px-3 py-2.5 text-left hover:bg-gold-fill/15"
-                >
-                  <span className="text-sm text-paper">{t.label}</span>
-                  {tutorialDone?.[t.id] ? <CheckCircle2 size={16} className="text-gold" aria-label="완료" /> : <span className="text-[10px] text-paper/45">미완료</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 rounded-xl border border-gold/30 bg-gold-fill/10 px-3 py-2.5">
-            {tutorialRewardTaken ? (
-              <p className="flex items-center gap-1.5 text-xs text-gold"><Gift size={13} aria-hidden /> 튜토리얼 완주 보상을 이미 받았어요.</p>
-            ) : allDone ? (
-              pickWeapon ? (
-                <>
-                  <p className="text-xs text-gold">네 개를 모두 마쳤어요! 원하는 무구를 하나 골라 받아가세요.</p>
-                  <ul className="mt-2 grid grid-cols-2 gap-1.5">
-                    {WEAPONS.map((w) => (
-                      <li key={w.id}>
-                        <button type="button" onClick={() => onClaimReward?.(w.id)} className="w-full rounded-lg bg-edge/10 px-2 py-1.5 text-left text-[11px] text-paper/85 hover:bg-gold-fill/25">
-                          {w.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : (
-                <button type="button" onClick={() => setPickWeapon(true)} className="flat-btn w-full justify-center text-xs">
-                  <Gift size={13} aria-hidden /> 네 개를 모두 마쳤어요 — 무구 받으러 가기
-                </button>
-              )
-            ) : (
-              <p className="flex items-center gap-1.5 text-xs text-paper/55"><Lock size={13} aria-hidden /> 네 개를 모두 마치면 무구 10개 중 하나를 바로 받을 수 있어요.</p>
-            )}
-          </div>
-        </div>
+    <section aria-label="전투 튜토리얼" className="relative">
+      <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
+        <span className="flex items-center gap-1.5 font-serif text-base text-gold">
+          <Swords size={16} aria-hidden />
+          전투 튜토리얼
+        </span>
+        <button type="button" onClick={onClose} className="flat-chip tilt shrink-0" aria-label="닫기">
+          <X size={13} aria-hidden /> 닫기
+        </button>
       </div>
-    </div>
+      <p className="mt-2 text-xs leading-relaxed text-paper/65">바리가 직접 플레이로 전투를 알려 줍니다. 아래에서 하나를 고르면 바로 그 전투가 시작돼요. 튜토리얼 중에는 체력·영력·의지력이 모두 100으로 표시되고, 실제 상태는 바뀌지 않아요. 순서는 자유예요.</p>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {TUTORIAL_META.map((t) => (
+          <li key={t.id}>
+            <button
+              type="button"
+              onClick={() => setRunning(t.id)}
+              className="ink-panel tilt flex w-full items-center justify-between gap-2 rounded-xl p-3 text-left hover:bg-gold-fill/15"
+            >
+              <span className="text-sm text-paper">{t.label}</span>
+              {tutorialDone?.[t.id] ? <CheckCircle2 size={16} className="text-gold" aria-label="완료" /> : <span className="text-[10px] text-paper/45">미완료</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 rounded-xl border border-gold/30 bg-gold-fill/10 px-3 py-2.5">
+        {tutorialRewardTaken ? (
+          <p className="flex items-center gap-1.5 text-xs text-gold"><Gift size={13} aria-hidden /> 튜토리얼 완주 보상을 이미 받았어요.</p>
+        ) : allDone ? (
+          pickWeapon ? (
+            <>
+              <p className="text-xs text-gold">네 개를 모두 마쳤어요! 원하는 무구를 하나 골라 받아가세요.</p>
+              <ul className="mt-2 grid grid-cols-2 gap-1.5">
+                {WEAPONS.map((w) => (
+                  <li key={w.id}>
+                    <button type="button" onClick={() => onClaimReward?.(w.id)} className="w-full rounded-lg bg-edge/10 px-2 py-1.5 text-left text-[11px] text-paper/85 hover:bg-gold-fill/25">
+                      {w.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <button type="button" onClick={() => setPickWeapon(true)} className="flat-btn w-full justify-center text-xs">
+              <Gift size={13} aria-hidden /> 네 개를 모두 마쳤어요 — 무구 받으러 가기
+            </button>
+          )
+        ) : (
+          <p className="flex items-center gap-1.5 text-xs text-paper/55"><Lock size={13} aria-hidden /> 네 개를 모두 마치면 무구 10개 중 하나를 바로 받을 수 있어요.</p>
+        )}
+      </div>
+    </section>
   )
 }

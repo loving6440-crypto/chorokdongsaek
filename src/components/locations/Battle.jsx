@@ -399,19 +399,26 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
     )
   }
 
+  // 전투 튜토리얼이 열려 있는 동안은 상대를 고르는 화면 대신 그 안으로 바로 들어간다 —
+  // 다른 전투를 고르는 것처럼, 팝업이 아니라 화면이 그대로 바뀌는 식으로.
+  if (phase === 'pick' && tutorialOpen) {
+    return (
+      <BattleTutorialHub
+        open={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
+        stats={stats}
+        tutorialDone={tutorialDone}
+        tutorialRewardTaken={tutorialRewardTaken}
+        onTutorialDone={onTutorialDone}
+        onClaimReward={onClaimTutorialReward}
+        onLog={onLog}
+      />
+    )
+  }
+
   if (phase === 'pick') {
     return (
       <section>
-        <BattleTutorialHub
-          open={tutorialOpen}
-          onClose={() => setTutorialOpen(false)}
-          stats={stats}
-          tutorialDone={tutorialDone}
-          tutorialRewardTaken={tutorialRewardTaken}
-          onTutorialDone={onTutorialDone}
-          onClaimReward={onClaimTutorialReward}
-          onLog={onLog}
-        />
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm leading-relaxed text-paper/75">
             붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
