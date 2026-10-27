@@ -3,6 +3,8 @@
 // 보상은 자동으로 들어오지 않고, 달성한 뒤 플레이어가 직접 [보상 받기] 버튼을 눌러야 claimQuest/claimMetaQuest 로 지급된다.
 //  - 채집 · 동아리별 재료 납품 · 동아리별 적 토벌(14·15번)은 아직 그 시스템이 없어 구현을 생략한다 — 대신 누구나 바로 채운 것으로 쳐서,
 //    '동아리 활동 N개 달성' 메타 퀘스트가 막히지 않게 해 둔다. 어차피 보상이 없는 항목이라 자동으로 '받음' 처리해도 무방하다.
+import { clampSpirit } from './constants'
+
 const KST_MS = 9 * 3600 * 1000
 const DAY_MS = 24 * 3600 * 1000
 
@@ -169,7 +171,7 @@ export function claimQuest(player, questId, now = Date.now()) {
     inventory: r.item ? { ...p.inventory, [r.item]: (p.inventory?.[r.item] || 0) + 1 } : p.inventory,
     weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [questId]: true } },
   }
-  return { player: next, ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
+  return { player: clampSpirit(next), ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
 }
 
 /** 동아리 활동 달성 개수 보상(메타 퀘스트)을 직접 받는다. */
@@ -184,7 +186,7 @@ export function claimMetaQuest(player, questId, now = Date.now()) {
     money: p.money + (r.money ?? 0),
     weekly: { ...p.weekly, claimed: { ...p.weekly.claimed, [questId]: true } },
   }
-  return { player: next, ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
+  return { player: clampSpirit(next), ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
 }
 
 // ───────── 오늘의 동아리 활동(일일 퀘스트) — 매일 낮 12시(KST)에 초기화된다 ─────────
@@ -212,7 +214,7 @@ export function claimDailyQuest(player, questId, now = Date.now()) {
     money: p.money + (r.money ?? 0),
     daily: { ...p.daily, claimed: { ...p.daily.claimed, [questId]: true } },
   }
-  return { player: next, ok: true, log: `오늘의 동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
+  return { player: clampSpirit(next), ok: true, log: `오늘의 동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
 }
 
 /** 일일 퀘스트 5개 모두 완료 보상을 직접 받는다. */
@@ -227,5 +229,5 @@ export function claimDailyMeta(player, now = Date.now()) {
     money: p.money + (r.money ?? 0),
     daily: { ...p.daily, claimed: { ...p.daily.claimed, [q.id]: true } },
   }
-  return { player: next, ok: true, log: `오늘의 동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
+  return { player: clampSpirit(next), ok: true, log: `오늘의 동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
 }

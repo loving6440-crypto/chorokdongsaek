@@ -188,6 +188,21 @@ export async function createAccountStore({ db, file }) {
         persist()
       }
     },
+    // 계정을 아예 지운다(탈퇴). 본채 줄 + 사진 줄(메인·프로필별)을 모두 지운다. 되돌릴 수 없다.
+    async delete(acc) {
+      if (db) {
+        await db.query('delete from saves where id = $1', [ACC(acc.id)])
+        await db.query('delete from saves where id = $1', [AVATAR_ROW(acc.id, 'main')])
+        if (acc.profiles) {
+          for (const pid of Object.keys(acc.profiles)) {
+            await db.query('delete from saves where id = $1', [AVATAR_ROW(acc.id, `p:${pid}`)])
+          }
+        }
+      } else {
+        delete mem.accounts[acc.id]
+        persist()
+      }
+    },
     async idsByTwitter(twitter) {
       const t = normTwitter(twitter)
       if (!t) return []

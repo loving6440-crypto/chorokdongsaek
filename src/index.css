@@ -633,6 +633,11 @@ button.bg-gold { border-radius: 0.55rem; }
 .sp-shake { animation: sp-shake .45s ease-out 1; }
 @media (prefers-reduced-motion: reduce) { .sp-banner { animation: none; } .sp-shake { animation: none; } }
 
+/* 아군 상태변화(아이템 사용·전투불능·부활) 알림 토스트 */
+@keyframes toast-pop { 0% { opacity: 0; transform: translateY(-6px) scale(.92) } 10% { opacity: 1; transform: translateY(0) scale(1) } 85% { opacity: 1 } 100% { opacity: 0; transform: translateY(-4px) } }
+.toast-pop { animation: toast-pop 2.6s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .toast-pop { animation: none; } }
+
 /* 부적학 [창록 교화] 스킨: 흩날리는 벚꽃잎 */
 @keyframes petal-fall {
   0% { transform: translate(0, -12%) rotate(0deg); opacity: 0; }

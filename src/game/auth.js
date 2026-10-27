@@ -272,7 +272,10 @@ export function deleteProfile(userId, pid) {
 //  - syncBase: 마지막으로 서버와 맞춘 저장 번호(서버가 매긴 updatedAt). 다른 기기가 그 뒤에 저장했는지 판단하는 데 쓴다.
 //  - dirty: 서버에 아직 보내지 못한 변경이 있는지
 const TOKEN_KEY = 'chorok-token'
-const PUSH_DELAY_MS = 4000 // 게임은 0.8초마다 저장하므로 서버에는 몇 초씩 모아서 보낸다
+// (v72) 가만히 서 있기만 해도 영력·체력이 매초 조금씩 자연 회복되어 계속 "저장할 것이 있다"로 잡히다 보니,
+// 4초마다 서버 자동저장이 쉬지 않고 나가고 있었다. 그 사이 끊겨도 다시 접속하면 지난 시간만큼 자연회복이
+// 한꺼번에 반영되는 구조(tickPlayer)라 꼭 그렇게 자주 보낼 필요가 없어, 간격을 넉넉히 늘렸다.
+const PUSH_DELAY_MS = 12000 // 게임은 0.8초마다 저장하므로 서버에는 몇 초씩(최소 12초) 모아서 보낸다
 const RETRY_MS = 15000
 const GAME_FIELDS = ['save', 'profiles', 'activeProfile']
 let changeSeq = 0
@@ -485,6 +488,14 @@ export async function adminResetPassword(adminId, adminKey, targetId) {
   if (r.offline) return { ok: false, error: 'network' }
   if (!r.ok) return { ok: false, error: r.data?.error ?? 'failed' }
   return { ok: true, target: r.data.target, tempPassword: r.data.tempPassword }
+}
+
+/** 관리자: 계정을 서버에서 아예 삭제한다(탈퇴). 되돌릴 수 없다 — 호출 전에 반드시 한 번 더 확인을 받아야 한다. */
+export async function adminDeleteAccount(adminId, adminKey, targetId) {
+  const r = await api('/api/admin/account/delete', { body: { id: adminId, key: adminKey, target: targetId, confirm: true } })
+  if (r.offline) return { ok: false, error: 'network' }
+  if (!r.ok) return { ok: false, error: r.data?.error ?? 'failed' }
+  return { ok: true, target: r.data.target }
 }
 
 /** 아이디 찾기 (서버). 서버에 연결할 수 없으면 이 브라우저의 기록에서 찾는다. */

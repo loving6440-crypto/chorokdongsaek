@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
-import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, ownedPsychics, partyLabel, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, ownedPsychics, partyLabel, PSYCHICS, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
-import { Bar, vague } from './battleUi'
+import { Bar, enemyHpTone, vague } from './battleUi'
 import SpBanner from '../SpBanner'
+import { AllyPsychicBanner, AllyToastStack } from '../AllyPopup'
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
@@ -26,6 +27,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const [karmicTarget, setKarmicTarget] = useState(meId) // 업인과보: 지정할 대상(기본값은 자기 자신)
   const [sending, setSending] = useState(false)
   const [spBanner, setSpBanner] = useState(null)
+  const [allyBanner, setAllyBanner] = useState(null)
+  const [toasts, setToasts] = useState([])
   const [dice, setDice] = useState(null)
   const [now, setNow] = useState(() => Date.now())
   const lastLog = useRef(0)
@@ -53,12 +56,39 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     }
     const mine = [...fresh].reverse().find((e) => e.roll && e.by === meId)
     if (mine) setDice({ n: mine.roll, kind: mine.kind, k: Math.random() })
+    // 아군 영능력 사용: 적군 영능력처럼 큼직하게 꾸며진 팝업으로
+    const psy = [...fresh].reverse().find((e) => e.popup?.type === 'psychic')
+    if (psy) {
+      const def = PSYCHICS.find((p) => p.id === psy.popup.psychic)
+      setAllyBanner({ name: psy.popup.name, label: def?.label ?? psy.popup.psychic, note: def?.note, k: Math.random() })
+    }
+    // 아이템 사용 · 전투불능 · 부활: 짧은 토스트로
+    const toastEvs = fresh.filter((e) => e.popup && e.popup.type !== 'psychic')
+    if (toastEvs.length) {
+      const made = toastEvs.map((e) => {
+        const p = e.popup
+        const text =
+          p.type === 'downed'
+            ? `${p.name} 전투불능!`
+            : p.type === 'revived'
+              ? `${p.name} 다시 일어섰다!`
+              : `${p.name}이(가) ${p.item}을(를) 사용${p.target ? ` (${p.target})` : ''}`
+        return { k: `${e.id}-${Math.random()}`, type: p.type, text }
+      })
+      setToasts((prev) => [...prev, ...made])
+      made.forEach((t) => setTimeout(() => setToasts((prev) => prev.filter((x) => x.k !== t.k)), 2700))
+    }
   }, [view.log, meId, onSpecialSeen])
   useEffect(() => {
     if (!spBanner) return undefined
     const t = setTimeout(() => setSpBanner(null), 6200)
     return () => clearTimeout(t)
   }, [spBanner])
+  useEffect(() => {
+    if (!allyBanner) return undefined
+    const t = setTimeout(() => setAllyBanner(null), 6200)
+    return () => clearTimeout(t)
+  }, [allyBanner])
   // 새 라운드가 시작되거나, 서버가 새 로그를 보내오면(의지력 부족 등으로 행동이 무효가 되어 내 턴이 그대로 유지되는
   // 경우도 포함) 보냈다는 표시를 푼다. view.turn 등은 그대로인데 로그만 새로 온 경우를 놓치면, 유효한 행동을
   // 고를 때까지 턴은 넘어가지 않지만 '보내는 중' 표시가 풀리지 않아 아무 행동도 못 하게 되는 문제가 있었다.
@@ -142,6 +172,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   return (
     <section aria-label="다인 전투" data-mb className={`relative ${spBanner ? 'sp-shake' : ''}`}>
       <SpBanner sp={spBanner} onEnd={() => setSpBanner(null)} />
+      <AllyPsychicBanner sp={allyBanner} onEnd={() => setAllyBanner(null)} />
+      <AllyToastStack toasts={toasts} className={allyBanner || spBanner ? 'top-[11.5rem]' : 'top-10'} />
       <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
         <span>
           <Users size={13} className="mr-1 inline align-[-2px]" aria-hidden />
@@ -193,7 +225,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
           </div>
           <p className="mt-0.5 text-[10px] text-paper/50">{recLabel(enemy)} · {partyLabel(enemy)}</p>
           <div className="mt-2">
-            <Bar value={view.ehp} max={enemy.hp} tone="bg-crimson" label="상대 체력" hidden={!rv.hp} />
+            <Bar value={view.ehp} max={enemy.hp} tone={enemyHpTone(view.ehp, enemy.hp, enemy?.gimmicks?.length > 0)} label="상대 체력" hidden={!rv.hp} />
           </div>
           {!rv.hp && <p className="mt-1 text-[11px] text-paper/55">{vague(view.ehp, enemy.hp)}</p>}
           <p className="mt-2 grid grid-cols-3 gap-x-2 text-[11px] tabular-nums text-paper/70">
@@ -344,7 +376,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
           <p className="font-serif text-base text-gold">영능력</p>
           {(() => {
-            const mine = ownedPsychics(psychics)
+            // 보스 전투에서는 미리 가져가기로 고른 영능력(최대 2개, 효험은 제외)만 쓸 수 있다. (v71)
+            const mine = ownedPsychics(psychics).filter((p) => p.default || !view.boss || !Array.isArray(me?.psychicBring) || me.psychicBring.includes(p.id))
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65">획득한 영능력이 없습니다.</p>
             const pawMax = Math.max(1, Math.floor(me?.php ?? 1) - 1)
             const aliveMates = view.members.filter((x) => x.status === 'alive')

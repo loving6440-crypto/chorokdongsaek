@@ -4,7 +4,11 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
+import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
+import { itemTurnFree } from './items.js'
+
+/** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
+const auraFor = (mb, attackerId) => aliveOf(mb).reduce((sum, x) => sum + (x.id === attackerId ? auraSelfOf(x.stats) : auraOf(x.stats)), 0)
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -27,7 +31,7 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, boost, bring }) {
+export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
@@ -57,6 +61,7 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     revive: !!revive,
     boost: !!boost,
     bring: bring ?? null, // 보스 전투: 가져온 아이템 { id: 개수 } (null 이면 제한 없음)
+    psychicBring: psychicBring ?? null, // 보스 전투: 가져온 영능력 id 목록(최대 2개, null 이면 제한 없음) (v71)
     act: null, // 이번 라운드에 고른 행동 { action, scanAmount?, psychic?, forced? }
   }
 }
@@ -203,6 +208,8 @@ export function submit(mb, id, act) {
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
   if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
+  // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
+  if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
   m.act = {
     action: a,
     scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined,
@@ -220,14 +227,19 @@ export function autoFill(mb) {
   for (const m of waitingOn(mb)) m.act = { action: m.bound ? 'attack' : 'guard', auto: true }
 }
 
-/** 아이템 효과(전투 중). 자기 차례에만 쓸 수 있고, 쓰면 그 즉시 자신의 턴이 넘어간다. 반환 { ok, text } 또는 { error } */
+/**
+ * 아이템 효과(전투 중). 자기 차례에만 쓸 수 있다.
+ * '일행'(나 말고 다른 사람)에게도 쓸 수 있는 아이템(#턴소모有)은 쓰면 그 즉시 턴이 넘어가고,
+ * 나를 포함한 '개인'에게만 쓸 수 있는 아이템(#턴소모無)은 턴을 소모하지 않아 같은 턴에 다른 행동도 이어서 할 수 있다. (v71)
+ * 반환 { ok, text } 또는 { error }
+ */
 export function useItemMB(mb, id, item, targetId) {
   const r = useItemCore(mb, id, item, targetId)
   if (r.ok) {
     const m = mb.members.find((x) => x.id === id)
     if (m && item?.id && !m.usedItems.includes(item.id)) m.usedItems = [...m.usedItems, item.id] // 형상 기억이 나중에 재활용할 수 있도록 기록
     if (mb.enemy.boss) m.bring = { ...m.bring, [item.id]: m.bring[item.id] - 1 }
-    if (m) m.act = { action: 'item' } // 아이템을 썼으니 이번 턴은 끝 — resolveTurn 이 다음 사람에게 넘긴다.
+    if (m && !itemTurnFree(item)) m.act = { action: 'item' } // #턴소모有 아이템만 턴을 끝낸다 — resolveTurn 이 다음 사람에게 넘긴다.
   }
   return r
 }
@@ -248,7 +260,7 @@ function useItemCore(mb, id, item, targetId) {
     if (t.boost) return { error: 'already' }
     t.boost = true
     const who = t.id === m.id ? '자신' : t.name
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. ${t.name}의 다음 행동 피해가 2배가 된다.` }], m.id)
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. ${t.name}의 다음 행동 피해가 2배가 된다.`, popup: { type: 'item', name: m.name, item: item.name, target: who } }], m.id)
     return { ok: true }
   }
   // 봉지 과자 / 조각 케이크: 파티(살아있는 전원) 체력·의지력 회복.
@@ -258,7 +270,7 @@ function useItemCore(mb, id, item, targetId) {
       if (e.partyHp) x.php = Math.min(x.phpMax, x.php + e.partyHp)
       if (e.partyMp) x.mp = Math.min(x.mpMax, x.mp + e.partyMp)
     }
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.` }], m.id)
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.`, popup: { type: 'item', name: m.name, item: item.name, target: '일행 전원' } }], m.id)
     return { ok: true }
   }
   // 폭죽: 자신을 제외한 일행 전원 다음 공격력 ×2, 사용한 자신은 2턴 행동불능(자신에게는 ×2가 적용되지 않는다).
@@ -277,6 +289,7 @@ function useItemCore(mb, id, item, targetId) {
       [{
         kind: 'info',
         text: `${m.name}이(가) ${item.name}을(를) 터뜨렸다! 자신을 제외한 일행 전원의 다음 공격력이 ×${e.partyBoost}가 된다. ${m.name}은 ${e.selfStun}턴 동안 움직일 수 없다.${skipped ? ' (이미 다른 공격력 버프가 걸려 있던 일행은 제외됐다)' : ''}`,
+        popup: { type: 'item', name: m.name, item: item.name, target: '일행 전원(자신 제외)' },
       }],
       m.id,
     )
@@ -288,19 +301,22 @@ function useItemCore(mb, id, item, targetId) {
     const amount = t.id === m.id ? e.giveHp.self : e.giveHp.party
     t.php = Math.min(t.phpMax, t.php + amount)
     const who = t.id === m.id ? '자신' : t.name
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. 체력 +${amount}.` }], m.id)
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. 체력 +${amount}.`, popup: { type: 'item', name: m.name, item: item.name, target: who } }], m.id)
     return { ok: true }
   }
   if (t.id !== m.id) return { error: 'self-only' }
   if (e.revive) {
+    // 에너지드링크: 한 전투에 1회만 쓸 수 있다 — 효과가 소비된 뒤(부활 뒤)에도 다시 쓸 수 없다. (v71)
+    if (m.energyUsed) return { error: 'already' }
     if (m.revive) return { error: 'already' }
     m.revive = true
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 마셨다. (전투불능 시 1회 부활 대기)` }], m.id)
+    m.energyUsed = true
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 마셨다. (전투불능 시 1회 부활 대기, 이 전투에서는 다시 쓸 수 없다)`, popup: { type: 'item', name: m.name, item: item.name, target: '자신' } }], m.id)
     return { ok: true }
   }
   if (e.hp) m.php = Math.min(m.phpMax, m.php + e.hp)
   if (e.mp) m.mp = Math.min(m.mpMax, m.mp + e.mp)
-  addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 사용했다.` }], m.id)
+  addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 사용했다.`, popup: { type: 'item', name: m.name, item: item.name, target: '자신' } }], m.id)
   return { ok: true }
 }
 
@@ -325,7 +341,7 @@ export function resolveTurn(mb, rng = Math.random) {
   if (m.fire > 0) {
     const v0 = viewOfMember(mb, m)
     // 악기(무구 버프): 일행 전원의 공격·반격에 붙는 보정이라, 터지는 순간에도 똑같이 더해 줘야 한다.
-    const fireAura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0)
+    const fireAura = auraFor(mb, m.id)
     const f = fireTurn(v0, { stats: m.stats, mp: m.mp, boost: m.boost, aura: fireAura }, rng)
     m.fire = f.state.fire || 0
     m.fireBuffed = !!f.state.fireBuffed
@@ -391,7 +407,7 @@ export function resolveTurn(mb, rng = Math.random) {
   }
   const act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
   const v = viewOfMember(mb, m)
-  const aura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 공격·반격에 붙는 보정
+  const aura = auraFor(mb, m.id) // 악기: 일행 모두의 공격·반격에 붙는 보정(자기 자신에게는 75%만)
   let r
   let targetId = null
   if (act.action === 'psychic') {
@@ -439,7 +455,18 @@ export function resolveTurn(mb, rng = Math.random) {
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
-  evs.push(...addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}${forced}] ${e.text}` })), m.id))
+  // 아군이 영능력을 썼을 때는 팝업으로 바로 보여 줄 수 있도록 표시를 달아 둔다(적 영능력과 같은 꾸며진 팝업). (v71)
+  evs.push(
+    ...addLog(
+      mb,
+      r.events.map((e, i) => ({
+        ...e,
+        text: `[${m.name}${forced}] ${e.text}`,
+        ...(i === 0 && act.action === 'psychic' ? { popup: { type: 'psychic', name: m.name, psychic: act.psychic } } : {}),
+      })),
+      m.id,
+    ),
+  )
   m.act = null
   if (r.state.over === 'fled') m.status = 'fled'
   if (mb.ehp <= 0) {
@@ -537,11 +564,8 @@ function enemyPhase(mb, rng) {
       }
     }
   } else {
-    // 칼: 매 턴마다 (호전×2)% 확률로, 칼을 든 사람이 체력과 상관없이 강제로 표적이 된다.
-    const swordDraws = alive.filter((m) => m.fx === 'sword' && rng() * 100 < (m.stats.aggression || 0) * 2)
-    const forced = swordDraws.length ? swordDraws[Math.floor(rng() * swordDraws.length)] : null
-    // 내려쬐는 빛: 단일 대상 공격도 무조건 그걸 쓴 사람에게 향한다(칼의 강제 표적보다도 우선한다).
-    const pick = flTarget ? { id: flTarget.id } : forced ? { id: forced.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
+    // 내려쬐는 빛: 단일 대상 공격도 무조건 그걸 쓴 사람에게 향한다.
+    const pick = flTarget ? { id: flTarget.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
     targets = [mb.members.find((m) => m.id === pick.id)]
     if (hits) {
       if (flTarget) mb.fallingLight = null
@@ -552,24 +576,22 @@ function enemyPhase(mb, rng) {
             kind: flTarget ? 'warn' : 'info',
             text: flTarget
               ? `▶ 내려쬐는 빛! ${mb.enemy.name}이(가) ${targets[0].name}을(를) 향한다.`
-              : forced
-                ? `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (칼의 기세에 이끌렸다)`
-                : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)`,
+              : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)`,
           }],
           'enemy',
         ),
       )
     }
   }
-  const partyAura = aliveOf(mb).reduce((sum, x) => sum + auraOf(x.stats), 0) // 악기: 일행 모두의 반격에도 똑같이 붙는다
   targets.forEach((t, i) => {
     if (mb.ehp <= 0) return
     const last = i === targets.length - 1
     const q = [...mb.queue]
     if (intent === 'group') q[0] = 'jab'
-    const v = { ...viewOfMember(mb, t), guard: t.guard, queue: q }
+    // 내려쬐는 빛으로 대신 맞는 공격은 무조건 '막기'로 처리된다. (v71)
+    const v = { ...viewOfMember(mb, t), guard: flTarget && t.id === flTarget.id ? true : t.guard, queue: q }
     const prevPhp = t.php
-    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: partyAura }, rng)
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: auraFor(mb, t.id) }, rng) // 악기: 반격자 본인이면 75%만
     if (karmicMult > 1) {
       const dealt = Math.max(0, prevPhp - r.state.php)
       const extra = dealt * (karmicMult - 1)
@@ -604,14 +626,19 @@ function enemyPhase(mb, rng) {
     if (downed && t.revive) {
       t.revive = false
       t.php = 1
-      tevs = [...tevs.filter((e) => !/버티기를 쓸 수 있다|쓰러졌다|버티지 못/.test(e.text || '')), { kind: 'warn', text: `[${t.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!` }]
+      tevs = [
+        ...tevs.filter((e) => !/버티기를 쓸 수 있다|쓰러졌다|버티지 못/.test(e.text || '')),
+        { kind: 'warn', text: `[${t.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!`, popup: { type: 'revived', name: t.name } },
+      ]
       t.reviveUsed = true
     } else if (r.state.pendingDeath) {
       t.pendingDeath = true
       t.php = 0
+      tevs = [...tevs, { kind: 'warn', text: `[${t.name}] 전투불능 상태가 되었다.`, popup: { type: 'downed', name: t.name } }]
     } else if (r.state.over === 'lose') {
       t.status = 'down'
       t.php = 0
+      tevs = [...tevs, { kind: 'warn', text: `[${t.name}] 전투불능 상태가 되었다.`, popup: { type: 'downed', name: t.name } }]
     }
     evs.push(...addLog(mb, tevs, 'enemy'))
   })
@@ -652,7 +679,22 @@ export function survive(mb, id, accept, rng = Math.random) {
     m.php = r.state.php
     m.survived = r.state.survived
   }
-  const evs = addLog(mb, r.events.map((e) => ({ ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${m.name}] ${e.text}` })), m.id)
+  const evs = addLog(
+    mb,
+    r.events.map((e, i) => ({
+      ...e,
+      kind: e.kind === 'end' ? 'warn' : e.kind,
+      text: `[${m.name}] ${e.text}`,
+      ...(i === r.events.length - 1
+        ? r.state.over === 'lose'
+          ? { popup: { type: 'downed', name: m.name } }
+          : r.state.survived
+            ? { popup: { type: 'revived', name: m.name } }
+            : {}
+        : {}),
+    })),
+    m.id,
+  )
   if (!pendingSurvivors(mb).length) evs.push(...afterEnemy(mb, rng))
   return { ok: true, events: evs }
 }
@@ -715,6 +757,7 @@ export function viewOf(mb, extra = {}) {
       bring: m.bring,
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
+      psychicBring: m.psychicBring,
       fire: m.fire || 0,
       acted: !!m.act,
       result: resultOf(mb, m.id),

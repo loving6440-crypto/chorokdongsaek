@@ -99,12 +99,15 @@ export const GREETING_MAX_LENGTH = 30 // 한 줄 인사
 export const STAT_MIN = 1 // 스탯 최소값 (최대값은 없다)
 export const STAT_START_POINTS = 10 // 캐릭터 생성 시 자유롭게 투자할 수 있는 포인트
 
-// 영력 게이지의 기본 최대치(영력이 이보다 커지면 100 단위로 늘어난다).
-// 모든 캐릭터는 그 중앙값에서 시작한다.
+// 영력의 최댓값(절대 이걸 넘지 않는다). 모든 캐릭터는 그 중앙값에서 시작한다.
 export const SPIRIT_BASELINE_MAX = 200
 export const SPIRIT_START = SPIRIT_BASELINE_MAX / 2
 export const HP_MAX = 100
 export const MP_MAX = 100
+
+/** (v72) 영력을 늘리는 모든 경로(수업·수련·수면·전투 보상·수렵·동아리 퀘스트 등)에서 공통으로 쓰는 상한 처리.
+ *  어떤 값이든 영력이 SPIRIT_BASELINE_MAX(200)를 넘으면 그 자리에서 되돌린다. */
+export const clampSpirit = (p) => (p.spirit > SPIRIT_BASELINE_MAX ? { ...p, spirit: SPIRIT_BASELINE_MAX } : p)
 
 export const AVATAR_SIZE = 256 // 업로드한 이미지를 이 크기의 정사각형으로 저장한다.
 export const AVATAR_MAX_FILE_MB = 8

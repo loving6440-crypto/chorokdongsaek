@@ -6,7 +6,7 @@
 //  - 적: src/game/battle.js 의 blurb
 //  - NPC: 아래 NPC_ENTRIES 의 desc (비워 두면 '(설명 준비 중)')
 //  - 영능력: 적 special 의 note (src/game/battle.js)
-import { ENEMIES, PSYCHICS, LENT_FIRE, specialEffects, SPECIAL_PERCENT } from './battle'
+import { ENEMIES, PSYCHICS, specialEffects, SPECIAL_PERCENT } from './battle'
 import { ITEMS } from './items'
 import { ISHI } from './shrine'
 import { SHINAH } from './armory'
@@ -23,7 +23,7 @@ export const CODEX_CHAPTERS = [
 // NPC를 새로 추가할 때는: (1) 아래 목록에 한 줄 추가 (2) 그 NPC가 있는 방·화면에서 onMeet(id) 를 호출하면,
 // Game.jsx 의 meetNpc → progress.js 의 markNpc 가 자동으로 도감에 등록해 준다. (추가 작업 불필요)
 export const NPC_ENTRIES = [
-  { id: 'bari', name: '바리', portrait: '/bari.png', where: '뒷산 · 퇴마 실습 교육', desc: '' },
+  { id: 'bari', name: '바리', portrait: '/bari.png', where: '뒷산 · 교외', desc: '' },
   { id: 'yumin', name: '강유민', portrait: '/yumin-smile.webp', where: '기숙사 · 매점', desc: '' },
   { id: 'shinah', name: SHINAH.name, portrait: SHINAH.portrait, where: SHINAH.where, desc: SHINAH.codex },
   { id: 'ishi', name: ISHI.name, portrait: ISHI.portrait, where: '사당 · 문지기', desc: ISHI.codex },
@@ -83,16 +83,6 @@ export function codexEntries(chapterId, player, admin = false) {
       desc: x.note,
       extra: `${x.detail}\n취득 조건: ${x.cond}`,
     })),
-    {
-      id: `lent-${LENT_FIRE.id}`,
-      kind: 'skill',
-      group: '빌린 영능력',
-      known: admin || !!p.specials?.[LENT_FIRE.id],
-      name: LENT_FIRE.label,
-      desc: LENT_FIRE.note,
-      extra: `${LENT_FIRE.detail}\n바리가 전투 교육에서 빌려준 영능력. 아직 내 것은 아니다.`,
-      from: '바리',
-    },
     ...ENEMIES.map((e) => ({
       id: `sp-${e.id}`,
       kind: 'skill',

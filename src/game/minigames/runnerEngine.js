@@ -11,9 +11,9 @@ export const STAND = { w: 32, h: 26 } // 여우
 const GRAVITY = 2100
 const JUMP_V = -640 // 위로 향하는 속도(음수)
 const MIN_JUMP_V = -260 // 점프 키를 일찍 떼면 이 속도로 잘려 낮게 뛴다
-const START_SPEED = 290
-const MAX_SPEED = 1440 // 이전 상한(720)의 두 배
-const ACCEL = 12 // 초당 가속 — 약 96초 달리면 상한에 닿는다
+const START_SPEED = 260 // v71: 살짝 낮췄다 (이전 290)
+const MAX_SPEED = 1300 // v71: 살짝 낮췄다 (이전 1440)
+const ACCEL = 10 // 초당 가속 — v71: 살짝 낮췄다 (이전 12)
 const SCORE_PER_PX = 1 / 12
 
 export function createRun(best = 0) {

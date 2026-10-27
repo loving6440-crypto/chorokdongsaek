@@ -108,19 +108,6 @@ export function pickTarget(members, rng = Math.random) {
   return ties[Math.floor(rng() * ties.length)]
 }
 
-/** 전투 교육 과정용 연습 상대. 쓰러지지 않도록 체력이 넉넉하고 공격은 약하다. */
-export const TUTOR_ENEMY = {
-  id: 'scarecrow',
-  name: '연습용 허수아비',
-  blurb: '바리가 준비한 연습 상대.',
-  hp: 400,
-  atk: 3,
-  act: 1,
-  spirit: 3,
-  reward: 0,
-  special: { label: '혼 빨기', note: '의지력을 빨아들인다.' },
-}
-
 export const INTENTS = {
   jab: { label: '약공', note: '일반 공격.' },
   smash: { label: '강공', note: '기를 모아 내리치는 일격!' },
@@ -178,7 +165,7 @@ export const PSYCHICS = [
     id: 'echo-form',
     label: '형상 기억',
     note: '가장 안전하고 평화로웠던 기억을 떠올려 구현화시킨다.',
-    detail: '의지력을 (50-인내-절제+호전)만큼 소모한다. 자신 또는 일행 중 한 명의 체력을 무조건 100으로 회복시킨다.',
+    detail: '의지력을 (50-인내-절제+호전)만큼 소모한다 (최소 20, 최대 99). 자신 또는 일행 중 한 명의 체력을 무조건 100으로 회복시킨다.',
     cond: '(취득 경로 미정)',
     use: true,
   },
@@ -187,7 +174,7 @@ export const PSYCHICS = [
     label: '내려쬐는 빛',
     note: '다음에 적이 하는 공격을 무조건 자신이 맞아내는 탱킹용 영능력. 단일 대상이든 단체 대상(영능력 포함)이든 가리지 않는다.',
     detail:
-      '쓸 때마다 의지력 10을 소모한다. 턴 제한 없이 아무 때나, 몇 번이든 다시 걸 수 있다. 단체 공격을 대신 맞으면 원래 맞았을 인원 수만큼 피해가 곱해진다.',
+      '쓸 때마다 의지력 10을 소모한다. 턴 제한 없이 아무 때나, 몇 번이든 다시 걸 수 있다. 단체 공격을 대신 맞으면 원래 맞았을 인원 수만큼 피해가 곱해진다. 사용한 직후 들어오는 그 공격은 무조건 \'막기\'로 처리된다(피해 감소 및 반격 포함).',
     cond: '(취득 경로 미정)',
     mp: 10,
     use: true,
@@ -206,7 +193,7 @@ export const PSYCHICS = [
     label: '도깨비불',
     note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
     detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 전투·단체전투 모두에서 쓸 수 있다.',
-    cond: '(취득 경로 미정 · 바리가 전투 교육에서 잠깐 빌려주는 것과 같은 영능력이다)',
+    cond: '(취득 경로 미정)',
     mp: 20,
     use: true,
   },
@@ -232,14 +219,6 @@ export const ownedPsychics = (psychics = []) => PSYCHICS.filter((p) => p.default
  * 쓰고 나면 state.fire 가 남은 자동 턴 수(3)로 세팅되고, 내 턴이 올 때마다 fireTurn 을 불러 진행한다.
  */
 export const FIRE_TURNS = 3
-export const LENT_FIRE = {
-  id: 'dokkaebi-fire',
-  label: '도깨비불',
-  note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
-  detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 안목 판정 없이 무조건 명중한다.',
-  use: true,
-}
-
 /** 생존본능 도주 확률(%) = 50 + 1d(신속)×2 − 상대의 영력, 0~100 로 자른다. */
 export function fleeChance(roll, enemy) {
   return Math.max(0, Math.min(100, 50 + roll * 2 - enemy.spirit))
@@ -297,7 +276,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     const mpCost = Math.ceil(amt / 2) + buffCost
     if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     s.php = curPhp - amt
-    const aura = ctx.aura ?? auraOf(stats)
+    const aura = ctx.aura ?? auraSelfOf(stats)
     const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
     const braced = s.queue[0] === 'guard'
     // 영능력 공격은 안목 판정(빗나감) 없이 무조건 명중한다. (v70)
@@ -331,7 +310,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
       kind: 'player',
       roll: r.hit,
       dmg,
-      text: `✦ 원숭이 손!${buffed ? ' 효험!' : ''} 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ${dmg} 피해${note}${buffNote}`,
+      text: `✦ 원숭이 손!${buffed ? ' 효험!' : ''} 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. ${dmg} 피해${note}${buffNote}`,
     }]
     if (s.ehp <= 0) {
       s.over = 'win'
@@ -340,8 +319,8 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     return { state: s, events: ev, mpCost, boostUsed: !!ctx.boost }
   }
   if (id === 'echo-form') {
-    // 의지력 소모 = 50 - 인내 - 절제 + 호전 (최소 0, 지팡이 할인 등 기존 보정은 그대로 적용).
-    const rawCost = Math.max(0, 50 - stats.endurance - stats.control + stats.aggression)
+    // 의지력 소모 = 50 - 인내 - 절제 + 호전 (최소 20, 최대 99, 지팡이 할인 등 기존 보정은 그대로 적용). (v71)
+    const rawCost = Math.max(20, Math.min(99, 50 - stats.endurance - stats.control + stats.aggression))
     const shortfall = needMp(rawCost)
     if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     const cost = mpCostOf(stats, rawCost)
@@ -400,7 +379,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     s.over = 'fled'
     return {
       state: s,
-      events: [{ kind: 'end', text: `✦ 생존본능!${buffed ? ' 효험!' : ''} [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 적을 교란하고 전투에서 도망쳤다.${buffNote}` }],
+      events: [{ kind: 'end', text: `✦ 생존본능!${buffed ? ' 효험!' : ''} 적을 교란하고 전투에서 도망쳤다.${buffNote}` }],
       mpCost: buffCost,
       fled: true,
       boostUsed: !!ctx.boost,
@@ -408,7 +387,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   }
   return {
     state: s,
-    events: [{ kind: 'warn', text: `✦ 생존본능… 실패!${buffed ? ' 효험!' : ''} [신속 d${stats.agility} = ${roll}, 도주 ${chance}%, d100 = ${d}] 도망치지 못했다.${buffNote}` }],
+    events: [{ kind: 'warn', text: `✦ 생존본능… 실패!${buffed ? ' 효험!' : ''} 도망치지 못했다.${buffNote}` }],
     mpCost: buffCost,
     fled: false,
     boostUsed: !!ctx.boost,
@@ -440,13 +419,13 @@ export function fireTurn(state, ctx, rng = Math.random) {
     r = attackRoll(stats, rng, true)
   }
   const mult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
-  const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraOf(stats), rng)
+  const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraSelfOf(stats), rng)
   const cr = fxCrit(fb.base * 4 * mult, stats, rng)
   let dmg = cr.dmg
   if (braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
-    { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
+    { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'
@@ -599,8 +578,10 @@ function attackRoll(stats, rng, noMiss = false) {
 // ───────── 무구 효과(stats.fx) ─────────
 /** 석장: 전투 중 의지력 소모가 절반(올림) */
 export const mpCostOf = (stats, cost) => (stats.fx === 'staff' ? Math.ceil(cost / 2) : cost)
-/** 악기 보정의 한계: 악기를 든 사람의 [이해] */
+/** 악기 보정값: 악기를 든 사람의 [이해] 값으로 고정 (더 이상 주사위를 굴리지 않는다). (v71) */
 export const auraOf = (stats) => (stats.fx === 'instrument' ? Math.max(0, Math.floor(stats.comprehension || 0)) : 0)
+/** 악기를 든 사람 자신에게 적용될 때는 75%만 적용된다. (v71) */
+export const auraSelfOf = (stats) => Math.floor(auraOf(stats) * 0.75)
 /** 버티기를 쓸 수 있는 최대 횟수 (무당방울이 있으면 2) */
 export const maxSurvives = (stats) => (stats.fx === 'bell' ? 2 : 1)
 
@@ -622,9 +603,8 @@ export function bellTick(stats, rng = Math.random) {
 function fxBase(base, stats, ehp, enemyHp, aura, rng) {
   const notes = []
   if (aura > 0) {
-    const a = die(aura, rng)
-    base += a
-    notes.push(`악기 +${a}`)
+    base += aura
+    notes.push(`악기 +${aura}`)
   }
   if (stats.fx === 'dagger' && ehp < enemyHp * 0.35) {
     base = Math.floor(base * 1.5)
@@ -641,7 +621,7 @@ function fxCrit(dmg, stats, rng) {
   if (stats.fx !== 'spear' || dmg <= 0) return { dmg, note: '' }
   const chance = 10 + Math.floor(stats.aggression / 2)
   const roll = die(100, rng)
-  if (roll <= chance) return { dmg: Math.floor(dmg * 1.5), note: ` 치명타! (창 ${chance}%, d100 = ${roll}) ×1.5` }
+  if (roll <= chance) return { dmg: Math.floor(dmg * 1.5), note: ' 치명타! ×1.5' }
   return { dmg, note: '' }
 }
 const noteOf = (notes) => (notes.length ? ` (${notes.join(', ')})` : '')
@@ -669,15 +649,16 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
     ev.push({ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${needMp}, 지금 ${mp})` })
     return { state: state, events: ev, mpCost: 0, invalid: true }
   }
-  const aura = ctx.aura ?? auraOf(stats)
+  const aura = ctx.aura ?? auraSelfOf(stats)
   const braced = s.queue[0] === 'guard'
   const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
   const mult = boostMult // 마이쭈: 이번 턴 피해 2배, 폭죽: 2배
   const bn = ctx.boost ? ` (×${boostMult})` : ''
 
+  // 로그에는 다이스가 어떻게 굴러갔는지는 빼고 공격력(피해)만 보인다. (v71)
   const strike = (r, label = '공격') => {
-    if (r.miss) return `${label}이 빗나갔다! [안목 d${stats.insight + 1} = ${r.hit}]`
-    return `${label}! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}]`
+    if (r.miss) return `${label}이 빗나갔다!`
+    return `${label}!`
   }
 
   if (act === 'attack') {
@@ -720,7 +701,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
       const cr = fxCrit(fb.base * 2 * mult, stats, rng)
       const dmg = cr.dmg
       s.ehp = Math.max(0, s.ehp - dmg)
-      ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}부적이 터졌다! [안목 d${stats.insight + 1} = ${r.hit}, 호전 d${stats.aggression} = ${r.power}] ×2${bn} = ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)${buffNote}` })
+      ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}부적이 터졌다!${bn} ${dmg} 피해${noteOf(fb.notes)}${cr.note} (의지력 -${mpCost}, 남은 부적 ${s.charms}장)${buffNote}` })
     }
   } else if (act === 'scan') {
     const amount = Math.max(1, Math.min(mp, Math.floor(ctx.scanAmount ?? 1)))
@@ -754,7 +735,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
 export function enemyTurn(state, ctx, rng = Math.random) {
   const { stats } = ctx
   const mp = Math.floor(ctx.mp)
-  const aura = ctx.aura ?? auraOf(stats) // 악기: 반격에도 똑같이 붙는다
+  const aura = ctx.aura ?? auraSelfOf(stats) // 악기: 반격에도 똑같이 붙는다
   const s = { ...state, queue: [...state.queue] }
   const ev = []
   let mpDrain = 0
@@ -762,25 +743,34 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   const intent0 = s.queue[0]
   const intent = intent0 === 'group' ? 'jab' : intent0 // 단체 공격은 다인 전투에서 일행 한 명씩 약공으로 풀어낸다
   const hurt = (raw, label, { blockable = true, kind } = {}) => {
+    // 내려쬐는 빛: 사용한 직후 들어오는 공격은 무조건 '막기'한 것으로 취급한다(1회 소모). (v71)
+    if (s.fallingLight) {
+      s.fallingLight = false
+      s.guard = true
+    }
     // 부채: 적의 모든 공격 명중률이 (10 + 1d이해)% 만큼 줄어든다 — 막기 여부와 상관없이 아예 빗나간다.
     if (stats.fx === 'fan') {
       const chance = 10 + die(stats.comprehension, rng)
       const roll = die(100, rng)
       if (roll <= chance) {
-        ev.push({ kind: 'enemy', dmg: 0, text: `${label}이 부채 바람에 휩쓸려 빗나갔다! (회피 ${chance}%, d100 = ${roll})` })
+        ev.push({ kind: 'enemy', dmg: 0, text: `${label}이 부채 바람에 휩쓸려 빗나갔다!` })
         return
       }
     }
     let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.5) : raw // 철퇴: 받는 피해 ×1.5
     // 칼: 막기 성공 여부와 상관없이, 공격 대상이 될 때마다(실제로 공격이 들어올 때마다) 반격한다. (v70)
+    // 완전 방어(최대 굴림)나 호전이 더 높은 경우 등 기존 반격-강화 조건을 함께 만족하면 1d호전×3으로 올라간다. (v71)
     const sword = stats.fx === 'sword'
-    let swordNote = ''
-    if (sword) {
+    const swordCounterOf = (mult) => {
       const se = die(stats.aggression, rng)
-      let swordCounter = se * 2
-      if (aura > 0) swordCounter += die(aura, rng)
-      s.ehp = Math.max(0, s.ehp - swordCounter)
-      swordNote = ` (칼의 반격: [호전 d${stats.aggression} = ${se}] ${swordCounter} 피해)`
+      let counter = se * mult
+      let auraNote = ''
+      if (aura > 0) {
+        counter += aura
+        auraNote = ` (악기 +${aura})`
+      }
+      s.ehp = Math.max(0, s.ehp - counter)
+      return { counter, auraNote }
     }
     if (blockable && s.guard) {
       const reduced = Math.ceil(dmg / (kind === 'smash' ? 3 : 2))
@@ -788,41 +778,46 @@ export function enemyTurn(state, ctx, rng = Math.random) {
       dmg = Math.max(0, reduced - extra)
       const strong = stats.aggression > enemy.atk
       const crit = extra === stats.aggression
-      if (strong || crit) {
+      if (sword) {
+        const upgraded = strong || crit
+        const { counter, auraNote } = swordCounterOf(upgraded ? 3 : 2)
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! ${dmg} 피해만 받고, 칼의 반격 ${counter} 피해!${upgraded ? ' (최대 굴림)' : ''}${auraNote}` })
+      } else if (strong || crit) {
         let counter = extra * 2
         let auraNote = ''
         if (aura > 0) {
-          const a = die(aura, rng)
-          counter += a
-          auraNote = ` (악기 +${a})`
+          counter += aura
+          auraNote = ` (악기 +${aura})`
         }
         s.ehp = Math.max(0, s.ehp - counter)
-        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받고, 반격 ${counter} 피해! (최대 굴림)${auraNote}${swordNote}` })
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다! ${dmg} 피해만 받고, 반격 ${counter} 피해! (최대 굴림)${auraNote}` })
       } else {
-        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다. [호전 d${stats.aggression} = ${extra}] ${dmg} 피해만 받았다.${swordNote}` })
+        ev.push({ kind: 'enemy', dmg, text: `${label}을 막았다. ${dmg} 피해만 받았다.` })
       }
+    } else if (sword) {
+      const { counter, auraNote } = swordCounterOf(2)
+      ev.push({ kind: 'enemy', dmg, text: `${label}! ${dmg} 피해를 입었다. (칼의 반격 ${counter} 피해${auraNote})` })
     } else {
-      ev.push({ kind: 'enemy', dmg, text: `${label}! ${dmg} 피해를 입었다.${swordNote}` })
+      ev.push({ kind: 'enemy', dmg, text: `${label}! ${dmg} 피해를 입었다.` })
     }
     s.php -= dmg
   }
 
+  // 로그에는 다이스가 어떻게 굴러갔는지는 빼고, 적이 얼마를 때렸는지(피해)만 보인다. 영력 소모·잔여는 그대로 보여 준다. (v71)
   if (intent === 'jab') {
     const r = die(enemy.spirit, rng)
     if (r === 1) {
-      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `[상대 d${enemy.spirit} = ${r}] ${enemy.name}의 약공이 빗나갔다!` })
+      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `${enemy.name}의 약공이 빗나갔다!` })
     } else {
       const a = die(enemy.atk, rng)
-      ev.push({ kind: 'enemy', roll: r, text: `[상대 약공 d${enemy.spirit} = ${r}, 공격 d${enemy.atk} = ${a}]` })
       hurt(a + r, `${enemy.name}의 약공`, { kind: 'jab' })
     }
   } else if (intent === 'smash') {
     const r = d10(rng)
     if (r <= 2) {
-      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `[상대 d10 = ${r}] ${enemy.name}의 강공이 빗나갔다!` })
+      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `${enemy.name}의 강공이 빗나갔다!` })
     } else {
       const a = die(enemy.atk, rng)
-      ev.push({ kind: 'enemy', roll: r, text: `[상대 강공 d10 = ${r}, 공격 d${enemy.atk} = ${a}]` })
       hurt(a * 2 + enemy.spirit, `${enemy.name}의 강공`, { kind: 'smash' })
     }
   } else if (intent === 'charge') {
@@ -833,10 +828,10 @@ export function enemyTurn(state, ctx, rng = Math.random) {
     // 영력을 모두 소모해 영능력을 쓸 수 없다 — 약공으로 대신한다.
     const r = die(enemy.spirit, rng)
     if (r === 1) {
-      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `${enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공을 노리지만 [상대 d${enemy.spirit} = ${r}] 빗나갔다.` })
+      ev.push({ kind: 'enemy', roll: r, dmg: 0, text: `${enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공을 노리지만 빗나갔다.` })
     } else {
       const a = die(enemy.atk, rng)
-      ev.push({ kind: 'enemy', roll: r, text: `${enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공으로. [상대 d${enemy.spirit} = ${r}, 공격 d${enemy.atk} = ${a}]` })
+      ev.push({ kind: 'enemy', roll: r, text: `${enemy.name}은(는) 영력이 다해 영능력을 쓰지 못한다! 대신 약공으로.` })
       hurt(a + r, `${enemy.name}의 약공`, { kind: 'jab' })
     }
   } else if (intent === 'special') {
@@ -850,44 +845,44 @@ export function enemyTurn(state, ctx, rng = Math.random) {
       if (sp2) {
         const a = die(enemy.atk, rng)
         const add = Math.floor(enemy.spirit / 2)
-        hurt(a + add, `${enemy.name}의 불길 내뿜기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
-        spEv.result = `[공격 d${enemy.atk} = ${a}] + ${add} = ${a + add} 피해 (막기 불가), 다음 내 턴 막기 불가`
+        hurt(a + add, `${enemy.name}의 불길 내뿜기`, { blockable: false })
+        spEv.result = `${a + add} 피해 (막기 불가), 다음 내 턴 막기 불가`
         s.bound = true
         ev.push({ kind: 'warn', text: '불길에 휩싸였다! 다음 내 턴엔 막기를 할 수 없다.' })
       } else {
         const a = die(enemy.atk, rng)
-        hurt(a + enemy.spirit, `${enemy.name}의 쇠 갉아먹기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+        hurt(a + enemy.spirit, `${enemy.name}의 쇠 갉아먹기`, { blockable: false })
         const rr = die(enemy.spirit, rng)
         mpDrain = Math.min(mp, rr * 2)
-        spEv.result = `[공격 d${enemy.atk} = ${a}] + ${enemy.spirit} = ${a + enemy.spirit} 피해 (막기 불가), [1d${enemy.spirit} = ${rr}]×2 → 의지력 ${mpDrain} 흡수`
+        spEv.result = `${a + enemy.spirit} 피해 (막기 불가), 의지력 ${mpDrain} 흡수`
         ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다!` })
       }
     } else if (enemy.id === 'scarecrow') {
       const rr = die(enemy.spirit, rng)
       mpDrain = Math.min(mp, rr * 2)
-      spEv.result = `[1d${enemy.spirit} = ${rr}] ×2 = ${rr * 2}${mpDrain < rr * 2 ? ` (남은 의지력이 적어 ${mpDrain})` : ''} → 의지력 ${mpDrain} 흡수`
+      spEv.result = `의지력 ${mpDrain} 흡수`
       ev.push({ kind: 'enemy', text: `${enemy.name}의 혼 빨기! 의지력이 ${mpDrain} 빨려 나갔다.` })
     } else if (enemy.id === 'foxfire') {
       const a = die(enemy.atk, rng)
-      hurt(a + enemy.spirit, `${enemy.name}의 불똥 흩뿌리기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
-      spEv.result = `[공격 d${enemy.atk} = ${a}] + ${enemy.spirit} = ${a + enemy.spirit} 피해 (막기 불가)`
+      hurt(a + enemy.spirit, `${enemy.name}의 불똥 흩뿌리기`, { blockable: false })
+      spEv.result = `${a + enemy.spirit} 피해 (막기 불가)`
     } else if (enemy.id === 'dueoksini') {
       const a = die(enemy.atk, rng)
-      hurt(a * 2, `${enemy.name}의 짓누르는 그림자 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
+      hurt(a * 2, `${enemy.name}의 짓누르는 그림자`, { blockable: false })
       const rr = die(enemy.spirit, rng)
       mpDrain = Math.min(mp, rr)
-      spEv.result = `[공격 d${enemy.atk} = ${a}] ×2 = ${a * 2} 피해 (막기 불가), [1d${enemy.spirit} = ${rr}] → 의지력 ${mpDrain} 흡수, 다음 내 턴 막기 불가`
+      spEv.result = `${a * 2} 피해 (막기 불가), 의지력 ${mpDrain} 흡수, 다음 내 턴 막기 불가`
       s.bound = true
       ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다! 몸이 짓눌려 다음 내 턴엔 막기를 할 수 없다.` })
     } else if (enemy.id === 'snake') {
       const a = die(enemy.atk, rng)
-      hurt(a, `${enemy.name}의 휘감기 [공격 d${enemy.atk} = ${a}]`, { blockable: false })
-      spEv.result = `[공격 d${enemy.atk} = ${a}] = ${a} 피해 (막기 불가), 다음 내 턴 막기 불가`
+      hurt(a, `${enemy.name}의 휘감기`, { blockable: false })
+      spEv.result = `${a} 피해 (막기 불가), 다음 내 턴 막기 불가`
       s.bound = true
       ev.push({ kind: 'warn', text: '몸이 휘감겼다! 다음 내 턴엔 막기를 할 수 없다.' })
     } else {
       s.curse = 3
-      spEv.result = `저주 3턴 시작 (매 턴 1d${Math.max(1, Math.floor(enemy.spirit / 2))} 피해)`
+      spEv.result = '저주 3턴 시작'
       ev.push({ kind: 'enemy', text: `${enemy.name}의 원한의 저주! 앞으로 세 번의 상대 턴 동안 피해가 스며든다.` })
     }
     if (!ctx.noSpiritGate) spEv.result += ` (영능력에 영력 ${spCost} 소모, 남은 영력 ${s.espirit}/${enemy.spirit})`
@@ -945,8 +940,8 @@ export function resolveSurvive(state, accept, mp, stats = { endurance: 0 }, rng 
         {
           kind: 'warn',
           text: free
-            ? `버티기! [인내 ${pct}%, d100 = ${d}] 의지력을 쓰지 않고 체력 1로 일어섰다!`
-            : `버티기! [인내 ${pct}%, d100 = ${d}] 의지력 ${cost}을 쏟아 체력 1로 일어섰다. (${more ? '무당방울 덕에 한 번 더 버틸 수 있지만, 의지력이 2 이상 남아 있어야 한다' : '이번 전투에선 더 못 버틴다'})`,
+            ? '버티기! 의지력을 쓰지 않고 체력 1로 일어섰다!'
+            : `버티기! 의지력 ${cost}을 쏟아 체력 1로 일어섰다. (${more ? '무당방울 덕에 한 번 더 버틸 수 있지만, 의지력이 2 이상 남아 있어야 한다' : '이번 전투에선 더 못 버틴다'})`,
         },
       ],
     }

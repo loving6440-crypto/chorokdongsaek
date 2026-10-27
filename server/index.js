@@ -249,16 +249,32 @@ const snapshot = () => ({
   parties: [...parties.values()],
   bgmPlaylist,
 })
+// (v72) Render/Supabase egress 를 줄이려면 먼저 실제로 얼마나 자주·얼마나 큰 요청이 오가는지 알아야 하는데,
+// 배포된 서버의 실제 숫자는 이 환경에서 직접 볼 수 없다 — 그래서 부팅 때부터 누적되는 가벼운 계측치만 메모리에
+// 쌓아 두고, 관리자만 GET /api/admin/metrics 로 확인할 수 있게 해 둔다. (서버가 재시작하면 0부터 다시 쌓인다)
+const metrics = {
+  startedAt: Date.now(),
+  snapshotSaveCount: 0, // 전체 서버 스냅샷(랭킹·장터·쪽지·일행 등)을 DB/파일에 실제로 쓴 횟수
+  snapshotSaveBytes: 0, // 그 누적 바이트(JSON.stringify 기준)
+  sseConnectCount: 0, // GET /api/events 로 (재)접속한 횟수 — 재접속이 유난히 잦다면 egress 의 큰 원인이 된다
+  accountSaveCount: 0, // POST /api/account/save 로 실제 처리(충돌로 되돌리지 않고 저장까지 간)한 횟수
+  accountSaveBytes: 0, // 그 요청 본문의 누적 바이트
+}
 async function saveNow() {
+  const snap = snapshot()
+  const json_ = JSON.stringify(snap) // 실제로 나가는 바이트 기준으로 계측(들여쓰기 없는 쪽)
+  metrics.snapshotSaveCount++
+  metrics.snapshotSaveBytes += json_.length
   if (db) {
     await db.query(
       `insert into saves (id, data, updated_at) values ($1, $2, now())
        on conflict (id) do update set data = excluded.data, updated_at = now()`,
-      [DB_ROW_ID, JSON.stringify(snapshot())]
+      [DB_ROW_ID, json_]
     )
   } else {
     // 동기 쓰기(writeFileSync)는 쓰는 동안 이벤트 루프 전체를 멈춘다 — 접속자가 많을 때는 비동기로.
-    await fs.promises.writeFile(DATA_FILE, JSON.stringify(snapshot(), null, 1))
+    // (로컬 파일은 사람이 열어 보기 쉽도록 들여쓰기를 둔다 — 위 json_ 과 내용은 같다)
+    await fs.promises.writeFile(DATA_FILE, JSON.stringify(snap, null, 1))
   }
 }
 let saveTimer = null
@@ -500,7 +516,7 @@ function mbStart(g) {
   }
   g.phase = 'fight'
   const isBoss = !!ENEMIES.find((e) => e.id === g.enemyId)?.boss
-  g.mb = MB.createMB(g.enemyId, infos.map((i) => ({ ...i, bring: isBoss ? (i.bring ?? {}) : null })))
+  g.mb = MB.createMB(g.enemyId, infos.map((i) => ({ ...i, bring: isBoss ? (i.bring ?? {}) : null, psychicBring: isBoss ? (i.psychicBring ?? []) : null })))
   MB.openingInitiative(g.mb)
   if (g.mb.phase === 'input' && !g.mb.turn) MB.beginRound(g.mb)
   mbAfter(g)
@@ -528,7 +544,35 @@ function cleanBring(raw) {
   }
   return out
 }
-const mbInfo = (c, me) => ({ id: c.id, name: c.name, bring: me?.bring === undefined ? undefined : cleanBring(me.bring), stats: me?.stats, fx: me?.fx, hp: me?.hp, hpMax: me?.hpMax, mp: me?.mp, mpMax: me?.mpMax, revive: !!me?.revive, boost: !!me?.boost })
+/** 보스 전투에 가져가는 영능력: 익혀야 하는 영능력(default 아닌 것)만, 인당 최대 2개 */
+const BOSS_PSYCHIC_MAX = 2
+function cleanPsychicBring(raw) {
+  if (!Array.isArray(raw)) return []
+  const out = []
+  for (const id of raw) {
+    if (typeof id !== 'string') continue
+    const p = PSYCHICS.find((x) => x.id === id)
+    if (!p || p.default) continue // 효험처럼 누구나 처음부터 가진 건 '가져가는' 개수에 넣지 않는다 — 항상 쓸 수 있다
+    if (out.includes(id)) continue
+    out.push(id)
+    if (out.length >= BOSS_PSYCHIC_MAX) break
+  }
+  return out
+}
+const mbInfo = (c, me) => ({
+  id: c.id,
+  name: c.name,
+  bring: me?.bring === undefined ? undefined : cleanBring(me.bring),
+  psychicBring: me?.psychicBring === undefined ? undefined : cleanPsychicBring(me.psychicBring),
+  stats: me?.stats,
+  fx: me?.fx,
+  hp: me?.hp,
+  hpMax: me?.hpMax,
+  mp: me?.mp,
+  mpMax: me?.mpMax,
+  revive: !!me?.revive,
+  boost: !!me?.boost,
+})
 function mbDisconnect(id) {
   const bid = mbOf.get(id)
   const g = bid && mbs.get(bid)
@@ -1122,6 +1166,20 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, online: clients.size, db: dbOk })
   }
 
+  // (v72) Render/Supabase egress 를 줄이는 작업을 위한 계측치 조회. 관리자 키 필요. 서버가 재시작되면 0부터 다시 쌓인다.
+  if (req.method === 'GET' && route === '/api/admin/metrics') {
+    if (!adminOk(url.searchParams.get('key') ?? '')) return json(res, 403, { error: 'bad-key' })
+    const upMs = Date.now() - metrics.startedAt
+    return json(res, 200, {
+      ok: true,
+      upSeconds: Math.round(upMs / 1000),
+      online: clients.size,
+      ...metrics,
+      snapshotSaveBytesAvg: metrics.snapshotSaveCount ? Math.round(metrics.snapshotSaveBytes / metrics.snapshotSaveCount) : 0,
+      accountSaveBytesAvg: metrics.accountSaveCount ? Math.round(metrics.accountSaveBytes / metrics.accountSaveCount) : 0,
+    })
+  }
+
   // 그날의 교내 신문: 누구나 볼 수 있다. ?date=YYYY-MM-DD (없으면 오늘, KST)
   // 배경음악(평소 곡) 재생목록: 관리자가 올려 둔 유튜브 영상ID 목록. 접속(SSE) 전에도 곧장 받아 쓸 수 있도록 공개 GET 으로도 둔다.
   if (req.method === 'GET' && route === '/api/bgm') {
@@ -1171,6 +1229,7 @@ async function handleApi(req, res, url) {
     if (!id) return json(res, 400, { error: 'bad-id' })
     const isAdmin = adminOk(url.searchParams.get('key') ?? '')
     if (isAdmin) admins.add(id)
+    metrics.sseConnectCount++
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
@@ -1190,8 +1249,13 @@ async function handleApi(req, res, url) {
     {
       const m = members[id]
       const now = Date.now()
+      // (v72) SSE 는 네트워크가 잠깐만 끊겨도(또는 탭을 여러 개 열어도) 자동으로 자주 재접속하는데, 접속할
+      // 때마다 회원 명부(lastSeen)를 메모리에는 바로 갱신해도, 그걸 전체 서버 스냅샷(랭킹·장터·쪽지·일행 등
+      // 전부 포함)째로 DB 에 다시 써야 할 이유는 없다 — lastSeen 은 마지막으로 "실제로 저장됐던" 시각과
+      // 5분 이상 차이 날 때만 저장을 예약한다. (메모리 값은 매번 최신으로 갱신되므로 화면·관리자 도구엔 영향 없다)
+      const staleSave = !m || now - (m.lastSeen ?? 0) > 5 * 60_000
       members[id] = { id, name, firstSeen: m?.firstSeen ?? now, lastSeen: now, visits: (m?.visits ?? 0) + (prev ? 0 : 1) }
-      scheduleSave()
+      if (staleSave) scheduleSave()
     }
     clients.set(id, client)
     const pid = partyOf.get(id)
@@ -1410,6 +1474,8 @@ async function handleApi(req, res, url) {
     const incoming = A.reconcileAvatars(A.pickGame(body.account), acc)
     Object.assign(acc, incoming, { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
     await accounts.put(acc)
+    metrics.accountSaveCount++
+    metrics.accountSaveBytes += JSON.stringify(body).length
     return json(res, 200, { ok: true, updatedAt: acc.updatedAt })
   }
 
@@ -1437,6 +1503,38 @@ async function handleApi(req, res, url) {
     acc.mustReset = true
     await accounts.put(acc)
     return json(res, 200, { ok: true, target, tempPassword: temp })
+  }
+
+  // 관리자: 계정을 서버에서 아예 지운다(탈퇴). 되돌릴 수 없다 — body.confirm !== true 면 거부한다(클라이언트가 한 번 더 확인을 받은 뒤에만 true로 보낸다).
+  if (route === '/api/admin/account/delete') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    if (body.confirm !== true) return json(res, 400, { error: 'not-confirmed' })
+    const target = nfc(typeof body.target === 'string' ? body.target.trim() : '')
+    if (!ID_RULE.test(target)) return json(res, 400, { error: 'bad-target' })
+    const acc = await accounts.get(target)
+    if (!acc) return json(res, 400, { error: 'no-account' })
+    await accounts.delete(acc)
+    delete members[target]
+    delete cards[target]
+    if (db) await db.query('delete from saves where id = $1', [CARD_ROW_PREFIX + target]).catch(() => {})
+    for (const co of COURSES) delete ranking[co][target]
+    admins.delete(target)
+    const live = clients.get(target)
+    if (live) {
+      try {
+        live.res.end() // 지금 접속 중이면 바로 끊는다
+      } catch {
+        /* 이미 닫힘 */
+      }
+      clients.delete(target)
+    }
+    scheduleSave()
+    scheduleCardsSave()
+    return json(res, 200, { ok: true, target })
   }
 
   // 관리자 키 확인 (로그인 화면에서 한 번). 맞으면 클라이언트가 그 계정을 관리자로 표시한다.

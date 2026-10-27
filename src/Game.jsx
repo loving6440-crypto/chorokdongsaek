@@ -8,8 +8,7 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, WEAPONS, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
-import TutorialGearPicker from './components/TutorialGearPicker'
+import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -25,6 +24,8 @@ import { ACHIEVEMENTS, rewardText } from './game/achievements'
 import { cancelCraft, recipeOf, startCraft, buyRecipe as buyRecipeAt } from './game/crafting'
 import { cook } from './game/cooking'
 import Intro from './components/Intro'
+import BattleTutorial from './components/BattleTutorial'
+import { hasSeenBattleTutorial, markBattleTutorialSeen } from './game/intro'
 import AdminPanel from './components/AdminPanel'
 import ProfileSwitchModal from './components/ProfileSwitchModal'
 import ProfileSidebar from './components/ProfileSidebar'
@@ -165,11 +166,10 @@ export default function Game({
   const [codexFocus, setCodexFocus] = useState(null) // { chapterId, id }: 알림에서 바로 보여줄 항목 하나
   const [clubOpen, setClubOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
-  // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다. 전투 교육 중에는 끝난 뒤에 모아서 보여 준다.
+  // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다.
   const [codexNew, setCodexNew] = useState([])
   const codexSeen = useRef(null)
   useEffect(() => {
-    if (player.tutorialSnap) return
     const now = codexKnown(player)
     if (codexSeen.current == null) {
       codexSeen.current = now
@@ -184,8 +184,16 @@ export default function Game({
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false)
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
+  const [battleTutorialOpen, setBattleTutorialOpen] = useState(false)
+  // 전투 안내(바리): 계정마다 한 번은 자동으로 보여 준다. 이후엔 메뉴에서 언제든 다시 볼 수 있다.
+  useEffect(() => {
+    if (userId && !hasSeenBattleTutorial(userId)) setBattleTutorialOpen(true)
+  }, [userId])
+  const closeBattleTutorial = useCallback(() => {
+    setBattleTutorialOpen(false)
+    if (userId) markBattleTutorialSeen(userId)
+  }, [userId])
   const [battleActive, setBattleActive] = useState(false)
-  const [bgmBattle, setBgmBattle] = useState(false) // 전투 교육 과정에서도 전투 BGM
   // 전투에 들어가면 전투 BGM, 끝나면 평소 BGM
   useEffect(() => {
     bgm.setTrack(battleActive ? 'battle' : 'main')
@@ -195,7 +203,9 @@ export default function Game({
   const boostRef = useRef(false)
   boostRef.current = boostOn
   const [itemsUsed, setItemsUsed] = useState(0)
-  const [battleUsedItems, setBattleUsedItems] = useState([]) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다
+  const [battleUsedItems, setBattleUsedItems] = useState([]) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다, 에너지드링크 1회 제한에도 쓴다
+  const battleUsedItemsRef = useRef([])
+  battleUsedItemsRef.current = battleUsedItems
   const [spotItems, setSpotItems] = useState(false)
   battleRef.current = battleActive
   reviveRef.current = reviveOn
@@ -211,10 +221,23 @@ export default function Game({
   const addLog = useCallback((message) => {
     setLogs((prev) => [{ id: Date.now() + Math.random(), time: stamp(), message }, ...prev].slice(0, 80))
   }, [])
+  // 여러 줄을 한 번에 남긴다 (예: 전투 로그 전체를 활동 로그에 남길 때). messages 는 시간순(오래된 것부터). (v71)
+  const addLogs = useCallback((messages) => {
+    if (!messages?.length) return
+    const t = stamp()
+    const entries = messages.map((message, i) => ({ id: Date.now() + i / 1000 + Math.random(), time: t, message }))
+    setLogs((prev) => [...entries.slice().reverse(), ...prev].slice(0, 80))
+  }, [])
 
   // 항상 최신 player 를 들고 있는 ref. (수업 시스템의 콜백이 늘 같은 함수로 남도록)
   const playerRef = useRef(player)
   playerRef.current = player
+  // 저장 디바운스가 "지금 예약돼 있으면 건드리지 않는다" 방식으로 바뀌어(아래), 실제로 저장이 실행되는 시점엔
+  // effect 가 다시 돌지 않을 수도 있다 — 그때도 가장 최근 값을 쓸 수 있도록 매 렌더마다 최신으로 갱신해 둔다.
+  const locationIdRef = useRef(locationId)
+  locationIdRef.current = locationId
+  const logsRef = useRef(logs)
+  logsRef.current = logs
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
   // 장비 보정(무복 등)도 여기서 더해진다.
   const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weakUntil, player.buffs])
@@ -292,8 +315,19 @@ export default function Game({
     () => ({ ...character, name: player.name, greeting: player.greeting ?? '', age: player.age, grade: player.grade ?? null, avatar: player.avatar }),
     [character, player.name, player.greeting, player.age, player.grade, player.avatar],
   )
+  const charOutRef = useRef(charOut)
+  charOutRef.current = charOut
 
-  // 상태 변경 시 자동 저장 (약 0.8초 디바운스)
+  // 화면에는 최근 80줄까지 보여주지만, 서버(계정 자동저장)에는 그중 최근 30줄만 싣는다 — 몇 초마다
+  // 반복해서 왕복하는 자동저장 본문 크기를 줄인다(활동 로그는 참고용이라 다시 불러왔을 때 조금 짧아도 무방하다). (v72)
+  const SAVE_LOG_CAP = 30
+
+  // 상태 변경 시 자동 저장 (약 0.8초 디바운스).
+  // (v72) 1초마다 도는 영력·체력 자연회복 틱이 매번 player 를 새 객체로 만들어서, 가만히 있기만 해도
+  // 이 effect 가 계속 다시 돌며 디바운스 타이머를 매번 새로 거는 문제가 있었다 — 그 결과 거의 쉬지 않고
+  // (몇 초에 한 번씩) 로컬 저장 → 서버 자동저장까지 줄줄이 일어나, 실제로는 거의 안 바뀐 상태를 계속 Supabase 로
+  // 내보내고 있었다. 이미 예약된 타이머가 있으면 새로 걸지 않고 그대로 두는 쪽(= 지금 바뀐 값이 아니라, 그 사이
+  // 가장 최신 값을 ref 로 읽어 저장)으로 바꿔서, 쉬지 않고 바뀌는 상황에서도 저장은 800ms 에 한 번만 나간다.
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false
@@ -303,28 +337,30 @@ export default function Game({
           character: charOut,
           player,
           locationId,
-          logs,
+          logs: logs.slice(0, SAVE_LOG_CAP),
         })
       }
       return
     }
 
     if (!onSave) return
+    if (saveTimer.current) return // 이미 예약돼 있으면 그대로 둔다 — 실행될 때 가장 최신 값(ref)을 쓴다.
 
-    if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null
       onSave({
-        character: charOut,
-        player,
-        locationId,
-        logs,
+        character: charOutRef.current,
+        player: playerRef.current,
+        locationId: locationIdRef.current,
+        logs: logsRef.current.slice(0, SAVE_LOG_CAP),
       })
     }, 800)
-
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-    }
+    // (cleanup을 여기서 걸면 안 된다 — player 가 바뀔 때마다 이 effect 가 다시 돌기 직전에 cleanup 이 먼저
+    // 불려서, 방금 건 타이머를 그 즉시 지워 버린다. 그러면 위의 "이미 예약돼 있으면 그대로 둔다" 가 무력화된다.
+    // 언마운트 때만 정리하면 되므로, 그 정리는 아래 별도의 effect 하나로 뺐다.)
   }, [player, locationId, logs, charOut, onSave, restored])
+  // 화면을 떠날 때만 예약된 저장 타이머를 정리한다.
+  useEffect(() => () => clearTimeout(saveTimer.current), [])
 
   // ───────── 수련 · 대기: 다른 곳으로 이동하거나 새 동작을 시작하면 끊긴다 ─────────
   // (탭·창을 내리거나, 소지품·로그를 보거나, 영력으로 스탯을 올리는 것은 괜찮다.)
@@ -1036,7 +1072,14 @@ export default function Game({
         addLog(`${item.name}을(를) ${to ? '일행에게 건넸다' : '사용했다'}.`)
         return
       }
-      const ok = canUseItem(item, { inBattle: battleRef.current, isParty: false, countNow: cur.inventory?.[id] || 0, reviveOn: reviveRef.current, boostOn: boostRef.current })
+      const ok = canUseItem(item, {
+        inBattle: battleRef.current,
+        isParty: false,
+        countNow: cur.inventory?.[id] || 0,
+        reviveOn: reviveRef.current,
+        boostOn: boostRef.current,
+        usedThisBattle: battleUsedItemsRef.current.includes(id),
+      })
       if (!ok.ok) return
       const e = item.effect
       const now0 = Date.now()
@@ -1174,49 +1217,6 @@ export default function Game({
     setPlayer(next)
   }, [])
 
-  // 전투 교육 과정: 들어온 시점의 체력·의지력을 맡아 두고 가득 찬 상태로 연습한다. 끝나면(중간에 나가도) 원래대로 돌려놓는다.
-  const tutorialStart = useCallback(() => {
-    const cur = playerRef.current
-    if (cur.tutorialSnap) return
-    const next = { ...cur, tutorialSnap: { hp: cur.hp, mp: cur.mp }, hp: cur.hpMax, mp: cur.mpMax }
-    playerRef.current = next
-    setPlayer(next)
-  }, [])
-
-  const [tutorialGearPick, setTutorialGearPick] = useState(false)
-  const tutorialEnd = useCallback(
-    (done) => {
-      const cur = playerRef.current
-      const snap = cur.tutorialSnap
-      if (!snap && !done) return
-      const { tutorialSnap: _s, ...rest } = cur
-      const next = { ...rest, hp: snap ? Math.min(cur.hpMax, snap.hp) : cur.hp, mp: snap ? Math.min(cur.mpMax, snap.mp) : cur.mp, ...(done ? { tutorialDone: true } : {}) }
-      playerRef.current = next
-      setPlayer(next)
-      addLog(done ? '전투 교육 과정을 마쳤다. 체력과 의지력이 들어오기 전 상태로 돌아왔다.' : '전투 교육 과정에서 나왔다. 체력과 의지력이 들어오기 전 상태로 돌아왔다.')
-      // 전투 교육을 마치면(처음이든, 완료한 뒤 다시 보기든) 아직 안 받았다면 무구 하나를 공짜로 고를 수 있게 한다. (v70)
-      if (done && !next.freeGearClaimed) setTutorialGearPick(true)
-    },
-    [addLog],
-  )
-  const tutorialDone = useCallback(() => tutorialEnd(true), [tutorialEnd])
-  // 전투 교육 수료 기념 무구 — 딱 한 번만, 하나만 고를 수 있다. 나머지는 전부 정식 경로로 얻어야 한다. (v70)
-  const claimTutorialGear = useCallback(
-    (baseId) => {
-      const cur = playerRef.current
-      if (cur.freeGearClaimed) return setTutorialGearPick(false)
-      const w = WEAPONS.find((w) => w.id === baseId)
-      if (!w) return
-      const { player: withGear } = giveWeapon(cur, baseId)
-      const next = { ...withGear, freeGearClaimed: true }
-      playerRef.current = next
-      setPlayer(next)
-      setTutorialGearPick(false)
-      addLog(`전투 교육 수료 기념으로 ${w.name}을(를) 받았다.`)
-    },
-    [addLog],
-  )
-
   const changeMp = useCallback((delta) => {
     const cur = playerRef.current
     const next = { ...cur, mp: Math.max(0, Math.min(cur.mpMax, cur.mp + delta)) }
@@ -1281,15 +1281,16 @@ export default function Game({
       setReviveOn(false)
       boostRef.current = false
       setBoostOn(false)
-      finishBattle({ win: me.result === 'win', fled: me.result === 'fled', enemy })
+      finishBattle({ win: me.result === 'win', fled: me.result === 'fled', enemy, log: (mbView.log ?? []).map((l) => l.text).filter(Boolean) })
     }
   }, [mbView, mbBid]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (mbLive || bgmBattle) bgm.setTrack('battle')
+    if (mbLive) bgm.setTrack('battle')
     else if (!battleActive) bgm.setTrack('main')
-  }, [mbLive, battleActive, bgmBattle])
+  }, [mbLive, battleActive])
   // 일행 중일 때: 다른 일행에게 내 체력·영력·의지력·육조 스탯·장비를 주기적으로 알려 준다. (인적사항 밑에서 볼 수 있게)
   const hasPartyMates = !!online.party?.members?.some((m) => m.id !== online.me?.id)
+  const lastPartyStatsSent = useRef(null) // (v72) 직전에 실제로 보낸 내용 — 하나도 안 바뀌었으면 8초마다 똑같은 걸 다시 보내지 않는다
   useEffect(() => {
     if (!hasPartyMates) return undefined
     let inFlight = false // 테스트 등에서 시간이 한꺼번에 왕창 흘러도(가짜 시계로 몰아서 흘려보내도) 요청이 쌓여 몰리지 않도록, 앞 요청이 끝나야 다음을 보낸다.
@@ -1298,7 +1299,7 @@ export default function Game({
       inFlight = true
       try {
         const cur = playerRef.current
-        await sendPartyStats({
+        const payload = {
           hp: Math.floor(cur.hp),
           hpMax: cur.hpMax,
           mp: Math.floor(cur.mp),
@@ -1306,7 +1307,11 @@ export default function Game({
           spirit: Math.floor(cur.spirit),
           stats: effectiveStats(cur),
           equip: equipOf(cur),
-        })
+        }
+        const key = JSON.stringify(payload)
+        if (key === lastPartyStatsSent.current) return // 체력·의지력 등 하나도 안 바뀌었다 — 보낼 필요 없다
+        lastPartyStatsSent.current = key
+        await sendPartyStats(payload)
       } finally {
         inFlight = false
       }
@@ -1331,7 +1336,9 @@ export default function Game({
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
 
   const finishBattle = useCallback(
-    ({ win, fled, enemy }) => {
+    ({ win, fled, enemy, log: battleLog }) => {
+      // 전투 중 오간 로그 전체를 활동 로그에 남긴다 — 전투가 끝나도 되짚어 볼 수 있도록. (v71)
+      if (battleLog?.length) addLogs([`— ${enemy.name} 전투 기록 —`, ...battleLog])
       if (fled) {
         addLog(`퇴마 실습: 생존본능으로 ${enemy.name}에게서 도망쳤다. (보상도 손실도 없다)`)
         return
@@ -1354,7 +1361,7 @@ export default function Game({
         setLocationId('infirmary')
       }
     },
-    [addLog, interruptAll],
+    [addLog, addLogs, interruptAll],
   )
 
   const investigate = useCallback(
@@ -1460,6 +1467,7 @@ export default function Game({
         onOpenUpdateNotes={() => setUpdateNotesOpen(true)}
         inClub={!!online.club}
         onReplayIntro={() => setIntroReplay(true)}
+        onOpenBattleTutorial={() => setBattleTutorialOpen(true)}
         spotItems={spotItems}
       />
 
@@ -1467,11 +1475,17 @@ export default function Game({
         <ActivityBar
           panel={panel}
           locationId={locationId}
-          onMove={moveTo}
+          onMove={(id) => {
+            // 신수·벼룩시장·사물함 등을 보고 있다가도 장소 버튼을 누르면 학교 구역 화면으로 자동 전환된다. (v71)
+            if (panel !== 'world') setPanel('world')
+            moveTo(id)
+          }}
           activity={activity}
           logs={logs}
           onSelect={(id, action) => {
             if (action) return
+            // 신수·벼룩시장·사물함 등을 보고 있다가도 활동 버튼을 누르면 학교 구역 화면으로 자동 전환된다. (v71)
+            if (panel !== 'world') setPanel('world')
             // 진행 중인 수련·대기를 보여 주는 화면(기숙사의 휴식·수련, 본관의 수업)으로 들어가는 건 '새 동작'이 아니다.
             const viewsRunning =
               (locationId === 'dorm' && id === 'train' && !!playerRef.current.training) ||
@@ -1589,14 +1603,7 @@ export default function Game({
                     onFinish={finishBattle}
                     onDown={downed}
                     specials={player.specials}
-                    tutorialDone={!!player.tutorialDone}
                     onSpecialSeen={seeSpecial}
-                    onTutorialStart={() => {
-                      interruptAll('새 동작을 시작해')
-                      tutorialStart()
-                      meetNpc('bari')
-                    }}
-                    onTutorialDone={tutorialDone}
                     reviveOn={reviveOn}
                     onReviveUsed={() => {
                       reviveRef.current = false
@@ -1608,7 +1615,6 @@ export default function Game({
                       boostRef.current = false
                       setBoostOn(false)
                     }}
-                    onTutorialEnd={tutorialEnd}
                     onActive={(on) => {
                       setBattleActive(on)
                       battleRef.current = on
@@ -1619,12 +1625,10 @@ export default function Game({
                         setReviveOn(false)
                       }
                     }}
-                    itemsUsed={itemsUsed}
                     usedItems={battleUsedItems}
                     onSpotItems={setSpotItems}
                     onOpenItems={() => setInvOpen(true)}
                     onGiveItem={giveItem}
-                    onBgm={setBgmBattle}
                     multi={multiProps}
                   />
                 )}
@@ -1817,13 +1821,14 @@ export default function Game({
       {bringPick && (
         <BringPicker
           player={player}
+          psychics={player.psychics ?? []}
           enemyName={bringPick.invite ? online.mbInvite?.enemy?.name : ENEMIES.find((e) => e.id === bringPick.enemyId)?.name}
           onCancel={() => setBringPick(null)}
-          onConfirm={(bring) => {
+          onConfirm={(bring, psychicBring) => {
             const pick = bringPick
             setBringPick(null)
-            if (pick.invite) mbRespond(true, { ...mbSnapshot(), bring })
-            else mbStart(pick.enemyId, { ...mbSnapshot(), bring })
+            if (pick.invite) mbRespond(true, { ...mbSnapshot(), bring, psychicBring })
+            else mbStart(pick.enemyId, { ...mbSnapshot(), bring, psychicBring })
           }}
         />
       )}
@@ -1879,9 +1884,9 @@ export default function Game({
         />
       )}
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
-      {tutorialGearPick && !player.freeGearClaimed && <TutorialGearPicker onPick={claimTutorialGear} />}
       {updateNotesOpen && <UpdateNotesModal onClose={() => setUpdateNotesOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
+      <BattleTutorial open={battleTutorialOpen} onClose={closeBattleTutorial} />
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
         <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />

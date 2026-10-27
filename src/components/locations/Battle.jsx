@@ -4,7 +4,6 @@ import {
   specialSummary,
   mpCostOf,
   BUFF_COST,
-  LENT_FIRE,
   ACTIONS,
   ENEMIES,
   INTENTS,
@@ -35,15 +34,14 @@ const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
 const ENEMY_DELAY = 900
 
-import { Bar, vague } from './battleUi'
+import { Bar, enemyHpTone, vague } from './battleUi'
 import SpBanner from '../SpBanner'
-import Tutorial from './Tutorial'
 import MultiBattle from './MultiBattle'
 import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialDone, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, onTutorialStart, onTutorialDone, onTutorialEnd, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, itemsUsed, usedItems = [], onSpotItems, onGiveItem, onOpenItems, onBgm, multi, slowFight, onStartSlow, onStopSlow }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [, setSlowTick] = useState(0)
   useEffect(() => {
@@ -78,14 +76,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
   mpRef.current = mp // 의지력은 항상 바깥(게임)의 값을 따른다. 아이템으로 바뀔 수 있다.
   const reviveRef = useRef(false)
   reviveRef.current = reviveOn
-  const phaseRef = useRef(phase)
-  phaseRef.current = phase
-  const endRef = useRef(onTutorialEnd)
-  endRef.current = onTutorialEnd
-  // 교육 중에 다른 곳으로 가 버려도 원래의 체력·의지력으로 돌려 놓는다.
-  const bgmCb = useRef(onBgm)
-  bgmCb.current = onBgm
-  useEffect(() => () => { bgmCb.current?.(false); if (phaseRef.current === 'tutorial') endRef.current?.(false) }, [])
   const boostRef = useRef(false)
   boostRef.current = boostOn
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
@@ -131,6 +121,8 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
 
   const knownSp = useRef({})
   knownSp.current = { ...specials, ...knownSp.current }
+  // 전투 로그 전체(40개로 잘리지 않는다) — 전투가 끝나면 활동 로그에 통째로 남긴다. (v71)
+  const fullLogRef = useRef([])
   const push = useCallback((events) => {
     events = events.map((e) => {
       if (e.kind !== 'special') return e
@@ -144,6 +136,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     const sp = events.find((e) => e.kind === 'special')
     if (sp) setSpBanner({ label: sp.label, note: sp.note, chance: sp.chance, effects: sp.effects, result: sp.result, k: Math.random() })
     setLog((l) => [...events.map((e) => ({ ...e, id: Math.random() })), ...l].slice(0, 40))
+    fullLogRef.current = [...fullLogRef.current, ...events.map((e) => e.text).filter(Boolean)]
     const last = [...events].reverse().find((e) => e.roll)
     if (last) setDice({ n: last.roll, kind: last.kind, k: Math.random() })
   }, [])
@@ -155,7 +148,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
       fightingRef.current = false
       onActive?.(false)
       setPhase('result')
-      onFinish({ win: state.over === 'win', fled: state.over === 'fled', enemy: state.enemy })
+      onFinish({ win: state.over === 'win', fled: state.over === 'fled', enemy: state.enemy, log: fullLogRef.current })
     },
     [onFinish, onActive],
   )
@@ -209,6 +202,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     }
     setB(s)
     setLog([])
+    fullLogRef.current = []
     setDice(null)
     setPhase('fight')
     push(lines.reverse())
@@ -398,34 +392,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
     )
   }
 
-  if (phase === 'tutorial') {
-    return (
-      <Tutorial
-        stats={stats}
-        hp={hp}
-        hpMax={hpMax}
-        mp={mp}
-        onMp={onMp}
-        onHp={onHp}
-        itemsUsed={itemsUsed}
-        psychics={psychics}
-        onLent={() => onSpecialSeen?.(LENT_FIRE.id)}
-        onSpotItems={onSpotItems}
-        onGiveItem={onGiveItem}
-        onExit={() => {
-          onBgm?.(false)
-          onTutorialEnd?.(false)
-          setPhase('pick')
-        }}
-        onDone={() => {
-          onBgm?.(false)
-          onTutorialDone?.()
-          setPhase('pick')
-        }}
-      />
-    )
-  }
-
   if (phase === 'pick') {
     return (
       <section>
@@ -447,25 +413,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             <button type="button" onClick={() => onStopSlow?.()} className="flat-btn mt-3 text-xs">느린 싸움 그만두기</button>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            onTutorialStart?.()
-            onBgm?.(true) // 튜토리얼에도 전투 BGM
-            setPhase('tutorial')
-          }}
-          className="ink-panel tilt mt-4 flex w-full items-center gap-3 rounded-xl p-4 text-left hover:bg-gold-fill/15"
-        >
-          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-gold-fill/25 font-serif text-lg text-gold" aria-hidden>
-            ?
-          </span>
-          <span className="flex-1">
-            <span className="block font-serif text-base text-paper">전투 교육 과정</span>
-            <span className="block text-xs text-paper/60">
-              바리와 함께 전투 규칙을 하나씩 익힌다. {tutorialDone ? '(수료함 · 다시 볼 수 있다)' : '처음이라면 먼저 들어 보자.'}
-            </span>
-          </span>
-        </button>
         {multi?.lobby && (
           <div className="ink-panel mt-4 rounded-xl p-4" role="status" data-mb-lobby>
             <p className="font-serif text-base text-gold">{ENEMIES.find((x) => x.id === multi.lobby.enemyId)?.name} 전투 초대를 보냈다</p>
@@ -579,7 +526,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, tutorialD
             <p className="text-xs tabular-nums text-paper/70">{rv.hp ? `${b.ehp} / ${b.enemy.hp}` : '체력 ???'}</p>
           </div>
           <div className="mt-2">
-            <Bar value={b.ehp} max={b.enemy.hp} tone="bg-crimson" label="상대 체력" hidden={!rv.hp} />
+            <Bar value={b.ehp} max={b.enemy.hp} tone={enemyHpTone(b.ehp, b.enemy.hp, b.enemy?.gimmicks?.length > 0)} label="상대 체력" hidden={!rv.hp} />
           </div>
           {!rv.hp && <p className="mt-1 text-[11px] text-paper/55">{vague(b.ehp, b.enemy.hp)}</p>}
           <p className="mt-2 grid grid-cols-3 gap-x-2 text-[11px] tabular-nums text-paper/70">

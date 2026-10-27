@@ -10,9 +10,16 @@
  * price: 숫자이면 기숙사 매점에서 판다. 없으면(null) 아직 파는 곳이 정해지지 않은 아이템.
  * kind: 'food' 먹는 것 · 'drink' 마시는 것 · 'material' 재료 · 'tool' 도구
  * tags: 화면에 칩으로 붙는 분류. ('재료', '완성품', '선물' ...) 재료/완성품은 아래 ITEMS 에서 자동으로 붙는다.
- * battle: 전투 중 사용 가능하다고 명시된 것만 true. (tags 에 '전투 중 사용 가능' 칩도 함께 붙인다.) (전투 중엔 턴·상황과 상관없이 언제든 쓸 수 있고, 써도 내 턴이 끝나지 않는다.)
+ * battle: 전투 중 사용 가능하다고 명시된 것만 true. (tags 에 '전투 중 사용 가능' 칩도 함께 붙인다.)
  * only: 'battle' 이면 전투 중에만 쓸 수 있다.  party: 일행(파티) 상태에서만 쓸 수 있다.
+ * 다인 전투에서 아이템은 자기 차례에만 쓸 수 있다. 그중 '일행'(나 말고 다른 사람)에게도 쓸 수 있는 아이템은 쓰는 순간 그 턴이 끝나고(#턴소모有),
+ * 나를 포함한 '개인'에게만 쓸 수 있는 아이템은 턴을 소모하지 않아 같은 턴에 다른 행동도 이어서 할 수 있다(#턴소모無). (v71)
  */
+/** 턴소모有/無 판정: 일행(다른 사람)에게도 쓸 수 있는 효과(boost·partyHp·partyMp·partyBoost·giveHp)가 있으면 턴을 소모한다. */
+export const itemTurnFree = (item) => {
+  const e = item?.effect ?? {}
+  return item?.battle && !(e.boost || e.partyHp || e.partyMp || e.partyBoost || e.giveHp)
+}
 export const START_MONEY = 50
 
 const RAW_ITEMS = [
@@ -22,9 +29,9 @@ const RAW_ITEMS = [
     name: '사과맛 피크닉',
     price: 5,
     desc: '평범한 사과맛 피크닉, 독은 들어있지 않다. 전투중에 마셔도 목에 걸리지 않는다.',
-    tags: ['전투 중 사용 가능'],
-    effectText: '의지력 +10',
-    effect: { mp: 10 },
+    tags: ['전투 중 사용 가능', '#턴소모無'],
+    effectText: '의지력 +15',
+    effect: { mp: 15 },
     battle: true,
   },
   {
@@ -33,8 +40,8 @@ const RAW_ITEMS = [
     name: '가나다 초콜릿',
     price: 8,
     desc: '탈지분유 맛이 난다. 크래커 과자에 껴먹는게 요즘의 소소한 유행이다.',
-    effectText: '의지력 +20',
-    effect: { mp: 20 },
+    effectText: '의지력 +30',
+    effect: { mp: 30 },
     battle: false,
   },
   {
@@ -43,7 +50,7 @@ const RAW_ITEMS = [
     name: '컵라면',
     price: 8,
     desc: '급식이 맛없을 때면 금방 재고가 떨어진다. 미리미리 사두는 사람들도 있으니 참고할 것.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모無'],
     effectText: '체력 +20',
     effect: { hp: 20 },
     battle: true,
@@ -64,7 +71,7 @@ const RAW_ITEMS = [
     name: '마이쮸',
     price: 5,
     desc: '친해지고 싶은 상대에게 나눠주자. 전투 중에는 같이 싸우는 파티원에게도(물론 혼자 먹어도) 건넬 수 있다.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모有'],
     effectText: '전투 중: 파티원(나 자신 포함) 한 명에게 건네면 그 사람의 다음 행동 피해가 1턴 동안 2배가 된다. 전투가 아닐 때: NPC에게 주면 호감도가 오른다.',
     effect: { boost: true },
     battle: true,
@@ -76,9 +83,9 @@ const RAW_ITEMS = [
     name: '에너지드링크',
     price: 20,
     desc: '날개를 달아줘요. 어쩐지 죽어도 죽지 않을 것 같다.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모無'],
     effectText:
-      '1회에 한하여 전투불능 패널티 없이, 또한 전투를 종료하지 않고 HP1로 부활시킨다. 의지력은 회복되지 않는다. 전투불능이 되기 전 미리 먹어둬야 효과가 바로 발휘되며, 전투불능 이후에는 사용할 수 없다.',
+      '1회에 한하여 전투불능 패널티 없이, 또한 전투를 종료하지 않고 HP1로 부활시킨다. 의지력은 회복되지 않는다. 전투불능이 되기 전 미리 먹어둬야 효과가 바로 발휘되며, 전투불능 이후에는 사용할 수 없다. 한 전투에 1회만 쓸 수 있다 (부활에 쓰고 나서도 같은 전투에서는 다시 마실 수 없다).',
     effect: { revive: true },
     battle: true,
     only: 'battle',
@@ -99,7 +106,7 @@ const RAW_ITEMS = [
     name: '봉지 과자',
     price: 12,
     desc: '까서 먹고 있으면 주변 사람들이 몰려와서 한 입씩 뺏어먹는다.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모有'],
     effectText: '전투 중: 파티 전원의 체력이 15 회복된다. (일행 전투에서만 쓸 수 있다)',
     effect: { partyHp: 15 },
     battle: true,
@@ -111,7 +118,7 @@ const RAW_ITEMS = [
     name: '조각 케이크',
     price: 15,
     desc: '깜짝 파티를 하기에 나쁘지 않다. 설령 전투중이라 하더라도 기념일은 잊지 말도록 해.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모有'],
     effectText: '전투 중: 파티 전원의 의지력이 15 회복된다. (일행 전투에서만 쓸 수 있다)',
     effect: { partyMp: 15 },
     battle: true,
@@ -123,7 +130,7 @@ const RAW_ITEMS = [
     name: '폭죽',
     price: 30,
     desc: '깜짝 파티를 하기에 나쁘지 않다. 하지만 미리 예고하지 않으면 친구들이 너를 노려볼지도 모른다.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모有'],
     effectText:
       '사용 시 자신을 제외한 일행 전원의 다음 1회 공격력이 2배가 된다. 단, 사용한 자신은 그 즉시부터 2턴 동안 행동불능이 되며, 자신에게는 2배 효과가 적용되지 않는다. (일행 전투에서만 쓸 수 있다)',
     effect: { partyBoost: 2, selfStun: 2 },
@@ -136,7 +143,7 @@ const RAW_ITEMS = [
     name: '쌍쌍바',
     price: 10,
     desc: '더 큰 쪽을 누가 가져가느냐에 따라 우정이 갈라진다는 이야기가 있다. 나는 이 이야기를 참 좋아한다.',
-    tags: ['전투 중 사용 가능'],
+    tags: ['전투 중 사용 가능', '#턴소모有'],
     effectText: '체력 회복. 파티원에게 건네면 +20, 자기 자신이 사용하면 +5.',
     effect: { giveHp: { party: 20, self: 5 } },
     battle: true,
@@ -621,7 +628,7 @@ const RAW_ITEMS = [
     name: '칼',
     price: null,
     desc: '기본형은 허리춤에 차는 환도가 권장되나 언월도, 망나니칼 등 날이 크고 기다란 것을 위험천만하게 다루는 담력 있는 이들도 적지 않다.',
-    effectText: '막기에 성공했는지와 상관없이, 적의 공격 대상이 될 때마다 반격한다. (1d호전×2 피해) 또한, 매 턴마다 (호전×2)% 확률로 적이 체력과 상관없이 무조건 나를 공격하게 만든다. (일행 전투에서만 의미가 있다.)',
+    effectText: '막기에 성공했는지와 상관없이, 적의 공격 대상이 될 때마다 반격한다. (1d호전×2 피해) 이때 막기 중이면서 기존 반격 강화 조건(완전 방어 또는 호전이 상대보다 높음)도 함께 달성하면, 반격 피해가 1d호전×3으로 올라간다.',
     effect: {},
     bonus: {},
     battle: false,
@@ -663,7 +670,7 @@ const RAW_ITEMS = [
     name: '악기',
     price: null,
     desc: '예나 지금이나 사람의 마음을 움직일 수 있는 가장 좋은 무구. 꽹과리나 가야금, 장구, 단소 등 그 종류는 다양하다.',
-    effectText: '악기를 든 사람의 [이해] 값을 한계로, 같은 파티원(본인 포함)의 모든 공격 행동 및 막기 반격에 1d(이해)만큼의 공격력 보정이 붙는다.',
+    effectText: '같은 파티원(본인 포함)의 모든 공격 행동 및 막기 반격에 [이해] 값만큼 공격력 보정이 고정으로 붙는다. (더 이상 주사위를 굴리지 않는다) 단, 악기를 든 사람 자신에게 적용될 때는 그 보정의 75%만 적용된다.',
     effect: {},
     bonus: {},
     battle: false,
@@ -988,7 +995,7 @@ export const isStoreOpen = (now = Date.now()) => {
 export const countOf = (player, id) => player.inventory?.[id] || 0
 
 /** 지금 이 아이템을 쓸 수 있는가. { ok, why } */
-export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostOn }) {
+export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostOn, usedThisBattle }) {
   if (!countNow) return { ok: false, why: '갖고 있지 않다' }
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
   if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
@@ -998,6 +1005,7 @@ export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostO
   if (item.party && !isParty) return { ok: false, why: '일행(파티) 상태에서만 쓸 수 있다' }
   if (inBattle && !item.battle) return { ok: false, why: '전투 중에는 쓸 수 없다' }
   if (item.only === 'battle' && !inBattle) return { ok: false, why: '전투 중에만 쓸 수 있다' }
+  if (item.effect.revive && inBattle && usedThisBattle) return { ok: false, why: '이 전투에서 이미 사용했다 (1회 한정)' }
   if (item.effect.revive && reviveOn) return { ok: false, why: '이미 효과가 걸려 있다' }
   if (item.effect.boost && boostOn) return { ok: false, why: '이미 효과가 걸려 있다' }
   return { ok: true }

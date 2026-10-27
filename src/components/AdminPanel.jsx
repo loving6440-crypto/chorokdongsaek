@@ -5,7 +5,7 @@ import { PSYCHICS } from '../game/battle'
 import { SKINS } from '../game/skins2048'
 import { SKINS_RUNNER } from '../game/skinsRunner'
 import { adminSetBgmPlaylist, clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
-import { adminResetPassword } from '../game/auth'
+import { adminDeleteAccount, adminResetPassword } from '../game/auth'
 import { itemsText } from './MailboxPanel'
 
 /** 지급 · 선물 대상으로 고를 수 있는 영능력: 처음부터 있는 [효험]은 뺀다. */
@@ -221,6 +221,69 @@ function PasswordReset({ userId, adminKey }) {
           <br /><span className="text-[11px] text-paper/55">이 비밀번호를 본인에게 전해 주면, 로그인한 뒤 새 비밀번호를 정하게 된다. (지금 한 번만 보인다)</span>
         </p>
       )}
+      {res && !res.ok && <p className="mt-2 text-xs text-crimson" role="alert">{res.text}</p>}
+    </section>
+  )
+}
+
+/** 특정 계정을 서버에서 아예 삭제한다(탈퇴). 되돌릴 수 없어서, 누르면 한 번 더 "정말 탈퇴시키겠습니까?"를 물어본다. */
+function AccountDelete({ userId, adminKey }) {
+  const [target, setTarget] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState(null)
+  const askConfirm = () => {
+    const id = target.trim()
+    if (!id || busy) return
+    setRes(null)
+    setConfirming(true)
+  }
+  const cancel = () => setConfirming(false)
+  const go = async () => {
+    const id = target.trim()
+    if (!id || busy) return
+    setBusy(true)
+    const r = await adminDeleteAccount(userId, adminKey, id)
+    setBusy(false)
+    setConfirming(false)
+    setRes(
+      r.ok
+        ? { ok: true, target: r.target }
+        : { ok: false, text: r.error === 'no-account' ? '그런 아이디의 계정이 없다.' : r.error === 'bad-target' ? '아이디 형식이 올바르지 않다.' : '삭제하지 못했다.' },
+    )
+    if (r.ok) setTarget('')
+  }
+  return (
+    <section data-account-delete>
+      <p className="mb-1.5 text-xs tracking-widest text-paper/55">계정 탈퇴(삭제)</p>
+      <p className="mb-2 text-[11px] text-paper/50">계정과 저장된 모든 내용을 서버에서 완전히 지운다. <b className="text-crimson/80">되돌릴 수 없다.</b> <b className="text-paper/70">게임 속 이름이 아니라 로그인할 때 쓰는 아이디</b>를 넣어야 한다.</p>
+      <div className="flex gap-1.5">
+        <input
+          value={target}
+          onChange={(e) => { setTarget(e.target.value); setConfirming(false) }}
+          onKeyDown={(e) => e.key === 'Enter' && askConfirm()}
+          placeholder="대상 아이디"
+          aria-label="탈퇴시킬 대상 아이디"
+          className="min-w-0 flex-1 rounded border border-edge/25 bg-ink-muted/60 px-2 py-1 text-sm text-paper outline-none focus:border-crimson/50"
+        />
+        {!confirming ? (
+          <button type="button" data-account-delete-go disabled={!target.trim() || busy} onClick={askConfirm} className="rounded border border-crimson/40 px-3 text-xs text-crimson hover:bg-crimson/10 disabled:opacity-40">
+            탈퇴
+          </button>
+        ) : null}
+      </div>
+      {confirming && (
+        <p className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-crimson/10 px-3 py-2 text-xs text-crimson" role="alert" data-account-delete-confirm>
+          정말 <b>{target.trim()}</b>을(를) 탈퇴시키겠습니까? 되돌릴 수 없습니다.
+          <button type="button" data-account-delete-confirm-yes disabled={busy} onClick={go} className="rounded border border-crimson/50 px-2 py-0.5 text-crimson hover:bg-crimson/20 disabled:opacity-40">
+            예, 탈퇴시킨다
+          </button>
+          <button type="button" onClick={cancel} disabled={busy} className="rounded border border-edge/25 px-2 py-0.5 text-paper/70 hover:bg-edge/10 disabled:opacity-40">
+            아니오
+          </button>
+        </p>
+      )}
+      {res?.ok && <p className="mt-2 rounded-lg bg-shade/25 px-3 py-2 text-sm text-paper" data-account-delete-result><b className="text-paper">{res.target}</b> 계정을 탈퇴시켰다.</p>}
       {res && !res.ok && <p className="mt-2 text-xs text-crimson" role="alert">{res.text}</p>}
     </section>
   )
@@ -505,6 +568,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
             <p className="mt-1 text-[11px] text-paper/50">[적용]을 눌러야 들어온다. 이미 가진 영능력은 목록에서 빠진다. 다른 사람에게 선물하려면 아래 '다른 사람 상태 고치기'를 쓴다.</p>
           </section>
           <PasswordReset userId={userId} adminKey={adminKey} />
+          <AccountDelete userId={userId} adminKey={adminKey} />
           <EditOther userId={userId} adminKey={adminKey} online={online} />
           <BgmManager userId={userId} adminKey={adminKey} playlist={online.bgmPlaylist} />
           <MailAudit userId={userId} adminKey={adminKey} />

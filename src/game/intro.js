@@ -64,3 +64,22 @@ export function markIntroSeen(userId) {
     /* 저장 불가 환경이면 다음에 다시 보여주면 그만 */
   }
 }
+
+// 전투 안내(바리의 전투 튜토리얼): 계정마다 한 번만 자동으로 띄운다. 언제든 메뉴에서 다시 볼 수 있다. (v71)
+const battleTutorialKey = (userId) => `chorok-battle-tutorial-seen:${userId}`
+
+export function hasSeenBattleTutorial(userId) {
+  try {
+    return localStorage.getItem(battleTutorialKey(userId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markBattleTutorialSeen(userId) {
+  try {
+    localStorage.setItem(battleTutorialKey(userId), '1')
+  } catch {
+    /* 저장 불가 환경이면 다음에 다시 보여주면 그만 */
+  }
+}

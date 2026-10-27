@@ -1,7 +1,7 @@
 // 시간이 흐르면서 바뀌는 상태(수련 · 수업 대기 · 일일 수업)를 다루는 순수 함수 모음.
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
-import { MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
+import { clampSpirit, MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
 import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx } from './items'
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
@@ -17,6 +17,8 @@ export const startGather = startGatherAt
 export const cancelGather = cancelGatherAt
 export const startHunt = startHuntAt
 export const cancelHunt = cancelHuntAt
+// (영력 상한 처리를 쓰는 다른 파일들이 ./constants 를 몰라도 되도록 재수출)
+export { clampSpirit }
 
 export const TRAIN_UNIT_MIN = 5
 export const TRAIN_MIN = 5
@@ -24,13 +26,16 @@ export const TRAIN_MAX = 300
 export const REST_MIN = 1
 export const REST_MAX = 120
 export const REST_UNIT_MIN = 1
-// 기숙사 휴식(취침): 무조건 6시간. 일어나면 체력·의지력이 가득 차고, 영력이 +100 (게이지 최댓값까지만) 오른다.
+// 기숙사 휴식(취침): 무조건 6시간. 일어나면 체력·의지력이 가득 차고, 영력이 +100 (최대 200까지만) 오른다.
 export const SLEEP_MIN = 360
 export const SLEEP_SPIRIT = 100
-/** 영력 게이지의 최댓값. 기본 200이고, 영력이 그보다 커지면 100 단위로 늘어난다. */
-export const spiritGaugeMax = (spirit) => Math.max(SPIRIT_BASELINE_MAX, Math.ceil(spirit / 100) * 100)
-/** 푹 자고 일어났을 때 오르는 영력. +100, 단 게이지 최댓값을 넘기지 않는다. */
-export const sleepSpiritGain = (spirit) => Math.max(0, Math.min(SLEEP_SPIRIT, spiritGaugeMax(spirit) - spirit))
+// 영력 게이지의 최댓값. (v72) 원래는 "영력이 200 넘으면 게이지 자체가 300, 400...으로 늘어난다"로 돼 있었는데,
+// 그 바람에 수업·수련·전투 보상·수렵·동아리 퀘스트 등 거의 모든 영력 획득 경로가 200을 그냥 넘겨 버리는
+// 버그가 됐다(수면으로 얻는 영력만 그 늘어난 값을 넘지 않게 막혀 있었다). 영력은 항상 200을 넘지 않아야 하므로,
+// 게이지 최댓값을 늘어나지 않는 고정값으로 되돌리고, 모든 영력 획득 경로에 clampSpirit(./constants 에서 가져옴) 을 적용했다.
+export const spiritGaugeMax = () => SPIRIT_BASELINE_MAX
+/** 푹 자고 일어났을 때 오르는 영력. +100, 단 상한(200)을 넘기지 않는다. */
+export const sleepSpiritGain = (spirit) => Math.max(0, Math.min(SLEEP_SPIRIT, SPIRIT_BASELINE_MAX - spirit))
 export const REST_KINDS = {
   bed: { label: '누워서 쉬기', stat: 'hp' },
   counsel: { label: '선생님과 상담하기', stat: 'mp' },
@@ -87,11 +92,11 @@ export function completeLesson(player, courseId, now = Date.now()) {
     }
   }
   return {
-    player: {
+    player: clampSpirit({
       ...setLesson(player, courseId, { ...st, done: true, waitUntil: null }),
       cleared: { ...(player.cleared ?? {}), [courseId]: player.cleared?.[courseId] ?? now }, // 처음 마친 시각(업적용)
       spirit: player.spirit + LESSON_SPIRIT_REWARD,
-    },
+    }),
     logs: [`${name} 수업을 마쳤다. 영력 +${LESSON_SPIRIT_REWARD}`],
   }
 }
@@ -125,7 +130,7 @@ export function cancelWaits(player) {
 export function sanitizeRestored(player, joinedAt, admin = false) {
   // 의지력 최대치가 100으로 늘었다: 예전 저장분도 최대치만 올려 준다.
   let p = !admin && player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
-  // 전투 교육 도중에 닫았다면 맡아 둔 체력·의지력을 돌려준다.
+  // (예전 저장분 정리) 전투 교육이 있던 시절, 교육 도중에 닫았다면 맡아 둔 체력·의지력을 돌려준다. 지금은 전투 교육 자체가 없다.
   if (p.tutorialSnap) {
     const { tutorialSnap: snap, ...rest } = p
     p = { ...rest, hp: Math.min(p.hpMax, snap.hp), mp: Math.min(p.mpMax, snap.mp) }
@@ -140,21 +145,22 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
   if (!admin && STAT_KEYS.some((k) => p.stats[k] > STAT_MAX)) {
     p = { ...p, stats: Object.fromEntries(STAT_KEYS.map((k) => [k, Math.min(STAT_MAX, p.stats[k])])) }
   }
+  // (v72) 영력이 200을 넘겨 저장돼 있던 예전 기록(게이지 최댓값이 계속 늘어나던 버그 탓)을 불러오는 순간 되돌린다.
+  if (!admin) p = clampSpirit(p)
   return syncCodex(migrateWeapons(p))
 }
 
-/** 도감: 한 번이라도 손에 넣은 아이템·만난 NPC 를 기록한다. 바뀐 게 없으면 같은 player 를 돌려준다. */
+/** 도감: 한 번이라도 손에 넣은 아이템을 기록한다. (NPC 는 만났을 때 markNpc 로 따로 기록한다.) 바뀐 게 없으면 같은 player 를 돌려준다. */
 export function syncCodex(player) {
   const codex = player.codex ?? { items: {}, npcs: {} }
   const have = [...Object.keys(player.inventory ?? {}).filter((id) => player.inventory[id] > 0), ...Object.values(equipOf(player)).filter(Boolean)]
   const fresh = [...new Set(have.map(baseIdOf))].filter((id) => !codex.items?.[id])
-  const bari = player.tutorialDone && !codex.npcs?.bari
-  if (!fresh.length && !bari && player.codex) return player
+  if (!fresh.length && player.codex) return player
   return {
     ...player,
     codex: {
       items: { ...codex.items, ...Object.fromEntries(fresh.map((id) => [id, true])) },
-      npcs: { ...codex.npcs, ...(bari ? { bari: true } : {}) },
+      npcs: codex.npcs,
     },
   }
 }
@@ -345,6 +351,8 @@ export function tickPlayer(player, now, dtSec) {
   const ach = checkAchievements(p, now)
   p = ach.player
   logs.push(...ach.logs)
+  // (v72) 위 여러 경로(수련·수면·수업·채집·수렵·동아리 활동·업적) 중 어디서든 영력이 200을 넘겼다면 여기서 한 번에 되돌린다.
+  p = clampSpirit(p)
   return { player: p, logs, unlocked: ach.unlocked }
 }
 
@@ -371,7 +379,7 @@ export function applyBattleResult(player, win, reward0, now = Date.now()) {
   }
   if (g.wins >= GYM_DAILY_REWARDS) return { player: { ...player, gym: g }, granted: 0, lost: 0 }
   return {
-    player: bumpDaily(bumpWeekly({ ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } }, 'battleReward', 1, now), 'battleReward', 1, now),
+    player: clampSpirit(bumpDaily(bumpWeekly({ ...player, spirit: player.spirit + reward, money: player.money + reward, gym: { ...g, wins: g.wins + 1 } }, 'battleReward', 1, now), 'battleReward', 1, now)),
     granted: reward,
     lost: 0,
   }
