@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, Gift, Lock, Swords, X } from 'lucide-react'
+import { CheckCircle2, Eye, Gift, Lock, Shield, Sparkles, Swords, X, Zap } from 'lucide-react'
 import {
   ACTIONS,
   enemyTurn,
@@ -55,44 +55,50 @@ function useHighlightRect(selector) {
   return rect
 }
 
-/** 바리의 대사창 + 짚어주는 스포트라이트. 전투 화면 위에 바닥에 붙는 식으로 뜬다. */
-function Dlg({ face = 'bari', lines = [], note, highlight, hint, onNext, nextLabel = '다음', hideNext }) {
-  const rect = useHighlightRect(highlight)
+/** 화면 어딘가를 짚어주는 스포트라이트만 — 고정 오버레이지만 pointer-events-none 이라 그 아래 버튼을 가리지 않는다. */
+function Spotlight({ selector }) {
+  const rect = useHighlightRect(selector)
+  if (!rect) return null
   return (
-    <>
-      {rect && (
-        <div
-          className="pointer-events-none fixed z-[96] rounded-xl ring-4 ring-[#ff8fb3] transition-all duration-300"
-          style={{
-            top: rect.top - 8,
-            left: rect.left - 8,
-            width: rect.width + 16,
-            height: rect.height + 16,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.5), 0 0 22px 4px rgba(255,143,179,0.85)',
-          }}
-        />
-      )}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[98] flex justify-center p-3">
-        <div className="pointer-events-auto ink-panel flex w-full max-w-2xl items-start gap-3 rounded-2xl border-2 border-gold/70 p-3.5 shadow-2xl sm:p-4">
-          <img src={FACE_SRC[face] ?? FACE_SRC.bari} alt="바리" className="size-14 shrink-0 rounded-xl bg-edge/10 object-cover object-top sm:size-20" draggable={false} />
-          <div className="min-w-0 flex-1">
-            <p className="inline-block rounded-full bg-gold-fill px-2.5 py-0.5 text-[11px] font-medium text-ink light:text-ink">바리</p>
-            <div className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-paper/95 sm:text-sm">
-              {lines.map((l, i) => (
-                <p key={i}><Emph text={l} /></p>
-              ))}
-            </div>
-            {note && <p className="mt-2 rounded-lg border border-gold/30 bg-gold-fill/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-gold">{note}</p>}
-            {hint && <p className="mt-2 text-[11px] text-paper/55">{hint}</p>}
-          </div>
-          {!hideNext && (
-            <button type="button" onClick={onNext} className="flat-btn shrink-0 self-end text-xs">
-              {nextLabel}
-            </button>
-          )}
+    <div
+      className="pointer-events-none fixed z-[96] rounded-xl ring-4 ring-[#ff8fb3] transition-all duration-300"
+      style={{
+        top: rect.top - 8,
+        left: rect.left - 8,
+        width: rect.width + 16,
+        height: rect.height + 16,
+        boxShadow: '0 0 0 9999px rgba(0,0,0,0.5), 0 0 22px 4px rgba(255,143,179,0.85)',
+      }}
+    />
+  )
+}
+
+/**
+ * 바리의 대사창. 예전엔 화면 바닥에 고정돼 떠 있어서, 짧은 화면에서는 아래 행동 버튼과 겹쳐
+ * 버튼이 눌리지 않는 문제가 있었다. 이제는 일반 전투 화면과 똑같은 흐름 안에 들어가는 보통의
+ * 패널이라(= 떠 있지 않고 다른 내용과 같이 스크롤된다), 무엇도 가리지 않는다.
+ */
+function BariCard({ face = 'bari', lines = [], note, hint, onNext, nextLabel = '다음', hideNext }) {
+  if (!lines.length) return null
+  return (
+    <div className="ink-panel mt-3 flex items-start gap-3 rounded-2xl border-2 border-gold/70 p-3.5 shadow-lg sm:p-4">
+      <img src={FACE_SRC[face] ?? FACE_SRC.bari} alt="바리" className="size-14 shrink-0 rounded-xl bg-edge/10 object-cover object-top sm:size-16" draggable={false} />
+      <div className="min-w-0 flex-1">
+        <p className="inline-block rounded-full bg-gold-fill px-2.5 py-0.5 text-[11px] font-medium text-ink light:text-ink">바리</p>
+        <div className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-paper/95 sm:text-sm">
+          {lines.map((l, i) => (
+            <p key={i}><Emph text={l} /></p>
+          ))}
         </div>
+        {note && <p className="mt-2 rounded-lg border border-gold/30 bg-gold-fill/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-gold">{note}</p>}
+        {hint && <p className="mt-2 text-[11px] text-paper/55">{hint}</p>}
       </div>
-    </>
+      {!hideNext && (
+        <button type="button" onClick={onNext} className="flat-btn shrink-0 self-end text-xs">
+          {nextLabel}
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -186,6 +192,17 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
 
+  // 현재 단계가 영능력/소지품 패널 안의 행동을 요구하면, 그 패널이 반드시 열려 있도록 강제한다.
+  // (이전엔 공격 등 다른 행동을 쓰면 패널이 자동으로 닫혀서, 그 다음 단계에서 패널 속 버튼이
+  // 아예 화면에 없어 "눌러도 반응이 없다"는 문제가 있었다.)
+  useEffect(() => {
+    const need = step?.allow
+    const has = (k) => (Array.isArray(need) ? need.includes(k) : need === k)
+    if (has('toggleBuff') || has('dokkaebi-fire')) setPsyOpen(true)
+    if (has('useItem')) setItemsOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i])
+
   const doAction = (action, extra = {}) => {
     if (busy || !b) return
     setBusy(true)
@@ -200,7 +217,6 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     setMp((m) => Math.max(0, m - r.mpCost))
     setB(r.state)
     pushLog(r.events)
-    setPsyOpen(false)
     setBusy(false)
     next()
   }
@@ -217,7 +233,6 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     setMp((m) => Math.max(0, m - r.mpCost))
     setB(r.state)
     pushLog(r.events)
-    setPsyOpen(false)
     setBusy(false)
     next()
   }
@@ -235,11 +250,13 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     next()
   }
   const openPsychic = () => {
-    setPsyOpen((o) => !o)
+    setPsyOpen(true)
+    setItemsOpen(false)
     next()
   }
   const openItems = () => {
-    setItemsOpen((o) => !o)
+    setItemsOpen(true)
+    setPsyOpen(false)
     next()
   }
 
@@ -248,7 +265,8 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
   const myTurn = !busy && b && !b.over && !b.fire
 
   return (
-    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      {step?.highlight && <Spotlight selector={step.highlight} />}
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
           <p className="font-serif text-base text-gold">{title}</p>
@@ -256,6 +274,21 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
             <X size={15} />
           </button>
         </div>
+
+        {step && step.lines?.length > 0 && (
+          <BariCard
+            face={step.face}
+            lines={step.lines}
+            note={step.note}
+            hint={step.allow ? '해당하는 행동 버튼을 직접 눌러 보세요.' : undefined}
+            hideNext={!!step.allow || !!step.auto}
+            onNext={() => {
+              if (step.end) return onDone()
+              next()
+            }}
+            nextLabel={step.end ? '마치기' : '다음'}
+          />
+        )}
 
         {b && (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -285,10 +318,10 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
 
         {b && (
           <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="group" aria-label="연습 행동 선택">
-            <ActionBtn active={allowed('attack')} disabled={!myTurn || !allowed('attack')} onClick={() => doAction('attack')}>일반 공격</ActionBtn>
-            <ActionBtn active={allowed('guard')} disabled={!myTurn || !allowed('guard')} onClick={() => doAction('guard')}>막기</ActionBtn>
-            <ActionBtn active={allowed('charm')} disabled={!myTurn || !allowed('charm') || b.charms <= 0} onClick={() => doAction('charm')}>부적</ActionBtn>
-            <ActionBtn active={allowed('scan')} disabled={!myTurn || !allowed('scan')} onClick={() => doAction('scan', { scanAmount: step?.scanAmount ?? 5 })}>간파 (의지력 {step?.scanAmount ?? 5})</ActionBtn>
+            <ActionBtn active={allowed('attack')} disabled={!myTurn || !allowed('attack')} onClick={() => doAction('attack')} dataAttr={{ 'data-tutorial-attack-btn': true }}>일반 공격</ActionBtn>
+            <ActionBtn active={allowed('guard')} disabled={!myTurn || !allowed('guard')} onClick={() => doAction('guard')} dataAttr={{ 'data-tutorial-guard-btn': true }}>막기</ActionBtn>
+            <ActionBtn active={allowed('charm')} disabled={!myTurn || !allowed('charm') || b.charms <= 0} onClick={() => doAction('charm')} dataAttr={{ 'data-tutorial-charm-btn': true }}>부적</ActionBtn>
+            <ActionBtn active={allowed('scan')} disabled={!myTurn || !allowed('scan')} onClick={() => doAction('scan', { scanAmount: step?.scanAmount ?? 5 })} dataAttr={{ 'data-tutorial-scan-btn': true }}>간파 (의지력 {step?.scanAmount ?? 5})</ActionBtn>
             <ActionBtn active={allowed('openPsychic')} disabled={!myTurn || !allowed('openPsychic')} onClick={openPsychic} dataAttr={{ 'data-tutorial-psychic-btn': true }}>영능력</ActionBtn>
             <ActionBtn active={allowed('openItems')} disabled={!myTurn || !allowed('openItems')} onClick={openItems} dataAttr={{ 'data-tutorial-items-btn': true }}>소지품</ActionBtn>
           </div>
@@ -301,12 +334,12 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
               <li className="rounded-lg bg-edge/[0.07] px-3 py-2">
                 <p className="text-sm text-paper">효험</p>
                 <p className="text-[11px] text-paper/60">다음 공격·부적·영능력을 두 번 굴려 더 나은 쪽을 쓴다. (의지력 10)</p>
-                <ActionBtn active={allowed('toggleBuff')} disabled={!allowed('toggleBuff')} onClick={toggleBuff}>{buffArmed ? '켜짐 (끄기)' : '켜기'}</ActionBtn>
+                <ActionBtn active={allowed('toggleBuff')} disabled={!allowed('toggleBuff')} onClick={toggleBuff} dataAttr={{ 'data-tutorial-buff-btn': true }}>{buffArmed ? '켜짐 (끄기)' : '켜기'}</ActionBtn>
               </li>
               <li className="rounded-lg bg-edge/[0.07] px-3 py-2">
                 <p className="text-sm text-paper">도깨비불</p>
                 <p className="text-[11px] text-paper/60">3턴 동안 기를 모은 뒤 일반 공격의 4배 피해. 무조건 명중. (의지력 20)</p>
-                <ActionBtn active={allowed('dokkaebi-fire')} disabled={!allowed('dokkaebi-fire')} onClick={() => doPsychic('dokkaebi-fire')}>사용</ActionBtn>
+                <ActionBtn active={allowed('dokkaebi-fire')} disabled={!allowed('dokkaebi-fire')} onClick={() => doPsychic('dokkaebi-fire')} dataAttr={{ 'data-tutorial-fire-btn': true }}>사용</ActionBtn>
               </li>
             </ul>
           </div>
@@ -321,7 +354,7 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
                   <p className="text-sm text-paper">사과맛 피크닉</p>
                   <p className="text-[11px] text-paper/60">의지력 +15. 턴을 소모하지 않는다.</p>
                 </div>
-                <ActionBtn active={allowed('useItem')} disabled={!allowed('useItem')} onClick={useItem}>사용</ActionBtn>
+                <ActionBtn active={allowed('useItem')} disabled={!allowed('useItem')} onClick={useItem} dataAttr={{ 'data-tutorial-picnic-btn': true }}>사용</ActionBtn>
               </div>
             ) : (
               <ul className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
@@ -342,22 +375,6 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
           </ul>
         )}
       </div>
-
-      {step && step.lines?.length > 0 && (
-        <Dlg
-          face={step.face}
-          lines={step.lines}
-          note={step.note}
-          highlight={step.highlight}
-          hint={step.allow ? '해당하는 행동 버튼을 직접 눌러 보세요.' : undefined}
-          hideNext={!!step.allow || !!step.auto}
-          onNext={() => {
-            if (step.end) return onDone()
-            next()
-          }}
-          nextLabel={step.end ? '마치기' : '다음'}
-        />
-      )}
     </div>
   )
 }
@@ -389,19 +406,19 @@ function tutorialBasicSteps(stats) {
     {
       face: 'bari',
       lines: ['\'간파\'는 초반부에 써두는 게 좋아요. 그래야 상대의 행동을 파악하고 대책을 세울 수 있거든요. 우선 가볍게 의지력 5 정도만 써서 확인해보실래요?'],
-      allow: 'scan', scanAmount: 5,
+      allow: 'scan', scanAmount: 5, highlight: '[data-tutorial-scan-btn]',
     },
     { face: 'bari', lines: ['잘 하셨어요. 적은 이제 \'약공\'을 할 거예요.'] },
     { auto: 'enemy' },
     { face: 'bari', lines: ['데미지가 어느 정도 들어왔는지, 내가 무슨 행동을 했는지 등은 **아래 안내**에서도 볼 수 있고, 옆의 채팅창 **\'활동 로그\'**에서도 볼 수 있어요.'], highlight: '[data-tutorial-log]' },
-    { face: 'bari', lines: ['이제 반격해볼까요? 우리도 일반 공격을 해봅시다.'], allow: 'attack' },
+    { face: 'bari', lines: ['이제 반격해볼까요? 우리도 일반 공격을 해봅시다.'], allow: 'attack', highlight: '[data-tutorial-attack-btn]' },
     { face: 'bari', lines: ['잘 하셨어요. 상대는 이제 기 모으기-강공을 준비할 거예요. 기 모으기 턴 동안에는 우리에게 들어오는 데미지가 없으니 자유롭게 원하는 행동을 할 수 있어요. 우리는 일반 공격을 한 번 더 해볼까요?'] },
     { auto: 'enemy' },
-    { allow: 'attack', face: 'bari', lines: ['지금이에요, 한 번 더!'] },
-    { face: 'bari', lines: ['좋아요. 다음 턴은 이제 강공이네요. 강공은 방심할 수 없는 공격이기 때문에, 우리는 \'막기\'로 방어하는 게 좋겠어요. 한 번 해보세요!'], allow: 'guard' },
+    { allow: 'attack', face: 'bari', lines: ['지금이에요, 한 번 더!'], highlight: '[data-tutorial-attack-btn]' },
+    { face: 'bari', lines: ['좋아요. 다음 턴은 이제 강공이네요. 강공은 방심할 수 없는 공격이기 때문에, 우리는 \'막기\'로 방어하는 게 좋겠어요. 한 번 해보세요!'], allow: 'guard', highlight: '[data-tutorial-guard-btn]' },
     { auto: 'enemy' },
     { face: 'bari', lines: ['확실히 버틸만한 느낌이 되었죠? 그대로 맞았으면 엄청 아팠을 거예요⋯!'] },
-    { face: 'bari', lines: ['다음 상대의 행동을 봅시다. \'방어 태세\'네요. 일반 공격을 하면 상대는 가볍게 흘려내버리고 말 거예요. 이럴 때에는 상대의 방어 태세를 무시하는 부적을 사용하는 게 좋겠어요. 한 번 써볼까요?'], allow: 'charm' },
+    { face: 'bari', lines: ['다음 상대의 행동을 봅시다. \'방어 태세\'네요. 일반 공격을 하면 상대는 가볍게 흘려내버리고 말 거예요. 이럴 때에는 상대의 방어 태세를 무시하는 부적을 사용하는 게 좋겠어요. 한 번 써볼까요?'], allow: 'charm', highlight: '[data-tutorial-charm-btn]' },
     { auto: 'enemy' },
     { face: 'bari', lines: ['이러면 상대의 방어가 의미가 없어지죠! 부적은 횟수 제한이 있으니까, 방어 태세에 맞춰 최대한 아껴두는 것이 기본적으로 베스트예요.'] },
     { face: 'bari', lines: ['여기까지 했으면 여러분은 기본적인 공격 순서에 대해서는 모두 익히신 거예요.'] },
@@ -428,12 +445,12 @@ function tutorialPsychicSteps() {
     { face: 'bari', lines: ['저는 모든 영능력자가 기본적으로 가지고 있는 영능력인 \'효험\', 그리고 제가 가지고 있는 고유 영능력인 \'도깨비불\' 이렇게 두 개를 가지고 있어요. 여러분에게도 \'효험\' 자체는 있을 거예요. 그건 정말 모두가 날 때부터 얻는 선천적 요령이거든요.'], auto: 'start' },
     { face: 'bari', lines: ['우선 제 턴에서 \'영능력\' 버튼을 누르면, 아래에서 영능력 목록을 볼 수 있게 돼요. 혹시 저 대신 한 번 눌러보실래요?'], allow: 'openPsychic', highlight: '[data-tutorial-psychic-btn]' },
     { face: 'bari', lines: ['고마워요! 이 목록에서 영능력의 효과를 확인할 수 있어요. 미리 파악해두면 큰 도움이 되겠죠? 전투 밖에서는 \'도감\'에서 획득한 영능력들을 다시 열람할 수 있으니 참고하세요.'] },
-    { face: 'bari', lines: ['우선 저는 \'효험\'을 사용해볼게요. 우리의 공격은 빗나가거나 공격력이 극단적으로 낮게 나올 수도 있어요. 하지만 \'효험\'을 사용하면 상당한 보험이 되어요. 굴림 자체를 두 번 할 수 있으니까요. 효험을 대신 눌러 주시겠어요?'], allow: 'toggleBuff' },
-    { face: 'bari', lines: ['고마워요. 그 다음은 일반 공격을 해볼까 해요. 이걸 누르면 일반 공격이 자동으로 두 번 굴러지고, 그 중 더 강한 공격이 자동으로 상대에게 들어갈 거예요.'], allow: 'attack' },
+    { face: 'bari', lines: ['우선 저는 \'효험\'을 사용해볼게요. 우리의 공격은 빗나가거나 공격력이 극단적으로 낮게 나올 수도 있어요. 하지만 \'효험\'을 사용하면 상당한 보험이 되어요. 굴림 자체를 두 번 할 수 있으니까요. 효험을 대신 눌러 주시겠어요?'], allow: 'toggleBuff', highlight: '[data-tutorial-buff-btn]' },
+    { face: 'bari', lines: ['고마워요. 그 다음은 일반 공격을 해볼까 해요. 이걸 누르면 일반 공격이 자동으로 두 번 굴러지고, 그 중 더 강한 공격이 자동으로 상대에게 들어갈 거예요.'], allow: 'attack', highlight: '[data-tutorial-attack-btn]' },
     { face: 'bari', lines: ['보셨죠? 좀 더 안정적이고 확정적인 데미지가 필요할 경우에 사용하면 도움이 될 거예요.'] },
     { auto: 'enemy' },
     { face: 'bari', lines: ['영능력은 여러 가지가 있어요. 여러분은 활동하면서 다양한 순간에 다양한 영능력을 사용하게 될 거예요. 영능력은 기본적으로 자신의 턴을 소모하기도 하고, \'맨 첫 턴\'이 아니면 사용할 수 없을 정도로 중요한 것도 있어요.', '그런데 한 가지 더 알아둘 건, \'적\'도 영능력을 쓴다는 거예요.'] },
-    { face: 'bari', lines: ['저는 지금부터 도깨비불을 쓸 거예요. 대신 눌러주실 수 있나요?'], allow: 'dokkaebi-fire' },
+    { face: 'bari', lines: ['저는 지금부터 도깨비불을 쓸 거예요. 대신 눌러주실 수 있나요?'], allow: 'dokkaebi-fire', highlight: '[data-tutorial-fire-btn]' },
     { auto: 'enemy' },
     { face: 'bari', lines: ['적이 영능력을 사용하면 이런 식으로 뜨는데요, \'간파\'로 확인하더라도 영능력의 자세한 데이터는 뜨지 않아요. 그냥 \'영능력\'이라고만 떠요. 무조건 처음 마주하기 전까지는 그 적이 무슨 영능력을 사용하는지 효과를 알 수 없어요.'] },
     { face: 'bari', lines: ['이런 영능력을 어떻게 사용하는지가 제법 전투에 큰 영향을 미치겠죠? 이제 남은 전투는 자동으로 진행할게요! 어차피 저는 도깨비불에 명시된 효과 때문에 행동을 못 하거든요.'] },
@@ -457,9 +474,9 @@ function tutorialGearSteps() {
     { face: 'bari', lines: ['무구의 종류는 다음과 같아요. (부채·창·단검·칼·활·무당방울·악기·낫·석장·철퇴) 보시다시피 각 무기는 무기 자체에 고유 효과가 붙어 있어요. 여기에 원하는 대로 스탯을 넣어 커스텀이 가능한 구조예요. 그건 뒷산의 무구보관소에 가서 다른 분께 여쭤봐주세요! 저는 일단 스탯이 없는 상태로 들어갈게요.'], highlight: '[data-tutorial-items-panel]' },
     { face: 'bari', lines: [`하나 더 말씀드리자면, 우리의 전투는 기본적으로 무구가 아예 없는 상태로도 거의 모든 전투가 가능하게 만들어져 있는 시스템이에요. 어차피 스탯이 오르는 방식은 다 동일(스탯 하나당 최대 +${ENH_MAX})하니, 마음 놓고 원하는 무기를 컨셉으로만 골라도 충분히 스토리를 진행할 수 있어요.`] },
     { face: 'bari', lines: ['아이템도 볼까요? 아이템은 전투 중 소지품 목록에서 활용할 수 있어요. 제가 의지력을 회복시키는 아이템 하나를 넣어드릴게요. 전투 중 언제 써야 할지 직접 봅시다. 우선 싸우러 가보죠!'], auto: 'start' },
-    { face: 'bari', lines: ['첫 턴에 간파나 부적을 한 번 써보세요! 의지력을 소모해봅시다.'], allow: ['scan', 'charm'], scanAmount: 5 },
+    { face: 'bari', lines: ['첫 턴에 간파나 부적을 한 번 써보세요! 의지력을 소모해봅시다.'], allow: ['scan', 'charm'], scanAmount: 5, highlight: '[data-tutorial-scan-btn]' },
     { face: 'bari', lines: ['이 상태에서 의지력을 채우는 아이템을 사용하면 좋겠죠? (안에는 사과맛 피크닉 하나가 들어 있어요) 피크닉을 하나 드셔 보시겠어요?'], allow: 'openItems', highlight: '[data-tutorial-items-btn]' },
-    { face: 'bari', lines: ['피크닉을 사용해볼까요?'], allow: 'useItem' },
+    { face: 'bari', lines: ['피크닉을 사용해볼까요?'], allow: 'useItem', highlight: '[data-tutorial-picnic-btn]' },
     { face: 'bari', lines: ['의지력이 회복된 게 보이시나요?'] },
     { face: 'bari', lines: ['이런 식으로 전투 중 단일 대상의 아이템 사용은 \'기본적으로\' 턴을 소모하지 않아요. 아이템에도 #턴소모無 등으로 태그가 붙어 있을 거예요. 하지만 단체 전투로 가면 달라질 수 있으니 참고해요.'] },
     { face: 'bari-smile', lines: ['수고하셨습니다! 그럼 다음, 마지막 튜토리얼에서 만나요!'], end: true },
@@ -505,12 +522,18 @@ function TutorialGroup({ onDone, onClose }) {
     setI((n) => Math.min(steps.length - 1, n + 1))
   }
   return (
-    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="#4 단체 전투">
+    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="#4 단체 전투">
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
           <p className="font-serif text-base text-gold">#4 단체 전투</p>
           <button type="button" onClick={onClose} className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10" aria-label="튜토리얼 닫기"><X size={15} /></button>
         </div>
+        <BariCard
+          face={step.face}
+          lines={step.lines}
+          onNext={() => (step.end ? onDone() : next())}
+          nextLabel={step.end ? '마치기' : '다음'}
+        />
         <div className="ink-panel mt-3 rounded-xl p-3" aria-label="가상 일행 구성">
           <p className="text-xs text-paper/60">가상의 일행 구성 (예시)</p>
           <ul className="mt-2 flex flex-wrap gap-2 text-xs">
@@ -525,7 +548,6 @@ function TutorialGroup({ onDone, onClose }) {
           </ul>
         )}
       </div>
-      <Dlg face={step.face} lines={step.lines} onNext={() => (step.end ? onDone() : next())} nextLabel={step.end ? '마치기' : '다음'} />
     </div>
   )
 }
