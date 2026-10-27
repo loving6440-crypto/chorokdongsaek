@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
 import { ARMORY, SHINAH } from '../../game/armory'
 import { STAT_META } from '../../game/constants'
-import { ENH_ITEMS, ENH_MAX, ENH_STATS, WEAPONS, countOf, enhLevel, enhTotal, equipOf, itemOf, ownedWeapons } from '../../game/items'
+import { ENH_ITEMS, ENH_MAX, ENH_STATS, WEAPONS, countOf, enhLevel, enhMaterialFor, enhTotal, equipOf, itemOf, ownedWeapons } from '../../game/items'
 import NpcDialog from '../NpcDialog'
 
-/** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯당 최대 +5). 재료는 현재 수치에 맞는 완성품. */
+/** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
 export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }) {
   const owned = ownedWeapons(player)
   // 같은 종류가 여럿이면 ①②… 로 구분한다.
@@ -54,7 +54,7 @@ export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }
                   {ENH_STATS.map((s) => {
                     const lv = enhLevel(player, cur.id, s)
                     const max = lv >= ENH_MAX
-                    const mat = max ? null : itemOf(ENH_ITEMS[lv])
+                    const mat = max ? null : itemOf(enhMaterialFor(lv))
                     const have = mat ? countOf(player, mat.id) : 0
                     return (
                       <li key={s} data-enh-stat={s} className="flex items-center justify-between gap-2 rounded-lg bg-shade/25 px-3 py-2 text-sm">

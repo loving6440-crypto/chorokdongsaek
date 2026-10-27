@@ -621,7 +621,7 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
   - NPC 바리는 삭제하지 않았다. 도감 등록 조건이 "전투 교육 수료"에 걸려 있던 것을 떼어내고, 원래부터 있던 뒷산 · 교외(둘레길) 조우 이벤트(`src/components/locations/Hike.jsx`의 `OutsideBari`)에서 말을 걸면 그 자리에서 바로 도감에 등록되도록 했다. 도감의 바리 "등장 장소" 표기도 "뒷산 · 교외"로 바꿨다.
 - **새 전투 안내(튜토리얼)**: 바리가 현재 전투 규칙(체력·의지력, 일반 공격의 안목→명중/호전→피해, 막기, 부적, 효험, 간파, 무구 "칼"·"악기"의 새 효과, 아이템 턴소모 표기, 보스 체력바·영능력 2개 선택, 다인 전투 팝업·턴 제한)을 대사 몇 마디씩 짧게 짚어 주는 대화창을 새로 만들었다(`src/game/battleTutorial.js`의 `BATTLE_TUTORIAL_NODES`, `src/components/BattleTutorial.jsx`). 기분(표정)에 따라 바리 초상화(`/bari.png`·`/bari-smile.png`·`/bari-surprise.png`)가 바뀐다.
   - 간파 설명은 사용자가 준 문구를 그대로 썼다: "다소 어려운 전투를 할 때 '간파'는 거의 필수적이에요! 첫 턴에 사용하는 것이 베스트지만, 첫 턴에 사용해야 할 영능력이 있는 경우 두 번째 턴에라도 넉넉하게 사용해두는 것을 권장드려요."
-  - 계정마다 한 번은 자동으로 띄운다(계정 id 기준 `localStorage`에 `src/game/intro.js`의 `hasSeenBattleTutorial`/`markBattleTutorialSeen`으로 기록 — 인트로 "다시 보여줬는지" 기록과 같은 방식). 이후에는 왼쪽 프로필 패널의 "전투 안내" 버튼(안내서 보기 옆)으로 언제든 다시 볼 수 있다.
+  - (수정) 처음엔 계정마다 한 번 자동으로 띄우고 프로필 패널에도 버튼을 뒀는데, v70처럼 "자동으로 뜨는 건 없고 뒷산 > 퇴마실습 화면에서만 볼 수 있게" 해 달라는 요청에 따라 되돌렸다 — 자동으로 뜨지 않고, `src/components/locations/Battle.jsx`의 상대 고르는 화면(`phase === 'pick'`) 맨 위에 "전투 안내" 버튼을 눌러야만 열린다. 계정별 "한 번 봤는지" 기록 자체를 없앴다(프로필 패널의 버튼도 제거).
 
 ### 전투 로그 · 보스 UX 개선
 - **전투 기록을 활동 로그로 통합**: 전투(1인·다인 모두)가 끝나면 그 전투에서 있었던 전체 로그(다이스 표기를 뺀 깔끔한 문장들)가 평소 쓰는 활동 로그에도 "— ○○ 전투 기록 —" 머리말과 함께 그대로 남는다. 1인 전투는 `src/components/locations/Battle.jsx`에 `fullLogRef`(40개로 잘리지 않는 전체 누적 로그)를 새로 두고 전투가 끝날 때 `onFinish`로 함께 넘기고, 다인 전투는 서버가 보내주는 `view.log`를 그대로 모아 넘긴다. `src/Game.jsx`의 `finishBattle`이 이를 받아 `addLogs`(새로 만든 여러 줄 일괄 기록 헬퍼)로 활동 로그에 적는다.
@@ -687,3 +687,30 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
   - `spiritGaugeMax`를 늘어나지 않는 고정값(200)으로 되돌렸다(`src/game/constants.js`).
   - `clampSpirit(player)`라는 공통 헬퍼를 새로 만들어, 영력이 늘어나는 모든 경로 끝에 적용했다: `src/game/progress.js`의 `tickPlayer`(수련·수면·수업·채집·수렵·업적·동아리 자동 처리가 전부 이 함수 하나를 거친다) 맨 끝, `completeLesson`, `applyBattleResult`(전투 승리 보상), `src/game/clubQuests.js`의 `claimQuest`/`claimMetaQuest`/`claimDailyQuest`/`claimDailyMeta`(동아리 주간·일일 퀘스트 보상 직접 받기).
   - 기존에 이미 200을 넘겨 저장된 캐릭터도, 다음에 불러올 때(`sanitizeRestored`) 자동으로 200으로 되돌아간다. (관리자 계정은 원래부터 스탯 상한을 자유롭게 넘길 수 있어 이 보정에서 제외했다.)
+
+## v73 (v72 기준) — 전투 로그 실시간 중계 · 활 개선 · 무구 강화 자유 분배 · 전투 튜토리얼 전면 재제작
+
+### 전투 로그 실시간 중계
+- 1인 전투(`src/components/locations/Battle.jsx`): `push(events)`가 로그를 내부 상태(`log`)·전체 기록(`fullLogRef`)에 쌓는 것과 동시에, 새로 받은 `onLog` prop(값은 `addLogs`)으로 그 턴에 생긴 로그 텍스트를 바로 흘려보낸다. 콜백은 클로저가 오래된 값을 참조하지 않도록 `onLogRef`에 담아 둔다.
+- 다인 전투: 서버가 보내는 `mbView.log`를 `src/Game.jsx`의 `mbView` 감시 `useEffect`가 매번 확인해, 마지막으로 중계한 로그 id(`mbLogSeenId`) 뒤에 새로 생긴 줄만 `addLogs`로 내보낸다. 새 전투가 시작될 때는 지난 전투의 로그를 다시 중계하지 않도록 `mbLogSeenId`를 그 시점의 마지막 id로 맞춰 둔다.
+- 전투가 끝났을 때 전체 로그를 통째로 다시 활동 로그에 적립하던 `finishBattle`의 처리는, 이제 실시간으로 이미 다 올라갔으므로 지웠다(중복 방지).
+
+### 무구 "활" 개선
+- `src/game/battle.js`의 `playerTurn`에 `bowActive`(`stats.fx === 'bow' || ctx.archerBow`) 판정을 추가했다. 일반 공격 명중은 그대로 무조건 성공(`attackRoll`의 `noMiss`)이고, 추가로 방어 태세(`braced`)에 걸렸을 때 `d100 ≤ 호전`이면 절반 감쇄를 건너뛰고 그대로 들어간다.
+- 다인 전투(`src/game/mbattle.js`)에서는 턴을 처리할 때마다 `aliveOf(mb).some(x => x.fx === 'bow')`로 일행 중 활을 든 사람이 있는지 확인해 `ctx.archerBow`로 넘긴다 — 활을 직접 들지 않은 사람도 공격할 때 똑같이 적용된다. (선공 판정에 부채를 든 사람을 찾는 기존 `fanner` 패턴과 동일한 방식.)
+- `src/game/items.js`의 활 `effectText`를 새 효과(명중 보장 + 호전%로 방어 태세 무시, 단체 전투 전원 적용)로 갱신했다.
+
+### 무구 강화 — 스탯 하나에 자유롭게 몰아 올리기
+- 기존에는 스탯마다 균등하게 최대 +5까지였는데, 이제 스탯 하나당 최대 +15까지 원하는 만큼 자유롭게 올릴 수 있다(`ENH_MAX = 15`, `src/game/items.js`). 애초에 `player.enh[무구id][스탯]`이 스탯별로 독립적으로 저장되는 구조라, 상한만 15로 올리면 "호전만 15까지" 같은 몰아주기가 그대로 가능하다.
+- 재료 소모를 3단계 구간으로 나눴다: `enhMaterialFor(from) = ENH_ITEMS[floor(from / 3)]` — +0~2 숫돌, +3~5 기름 먹인 천, +6~8 오색 매듭, +9~11 주사 호신부, +12~14 은입사 장식. `enhanceWeapon()`과 `src/components/locations/Armory.jsx`의 재료 미리보기 모두 이 헬퍼로 통일했다.
+
+### 전투 튜토리얼 전면 재제작 — "직접 플레이하는 방식"
+- 기존 대사만 읽는 `BattleTutorial.jsx`/`battleTutorial.js`를 지우고, `src/components/BattleTutorial2.jsx`(+ 연습용 허수아비·대사 보조 데이터인 `src/game/battleTutorial2.js`)로 새로 만들었다. 진입점은 그대로 뒷산 > 퇴마실습의 "전투 안내" 버튼이고, 누르면 4개 중 하나를 고르는 허브(`BattleTutorialHub`)가 뜬다.
+- **공용 엔진(`ScriptedBattle`)**: `steps` 배열을 순서대로 넘기는 작은 상태 기계. 각 단계는 순수 대사("다음" 버튼으로 넘김)거나, `allow`로 지정한 행동 버튼만 눌리게 하거나(실제로 `playerTurn`/`psychicTurn`을 호출해 진짜 주사위가 굴러간다), `auto: 'start'|'enemy'|'fire'`로 전투 시작·적 턴·도깨비불 자동 진행을 스스로 흘려보낸다. 대사의 `**강조**` 구문은 밑줄+금색으로 렌더링되고(`Emph`), `highlight` 선택자가 있으면 `GuideModal.jsx`의 스포트라이트(핑크 테 + 어두워지는 배경)와 똑같은 방식(`useHighlightRect`)으로 해당 요소를 짚어 준다.
+- **적의 행동을 강제로 고정**: `newBattle()`은 두 번째 인자로 적 id 대신 적 객체를 직접 받을 수 있어(`typeof enemyId === 'object'`), 전투 생성 뒤 `state.queue`를 원하는 순서로 직접 덮어쓴다 — #1은 약공→기모으기→강공→방어태세를 반복(`forcedQueue`), #2는 jab→special→jab×n(적의 비기 시연 타이밍 고정)으로 정확히 맞췄다.
+- **#1 기본 전투**: 사용자가 준 대사를 그대로 옮기고, "작은 글씨" 요청 부분은 전부 실제 코드값에서 가져왔다(`ACTIONS.attack/guard/charm/scan.note`를 그대로 재사용, 부적의 `1d(50−절제)` 소모·칼의 반격 배율 등은 `battle.js`를 다시 읽어 수식을 적었다). 간파(의지력 5) → 적 약공 → 반격 → 기모으기(데미지 없음) → 반격 → 강공에 막기 → 방어 태세에 부적, 순서로 실제 전투 함수가 그대로 돌아간다. 돌발 행동·버티기는 대사에서 실제 공식과 함께 설명하되, 하이 데미지로 위협할 필요가 없어 별도의 강제 시연은 넣지 않았다.
+- **#2 영능력**: 바리가 허수아비와 1:1로 싸우는 시연. 효험 토글 → 버프 걸린 일반 공격 → 적 턴(약공) → 도깨비불 시전 → 적 턴(영능력 시연, 비기로 `tutor-dummy-psy` 전용 `special`을 하나 새로 두되 `specialEffects()`의 기본 분기를 그대로 타게 해 저주형 효과로 처리) → 도깨비불 충전 2턴 + 적 약공 2번 → 폭발(4배 피해). 실제 `psychicTurn`/`fireTurn`을 그대로 호출한다.
+- **#3 무구와 아이템**: 소지품 버튼(연습용으로 같은 자리에 똑같이 만든 버튼)을 짚어 열고, 무구 10종을 전부 그리드로 보여준 뒤(한 번에 하나씩 넘기는 연출은 생략했다), 짧은 연습 전투에서 간파/부적을 써보고 피크닉(의지력 +15)을 직접 마셔 본다. 실제 인벤토리를 건드리지 않고 튜토리얼 내부에서만 도는 가벼운 모사이므로, 진짜 소지품/아이템 지급 로직과는 분리돼 있다.
+- **#4 단체 전투**: 서버가 실제로 진행하는 다인 전투를 튜토리얼 안에서 그대로 재현하기는 어려워(네트워크로 묶인 여러 명이 필요), 대사와 함께 "일행 구성 예시" 패널 + 폭죽 사용 장면을 글로 짚어주는 설명형으로 만들었다. 나머지 세 개와 달리 실제 전투 함수를 호출하지 않는다.
+- **체력·영력·의지력 100 고정**: 튜토리얼 내부의 연습 전투는 실제 `player` 상태를 전혀 건드리지 않고(새 `newBattle(..., 100, 100)`과 로컬 `mp` state만 쓴다), 화면도 튜토리얼 전용 오버레이라 평소 상태 표시와 겹치지 않는다 — 그래서 "100으로 보이다가 끝나면 원래대로 돌아온다"는 요구를 실제 수치를 저장·복원하지 않고도 그대로 만족한다.
+- **완료 기록과 보상**: `player.tutorialDone = { basic, psychic, gear, group }`과 `player.tutorialRewardTaken`을 새로 두고, `src/Game.jsx`의 `onTutorialDone(key)`/`onClaimTutorialReward(weaponId)`가 각각 기록과 보상 지급(`giveWeapon`)을 담당한다. 네 개를 모두 마치면 허브 화면에 무구 10종 선택 버튼이 뜬다.

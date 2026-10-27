@@ -642,7 +642,7 @@ const RAW_ITEMS = [
     name: '활',
     price: null,
     desc: '한민족의 영혼을 내려받은 국궁용 활. 자유롭게 다룰 수 있도록 탄력이 좋은 소재로 다루어져 있는 것이 기본이나, 다루는 사람에 따라 자유롭게 꾸미기도 한다.',
-    effectText: '모든 공격이 반드시 명중한다.',
+    effectText: '모든 공격이 반드시 명중한다. (호전)% 확률로 상대의 방어 태세를 무시한다. 단체 전투일 경우 전원에게 적용된다 — 활을 든 사람이 한 명만 있어도 일행 전원이 이 효과를 받는다.',
     effect: {},
     bonus: {},
     battle: false,
@@ -841,8 +841,13 @@ export function gearBonus(player) {
 export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
 
 // ───────── 무구 강화 ─────────
-export const ENH_MAX = 5 // 육조 스탯 하나당 최대 +5
-export const ENH_ITEMS = ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'] // 현재 수치 0·1·2·3·4 → 다음 단계에 쓰는 재료
+// v72: 스탯마다 균등하게 5까지가 아니라, 하나의 스탯만 원하는 만큼(최대 15까지) 자유롭게 밀어 올릴 수 있다.
+// 재료는 3단계씩 구간을 나눠 쓴다: 0→3 숫돌 · 3→6 기름 먹인 천 · 6→9 오색 매듭 · 9→12 주사 호신부 · 12→15 은입사 장식.
+export const ENH_MAX = 15 // 육조 스탯 하나당 최대 +15
+export const ENH_TIER_SIZE = 3 // 재료 하나가 담당하는 레벨 구간 크기
+export const ENH_ITEMS = ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'] // 구간 0(0~2)·1(3~5)·2(6~8)·3(9~11)·4(12~14) → 다음 단계에 쓰는 재료
+/** 지금 수치(from)에서 다음 단계로 올릴 때 필요한 재료 id. */
+export const enhMaterialFor = (from) => ENH_ITEMS[Math.min(ENH_ITEMS.length - 1, Math.floor(Math.max(0, from) / ENH_TIER_SIZE))]
 export const ENH_STATS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
 export const WEAPONS = ITEMS.filter((i) => i.kind === 'gear' && i.slot === 'weapon') // 무구 종류(기본형)
 /** 새 무구 한 벌을 소지품에 넣는다. 반환 { player, id } */
@@ -915,8 +920,8 @@ export function enhanceWeapon(player, weaponId, stat, admin = false) {
   if (!ownsWeapon(player, weaponId)) return { error: '그 무구를 갖고 있지 않다.' }
   if (!ENH_STATS.includes(stat)) return { error: '올릴 수 없는 스탯이다.' }
   const from = enhLevel(player, weaponId, stat)
-  if (from >= ENH_MAX) return { error: '이 스탯은 이미 최대(+5)까지 강화했다.' }
-  const material = ENH_ITEMS[from]
+  if (from >= ENH_MAX) return { error: `이 스탯은 이미 최대(+${ENH_MAX})까지 강화했다.` }
+  const material = enhMaterialFor(from)
   let inventory = player.inventory ?? {}
   if (!admin) {
     if (!countOf(player, material)) return { error: `${itemOf(material).name}이(가) 필요하다.` }

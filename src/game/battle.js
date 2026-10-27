@@ -651,6 +651,9 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   }
   const aura = ctx.aura ?? auraSelfOf(stats)
   const braced = s.queue[0] === 'guard'
+  // 활: 내가 직접 들지 않아도, 일행 중 누구 하나라도 활을 들고 있으면(ctx.archerBow) 전원이 효과를 받는다.
+  // 효과 1) 모든 공격이 반드시 명중한다. 효과 2) (호전)% 확률로 상대의 방어 태세를 무시한다(절반으로 막히지 않는다).
+  const bowActive = stats.fx === 'bow' || !!ctx.archerBow
   const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
   const mult = boostMult // 마이쭈: 이번 턴 피해 2배, 폭죽: 2배
   const bn = ctx.boost ? ` (×${boostMult})` : ''
@@ -665,18 +668,27 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
     let r, buffNote = ''
     if (buffed) {
       mpCost += buffCost
-      const r1 = attackRoll(stats, rng)
-      const r2 = attackRoll(stats, rng)
+      const r1 = attackRoll(stats, rng, bowActive)
+      const r2 = attackRoll(stats, rng, bowActive)
       r = r1.dmg >= r2.dmg ? r1 : r2
       buffNote = ` (효험: 두 번 굴림 — 첫 번째 ${r1.miss ? '빗나감' : r1.dmg}, 두 번째 ${r2.miss ? '빗나감' : r2.dmg} 중 더 나은 쪽)`
     } else {
-      r = attackRoll(stats, rng)
+      r = attackRoll(stats, rng, bowActive)
     }
     const fb = r.miss ? { base: 0, notes: [] } : fxBase(r.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
     const cr = fxCrit(fb.base * mult, stats, rng)
     let dmg = cr.dmg
     let note = r.miss ? '' : `${bn}${noteOf(fb.notes)}${cr.note}`
-    if (!r.miss && braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
+    if (!r.miss && braced) {
+      const ignoreChance = bowActive ? Math.max(0, Math.min(100, stats.aggression)) : 0
+      const ignoreRoll = ignoreChance > 0 ? die(100, rng) : 101
+      if (ignoreChance > 0 && ignoreRoll <= ignoreChance) {
+        note += ` (활이 방어 태세를 무시했다! 호전 ${ignoreChance}%, d100 = ${ignoreRoll})`
+      } else {
+        dmg = Math.ceil(dmg / 2)
+        note += ' (방어에 절반으로 막힘)'
+      }
+    }
     s.ehp = Math.max(0, s.ehp - dmg)
     ev.push({ kind: 'player', roll: r.hit, dmg, text: `${buffed ? '효험! ' : ''}${strike(r)}${r.miss ? '' : ` ${dmg} 피해${note}`}${buffNote}` })
   } else if (act === 'charm') {

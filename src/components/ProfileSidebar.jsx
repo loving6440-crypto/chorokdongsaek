@@ -1,4 +1,4 @@
-import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Sparkles, Swords, Trophy, UsersRound } from 'lucide-react'
+import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Sparkles, Trophy, UsersRound } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -70,7 +70,7 @@ function Pouch({ size = 28 }) {
   )
 }
 
-export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onOpenAdmin, onOpenGuide, onOpenUpdateNotes, onOpenBattleTutorial }) {
+export default function ProfileSidebar({ player, locationId, theme, onToggleTheme, onLogout, userId, onOpenItems, spotItems, onEditProfile, onOpenCodex, onOpenClub, inClub, onReplayIntro, admin = false, onOpenAdmin, onOpenGuide, onOpenUpdateNotes }) {
   const location = LOCATIONS[locationId]
   const spiritMax = spiritGaugeMax(player.spirit)
 
@@ -191,30 +191,16 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         >
           내 소지품 확인하기
         </button>
-        {(onOpenGuide || onOpenBattleTutorial) && (
-          <div className="absolute bottom-[94px] left-1/2 flex h-[28px] w-[248px] -translate-x-1/2 gap-1.5">
-            {onOpenGuide && (
-              <button
-                type="button"
-                onClick={onOpenGuide}
-                data-guide-btn
-                className="flat-btn min-w-0 flex-1 justify-center !gap-1 !px-1 text-[11px] whitespace-nowrap"
-              >
-                <BookOpenText size={13} aria-hidden />
-                안내서 보기
-              </button>
-            )}
-            {onOpenBattleTutorial && (
-              <button
-                type="button"
-                onClick={onOpenBattleTutorial}
-                className="flat-btn min-w-0 flex-1 justify-center !gap-1 !px-1 text-[11px] whitespace-nowrap"
-              >
-                <Swords size={13} aria-hidden />
-                전투 안내
-              </button>
-            )}
-          </div>
+        {onOpenGuide && (
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            data-guide-btn
+            className="flat-btn absolute bottom-[94px] left-1/2 h-[28px] w-[248px] -translate-x-1/2 justify-center !gap-1.5 text-xs"
+          >
+            <BookOpenText size={13} aria-hidden />
+            안내서 보기
+          </button>
         )}
         <div className="absolute bottom-[40px] left-1/2 flex h-[48px] w-[248px] -translate-x-1/2 gap-2">
           <button

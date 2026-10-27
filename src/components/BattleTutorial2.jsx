@@ -1,0 +1,614 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CheckCircle2, Gift, Lock, Swords, X } from 'lucide-react'
+import {
+  ACTIONS,
+  enemyTurn,
+  fireTurn,
+  maxSurvives,
+  newBattle,
+  playerTurn,
+  psychicTurn,
+  rashPercent,
+  scanTurns,
+} from '../game/battle'
+import { ENH_MAX } from '../game/items'
+import { TUTOR_DUMMY, TUTOR_DUMMY_PSY, TUTORIAL_META, forcedQueue } from '../game/battleTutorial2'
+import { WEAPONS } from '../game/items'
+import { Bar } from './locations/battleUi'
+
+const FACE_SRC = { bari: '/bari.png', 'bari-smile': '/bari-smile.png', 'bari-surprise': '/bari-surprise.png' }
+
+/** **강조**로 감싼 부분을 밑줄+금색으로 바꿔 준다. */
+function Emph({ text }) {
+  const parts = text.split(/\*\*(.+?)\*\*/g)
+  return (
+    <>
+      {parts.map((p, i) => (i % 2 === 1 ? <b key={i} className="text-gold underline decoration-gold/70 underline-offset-2">{p}</b> : <span key={i}>{p}</span>))}
+    </>
+  )
+}
+
+/** GuideModal 과 같은 스포트라이트 패턴: selector 가 가리키는 요소에 핑크빛 테를 두르고 나머지를 어둡게. */
+function useHighlightRect(selector) {
+  const [rect, setRect] = useState(null)
+  useEffect(() => {
+    if (!selector) {
+      setRect(null)
+      return undefined
+    }
+    const update = () => {
+      const el = document.querySelector(selector)
+      if (!el) return setRect(null)
+      const r = el.getBoundingClientRect()
+      setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
+    }
+    update()
+    const t = setInterval(update, 250)
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [selector])
+  return rect
+}
+
+/** 바리의 대사창 + 짚어주는 스포트라이트. 전투 화면 위에 바닥에 붙는 식으로 뜬다. */
+function Dlg({ face = 'bari', lines, note, highlight, hint, onNext, nextLabel = '다음', hideNext }) {
+  const rect = useHighlightRect(highlight)
+  return (
+    <>
+      {rect && (
+        <div
+          className="pointer-events-none fixed z-[96] rounded-xl ring-4 ring-[#ff8fb3] transition-all duration-300"
+          style={{
+            top: rect.top - 8,
+            left: rect.left - 8,
+            width: rect.width + 16,
+            height: rect.height + 16,
+            boxShadow: '0 0 0 9999px rgba(0,0,0,0.5), 0 0 22px 4px rgba(255,143,179,0.85)',
+          }}
+        />
+      )}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[98] flex justify-center p-3">
+        <div className="pointer-events-auto ink-panel flex w-full max-w-2xl items-start gap-3 rounded-2xl border-2 border-gold/70 p-3.5 shadow-2xl sm:p-4">
+          <img src={FACE_SRC[face] ?? FACE_SRC.bari} alt="바리" className="size-14 shrink-0 rounded-xl bg-edge/10 object-cover object-top sm:size-20" draggable={false} />
+          <div className="min-w-0 flex-1">
+            <p className="inline-block rounded-full bg-gold-fill px-2.5 py-0.5 text-[11px] font-medium text-ink light:text-ink">바리</p>
+            <div className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-paper/95 sm:text-sm">
+              {lines.map((l, i) => (
+                <p key={i}><Emph text={l} /></p>
+              ))}
+            </div>
+            {note && <p className="mt-2 rounded-lg border border-gold/30 bg-gold-fill/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-gold">{note}</p>}
+            {hint && <p className="mt-2 text-[11px] text-paper/55">{hint}</p>}
+          </div>
+          {!hideNext && (
+            <button type="button" onClick={onNext} className="flat-btn shrink-0 self-end text-xs">
+              {nextLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function ActionBtn({ children, active, onClick, disabled, dataAttr }) {
+  return (
+    <button
+      type="button"
+      {...dataAttr}
+      disabled={disabled}
+      onClick={onClick}
+      className={`tilt rounded-xl px-3 py-2 text-xs font-medium transition ${
+        active ? 'bg-gold-fill text-ink light:text-ink ring-2 ring-gold animate-pulse' : disabled ? 'bg-edge/[0.06] text-paper/35' : 'bg-edge/[0.07] text-paper/85 hover:bg-gold-fill/20'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * 공용 "직접 플레이하는" 연습 전투 엔진. steps 배열을 순서대로 넘기며,
+ * - 순수 대사 단계는 '다음' 버튼으로,
+ * - allow 가 있는 단계는 그 행동 버튼만 눌러지게 해서 실제로 플레이하게 하고,
+ * - auto 단계(적 턴·도깨비불 자동진행·전투 시작)는 스스로 흘러간다.
+ */
+function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, title }) {
+  const [i, setI] = useState(0)
+  const [b, setB] = useState(null)
+  const [mp, setMp] = useState(100)
+  const [log, setLog] = useState([])
+  const [buffArmed, setBuffArmed] = useState(false)
+  const [psyOpen, setPsyOpen] = useState(false)
+  const [itemsOpen, setItemsOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const step = steps[i]
+  const next = () => setI((n) => Math.min(steps.length - 1, n + 1))
+
+  const pushLog = (events) => {
+    const texts = (events ?? []).map((e) => e.text).filter(Boolean)
+    if (!texts.length) return
+    setLog((l) => [...texts.map((t) => ({ id: Math.random(), text: t })), ...l].slice(0, 30))
+    onLog?.(texts)
+  }
+
+  // 전투 시작
+  useEffect(() => {
+    if (step?.auto !== 'start' || b) return
+    const s = newBattle(dummy, stats, Math.random, 100, 100)
+    s.queue = queue
+    setB(s)
+    pushLog([{ text: `${dummy.name}이(가) 나타났다.` }])
+    timer.current = setTimeout(next, 50)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i])
+
+  // 적 턴 자동 진행
+  useEffect(() => {
+    if (step?.auto !== 'enemy' || !b) return
+    setBusy(true)
+    timer.current = setTimeout(() => {
+      const r = enemyTurn(b, { stats, mp })
+      setMp((m) => Math.max(0, m - r.mpDrain))
+      setB(r.state)
+      pushLog(r.events)
+      setBusy(false)
+      next()
+    }, 700)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i, b])
+
+  // 도깨비불: 자동으로 기 모으기/폭발 진행
+  useEffect(() => {
+    if (step?.auto !== 'fire' || !b) return
+    setBusy(true)
+    timer.current = setTimeout(() => {
+      const r = fireTurn(b, { stats, mp, boost: false }, Math.random)
+      setB(r.state)
+      pushLog(r.events)
+      setBusy(false)
+      next()
+    }, 700)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i, b])
+
+  const doAction = (action, extra = {}) => {
+    if (busy || !b) return
+    setBusy(true)
+    const buffed = buffArmed && (action === 'attack' || action === 'charm')
+    const r = playerTurn(b, action, { stats, mp, boost: false, noRash: true, buff: buffed, ...extra }, Math.random)
+    if (r.invalid) {
+      pushLog(r.events)
+      setBusy(false)
+      return
+    }
+    if (buffed) setBuffArmed(false)
+    setMp((m) => Math.max(0, m - r.mpCost))
+    setB(r.state)
+    pushLog(r.events)
+    setPsyOpen(false)
+    setBusy(false)
+    next()
+  }
+
+  const doPsychic = (id, extra = {}) => {
+    if (busy || !b) return
+    setBusy(true)
+    const r = psychicTurn(b, id, { stats, mp, boost: false, buff: false, ...extra }, Math.random)
+    if (r.invalid) {
+      pushLog(r.events)
+      setBusy(false)
+      return
+    }
+    setMp((m) => Math.max(0, m - r.mpCost))
+    setB(r.state)
+    pushLog(r.events)
+    setPsyOpen(false)
+    setBusy(false)
+    next()
+  }
+
+  const toggleBuff = () => {
+    if (busy) return
+    setBuffArmed((v) => !v)
+    next()
+  }
+  const useItem = () => {
+    if (busy) return
+    setMp((m) => Math.min(100, m + 15))
+    pushLog([{ text: '사과맛 피크닉을 사용했다. 의지력 +15.' }])
+    setItemsOpen(false)
+    next()
+  }
+  const openPsychic = () => {
+    setPsyOpen((o) => !o)
+    next()
+  }
+  const openItems = () => {
+    setItemsOpen((o) => !o)
+    next()
+  }
+
+  const allow = step?.allow
+  const allowed = (k) => Array.isArray(allow) ? allow.includes(k) : allow === k
+  const myTurn = !busy && b && !b.over && !b.fire
+
+  return (
+    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="mx-auto max-w-2xl">
+        <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
+          <p className="font-serif text-base text-gold">{title}</p>
+          <button type="button" onClick={onClose} className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10" aria-label="튜토리얼 닫기">
+            <X size={15} />
+          </button>
+        </div>
+
+        {b && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="ink-panel rounded-xl p-3">
+              <div className="flex items-baseline justify-between">
+                <p className="font-serif text-base text-paper">{b.enemy.name}</p>
+                <p className="text-xs tabular-nums text-paper/70">{b.ehp} / {b.enemy.hp}</p>
+              </div>
+              <div className="mt-1.5"><Bar value={b.ehp} max={b.enemy.hp} tone="bg-crimson" label="상대 체력" /></div>
+              <p className="mt-2 rounded-lg bg-edge/[0.07] px-2.5 py-1.5 text-[11px] text-paper/70" aria-label="상대의 다음 행동" data-tutorial-enemy-intent>
+                상대의 다음 행동: <b className="text-gold">{INTENT_LABEL[b.queue[0]] ?? '???'}</b>
+              </p>
+            </div>
+            <div className="ink-panel rounded-xl p-3">
+              <div className="flex items-baseline justify-between">
+                <p className="font-serif text-base text-paper">나 (튜토리얼: 100으로 고정)</p>
+                <p className="text-xs tabular-nums text-paper/70">{b.php} / {b.phpMax}</p>
+              </div>
+              <div className="mt-1.5"><Bar value={b.php} max={b.phpMax} tone="bg-mana" label="내 체력" /></div>
+              <p className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                <span className="flat-chip">의지력 {Math.floor(mp)}</span>
+                <span className="flat-chip">부적 {b.charms}장</span>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {b && (
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="group" aria-label="연습 행동 선택">
+            <ActionBtn active={allowed('attack')} disabled={!myTurn || !allowed('attack')} onClick={() => doAction('attack')}>일반 공격</ActionBtn>
+            <ActionBtn active={allowed('guard')} disabled={!myTurn || !allowed('guard')} onClick={() => doAction('guard')}>막기</ActionBtn>
+            <ActionBtn active={allowed('charm')} disabled={!myTurn || !allowed('charm') || b.charms <= 0} onClick={() => doAction('charm')}>부적</ActionBtn>
+            <ActionBtn active={allowed('scan')} disabled={!myTurn || !allowed('scan')} onClick={() => doAction('scan', { scanAmount: step?.scanAmount ?? 5 })}>간파 (의지력 {step?.scanAmount ?? 5})</ActionBtn>
+            <ActionBtn active={allowed('openPsychic')} disabled={!myTurn || !allowed('openPsychic')} onClick={openPsychic} dataAttr={{ 'data-tutorial-psychic-btn': true }}>영능력</ActionBtn>
+            <ActionBtn active={allowed('openItems')} disabled={!myTurn || !allowed('openItems')} onClick={openItems} dataAttr={{ 'data-tutorial-items-btn': true }}>소지품</ActionBtn>
+          </div>
+        )}
+
+        {psyOpen && b && (
+          <div className="ink-panel mt-2 rounded-xl p-3" role="region" aria-label="영능력 목록(연습)">
+            <p className="font-serif text-sm text-gold">영능력</p>
+            <ul className="mt-2 space-y-2">
+              <li className="rounded-lg bg-edge/[0.07] px-3 py-2">
+                <p className="text-sm text-paper">효험</p>
+                <p className="text-[11px] text-paper/60">다음 공격·부적·영능력을 두 번 굴려 더 나은 쪽을 쓴다. (의지력 10)</p>
+                <ActionBtn active={allowed('toggleBuff')} disabled={!allowed('toggleBuff')} onClick={toggleBuff}>{buffArmed ? '켜짐 (끄기)' : '켜기'}</ActionBtn>
+              </li>
+              <li className="rounded-lg bg-edge/[0.07] px-3 py-2">
+                <p className="text-sm text-paper">도깨비불</p>
+                <p className="text-[11px] text-paper/60">3턴 동안 기를 모은 뒤 일반 공격의 4배 피해. 무조건 명중. (의지력 20)</p>
+                <ActionBtn active={allowed('dokkaebi-fire')} disabled={!allowed('dokkaebi-fire')} onClick={() => doPsychic('dokkaebi-fire')}>사용</ActionBtn>
+              </li>
+            </ul>
+          </div>
+        )}
+
+        {itemsOpen && (
+          <div className="ink-panel mt-2 rounded-xl p-3" role="region" aria-label="소지품(연습)" data-tutorial-items-panel>
+            <p className="font-serif text-sm text-gold">소지품</p>
+            {b ? (
+              <div className="mt-2 flex items-center justify-between rounded-lg bg-edge/[0.07] px-3 py-2">
+                <div>
+                  <p className="text-sm text-paper">사과맛 피크닉</p>
+                  <p className="text-[11px] text-paper/60">의지력 +15. 턴을 소모하지 않는다.</p>
+                </div>
+                <ActionBtn active={allowed('useItem')} disabled={!allowed('useItem')} onClick={useItem}>사용</ActionBtn>
+              </div>
+            ) : (
+              <ul className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+                {WEAPONS.map((w) => (
+                  <li key={w.id} className="rounded-lg bg-edge/[0.07] px-2 py-2 text-center">
+                    <p className="text-xs text-paper">{w.name}</p>
+                    <p className="mt-0.5 text-[10px] leading-snug text-paper/55">{w.effectText}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {log.length > 0 && (
+          <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" aria-label="연습 전투 기록" data-tutorial-log>
+            {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
+          </ul>
+        )}
+      </div>
+
+      {step && (
+        <Dlg
+          face={step.face}
+          lines={step.lines}
+          note={step.note}
+          highlight={step.highlight}
+          hint={step.allow ? '해당하는 행동 버튼을 직접 눌러 보세요.' : undefined}
+          hideNext={!!step.allow || !!step.auto}
+          onNext={() => {
+            if (step.end) return onDone()
+            next()
+          }}
+          nextLabel={step.end ? '마치기' : '다음'}
+        />
+      )}
+    </div>
+  )
+}
+
+const INTENT_LABEL = { jab: '약공', smash: '강공', charge: '기 모으기', guard: '방어 태세', special: '영능력' }
+
+/** #1 기본 전투 */
+function tutorialBasicSteps(stats) {
+  const atkNote = ACTIONS.attack.note
+  const guardNote = ACTIONS.guard.note
+  const charmNote = ACTIONS.charm.note
+  const scanNote = ACTIONS.scan.note
+  const rash = rashPercent(stats)
+  return [
+    { face: 'bari-smile', lines: ['안녕하세요! 저는 창록고등학교와 연합을 맺고 있는 자유계약 퇴마사, **바리**라고 해요.', '전투는 처음이시죠? 어쩌면 \'싸워야 한다\'는 사실 자체가 생소할 수도 있고요. 하지만 생각만큼 어렵지 않으니까, 느리게 잘 따라와보세요!'] },
+    { face: 'bari', lines: ['우선 전투의 기본을 설명드릴게요. 전투는 기본적으로 **턴제**라 나의 턴, 상대의 턴으로 나뉘어요.', '모든 적은 \'체력\' \'공격력\' \'행동력\' \'영력\'이라는 스탯을 가져요. 영력은 전체적인 난이도를 결정하고, 공격력과 행동력은 전투 중에 영향을 줘요. 적의 체력이 0이 되면 적을 이길 수 있어요.'] },
+    { face: 'bari', lines: ['반면 우리는 \'체력\'과 \'의지력\'으로 모든 것을 결정할 거예요.', '우리의 체력이 0이 되면 쓰러져 양호실에서 눈을 뜨게 돼요. 본관에서 다른 곳까지 다시 이동해야 하니 주의하세요.', '우리의 **의지력**은 0이 되어도 상관 없지만, 각종 영능력을 사용할 수 없게 돼요. 최대한 전투 중 0이 되는 상황은 피하는 게 좋아요.'] },
+    { face: 'bari', lines: ['먼저 적의 행동부터 확인해볼게요. 적의 행동은 \'약공\', \'강공\', \'방어 태세\', \'영능력\'으로 나뉘어요. 행동 순서는 기본적으로 주사위값 난수에 따른 랜덤이에요.'] },
+    { face: 'bari', lines: ['**약공**은 적의 공격력에 영향을 받는, 일반 공격이에요. 우리가 맞는 데미지이기도 하죠.'], note: '약공 피해 = 1d공격력 + 1d영력 (영력 굴림이 1이면 그 공격은 빗나간다).' },
+    { face: 'bari', lines: ['**강공**은 보통 먼저 \'기 모으기\'를 한 다음 턴에 와요. 다음 턴이 강공인 경우 무조건 미리 보여져요.'], note: '강공 피해 = 1d공격력×2 + 영력 (d10 굴림이 1~2면 빗나간다).' },
+    { face: 'bari', lines: ['**방어 태세**는 말 그대로예요. 내 공격 다음 적의 턴이 방어 태세인 경우, 방어 태세를 무시하는 부적이나 특수한 영능력이 아닌 이상 공격력이 무조건 절반으로 들어가요.'] },
+    { face: 'bari', lines: ['**영능력**은 다음에 다른 튜토리얼에서 확인해요! 우선은 넘어갈게요.'] },
+    { face: 'bari', lines: ['다음은 우리의 턴을 확인해볼게요. 우리의 행동 목록에는 \'일반 공격\' \'막기\' \'부적\' \'간파\' 그리고 \'영능력\'이 있어요. 영능력은 나중에 다른 튜토리얼에서 만날 테니 오늘은 네 개만 알아볼게요.'] },
+    { face: 'bari', lines: ['**일반 공격**은 아무런 자원을 소모하지 않는 가장 기본적인 공격이에요. 명중률은 안목에, 공격력은 \'호전\'에 영향을 받아요.'], note: `${atkNote} (명중 = 1d(안목+1), 피해 = 1d호전×2 + 명중 굴림값)` },
+    { face: 'bari', lines: ['**막기**는 적의 공격 직전 방어를 시도하는 행동이에요. 막기를 시도한 턴의 다음 공격은 훨씬 덜 아픈 공격을 받을 수 있어요. 호전이 많이 높은 사람은 가끔 반격이 들어가기도 해요.'], note: `${guardNote} · 무구가 [칼]이면 막기 성공 시 1d호전×2(완전 방어·호전 우위 시 ×3) 반격이 들어간다.` },
+    { face: 'bari', lines: ['**부적**은 일반 공격의 두 배 데미지가 절대 빗나가지 않고 들어가요. 한 전투에 3회까지만 쓸 수 있어요. 그 대신, 의지력을 많이, 그 때마다 다르게 써요.'], note: `${charmNote} (피해 = 일반 공격 피해×2, 명중 굴림은 항상 성공 처리 · 의지력 소모 = 1d(50−절제), 최소 1 — 모자라면 있는 만큼만 쓰고 터진다)` },
+    { face: 'bari', lines: ['**간파**는 사용하면 원래는 보이지 않는 상대의 다음 턴 행동을 볼 수 있어요. 안목이 높으면 더 멀리 볼 수 있어요.'], note: scanNote },
+    { face: 'bari-smile', lines: ['여기까지 배웠으면 직접 싸워가면서 해볼까요?'], auto: 'start' },
+    {
+      face: 'bari',
+      lines: ['\'간파\'는 초반부에 써두는 게 좋아요. 그래야 상대의 행동을 파악하고 대책을 세울 수 있거든요. 우선 가볍게 의지력 5 정도만 써서 확인해보실래요?'],
+      allow: 'scan', scanAmount: 5,
+    },
+    { face: 'bari', lines: ['잘 하셨어요. 적은 이제 \'약공\'을 할 거예요.'] },
+    { auto: 'enemy' },
+    { face: 'bari', lines: ['데미지가 어느 정도 들어왔는지, 내가 무슨 행동을 했는지 등은 **아래 안내**에서도 볼 수 있고, 옆의 채팅창 **\'활동 로그\'**에서도 볼 수 있어요.'], highlight: '[data-tutorial-log]' },
+    { face: 'bari', lines: ['이제 반격해볼까요? 우리도 일반 공격을 해봅시다.'], allow: 'attack' },
+    { face: 'bari', lines: ['잘 하셨어요. 상대는 이제 기 모으기-강공을 준비할 거예요. 기 모으기 턴 동안에는 우리에게 들어오는 데미지가 없으니 자유롭게 원하는 행동을 할 수 있어요. 우리는 일반 공격을 한 번 더 해볼까요?'] },
+    { auto: 'enemy' },
+    { allow: 'attack', face: 'bari', lines: ['지금이에요, 한 번 더!'] },
+    { face: 'bari', lines: ['좋아요. 다음 턴은 이제 강공이네요. 강공은 방심할 수 없는 공격이기 때문에, 우리는 \'막기\'로 방어하는 게 좋겠어요. 한 번 해보세요!'], allow: 'guard' },
+    { auto: 'enemy' },
+    { face: 'bari', lines: ['확실히 버틸만한 느낌이 되었죠? 그대로 맞았으면 엄청 아팠을 거예요⋯!'] },
+    { face: 'bari', lines: ['다음 상대의 행동을 봅시다. \'방어 태세\'네요. 일반 공격을 하면 상대는 가볍게 흘려내버리고 말 거예요. 이럴 때에는 상대의 방어 태세를 무시하는 부적을 사용하는 게 좋겠어요. 한 번 써볼까요?'], allow: 'charm' },
+    { auto: 'enemy' },
+    { face: 'bari', lines: ['이러면 상대의 방어가 의미가 없어지죠! 부적은 횟수 제한이 있으니까, 방어 태세에 맞춰 최대한 아껴두는 것이 기본적으로 베스트예요.'] },
+    { face: 'bari', lines: ['여기까지 했으면 여러분은 기본적인 공격 순서에 대해서는 모두 익히신 거예요.'] },
+    {
+      face: 'bari',
+      lines: ['한 가지 알아둬야 할 게 있어요. 바로 \'돌발 행동\'이에요. \'호전\'이 전투에 사용되는 비중이 높았죠? 그런데 이 호전이 무조건 높다고 좋진 않아요. 호전이 다른 스탯에 비해 너무 높으면 무조건 턴을 \'일반 공격\'으로 넘기는 돌발 행동이 나오거든요.'],
+      note: `돌발 행동 확률 = max(0, 호전 − 절제)%. 지금 내 돌발 행동 확률은 ${rash}%.`,
+    },
+    {
+      face: 'bari',
+      lines: ['덧붙여, 전투 중 체력이 0이 되었을 때 의지력이 2 이상인 경우, \'버티기\'라는 것을 시도할 수 있어요. 자신의 의지력을 거의 다 소모하는 대신, 무조건 한 턴을 버티게 해주는 거예요.', '의지가 모자라면 버티기는 할 수 없어요. 확인하세요!'],
+      note: `버티기: 체력 1로 일어나고, 가진 의지력을 1만 남기고 전부 쓴다. 인내×2(${Math.min(100, (stats.endurance || 0) * 2)}%) 확률로 의지력을 쓰지 않는다. 한 전투에 ${maxSurvives(stats)}회까지.`,
+    },
+    { face: 'bari-smile', lines: ['여기까지 기본 전투였어요. 어때요, 생각보다 할만하죠? 그럼 다음 튜토리얼에서 만나요!'], end: true },
+  ]
+}
+
+/** #2 영능력 */
+function tutorialPsychicSteps() {
+  return [
+    { face: 'bari-smile', lines: ['안녕하세요! 이번 전투에서는 \'영능력\'이라는 특수한 힘에 대해서 알아볼 거예요.'] },
+    { face: 'bari', lines: ['이번 전투는 여러분이 직접 싸우시는 게 아니라, 제가 직접 허수아비와 싸우면서 시연을 보여드릴게요. 아직 여러분은 기본적으로 배우는 영능력 외에는 습득하지 못하셨거든요. 하지만 자라날수록, 주변을 탐사할수록 많은 힘을 얻게 될 거예요.'] },
+    { face: 'bari', lines: ['영능력은 의지력을 소모하고, 전투를 유리하게 만들어주는 게 기본이에요. 예를 들어 제가 가지고 있는 영능력 두 개를 소개해드릴게요.'] },
+    { face: 'bari', lines: ['저는 모든 영능력자가 기본적으로 가지고 있는 영능력인 \'효험\', 그리고 제가 가지고 있는 고유 영능력인 \'도깨비불\' 이렇게 두 개를 가지고 있어요. 여러분에게도 \'효험\' 자체는 있을 거예요. 그건 정말 모두가 날 때부터 얻는 선천적 요령이거든요.'], auto: 'start' },
+    { face: 'bari', lines: ['우선 제 턴에서 \'영능력\' 버튼을 누르면, 아래에서 영능력 목록을 볼 수 있게 돼요. 혹시 저 대신 한 번 눌러보실래요?'], allow: 'openPsychic', highlight: '[data-tutorial-psychic-btn]' },
+    { face: 'bari', lines: ['고마워요! 이 목록에서 영능력의 효과를 확인할 수 있어요. 미리 파악해두면 큰 도움이 되겠죠? 전투 밖에서는 \'도감\'에서 획득한 영능력들을 다시 열람할 수 있으니 참고하세요.'] },
+    { face: 'bari', lines: ['우선 저는 \'효험\'을 사용해볼게요. 우리의 공격은 빗나가거나 공격력이 극단적으로 낮게 나올 수도 있어요. 하지만 \'효험\'을 사용하면 상당한 보험이 되어요. 굴림 자체를 두 번 할 수 있으니까요. 효험을 대신 눌러 주시겠어요?'], allow: 'toggleBuff' },
+    { face: 'bari', lines: ['고마워요. 그 다음은 일반 공격을 해볼까 해요. 이걸 누르면 일반 공격이 자동으로 두 번 굴러지고, 그 중 더 강한 공격이 자동으로 상대에게 들어갈 거예요.'], allow: 'attack' },
+    { face: 'bari', lines: ['보셨죠? 좀 더 안정적이고 확정적인 데미지가 필요할 경우에 사용하면 도움이 될 거예요.'] },
+    { auto: 'enemy' },
+    { face: 'bari', lines: ['영능력은 여러 가지가 있어요. 여러분은 활동하면서 다양한 순간에 다양한 영능력을 사용하게 될 거예요. 영능력은 기본적으로 자신의 턴을 소모하기도 하고, \'맨 첫 턴\'이 아니면 사용할 수 없을 정도로 중요한 것도 있어요.', '그런데 한 가지 더 알아둘 건, \'적\'도 영능력을 쓴다는 거예요.'] },
+    { face: 'bari', lines: ['저는 지금부터 도깨비불을 쓸 거예요. 대신 눌러주실 수 있나요?'], allow: 'dokkaebi-fire' },
+    { auto: 'enemy' },
+    { face: 'bari', lines: ['적이 영능력을 사용하면 이런 식으로 뜨는데요, \'간파\'로 확인하더라도 영능력의 자세한 데이터는 뜨지 않아요. 그냥 \'영능력\'이라고만 떠요. 무조건 처음 마주하기 전까지는 그 적이 무슨 영능력을 사용하는지 효과를 알 수 없어요.'] },
+    { face: 'bari', lines: ['이런 영능력을 어떻게 사용하는지가 제법 전투에 큰 영향을 미치겠죠? 이제 남은 전투는 자동으로 진행할게요! 어차피 저는 도깨비불에 명시된 효과 때문에 행동을 못 하거든요.'] },
+    { auto: 'enemy' },
+    { auto: 'fire' },
+    { auto: 'enemy' },
+    { auto: 'fire' },
+    { auto: 'enemy' },
+    { auto: 'fire' },
+    { face: 'bari', lines: ['한 방이 묵직하고 좋죠? 여기에 아이템이나, 다른 무구의 버프 등을 바를 수도 있으니 잘 계산해봐요. \'상대의 방어 태세를 무시한다\'라고 적혀 있지 않은 이상 영능력도 타이밍을 잘 재야 하거든요.'] },
+    { face: 'bari', lines: ['그럼 다음 튜토리얼에서 만나요! 수고하셨어요!'], end: true },
+  ]
+}
+
+/** #3 무구와 아이템 */
+function tutorialGearSteps() {
+  return [
+    { face: 'bari-smile', lines: ['안녕하세요! 이번엔 무구와 아이템을 쓰는 법을 알려드릴 거예요.'] },
+    { face: 'bari', lines: ['실제 화면에서는 모바일 기준 상단, PC/탭 기준 왼쪽 하단에 \'내 소지품 확인하기\' 버튼이 있어요. 연습을 위해 여기에도 똑같은 버튼을 뒀어요 — 한 번 눌러 보실래요?'], allow: 'openItems', highlight: '[data-tutorial-items-btn]' },
+    { face: 'bari', lines: ['그 안에 무구/신체/장신구, 그리고 아이템 목록란이 있어요. 무구와 신체와 장신구는 몸에 착용할 수 있는 장비예요. 그 중에서도 무구가 다양한 전투 효과를 가져요.'] },
+    { face: 'bari', lines: ['무구의 종류는 다음과 같아요. (부채·창·단검·칼·활·무당방울·악기·낫·석장·철퇴) 보시다시피 각 무기는 무기 자체에 고유 효과가 붙어 있어요. 여기에 원하는 대로 스탯을 넣어 커스텀이 가능한 구조예요. 그건 뒷산의 무구보관소에 가서 다른 분께 여쭤봐주세요! 저는 일단 스탯이 없는 상태로 들어갈게요.'], highlight: '[data-tutorial-items-panel]' },
+    { face: 'bari', lines: [`하나 더 말씀드리자면, 우리의 전투는 기본적으로 무구가 아예 없는 상태로도 거의 모든 전투가 가능하게 만들어져 있는 시스템이에요. 어차피 스탯이 오르는 방식은 다 동일(스탯 하나당 최대 +${ENH_MAX})하니, 마음 놓고 원하는 무기를 컨셉으로만 골라도 충분히 스토리를 진행할 수 있어요.`] },
+    { face: 'bari', lines: ['아이템도 볼까요? 아이템은 전투 중 소지품 목록에서 활용할 수 있어요. 제가 의지력을 회복시키는 아이템 하나를 넣어드릴게요. 전투 중 언제 써야 할지 직접 봅시다. 우선 싸우러 가보죠!'], auto: 'start' },
+    { face: 'bari', lines: ['첫 턴에 간파나 부적을 한 번 써보세요! 의지력을 소모해봅시다.'], allow: ['scan', 'charm'], scanAmount: 5 },
+    { face: 'bari', lines: ['이 상태에서 의지력을 채우는 아이템을 사용하면 좋겠죠? (안에는 사과맛 피크닉 하나가 들어 있어요) 피크닉을 하나 드셔 보시겠어요?'], allow: 'openItems', highlight: '[data-tutorial-items-btn]' },
+    { face: 'bari', lines: ['피크닉을 사용해볼까요?'], allow: 'useItem' },
+    { face: 'bari', lines: ['의지력이 회복된 게 보이시나요?'] },
+    { face: 'bari', lines: ['이런 식으로 전투 중 단일 대상의 아이템 사용은 \'기본적으로\' 턴을 소모하지 않아요. 아이템에도 #턴소모無 등으로 태그가 붙어 있을 거예요. 하지만 단체 전투로 가면 달라질 수 있으니 참고해요.'] },
+    { face: 'bari-smile', lines: ['수고하셨습니다! 그럼 다음, 마지막 튜토리얼에서 만나요!'], end: true },
+  ]
+}
+
+function TutorialScripted({ tutorialId, stats, onLog, onDone, onClose }) {
+  const dummy = tutorialId === 'psychic' ? TUTOR_DUMMY_PSY : TUTOR_DUMMY
+  const queue = useMemo(() => {
+    if (tutorialId === 'basic') return forcedQueue(['jab', 'charge', 'smash', 'guard'], 20)
+    if (tutorialId === 'psychic') return ['jab', 'special', 'jab', 'jab', 'jab', 'jab', 'jab']
+    return forcedQueue(['jab', 'guard'], 10) // gear
+  }, [tutorialId])
+  const steps = useMemo(() => {
+    if (tutorialId === 'basic') return tutorialBasicSteps(stats)
+    if (tutorialId === 'psychic') return tutorialPsychicSteps()
+    return tutorialGearSteps()
+  }, [tutorialId, stats])
+  const meta = TUTORIAL_META.find((t) => t.id === tutorialId)
+  return <ScriptedBattle key={tutorialId} dummy={dummy} queue={queue} steps={steps} stats={stats} onLog={onLog} onDone={onDone} onClose={onClose} title={meta?.label ?? ''} />
+}
+
+/** #4 단체 전투 — 서버가 진행하는 실제 다인 전투 대신, 대사로 흐름을 짚어주는 설명형 튜토리얼. */
+function TutorialGroup({ onDone, onClose }) {
+  const steps = [
+    { face: 'bari-smile', lines: ['안녕하세요! 이번엔 단체 전투를 해볼 거예요. 저와 당신이 한 팀, 적은 한 명(가끔 둘 이상이 나올 가능성도 있음)이에요.'] },
+    { face: 'bari', lines: ['우리 팀 중에서 신속이 가장 높은 사람을 통해 선공 판정을 하고요, 그렇게 적-아군의 순서가 정해져요.', '적보다 내 신속이 낮더라도, 신속이 높은 친구가 선공 판정을 성공하면 적보다 먼저 행동할 수 있답니다! 아군 자체에 턴이 돌아오니까요.'] },
+    { face: 'bari', lines: ['아군 내의 턴 순서는 신속 순서예요. 별도의 판정은 없이 무조건 신속이 높은 순서로 행동해요.'] },
+    { face: 'bari', lines: ['한 가지 더 알아두셔야 할 건, 아이템을 사용할 때 \'단체\' 대상인 경우에는 턴을 사용하는 경우가 많다는 거예요.'] },
+    { face: 'bari', lines: ['제가 우선 단체 대상 아이템인 \'폭죽\'을 사용해볼게요.'], demoLog: '바리가 [폭죽]을 사용했다. 바리의 턴이 끝났다.' },
+    { face: 'bari', lines: ['제 턴이 넘어가버렸죠? 그 대신 파티원인 당신은 폭죽의 공격력 추가 보정을 받게 될 거예요.'] },
+    { face: 'bari', lines: ['적의 약공과 강공은 특수한 적이나 영능력의 영향을 받지 않는 이상 기본적으로 무조건 체력이 많은 사람을 단일로 노려요.'] },
+    { face: 'bari', lines: ['다른 건 일반 전투와 똑같아요! 하지만 적이 가끔 난수에 \'단체 공격\'을 추가하는 경우도 있으니 조심하세요. 단체 공격은 체력이 높은 사람에게만 가지 않고, 모두를 공격해요.'] },
+    { face: 'bari', lines: ['영능력은 단체 대상이 되기도, 한 명 대상이 되기도 해요. 기본적으로 한 명 대상인 경우 체력이 높은 사람을 노리는 게 보통이지만, 영능력에 따라 일부러 체력이 적은 사람을 점사하기도 하니, 상대의 영능력을 만난 후에는 그 영능력도 잘 분석해봐요.'] },
+    { face: 'bari-smile', lines: ['이제 밖으로 나가면 무구 하나를 드릴 거예요. 앞선 3개의 튜토리얼을 모두 마쳤으면 받을 수 있어요. 아직 완료하지 않았으면 하러 가보세요! 나머지 무구들은 직접 학교 주변을 돌아다니며 얻어 보세요.'] },
+    { face: 'bari-smile', lines: ['여기까지에요! 이걸로 튜토리얼은 모두 마쳤어요. 고생하셨습니다!'], end: true },
+  ]
+  const [i, setI] = useState(0)
+  const [log, setLog] = useState([])
+  const step = steps[i]
+  const next = () => {
+    if (step.demoLog) setLog((l) => [{ id: Math.random(), text: step.demoLog }, ...l])
+    setI((n) => Math.min(steps.length - 1, n + 1))
+  }
+  return (
+    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="#4 단체 전투">
+      <div className="mx-auto max-w-2xl">
+        <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
+          <p className="font-serif text-base text-gold">#4 단체 전투</p>
+          <button type="button" onClick={onClose} className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10" aria-label="튜토리얼 닫기"><X size={15} /></button>
+        </div>
+        <div className="ink-panel mt-3 rounded-xl p-3" aria-label="가상 일행 구성">
+          <p className="text-xs text-paper/60">가상의 일행 구성 (예시)</p>
+          <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+            <li className="rounded-full bg-gold-fill/20 px-3 py-1 text-gold">바리 (신속 높음 · 선공)</li>
+            <li className="rounded-full bg-edge/10 px-3 py-1 text-paper/80">당신</li>
+            <li className="rounded-full bg-crimson/20 px-3 py-1 text-crimson">적</li>
+          </ul>
+        </div>
+        {log.length > 0 && (
+          <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" data-tutorial-log>
+            {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
+          </ul>
+        )}
+      </div>
+      <Dlg face={step.face} lines={step.lines} onNext={() => (step.end ? onDone() : next())} nextLabel={step.end ? '마치기' : '다음'} />
+    </div>
+  )
+}
+
+/** 뒷산 > 퇴마실습 화면에서 여는 튜토리얼 허브: 4개 중 하나를 골라 실행하고, 완료 상태 + 완주 보상(무구 1개 선택)을 관리한다. */
+export default function BattleTutorialHub({ open, onClose, stats, tutorialDone = {}, tutorialRewardTaken, onTutorialDone, onClaimReward, onLog }) {
+  const [running, setRunning] = useState(null) // 'basic' | 'psychic' | 'gear' | 'group' | null
+  const [pickWeapon, setPickWeapon] = useState(false)
+  useEffect(() => {
+    if (!open) {
+      setRunning(null)
+      setPickWeapon(false)
+    }
+  }, [open])
+  if (!open) return null
+
+  const allDone = TUTORIAL_META.every((t) => tutorialDone?.[t.id])
+
+  if (running === 'group') {
+    return <TutorialGroup onClose={() => setRunning(null)} onDone={() => { onTutorialDone?.('group'); setRunning(null) }} />
+  }
+  if (running) {
+    return (
+      <TutorialScripted
+        tutorialId={running}
+        stats={stats}
+        onLog={onLog}
+        onClose={() => setRunning(null)}
+        onDone={() => { onTutorialDone?.(running); setRunning(null) }}
+      />
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/55 p-4" role="dialog" aria-modal="true" aria-label="전투 튜토리얼">
+      <div className="ink-panel flex max-h-[88vh] w-[min(30rem,94vw)] flex-col overflow-hidden rounded-2xl border-2 border-gold/70 shadow-2xl">
+        <div className="flex items-center justify-between gap-2 border-b border-edge/20 px-4 py-2.5">
+          <p className="flex items-center gap-1.5 font-serif text-base font-bold text-gold">
+            <Swords size={16} aria-hidden />
+            전투 튜토리얼
+          </p>
+          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+          <p className="text-xs leading-relaxed text-paper/65">바리가 직접 플레이로 전투를 알려 줍니다. 튜토리얼 중에는 체력·영력·의지력이 모두 100으로 표시되고, 실제 상태는 바뀌지 않아요. 순서는 자유예요.</p>
+          <ul className="mt-3 space-y-2">
+            {TUTORIAL_META.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => setRunning(t.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl bg-edge/[0.07] px-3 py-2.5 text-left hover:bg-gold-fill/15"
+                >
+                  <span className="text-sm text-paper">{t.label}</span>
+                  {tutorialDone?.[t.id] ? <CheckCircle2 size={16} className="text-gold" aria-label="완료" /> : <span className="text-[10px] text-paper/45">미완료</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 rounded-xl border border-gold/30 bg-gold-fill/10 px-3 py-2.5">
+            {tutorialRewardTaken ? (
+              <p className="flex items-center gap-1.5 text-xs text-gold"><Gift size={13} aria-hidden /> 튜토리얼 완주 보상을 이미 받았어요.</p>
+            ) : allDone ? (
+              pickWeapon ? (
+                <>
+                  <p className="text-xs text-gold">네 개를 모두 마쳤어요! 원하는 무구를 하나 골라 받아가세요.</p>
+                  <ul className="mt-2 grid grid-cols-2 gap-1.5">
+                    {WEAPONS.map((w) => (
+                      <li key={w.id}>
+                        <button type="button" onClick={() => onClaimReward?.(w.id)} className="w-full rounded-lg bg-edge/10 px-2 py-1.5 text-left text-[11px] text-paper/85 hover:bg-gold-fill/25">
+                          {w.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <button type="button" onClick={() => setPickWeapon(true)} className="flat-btn w-full justify-center text-xs">
+                  <Gift size={13} aria-hidden /> 네 개를 모두 마쳤어요 — 무구 받으러 가기
+                </button>
+              )
+            ) : (
+              <p className="flex items-center gap-1.5 text-xs text-paper/55"><Lock size={13} aria-hidden /> 네 개를 모두 마치면 무구 10개 중 하나를 바로 받을 수 있어요.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

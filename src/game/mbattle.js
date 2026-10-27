@@ -420,7 +420,9 @@ export function resolveTurn(mb, rng = Math.random) {
       rng,
     )
   } else {
-    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff }, rng)
+    // 활: 일행 중 누구 하나라도 활을 들고 있으면, 활을 들지 않은 사람도 모든 공격이 반드시 명중하고 (호전)% 확률로 방어 태세를 무시한다.
+    const archerBow = aliveOf(mb).some((x) => x.fx === 'bow')
+    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff, archerBow }, rng)
   }
   if (r.invalid) {
     // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 같은 사람이 다시 고를 수 있도록 그대로 둔다.

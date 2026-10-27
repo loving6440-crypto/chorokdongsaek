@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react'
+import { BookOpenText, Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react'
+import BattleTutorialHub from '../BattleTutorial2'
 import {
   specialSummary,
   mpCostOf,
@@ -41,8 +42,9 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onDown, onSpecialSeen, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
+  const [tutorialOpen, setTutorialOpen] = useState(false) // 바리의 전투 안내(v72: 자동으로 뜨지 않고, 이 화면에서 직접 열 때만 보여 준다)
   const [, setSlowTick] = useState(0)
   useEffect(() => {
     if (!slowFight) return undefined
@@ -82,6 +84,8 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
 
   const activeCb = useRef(onActive)
   activeCb.current = onActive
+  const onLogRef = useRef(onLog)
+  onLogRef.current = onLog
   useEffect(
     () => () => {
       clearTimeout(timer.current)
@@ -137,6 +141,9 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
     if (sp) setSpBanner({ label: sp.label, note: sp.note, chance: sp.chance, effects: sp.effects, result: sp.result, k: Math.random() })
     setLog((l) => [...events.map((e) => ({ ...e, id: Math.random() })), ...l].slice(0, 40))
     fullLogRef.current = [...fullLogRef.current, ...events.map((e) => e.text).filter(Boolean)]
+    // v72: 전투 로그를 실시간으로 바깥(활동 로그)에도 흘려보낸다 — 아래 전투 기록과 옆 활동 로그에서 동시에 볼 수 있게.
+    const texts = events.map((e) => e.text).filter(Boolean)
+    if (texts.length) onLogRef.current?.(texts)
     const last = [...events].reverse().find((e) => e.roll)
     if (last) setDice({ n: last.roll, kind: last.kind, k: Math.random() })
   }, [])
@@ -395,10 +402,30 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
   if (phase === 'pick') {
     return (
       <section>
-        <p className="text-sm leading-relaxed text-paper/75">
-          붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
-          오늘 영력을 얻는 승리는 <b className="text-gold">{rewardLeft}회</b> 남았다. 지면 영력을 조금 잃는다. 체력과 의지력은 전투가 끝나도 그대로 이어지고, 양호실에서만 찬다.
-        </p>
+        <BattleTutorialHub
+          open={tutorialOpen}
+          onClose={() => setTutorialOpen(false)}
+          stats={stats}
+          tutorialDone={tutorialDone}
+          tutorialRewardTaken={tutorialRewardTaken}
+          onTutorialDone={onTutorialDone}
+          onClaimReward={onClaimTutorialReward}
+          onLog={onLog}
+        />
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm leading-relaxed text-paper/75">
+            붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
+            오늘 영력을 얻는 승리는 <b className="text-gold">{rewardLeft}회</b> 남았다. 지면 영력을 조금 잃는다. 체력과 의지력은 전투가 끝나도 그대로 이어지고, 양호실에서만 찬다.
+          </p>
+          <button
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            className="flat-btn shrink-0 !gap-1.5 text-xs whitespace-nowrap"
+          >
+            <BookOpenText size={13} aria-hidden />
+            전투 안내
+          </button>
+        </div>
         {slowFight && (
           <div className="ink-panel mt-4 w-full rounded-xl p-5" data-slow-fight={slowFight.enemyId}>
             <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700">

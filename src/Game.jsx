@@ -24,8 +24,6 @@ import { ACHIEVEMENTS, rewardText } from './game/achievements'
 import { cancelCraft, recipeOf, startCraft, buyRecipe as buyRecipeAt } from './game/crafting'
 import { cook } from './game/cooking'
 import Intro from './components/Intro'
-import BattleTutorial from './components/BattleTutorial'
-import { hasSeenBattleTutorial, markBattleTutorialSeen } from './game/intro'
 import AdminPanel from './components/AdminPanel'
 import ProfileSwitchModal from './components/ProfileSwitchModal'
 import ProfileSidebar from './components/ProfileSidebar'
@@ -184,15 +182,6 @@ export default function Game({
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false)
   const [profilesOpen, setProfilesOpen] = useState(false)
   const [introReplay, setIntroReplay] = useState(false)
-  const [battleTutorialOpen, setBattleTutorialOpen] = useState(false)
-  // 전투 안내(바리): 계정마다 한 번은 자동으로 보여 준다. 이후엔 메뉴에서 언제든 다시 볼 수 있다.
-  useEffect(() => {
-    if (userId && !hasSeenBattleTutorial(userId)) setBattleTutorialOpen(true)
-  }, [userId])
-  const closeBattleTutorial = useCallback(() => {
-    setBattleTutorialOpen(false)
-    if (userId) markBattleTutorialSeen(userId)
-  }, [userId])
   const [battleActive, setBattleActive] = useState(false)
   // 전투에 들어가면 전투 BGM, 끝나면 평소 BGM
   useEffect(() => {
@@ -943,6 +932,33 @@ export default function Game({
     },
     [admin],
   )
+  // v72: 바리의 새 전투 튜토리얼(#1~#4) — 하나를 마칠 때마다 기록하고, 넷 다 마치면 무구 하나를 바로 고를 수 있다.
+  const TUTORIAL_LABEL = { basic: '#1 기본 전투', psychic: '#2 영능력', gear: '#3 무구와 아이템', group: '#4 단체 전투' }
+  const onTutorialDone = useCallback(
+    (key) => {
+      const cur = playerRef.current
+      if (cur.tutorialDone?.[key]) return
+      const next = { ...cur, tutorialDone: { ...(cur.tutorialDone ?? {}), [key]: true } }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`전투 튜토리얼 '${TUTORIAL_LABEL[key] ?? key}'을 마쳤다.`)
+    },
+    [addLog],
+  )
+  const onClaimTutorialReward = useCallback(
+    (weaponId) => {
+      const cur = playerRef.current
+      if (cur.tutorialRewardTaken) return
+      const need = ['basic', 'psychic', 'gear', 'group']
+      if (!need.every((k) => cur.tutorialDone?.[k])) return
+      const r = giveWeapon(cur, weaponId)
+      const next = { ...r.player, tutorialRewardTaken: true }
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`전투 튜토리얼을 모두 마쳐 [${itemOf(weaponId)?.name ?? weaponId}]을(를) 얻었다.`)
+    },
+    [addLog],
+  )
 
   // 창고(보관함) 등에서 종류 단위의 무구가 들어오면 한 벌씩으로 정리한다.
   useEffect(() => {
@@ -1235,6 +1251,7 @@ export default function Game({
   const mbLiveRef = useRef(false)
   mbLiveRef.current = mbLive
   const mbRef = useRef({ bid: null, downed: false, finished: false })
+  const mbLogSeenId = useRef(0) // 다인 전투: 활동 로그에 이미 실시간으로 내보낸 마지막 로그 id (v72: 실시간 중계)
   const setMpAbs = useCallback((value) => {
     const cur = playerRef.current
     const mp = Math.max(0, Math.min(cur.mpMax, Math.floor(value)))
@@ -1251,6 +1268,7 @@ export default function Game({
     if (rec.bid !== mbBid) {
       // 새 전투: 하던 동작을 멈추고 전투 화면으로 옮겨 간다.
       mbRef.current = { bid: mbBid, downed: false, finished: false }
+      mbLogSeenId.current = mbView.log?.length ? mbView.log[mbView.log.length - 1].id : 0 // 지난 기록은 다시 중계하지 않는다
       interruptAll('다인 전투에 참여해')
       const cur = playerRef.current
       const next = { ...cur, seen: { ...cur.seen, [mbView.enemyId]: (cur.seen?.[mbView.enemyId] || 0) + (mbView.over ? 0 : 1) } }
@@ -1263,6 +1281,13 @@ export default function Game({
     }
     const me = mbView.members.find((m) => m.id === online.me.id)
     if (!me) return
+    // 다인 전투 로그를 실시간으로 활동 로그에도 내보낸다 — 전투 화면 아래에서도, 옆 활동 로그에서도 동시에 볼 수 있게. (v72)
+    const freshMb = (mbView.log ?? []).filter((l) => l.id > mbLogSeenId.current)
+    if (freshMb.length) {
+      mbLogSeenId.current = freshMb[freshMb.length - 1].id
+      const texts = freshMb.map((l) => l.text).filter(Boolean)
+      if (texts.length) addLogs(texts)
+    }
     changeHp(Math.max(1, me.php))
     setMpAbs(me.mp)
     if (me.reviveUsed && reviveRef.current) {
@@ -1336,9 +1361,8 @@ export default function Game({
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
 
   const finishBattle = useCallback(
-    ({ win, fled, enemy, log: battleLog }) => {
-      // 전투 중 오간 로그 전체를 활동 로그에 남긴다 — 전투가 끝나도 되짚어 볼 수 있도록. (v71)
-      if (battleLog?.length) addLogs([`— ${enemy.name} 전투 기록 —`, ...battleLog])
+    ({ win, fled, enemy }) => {
+      // v72: 전투 로그는 이제 전투 중 실시간으로 활동 로그에 흘러들어가므로(onLog), 끝났을 때 통째로 다시 남기지 않는다.
       if (fled) {
         addLog(`퇴마 실습: 생존본능으로 ${enemy.name}에게서 도망쳤다. (보상도 손실도 없다)`)
         return
@@ -1467,7 +1491,6 @@ export default function Game({
         onOpenUpdateNotes={() => setUpdateNotesOpen(true)}
         inClub={!!online.club}
         onReplayIntro={() => setIntroReplay(true)}
-        onOpenBattleTutorial={() => setBattleTutorialOpen(true)}
         spotItems={spotItems}
       />
 
@@ -1601,7 +1624,12 @@ export default function Game({
                     onStopSlow={() => guardTraining(() => endSlowFight('스스로 멈춰'))}
                     onMp={changeMp}
                     onFinish={finishBattle}
+                    onLog={addLogs}
                     onDown={downed}
+                    tutorialDone={player.tutorialDone}
+                    tutorialRewardTaken={player.tutorialRewardTaken}
+                    onTutorialDone={onTutorialDone}
+                    onClaimTutorialReward={onClaimTutorialReward}
                     specials={player.specials}
                     onSpecialSeen={seeSpecial}
                     reviveOn={reviveOn}
@@ -1886,7 +1914,6 @@ export default function Game({
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       {updateNotesOpen && <UpdateNotesModal onClose={() => setUpdateNotesOpen(false)} />}
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
-      <BattleTutorial open={battleTutorialOpen} onClose={closeBattleTutorial} />
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
         <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
