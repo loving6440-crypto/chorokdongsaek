@@ -802,6 +802,7 @@ function ScriptedGroupBattle({ stats, onLog, onDone, onClose }) {
 export default function BattleTutorialHub({ open, onClose, stats, tutorialDone = {}, tutorialRewardTaken, onTutorialDone, onClaimReward, onLog }) {
   const [running, setRunning] = useState(null) // 'basic' | 'psychic' | 'gear' | 'group' | null
   const [pickWeapon, setPickWeapon] = useState(false)
+  const [selWeapon, setSelWeapon] = useState(WEAPONS[0]?.id ?? null) // 보상으로 고를 무구 미리보기(효과를 보고 고를 수 있도록)
   useEffect(() => {
     if (!open) {
       setRunning(null)
@@ -861,16 +862,35 @@ export default function BattleTutorialHub({ open, onClose, stats, tutorialDone =
         ) : allDone ? (
           pickWeapon ? (
             <>
-              <p className="text-xs text-gold">네 개를 모두 마쳤어요! 원하는 무구를 하나 골라 받아가세요.</p>
-              <ul className="mt-2 grid grid-cols-2 gap-1.5">
+              <p className="text-xs text-gold">네 개를 모두 마쳤어요! 아래에서 하나씩 눌러 효과를 보고, 마음에 드는 무구를 받아가세요.</p>
+              <div className="mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="받을 무구 고르기">
                 {WEAPONS.map((w) => (
-                  <li key={w.id}>
-                    <button type="button" onClick={() => onClaimReward?.(w.id)} className="w-full rounded-lg bg-edge/10 px-2 py-1.5 text-left text-[11px] text-paper/85 hover:bg-gold-fill/25">
-                      {w.name}
-                    </button>
-                  </li>
+                  <button
+                    key={w.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selWeapon === w.id}
+                    onClick={() => setSelWeapon(w.id)}
+                    className={`rounded-full px-3 py-1 text-xs ${selWeapon === w.id ? 'bg-gold-fill text-ink' : 'bg-edge/10 text-paper/80 hover:bg-gold-fill/20'}`}
+                  >
+                    {w.name}
+                  </button>
                 ))}
-              </ul>
+              </div>
+              {(() => {
+                const w = WEAPONS.find((x) => x.id === selWeapon) ?? WEAPONS[0]
+                if (!w) return null
+                return (
+                  <div className="mt-2.5 rounded-lg bg-edge/[0.07] px-3 py-2.5">
+                    <p className="font-serif text-sm text-paper">{w.name}</p>
+                    {w.desc && <p className="mt-1 text-[11px] leading-relaxed text-paper/60">{w.desc}</p>}
+                    {w.effectText && <p className="mt-1.5 text-[11px] leading-relaxed text-gold">{w.effectText}</p>}
+                    <button type="button" onClick={() => onClaimReward?.(w.id)} className="flat-btn mt-2.5 w-full justify-center text-xs">
+                      <Gift size={13} aria-hidden /> {w.name} 받기
+                    </button>
+                  </div>
+                )
+              })()}
             </>
           ) : (
             <button type="button" onClick={() => setPickWeapon(true)} className="flat-btn w-full justify-center text-xs">
