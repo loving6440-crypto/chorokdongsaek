@@ -265,17 +265,16 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
   const myTurn = !busy && b && !b.over && !b.fire
 
   return (
-    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}>
+    <section aria-label={title} className="relative">
       {step?.highlight && <Spotlight selector={step.highlight} />}
-      <div className="mx-auto max-w-2xl">
-        <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
-          <p className="font-serif text-base text-gold">{title}</p>
-          <button type="button" onClick={onClose} className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10" aria-label="튜토리얼 닫기">
-            <X size={15} />
-          </button>
-        </div>
+      <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
+        <span className="rounded-full bg-gold-fill px-3 py-0.5 text-ink light:text-ink">{title} (연습)</span>
+        <button type="button" onClick={onClose} className="flat-chip tilt shrink-0" aria-label="튜토리얼 닫기">
+          <X size={13} aria-hidden /> 닫기
+        </button>
+      </div>
 
-        {step && step.lines?.length > 0 && (
+      {step && step.lines?.length > 0 && (
           <BariCard
             face={step.face}
             lines={step.lines}
@@ -369,13 +368,12 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
           </div>
         )}
 
-        {log.length > 0 && (
-          <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" aria-label="연습 전투 기록" data-tutorial-log>
-            {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
-          </ul>
-        )}
-      </div>
-    </div>
+      {log.length > 0 && (
+        <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" aria-label="연습 전투 기록" data-tutorial-log>
+          {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -522,33 +520,33 @@ function TutorialGroup({ onDone, onClose }) {
     setI((n) => Math.min(steps.length - 1, n + 1))
   }
   return (
-    <div className="fixed inset-0 z-[90] overflow-auto bg-ink/95 p-3 pb-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="#4 단체 전투">
-      <div className="mx-auto max-w-2xl">
-        <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
-          <p className="font-serif text-base text-gold">#4 단체 전투</p>
-          <button type="button" onClick={onClose} className="grid size-7 place-items-center rounded-lg text-paper/70 hover:bg-edge/10" aria-label="튜토리얼 닫기"><X size={15} /></button>
-        </div>
-        <BariCard
-          face={step.face}
-          lines={step.lines}
-          onNext={() => (step.end ? onDone() : next())}
-          nextLabel={step.end ? '마치기' : '다음'}
-        />
-        <div className="ink-panel mt-3 rounded-xl p-3" aria-label="가상 일행 구성">
-          <p className="text-xs text-paper/60">가상의 일행 구성 (예시)</p>
-          <ul className="mt-2 flex flex-wrap gap-2 text-xs">
-            <li className="rounded-full bg-gold-fill/20 px-3 py-1 text-gold">바리 (신속 높음 · 선공)</li>
-            <li className="rounded-full bg-edge/10 px-3 py-1 text-paper/80">당신</li>
-            <li className="rounded-full bg-crimson/20 px-3 py-1 text-crimson">적</li>
-          </ul>
-        </div>
-        {log.length > 0 && (
-          <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" data-tutorial-log>
-            {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
-          </ul>
-        )}
+    <section aria-label="#4 단체 전투" className="relative">
+      <div className="flex items-center justify-between gap-2 text-xs text-paper/60">
+        <span className="rounded-full bg-gold-fill px-3 py-0.5 text-ink light:text-ink">#4 단체 전투 (연습)</span>
+        <button type="button" onClick={onClose} className="flat-chip tilt shrink-0" aria-label="튜토리얼 닫기">
+          <X size={13} aria-hidden /> 닫기
+        </button>
       </div>
-    </div>
+      <BariCard
+        face={step.face}
+        lines={step.lines}
+        onNext={() => (step.end ? onDone() : next())}
+        nextLabel={step.end ? '마치기' : '다음'}
+      />
+      <div className="ink-panel mt-3 rounded-xl p-3" aria-label="가상 일행 구성">
+        <p className="text-xs text-paper/60">가상의 일행 구성 (예시)</p>
+        <ul className="mt-2 flex flex-wrap gap-2 text-xs">
+          <li className="rounded-full bg-gold-fill/20 px-3 py-1 text-gold">바리 (신속 높음 · 선공)</li>
+          <li className="rounded-full bg-edge/10 px-3 py-1 text-paper/80">당신</li>
+          <li className="rounded-full bg-crimson/20 px-3 py-1 text-crimson">적</li>
+        </ul>
+      </div>
+      {log.length > 0 && (
+        <ul className="mt-2 max-h-28 space-y-1 overflow-auto rounded-xl bg-shade/30 p-2.5 font-mono text-[11px] leading-relaxed" data-tutorial-log>
+          {log.map((l) => <li key={l.id} className="text-paper/80">{l.text}</li>)}
+        </ul>
+      )}
+    </section>
   )
 }
 
