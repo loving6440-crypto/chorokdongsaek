@@ -56,7 +56,7 @@ function useHighlightRect(selector) {
 }
 
 /** 바리의 대사창 + 짚어주는 스포트라이트. 전투 화면 위에 바닥에 붙는 식으로 뜬다. */
-function Dlg({ face = 'bari', lines, note, highlight, hint, onNext, nextLabel = '다음', hideNext }) {
+function Dlg({ face = 'bari', lines = [], note, highlight, hint, onNext, nextLabel = '다음', hideNext }) {
   const rect = useHighlightRect(highlight)
   return (
     <>
@@ -129,6 +129,10 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
   const [busy, setBusy] = useState(false)
   const timer = useRef(null)
   useEffect(() => () => clearTimeout(timer.current), [])
+  const bRef = useRef(null)
+  bRef.current = b
+  const mpRef = useRef(mp)
+  mpRef.current = mp
 
   const step = steps[i]
   const next = () => setI((n) => Math.min(steps.length - 1, n + 1))
@@ -151,12 +155,14 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
 
-  // 적 턴 자동 진행
+  // 적 턴 자동 진행 — b 를 의존성에 넣으면 setB 가 일어날 때마다 이 effect 가 다시 돌아 같은 단계에서
+  // 두 번째 setTimeout 이 또 걸리는 문제가 있었다(강제해 둔 큐를 이중으로 소비해 버그처럼 보였다).
+  // i 에만 반응하고, 실제 값은 ref 로 최신 것을 읽는다.
   useEffect(() => {
-    if (step?.auto !== 'enemy' || !b) return
+    if (step?.auto !== 'enemy' || !bRef.current) return
     setBusy(true)
     timer.current = setTimeout(() => {
-      const r = enemyTurn(b, { stats, mp })
+      const r = enemyTurn(bRef.current, { stats, mp: mpRef.current })
       setMp((m) => Math.max(0, m - r.mpDrain))
       setB(r.state)
       pushLog(r.events)
@@ -164,21 +170,21 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
       next()
     }, 700)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i, b])
+  }, [i])
 
-  // 도깨비불: 자동으로 기 모으기/폭발 진행
+  // 도깨비불: 자동으로 기 모으기/폭발 진행 (같은 이유로 i 에만 반응한다)
   useEffect(() => {
-    if (step?.auto !== 'fire' || !b) return
+    if (step?.auto !== 'fire' || !bRef.current) return
     setBusy(true)
     timer.current = setTimeout(() => {
-      const r = fireTurn(b, { stats, mp, boost: false }, Math.random)
+      const r = fireTurn(bRef.current, { stats, mp: mpRef.current, boost: false }, Math.random)
       setB(r.state)
       pushLog(r.events)
       setBusy(false)
       next()
     }, 700)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [i, b])
+  }, [i])
 
   const doAction = (action, extra = {}) => {
     if (busy || !b) return
@@ -337,7 +343,7 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
         )}
       </div>
 
-      {step && (
+      {step && step.lines?.length > 0 && (
         <Dlg
           face={step.face}
           lines={step.lines}
