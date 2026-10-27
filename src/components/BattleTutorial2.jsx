@@ -167,14 +167,14 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     onLog?.(texts)
   }
 
-  // 전투 시작
+  // 전투 시작 — 이 단계에 대사가 있으면 자동으로 넘기지 않고, 플레이어가 '다음'을 눌러야 넘어간다.
   useEffect(() => {
     if (step?.auto !== 'start' || b) return
     const s = newBattle(dummy, stats, Math.random, 100, 100)
     s.queue = queue
     setB(s)
     pushLog([{ text: `${dummy.name}이(가) 나타났다.` }])
-    timer.current = setTimeout(next, 50)
+    if (!step.lines?.length) timer.current = setTimeout(next, 50)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
 
@@ -191,7 +191,7 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
       setB(clampAlive(r.state))
       pushLog(filterEndLog(r.events, wasFinished))
       setBusy(false)
-      next()
+      if (!step.lines?.length) next()
     }, 700)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
@@ -206,7 +206,7 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
       setB(clampAlive(r.state))
       pushLog(filterEndLog(r.events, wasFinished))
       setBusy(false)
-      next()
+      if (!step.lines?.length) next()
     }, 700)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
@@ -219,6 +219,20 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
     const has = (k) => (Array.isArray(need) ? need.includes(k) : need === k)
     if (has('toggleBuff') || has('dokkaebi-fire')) setPsyOpen(true)
     if (has('useItem')) setItemsOpen(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i])
+
+  // 이 단계가 '진짜' 사이드바의 [내 소지품 확인하기] 버튼을 눌러보라고 할 때는, 그 버튼이
+  // 화면의 다른 위치(ProfileSidebar)에 있어 이 컴포넌트가 직접 다룰 수 없으므로, 문서 전체에
+  // 클릭을 듣고 있다가 실제 버튼이 눌리면 다음 단계로 넘긴다. 실제 버튼을 누른 거라 평소처럼
+  // 진짜 소지품 화면도 그대로 열린다.
+  useEffect(() => {
+    if (step?.allow !== 'realItems') return undefined
+    const onDocClick = (e) => {
+      if (e.target.closest?.('[data-tutorial-real-items-btn]')) next()
+    }
+    document.addEventListener('click', onDocClick, true)
+    return () => document.removeEventListener('click', onDocClick, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
 
@@ -301,7 +315,7 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
             lines={step.lines}
             note={step.note}
             hint={step.allow ? '해당하는 행동 버튼을 직접 눌러 보세요.' : undefined}
-            hideNext={!!step.allow || !!step.auto}
+            hideNext={!!step.allow}
             onNext={() => {
               if (step.end) return onDone()
               next()
@@ -488,7 +502,7 @@ function tutorialPsychicSteps() {
 function tutorialGearSteps() {
   return [
     { face: 'bari-smile', lines: ['안녕하세요! 이번엔 무구와 아이템을 쓰는 법을 알려드릴 거예요.'] },
-    { face: 'bari', lines: ['실제 화면에서는 모바일 기준 상단, PC/탭 기준 왼쪽 하단에 \'내 소지품 확인하기\' 버튼이 있어요. 연습을 위해 여기에도 똑같은 버튼을 뒀어요 — 한 번 눌러 보실래요?'], allow: 'openItems', highlight: '[data-tutorial-items-btn]' },
+    { face: 'bari', lines: ['모바일 기준 상단, PC/탭 기준 왼쪽 하단에 \'내 소지품 확인하기\' 버튼이 있어요. 지금 저기를 직접 한 번 눌러 보실래요?'], allow: 'realItems', highlight: '[data-tutorial-real-items-btn]' },
     { face: 'bari', lines: ['그 안에 무구/신체/장신구, 그리고 아이템 목록란이 있어요. 무구와 신체와 장신구는 몸에 착용할 수 있는 장비예요. 그 중에서도 무구가 다양한 전투 효과를 가져요.'] },
     { face: 'bari', lines: ['무구의 종류는 다음과 같아요. (부채·창·단검·칼·활·무당방울·악기·낫·석장·철퇴) 보시다시피 각 무기는 무기 자체에 고유 효과가 붙어 있어요. 여기에 원하는 대로 스탯을 넣어 커스텀이 가능한 구조예요. 그건 뒷산의 무구보관소에 가서 다른 분께 여쭤봐주세요! 저는 일단 스탯이 없는 상태로 들어갈게요.'], highlight: '[data-tutorial-items-panel]' },
     { face: 'bari', lines: [`하나 더 말씀드리자면, 우리의 전투는 기본적으로 무구가 아예 없는 상태로도 거의 모든 전투가 가능하게 만들어져 있는 시스템이에요. 어차피 스탯이 오르는 방식은 다 동일(스탯 하나당 최대 +${ENH_MAX})하니, 마음 놓고 원하는 무기를 컨셉으로만 골라도 충분히 스토리를 진행할 수 있어요.`] },
@@ -620,7 +634,7 @@ function ScriptedGroupBattle({ stats, onLog, onDone, onClose }) {
     if (!mb.turn) evs.push(...beginRound(mb, Math.random))
     pushLog([{ text: `${TUTOR_DUMMY_GROUP.name}이(가) 나타났다. (2인 전투: 바리, 당신)` }, ...evs])
     rerender()
-    timer.current = setTimeout(next, 50)
+    if (!step.lines?.length) timer.current = setTimeout(next, 50)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
 
@@ -653,7 +667,7 @@ function ScriptedGroupBattle({ stats, onLog, onDone, onClose }) {
       pushLog([...itemEvs, ...evs])
       setBusy(false)
       rerender()
-      next()
+      if (!step.lines?.length) next()
     }, 700)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i])
@@ -700,7 +714,7 @@ function ScriptedGroupBattle({ stats, onLog, onDone, onClose }) {
           face={step.face}
           lines={step.lines}
           hint={step.allow ? '해당하는 행동 버튼을 직접 눌러 보세요.' : undefined}
-          hideNext={!!step.allow || !!step.auto}
+          hideNext={!!step.allow}
           onNext={() => (step.end ? onDone() : next())}
           nextLabel={step.end ? '마치기' : '다음'}
         />

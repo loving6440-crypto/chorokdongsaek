@@ -187,6 +187,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         <button
           type="button"
           onClick={onOpenItems}
+          data-tutorial-real-items-btn
           className={`flat-btn absolute bottom-[134px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center ${spotItems ? 'spot' : ''}`}
         >
           내 소지품 확인하기
