@@ -38,3 +38,12 @@ test('툴팁은 body 포털을 사용하고 마우스 위치 변경을 추적한
   assert.match(component, /onMouseMove=\{showAtPointer\}/)
   assert.doesNotMatch(component, /bottom:\s*window\.innerHeight/)
 })
+
+// 실제 게임 CSS는 .ink-panel { position: relative }를 지정한다.
+// 포털 툴팁에 인라인 fixed 지정이 없으면 화면 밖 -9999px에 남는 회귀 방지.
+test('포털 스탯 설명창은 ink-panel 스타일보다 우선하는 fixed 위치를 사용한다', () => {
+  const component = readFileSync(new URL('../src/components/StatTooltip.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
+  assert.match(css, /\.ink-panel\s*\{\s*position:\s*relative;/)
+  assert.match(component, /style=\{\{\s*position:\s*'fixed',\s*left:\s*-9999/)
+})

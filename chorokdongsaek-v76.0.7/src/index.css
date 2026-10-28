@@ -1,0 +1,710 @@
+@import url('https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@latest/neodgm/style.css');
+@import "tailwindcss";
+
+/* 라이트 모드 전용 variant: <html data-theme="light"> 아래에서만 적용된다. (예: light:text-red-700) */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+@theme {
+  --font-sans: "Gowun Dodum", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Jua", "Noto Serif KR", serif;
+  /* 인트로 전용: 귀여운 Jua 가 아닌 정통 명조 */
+  --font-myeongjo: "Noto Serif KR", "Noto Serif CJK KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
+
+  /* 플랫 UI: 모서리는 단정하게, 살짝만 둥글게 */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.4rem;
+  --radius-md: 0.55rem;
+  --radius-lg: 0.7rem;
+  --radius-xl: 0.85rem;
+  --radius-2xl: 0.9rem;
+  --radius-3xl: 1.1rem;
+
+  /* 색상은 모두 아래 :root / [data-theme="light"] 의 변수를 참조한다. */
+  --color-ink: var(--c-ink);
+  --color-ink-raised: var(--c-ink-raised);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-gold: var(--c-gold);
+  --color-gold-dim: var(--c-gold-dim);
+  --color-gold-fill: var(--c-gold-fill);
+  --color-crimson: var(--c-crimson);
+  --color-paper: var(--c-paper);
+  --color-mana: var(--c-mana);
+  --color-spirit: var(--c-spirit);
+  /* shade: 어두운 오목 영역(트랙, 로그창) / edge: 얇은 경계선·hover 오버레이 */
+  --color-shade: var(--c-shade);
+  --color-edge: var(--c-edge);
+}
+
+/* ───────── 다크 모드 (기본): 감색 바탕 + 오방색(청·적·황·백·흑) ───────── */
+/* 플랫 팔레트: 짙은 감색 바탕 + 주황(강조) · 청록(보조) · 크림(글자) */
+:root {
+  color-scheme: dark;
+
+  --c-ink: #050b1f;
+  --c-ink-raised: #0a1633;
+  --c-ink-muted: #0f1e44;
+  --c-gold: #ffe14a;          /* 강조 글자: 밝은 개나리색 */
+  --c-gold-dim: #b8960f;
+  --c-gold-fill: #ffd426;     /* 개나리색 버튼·막대 */
+  --c-crimson: #f26b5e;
+  --c-paper: #f7ecd0;         /* 크림 */
+  --c-mana: #2aa6b8;          /* 청록 */
+  --c-spirit: #ffd426;        /* 영력 막대: 개나리색(체력의 크림슨과 구분) */
+  --facet-main: #ffd426;      /* 프로필 마름모 테두리: 어두운 모드는 노랑 */
+  --facet-beast: #e5483c;     /* 기르는 신수 마름모 테두리: 어두운 모드는 붉은색 */
+  --c-shade: #030817;
+  --c-edge: #ffffff;
+
+  --panel-from: #0a1633;
+  --panel-to: #0a1633;
+  --panel-border: transparent;
+  --panel-lip: transparent;
+  --panel-shadow: none;
+
+  --stage-glow: #050b1f;
+  --stage-base: #050b1f;
+  --dot: transparent;
+  --scrim: rgb(3 8 24 / 0.72);
+
+  /* 오방색 구역 강조색 */
+  --loc-mainHall: #2aa6b8;    /* 청 */
+  --loc-annex: #f7ecd0;       /* 백 */
+  --loc-dorm: #8d9bc4;        /* 흑 */
+  --loc-gym: #f26b5e;         /* 적 */
+  --loc-shrine: #ffe14a;      /* 황 */
+  --loc-infirmary: #7fd8a6;   /* 유 */
+}
+
+/* ───────── 화이트 모드: 크림 노트지 + 분홍빛 붉은색 ─────────
+ * 다크 모드의 금색(gold) 강조 역할을 채팅의 [관리자] 표시와 같은 붉은색(--c-crimson)이 맡는다.
+ */
+[data-theme="light"] {
+  color-scheme: light;
+  --facet-main: var(--panel-border);
+  --facet-beast: color-mix(in srgb, var(--c-gold) 55%, transparent);
+
+  --c-ink: #f7f5ef;
+  --c-ink-raised: #fcfbf6;
+  --c-ink-muted: #f0f2ea;
+  --c-gold: #d8506a;          /* 강조 글자: [관리자] 표시와 같은 색 */
+  --c-gold-dim: #f0b6c1;
+  --c-gold-fill: #d8506a;     /* 강조 버튼·막대 */
+  --c-crimson: #d8506a;
+  --c-paper: #213427;
+  --c-mana: #2f86c0;
+  --c-spirit: #d9a514;        /* 영력 막대: 노란색(라이트 모드에선 체력의 붉은색과 겹치지 않게 노란 계열로) */
+  --c-shade: #6f9a78;
+  --c-edge: #213427;
+
+  --panel-from: #fdfdf9;
+  --panel-to: #f8f6f0;
+  --panel-border: color-mix(in srgb, var(--c-gold) 30%, transparent);
+  --panel-lip: transparent;
+  --panel-shadow: none;
+
+  --stage-glow: #fcfbf6;
+  --stage-base: #f3f2e9;
+  --dot: color-mix(in srgb, #6fa676 22%, transparent);
+  --scrim: rgb(33 52 39 / 0.5);
+
+  --loc-mainHall: #3b8fd6;
+  --loc-annex: #8a7a4a;
+  --loc-dorm: #8a6fcf;
+  --loc-gym: #e2574b;
+  --loc-shrine: #d9a514;
+  --loc-infirmary: #2f9e6a;
+}
+
+/*
+ * 테마 전환 애니메이션.
+ * 색상 변수를 <color> 로 등록하면 data-theme 이 바뀔 때 변수 값 자체가 보간되므로,
+ * 그라디언트·color-mix 로 만든 색까지 한 번에 부드럽게 바뀐다.
+ * (미지원 브라우저에서는 즉시 전환될 뿐 동작은 동일하다.)
+ * --panel-border 는 --c-gold 에서 파생되므로 따로 transition 을 걸지 않는다.
+ */
+@property --c-ink { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-ink-raised { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-ink-muted { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-gold { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-gold-dim { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-gold-fill { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-crimson { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-paper { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-mana { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-spirit { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-shade { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --c-edge { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --panel-from { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --panel-to { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --panel-lip { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --dot { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --panel-border { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --stage-glow { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --stage-base { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --scrim { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --loc-mainHall { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --loc-annex { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --loc-dorm { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --loc-gym { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --loc-shrine { syntax: "<color>"; inherits: true; initial-value: #000; }
+@property --loc-infirmary { syntax: "<color>"; inherits: true; initial-value: #000; }
+
+:root {
+  transition:
+    --c-ink 0.3s ease,
+    --c-ink-raised 0.3s ease,
+    --c-ink-muted 0.3s ease,
+    --c-gold 0.3s ease,
+    --c-gold-dim 0.3s ease,
+    --c-gold-fill 0.3s ease,
+    --c-crimson 0.3s ease,
+    --c-paper 0.3s ease,
+    --c-mana 0.3s ease,
+    --c-spirit 0.3s ease,
+    --c-shade 0.3s ease,
+    --c-edge 0.3s ease,
+    --panel-from 0.3s ease,
+    --panel-to 0.3s ease,
+    --panel-lip 0.3s ease,
+    --dot 0.3s ease,
+    --stage-glow 0.3s ease,
+    --stage-base 0.3s ease,
+    --scrim 0.3s ease,
+    --loc-mainHall 0.3s ease,
+    --loc-annex 0.3s ease,
+    --loc-dorm 0.3s ease,
+    --loc-gym 0.3s ease,
+    --loc-shrine 0.3s ease,
+    --loc-infirmary 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    transition: none;
+  }
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--c-ink);
+  color: var(--c-paper);
+  font-family: var(--font-sans);
+}
+
+/* 스티치(바느질) 점선 + 가운데 별 */
+.dancheong-line {
+  height: 0;
+  border-top: 2px dashed color-mix(in srgb, var(--c-gold-fill) 65%, transparent);
+  background: none;
+  position: relative;
+}
+.dancheong-line::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 16px;
+  height: 16px;
+  transform: translateX(-50%);
+  background: #f7dc88;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  filter: drop-shadow(0 0 0 transparent);
+}
+[data-theme="light"] .dancheong-line::after { background: #d8506a; }
+
+/* 다크 모드: 구분선을 오방색 단청 띠로 */
+[data-theme="dark"] .dancheong-line {
+  border-top: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2aa6b8 0 25%, #ffd426 25% 50%, #f7ecd0 50% 75%, #0f1e44 75% 100%);
+  opacity: 0.9;
+}
+[data-theme="dark"] .dancheong-line::after { top: -6px; background: #ffd426; }
+[data-theme="dark"] .logo-tag { box-shadow: none; border-color: #ffd426; }
+[data-theme="dark"] .sparkle { background: #ffe14a; }
+
+/* 플랫 패널: 단색 면 + 얇은 경계 */
+.ink-panel {
+  background: var(--panel-to);
+  border: 2px solid var(--panel-border);
+  box-shadow: none;
+}
+
+/* 배경: 다크 모드에서는 어둡게 보정한 처마 사진. 라이트 모드는 단색 그대로. */
+.stage-bg {
+  background-color: var(--stage-base);
+  background-image: none;
+}
+[data-theme="dark"] .stage-bg {
+  background-image:
+    linear-gradient(180deg, rgb(5 11 31 / 0.15), rgb(5 11 31 / 0.35)),
+    url("/bg-roof.webp");
+  background-size: cover;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+}
+
+.modal-scrim {
+  background: var(--scrim);
+}
+
+/* 반짝이 별 (로고의 4꼭지 별) */
+.sparkle {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background: #f7dc88;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: twinkle 2.8s ease-in-out infinite;
+}
+[data-theme="light"] .sparkle { background: #d8506a; }
+@keyframes twinkle {
+  0%, 100% { transform: scale(1) rotate(0); opacity: 1; }
+  50% { transform: scale(0.65) rotate(18deg); opacity: 0.7; }
+}
+
+/* 로고 명찰: 안은 비우고(배경색이 그대로 비치게) 타원 테두리만 남긴다 */
+.logo-tag {
+  background: transparent;
+  border: 2px solid color-mix(in srgb, #6fa676 70%, transparent);
+  box-shadow: none;
+  border-radius: 0.9rem;
+}
+
+/* 버튼: 눌리는 느낌 */
+button:not(:disabled) {
+  transition-property: transform, background-color, border-color, color, filter, box-shadow, opacity;
+}
+button:not(:disabled):hover { filter: brightness(1.1); }
+button:not(:disabled):active { transform: scale(0.97); }
+
+/* 스크롤바도 연두색으로 */
+* { scrollbar-color: color-mix(in srgb, var(--c-gold-fill) 55%, transparent) transparent; scrollbar-width: thin; }
+
+/*
+ * 화이트 모드 가독성 보정.
+ * `text-paper/45` 처럼 알파로 흐리게 만든 글자는 어두운 배경에서는 괜찮지만,
+ * 밝은 배경에서는 같은 알파값이면 대비가 훨씬 낮아진다.
+ * 라이트 모드에서만 알파를 올려 같은 위계를 유지하면서 가독성을 확보한다.
+ */
+[data-theme="light"] .text-paper\/30 { color: color-mix(in srgb, var(--c-paper) 52%, transparent); }
+[data-theme="light"] .text-paper\/40 { color: color-mix(in srgb, var(--c-paper) 62%, transparent); }
+[data-theme="light"] .text-paper\/45 { color: color-mix(in srgb, var(--c-paper) 68%, transparent); }
+[data-theme="light"] .text-paper\/50 { color: color-mix(in srgb, var(--c-paper) 68%, transparent); }
+[data-theme="light"] .text-paper\/55 { color: color-mix(in srgb, var(--c-paper) 72%, transparent); }
+[data-theme="light"] .text-paper\/65 { color: color-mix(in srgb, var(--c-paper) 80%, transparent); }
+[data-theme="light"] .text-paper\/70 { color: color-mix(in srgb, var(--c-paper) 84%, transparent); }
+[data-theme="light"] .text-paper\/75 { color: color-mix(in srgb, var(--c-paper) 86%, transparent); }
+[data-theme="light"] .text-paper\/80 { color: color-mix(in srgb, var(--c-paper) 90%, transparent); }
+[data-theme="light"] .text-gold\/70 { color: color-mix(in srgb, var(--c-gold) 94%, transparent); }
+[data-theme="light"] .text-gold\/80 { color: color-mix(in srgb, var(--c-gold) 96%, transparent); }
+
+/* ───────── 인트로 / 화면 전환 ───────── */
+@keyframes intro-paragraph-in {
+  from { opacity: 0; transform: translateY(10px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.intro-paragraph {
+  animation: intro-paragraph-in 2.2s ease-out both;
+}
+
+/* 어둠 속 제호: 자간이 모이며 또렷해진다 */
+@keyframes intro-title-rise {
+  0% { opacity: 0; letter-spacing: 0.7em; filter: blur(14px); }
+  55% { opacity: 1; }
+  100% { opacity: 1; letter-spacing: 0.32em; filter: blur(0); }
+}
+.intro-title-rise { animation: intro-title-rise 2.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both; }
+@keyframes intro-title-sub {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.intro-title-sub { animation: intro-title-sub 1.6s ease-out 1.8s both; }
+
+/* 인트로가 끝날 때 번지는 빛 */
+@keyframes intro-bloom {
+  0% { opacity: 0; transform: scale(0.15); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: scale(2.2); }
+}
+.intro-bloom { animation-name: intro-bloom; animation-timing-function: ease-out; animation-fill-mode: both; }
+
+/* 인트로 뒤에서 귀여운 UI 가 부드럽게 올라온다 */
+@keyframes ui-arrive {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.ui-arrive { animation: ui-arrive 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s both; }
+
+@keyframes intro-countdown {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.intro-countdown {
+  animation-name: intro-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes intro-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.intro-fade-in {
+  animation: intro-fade-in 0.9s ease-out both;
+}
+
+/* ───────── 미니게임 ───────── */
+@keyframes tile-pop {
+  0% { transform: scale(0.3); opacity: 0.2; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes tile-merge {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.tile-pop { animation: tile-pop 0.16s ease-out both; }
+.tile-merge { animation: tile-merge 0.18s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-paragraph, .intro-title-rise, .intro-title-sub, .intro-bloom, .ui-arrive, .intro-fade-in, .tile-pop, .tile-merge, .sparkle { animation: none; }
+  button:not(:disabled):active { transform: none; }
+}
+
+/* ───────── 민속학 (화투) ───────── */
+.hwatu-card { perspective: 700px; padding: 0; background: none; border: 0; cursor: pointer; }
+.hwatu-card:disabled { cursor: default; }
+.hwatu-inner { display: block; position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 0.35s ease; }
+.hwatu-inner[data-up="true"] { transform: rotateY(180deg); }
+.hwatu-back, .hwatu-face { position: absolute; inset: 0; display: block; backface-visibility: hidden; -webkit-backface-visibility: hidden; filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.25)); }
+.hwatu-face { transform: rotateY(180deg); }
+@media (prefers-reduced-motion: reduce) { .hwatu-inner { transition: none; } }
+
+/* ───────── 점복학 (운세) ───────── */
+@keyframes fortune-shake {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(-9deg) translateY(-3px); }
+  30% { transform: rotate(8deg); }
+  45% { transform: rotate(-7deg) translateY(-2px); }
+  60% { transform: rotate(7deg); }
+  75% { transform: rotate(-4deg); }
+}
+.fortune-shake {
+  animation: fortune-shake 0.45s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+@keyframes fortune-reveal {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.fortune-reveal { animation: fortune-reveal 0.6s ease-out both; }
+
+/* 등급 색은 --rk(어두운 테마)·--rk-l(밝은 테마)로 넘겨 받는다. */
+.rank-card {
+  --rk-active: var(--rk);
+  border: 1px solid color-mix(in srgb, var(--rk-active) 55%, transparent);
+  background: radial-gradient(ellipse at top, color-mix(in srgb, var(--rk-active) 12%, transparent), transparent 70%);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--rk-active) 18%, transparent);
+}
+[data-theme="light"] .rank-card { --rk-active: var(--rk-l); }
+.rank-text { color: var(--rk-active); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fortune-shake, .fortune-reveal { animation: none; }
+}
+
+/* ───────── 플랫 보정 ───────── */
+/* 패널 안의 패널은 한 단계 밝은 면으로 구분한다 (테두리·그림자 없이). */
+.ink-panel .ink-panel { background: var(--c-ink-muted); border-color: transparent; }
+
+/* ───────── 플랫 부품: 슬라이더 · 스위치 · 칩 ───────── */
+/* 슬라이더: 얇은 트랙 + 채워진 구간 + 네모 손잡이 (--p: 채움 비율) */
+input[type="range"].flat-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.25rem;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"].flat-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--c-gold-fill) var(--p, 0%), color-mix(in srgb, var(--c-edge) 16%, transparent) var(--p, 0%));
+}
+input[type="range"].flat-range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c-edge) 16%, transparent);
+}
+input[type="range"].flat-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c-gold-fill);
+}
+input[type="range"].flat-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 3px solid var(--c-ink);
+  border-radius: 4px;
+  background: var(--c-paper);
+  transform: rotate(45deg);
+}
+input[type="range"].flat-range::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 3px solid var(--c-ink);
+  border-radius: 4px;
+  background: var(--c-paper);
+  transform: rotate(45deg);
+}
+input[type="range"].flat-range:focus-visible { outline: 2px solid var(--c-gold-fill); outline-offset: 3px; }
+
+/* 스위치(토글) 공통: 얇은 알약 트랙 + 동그란 손잡이 */
+.flat-switch {
+  position: relative;
+  display: inline-block;
+  width: 3.4rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  border: 0;
+  background: color-mix(in srgb, var(--c-edge) 18%, transparent);
+  transition: background-color 0.25s;
+}
+.flat-switch[aria-checked="true"] { background: var(--c-gold-fill); }
+.flat-switch:focus-visible { outline: 2px solid var(--c-gold-fill); outline-offset: 2px; }
+.flat-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  transition: transform 0.25s ease-out;
+}
+.flat-switch[aria-checked="true"] .flat-switch-knob { transform: translateX(1.7rem); }
+
+/* 칩(작은 선택 버튼) */
+.flat-chip {
+  border-radius: 999px;
+  padding: 0.2rem 0.75rem;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--c-edge) 9%, transparent);
+  color: color-mix(in srgb, var(--c-paper) 75%, transparent);
+}
+.flat-chip:hover { color: var(--c-paper); }
+.flat-chip[aria-pressed="true"] { background: var(--c-gold-fill); color: var(--c-ink); }
+[data-theme="light"] .flat-chip[aria-pressed="true"] { color: var(--c-ink); }
+
+/* 주 버튼 · 보조 버튼 */
+.flat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.55rem;
+  padding: 0.55rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: var(--c-gold-fill);
+  color: var(--c-ink);
+}
+[data-theme="light"] .flat-btn { color: var(--c-ink); }
+.flat-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.55rem;
+  padding: 0.5rem 1.4rem;
+  font-size: 0.875rem;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-gold-fill) 80%, transparent);
+  color: var(--c-gold);
+}
+.flat-btn-ghost:hover { background: color-mix(in srgb, var(--c-gold-fill) 14%, transparent); }
+
+/* 전투 "겨루기" / "느린 싸움으로 보상 얻기" 버튼: 테마와 상관없이 글씨가 또렷이 보이도록
+   배경을 한 단계 더 짙게 섞고, 흰 글씨 + 옅은 그림자로 대비를 확보한다. */
+.flat-btn-fight {
+  background: color-mix(in srgb, var(--c-crimson) 80%, black 20%);
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+}
+.flat-btn-fight:hover:not(:disabled) { background: color-mix(in srgb, var(--c-crimson) 65%, black 35%); }
+.flat-btn-fight:disabled { opacity: 0.4; }
+.flat-btn-slow {
+  background: color-mix(in srgb, var(--c-ink-raised) 45%, var(--c-crimson) 25%);
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c-crimson) 55%, transparent);
+}
+.flat-btn-slow:hover:not(:disabled) { background: color-mix(in srgb, var(--c-ink-raised) 30%, var(--c-crimson) 40%); }
+.flat-btn-slow:disabled { opacity: 0.4; }
+
+/* 다크: 기존 버튼 클래스(border-gold bg-gold 등)도 플랫 주황 버튼으로 통일 */
+[data-theme="dark"] button.bg-gold:not(:disabled),
+[data-theme="dark"] button.bg-gold:disabled { background: var(--c-gold-fill); border-color: transparent; }
+button.bg-gold { border-radius: 0.55rem; }
+[data-theme="dark"] button[class*="border-gold/40"] {
+  border-color: transparent;
+  border-radius: 0.55rem;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-gold-fill) 75%, transparent);
+}
+
+/* 주사위 굴림 */
+@keyframes dice-pop {
+  0% { transform: rotate(45deg) scale(0.5); }
+  60% { transform: rotate(45deg) scale(1.18); }
+  100% { transform: rotate(45deg) scale(1); }
+}
+.dice-pop { animation: dice-pop 0.3s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .dice-pop { animation: none; } }
+
+/* 아주 좁은 폰(≤380px)에서도 왼쪽 구도가 잘리지 않게 살짝 줄인다 */
+@media (max-width: 380px) { .sidebar-canvas { zoom: 0.9; } }
+
+/* 갈라지는 선택지에 마우스를 올리면 살짝 갸웃하는 모션 */
+.tilt { transition: transform 0.18s ease, background-color 0.2s, filter 0.2s; }
+.tilt:not(:disabled):hover { transform: rotate(-1.2deg); }
+.tilt:not(:disabled):active { transform: rotate(-1.2deg) scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }
+}
+
+/* 이미 absolute/fixed 로 자리가 정해진 요소는 그 자리를 그대로 지키고, 아닌 요소만 쌓임 순서를 위해 relative 로 둔다. */
+.spot:not(.absolute):not(.fixed):not(.sticky),
+.spot-wide:not(.absolute):not(.fixed):not(.sticky) { position: relative; }
+
+/* 튜토리얼 등에서 '지금 여기를 보세요' 하고 강조하는 요소: 커지고 빛나며 맥박처럼 뛴다. */
+.spot {
+  z-index: 5;
+  outline: 3px solid var(--c-gold-fill);
+  outline-offset: 2px;
+  animation: spot-pulse 1.1s ease-in-out infinite;
+}
+@keyframes spot-pulse {
+  0%, 100% { transform: scale(1.03); box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-gold-fill) 70%, transparent); }
+  50% { transform: scale(1.07); box-shadow: 0 0 22px 6px color-mix(in srgb, var(--c-gold-fill) 55%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .spot { animation: none; transform: scale(1.04); } }
+
+/* 넓은 칸(기록·상대 행동 등)용 강조: 크게 부풀리지 않고 테두리와 빛으로 눈에 띄게 한다. */
+.spot-wide {
+  z-index: 5;
+  outline: 3px solid var(--c-gold-fill);
+  outline-offset: 3px;
+  animation: spot-wide-pulse 1.2s ease-in-out infinite;
+}
+@keyframes spot-wide-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-gold-fill) 60%, transparent); }
+  50% { box-shadow: 0 0 18px 4px color-mix(in srgb, var(--c-gold-fill) 50%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .spot-wide { animation: none; } }
+
+/* 오목·루미큐브·요트 다이스·윷놀이: 내 차례가 막 시작됐을 때 한 번 가볍게 빛나는 효과 */
+@keyframes turn-ping {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-gold-fill) 70%, transparent); }
+  30% { box-shadow: 0 0 14px 4px color-mix(in srgb, var(--c-gold-fill) 60%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.turn-ping { animation: turn-ping 0.9s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .turn-ping { animation: none; } }
+
+/* 상대의 영능력 발동 연출 */
+@keyframes sp-pop { 0% { opacity: 0; transform: scale(.7) } 4% { opacity: 1; transform: scale(1.08) } 8% { transform: scale(1) } 90% { opacity: 1 } 100% { opacity: 0; transform: translateY(-8px) } }
+.sp-banner { animation: sp-pop 6s ease-out forwards; }
+@keyframes sp-shake { 0%,100% { transform: translateX(0) } 15% { transform: translateX(-5px) } 30% { transform: translateX(5px) } 45% { transform: translateX(-3px) } 60% { transform: translateX(3px) } }
+.sp-shake { animation: sp-shake .45s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .sp-banner { animation: none; } .sp-shake { animation: none; } }
+
+/* 아군 상태변화(아이템 사용·전투불능·부활) 알림 토스트 */
+@keyframes toast-pop { 0% { opacity: 0; transform: translateY(-6px) scale(.92) } 10% { opacity: 1; transform: translateY(0) scale(1) } 85% { opacity: 1 } 100% { opacity: 0; transform: translateY(-4px) } }
+.toast-pop { animation: toast-pop 2.6s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .toast-pop { animation: none; } }
+
+/* 부적학 [창록 교화] 스킨: 흩날리는 벚꽃잎 */
+@keyframes petal-fall {
+  0% { transform: translate(0, -12%) rotate(0deg); opacity: 0; }
+  12% { opacity: 0.9; }
+  100% { transform: translate(26px, 520%) rotate(300deg); opacity: 0; }
+}
+.petal { animation: petal-fall 8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .petal { animation: none; opacity: 0; } }
+
+/* ─────────────────────────────────────────────────────────────
+   V74 PIXEL SKIN — 외형만 교체. 레이아웃/위치/상호작용은 변경하지 않음.
+   프레임 모티프: 사용자가 준 붉은 직각 선 장식 + 레트로 RPG 패널
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --font-sans: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'NeoDunggeunmo', 'Jua', 'Noto Serif KR', serif;
+  --pixel-frame: #f1cf68;
+  --pixel-frame-cool: #65c9c5;
+  --pixel-red: #e9554f;
+}
+html, body, #root { image-rendering: pixelated; }
+body, button, input, textarea, select, option {
+  font-family: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', sans-serif !important;
+  letter-spacing: 0;
+  text-rendering: geometricPrecision;
+}
+/* Pixel art uses stepped corners rather than smooth rounded surfaces. */
+[class*="rounded-"] { border-radius: 2px !important; }
+button, input, textarea, select {
+  border-radius: 2px !important;
+}
+button:not(:disabled) { transition: background-color .08s steps(2), color .08s steps(2), filter .08s steps(2); }
+button:not(:disabled):active { filter: brightness(1.12); }
+/* Main surfaces get angular inset frames with tiny stair-step corner motifs. */
+.ink-panel {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--pixel-frame) 78%, transparent) !important;
+  border-radius: 2px !important;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-ink) 80%, transparent),
+              inset 0 0 0 3px color-mix(in srgb, var(--pixel-frame-cool) 22%, transparent) !important;
+  background-image:
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame)),
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame)),
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame)),
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame));
+  background-size: 12px 2px,2px 12px,12px 2px,2px 12px,12px 2px,2px 12px,12px 2px,2px 12px;
+  background-position: left 3px top 3px,left 3px top 3px,right 3px top 3px,right 3px top 3px,
+                       left 3px bottom 3px,left 3px bottom 3px,right 3px bottom 3px,right 3px bottom 3px;
+  background-repeat: no-repeat;
+}
+/* Buttons and tabs: crisp single-pixel edge with gold selected state. */
+button {
+  outline-offset: 2px;
+}
+button:not(:disabled):hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pixel-frame) 62%, transparent);
+}
+button.bg-gold, button[class*="bg-gold"] {
+  border: 1px solid color-mix(in srgb, var(--pixel-frame) 85%, white 15%) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b4e0a 24%, transparent) !important;
+}
+input, textarea, select {
+  border: 1px solid color-mix(in srgb, var(--pixel-frame-cool) 48%, var(--c-paper) 12%) !important;
+  background-image: repeating-linear-gradient(0deg, transparent 0 5px, rgb(255 255 255 / .012) 5px 6px);
+}
+/* Portrait diamonds, status bars, icons retain their dimensions; only the rendering style changes. */
+img, canvas, svg { image-rendering: pixelated; }
+/* Disable buttery motion that clashes with frame-by-frame retro UI. */
+.tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }

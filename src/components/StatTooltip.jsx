@@ -62,7 +62,7 @@ export default function StatTooltip({ statKey, side = 'left', children }) {
           id={id}
           role="tooltip"
           className="ink-panel pointer-events-none fixed z-[9999] block overflow-y-auto rounded-lg p-3 text-left font-sans text-xs leading-relaxed font-normal text-paper"
-          style={{ left: -9999, top: -9999, width: 'min(320px, calc(100vw - 16px))', maxHeight: 'calc(100vh - 16px)' }}
+          style={{ position: 'fixed', left: -9999, top: -9999, width: 'min(320px, calc(100vw - 16px))', maxHeight: 'calc(100vh - 16px)' }}
         >
           <b className="block text-[13px] leading-snug text-gold">{tip.head}</b>
           {tip.paras.map((p, i) => (
