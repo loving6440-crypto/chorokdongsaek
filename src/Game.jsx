@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPlayer, gradeOf } from './game/character'
 import ChatPanel from './components/ChatPanel'
 import GlobalBoardGames from './components/GlobalBoardGames'
+import FriendsModal from './components/FriendsModal'
+import { Candy } from 'lucide-react'
 import InventoryModal from './components/InventoryModal'
 import CodexToast from './components/CodexToast'
 import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -164,6 +166,13 @@ export default function Game({
   const [codexFocus, setCodexFocus] = useState(null) // { chapterId, id }: 알림에서 바로 보여줄 항목 하나
   const [clubOpen, setClubOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [friendsOpen, setFriendsOpen] = useState(false)
+  const [guidePrompt, setGuidePrompt] = useState(() => !restored && !(typeof localStorage !== 'undefined' && localStorage.getItem(`chorok-guide-${userId}`)))
+  const openGuide = () => {
+    setGuideOpen(true)
+    setGuidePrompt(false)
+    if (typeof localStorage !== 'undefined') localStorage.setItem(`chorok-guide-${userId}`, '1')
+  }
   // 도감이 새로 채워지면(처음 한 번씩) 알림을 띄운다.
   const [codexNew, setCodexNew] = useState([])
   const codexSeen = useRef(null)
@@ -192,7 +201,10 @@ export default function Game({
   const boostRef = useRef(false)
   boostRef.current = boostOn
   const [itemsUsed, setItemsUsed] = useState(0)
-  const [battleUsedItems, setBattleUsedItems] = useState([]) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다, 에너지드링크 1회 제한에도 쓴다
+  const [battleUsedItems, setBattleUsedItems] = useState([])
+  const battleVitalsRef = useRef(null)
+  const battleDownedRef = useRef(false)
+  const battleScannedRef = useRef(false) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다, 에너지드링크 1회 제한에도 쓴다
   const battleUsedItemsRef = useRef([])
   battleUsedItemsRef.current = battleUsedItems
   const [spotItems, setSpotItems] = useState(false)
@@ -232,7 +244,7 @@ export default function Game({
   logsRef.current = logs
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
   // 장비 보정(무복 등)도 여기서 더해진다.
-  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weakUntil, player.buffs])
+  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weaponSpecial, player.weakUntil, player.buffs])
   const viewPlayer = useMemo(() => (effStats === player.stats ? player : { ...player, stats: effStats }), [player, effStats])
 
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
@@ -925,6 +937,33 @@ export default function Game({
     },
     [addLog, admin],
   )
+  const specialEnhance = useCallback((weaponId, specialId) => {
+    if (battleRef.current) return { error: '전투 중이다.' }
+    const r = specialEnhanceWeapon(playerRef.current, weaponId, specialId, admin)
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    addLog(`${r.special.title}${itemOf(weaponId).name}에 특수 강화가 붙었다.`)
+    return r
+  }, [addLog, admin])
+  const removeSpecial = useCallback((weaponId) => {
+    if (battleRef.current) return { error: '전투 중이다.' }
+    const r = removeWeaponSpecial(playerRef.current, weaponId, admin)
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    addLog(`${itemOf(weaponId)?.name}의 특수 강화를 해제했다.`)
+    return r
+  }, [addLog, admin])
+  const discardItem = useCallback((itemId, qty) => {
+    if (battleRef.current || mbLiveRef.current) return { error: '전투 중에는 버릴 수 없다.' }
+    const r = discardInventoryItem(playerRef.current, itemId, qty)
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    addLog(`${r.name} ${r.amount}개를 버렸다.`)
+    return r
+  }, [addLog])
   const adminGive = useCallback(
     (id) => {
       if (!admin) return
@@ -1153,6 +1192,9 @@ export default function Game({
       interruptAll('새 동작을 시작해')
       const cur = playerRef.current
       const next = { ...cur, seen: { ...cur.seen, [enemyId]: (cur.seen?.[enemyId] || 0) + 1 } }
+      battleVitalsRef.current = { hp: cur.hp, mp: cur.mp }
+      battleDownedRef.current = false
+      battleScannedRef.current = false
       playerRef.current = next
       setPlayer(next)
       setBattleUsedItems([])
@@ -1247,9 +1289,15 @@ export default function Game({
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
   const mbSnapshot = () => {
     const cur = playerRef.current
-    return { stats: effectiveStats(cur), fx: weaponFx(cur), hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { stats: effectiveStats(cur), fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
+  const [inviteClock, setInviteClock] = useState(() => Date.now())
+  useEffect(() => {
+    if (!online.mbInvite) return undefined
+    const t = setInterval(() => setInviteClock(Date.now()), 250)
+    return () => clearInterval(t)
+  }, [online.mbInvite?.bid])
   const mbLive = !!online.mb && !online.mb.view.over
   const mbLiveRef = useRef(false)
   mbLiveRef.current = mbLive
@@ -1304,6 +1352,7 @@ export default function Game({
     }
     if (mbView.over && !rec2.finished) {
       rec2.finished = true
+      battleDownedRef.current = rec2.downed
       const enemy = ENEMIES.find((e) => e.id === mbView.enemyId)
       reviveRef.current = false
       setReviveOn(false)
@@ -1358,7 +1407,7 @@ export default function Game({
     isLeader: !!online.party?.members?.length && online.party.members[0].id === online.me?.id,
     canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online) && online.party.members[0].id === online.me?.id,
     lobby: online.mbLobby,
-    onStart: (enemyId) => (ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot())),
+    onStart: (enemyId) => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot()) },
     onCancel: mbCancel,
   }
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
@@ -1370,9 +1419,16 @@ export default function Game({
         addLog(`퇴마 실습: 생존본능으로 ${enemy.name}에게서 도망쳤다. (보상도 손실도 없다)`)
         return
       }
-      const r = applyBattleResult(playerRef.current, win, enemy.reward)
-      playerRef.current = r.player
-      setPlayer(r.player)
+      const cur = playerRef.current
+      const weaponId = equipOf(cur).weapon
+      const special = cur.weaponSpecial?.[weaponId]
+      const rewardPlayer = { ...cur, _battleNoScanWin: !battleScannedRef.current }
+      const r = applyBattleResult(rewardPlayer, win, enemy.reward)
+      let resultPlayer = r.player
+      if (win && special === 'pine' && !battleDownedRef.current && battleVitalsRef.current) resultPlayer = { ...resultPlayer, hp: Math.min(resultPlayer.hpMax, battleVitalsRef.current.hp), mp: Math.min(resultPlayer.mpMax, battleVitalsRef.current.mp) }
+      delete resultPlayer._battleNoScanWin
+      playerRef.current = resultPlayer
+      setPlayer(resultPlayer)
       if (win) {
         addLog(
           r.granted
@@ -1490,7 +1546,7 @@ export default function Game({
         onOpenAdmin={() => setAdminOpen(true)}
         onOpenCodex={() => setCodexOpen(true)}
         onOpenClub={() => setClubOpen(true)}
-        onOpenGuide={() => setGuideOpen(true)}
+        onOpenGuide={openGuide}
         onOpenUpdateNotes={() => setUpdateNotesOpen(true)}
         inClub={!!online.club}
         onReplayIntro={() => setIntroReplay(true)}
@@ -1514,8 +1570,7 @@ export default function Game({
             if (panel !== 'world') setPanel('world')
             // 진행 중인 수련·대기를 보여 주는 화면(기숙사의 휴식·수련, 본관의 수업)으로 들어가는 건 '새 동작'이 아니다.
             const viewsRunning =
-              (locationId === 'dorm' && id === 'train' && !!playerRef.current.training) ||
-              (locationId === 'dorm' && id === 'sleep' && !!playerRef.current.sleeping) ||
+              (locationId === 'dorm' && id === 'my-room' && (!!playerRef.current.training || !!playerRef.current.sleeping)) ||
               (locationId === 'infirmary' && id === 'rest' && !!playerRef.current.resting) ||
               (locationId === 'mainHall' && id === 'class')
             if (id === activity) return
@@ -1526,7 +1581,8 @@ export default function Game({
             })
           }}
         />
-        <main className="ink-panel flex min-h-[16rem] min-w-0 flex-1 lg:min-h-0 flex-col overflow-hidden rounded-2xl" aria-label="활동 화면">
+        <main className="ink-panel relative flex min-h-[16rem] min-w-0 flex-1 lg:min-h-0 flex-col overflow-hidden rounded-2xl" aria-label="활동 화면">
+          <GlobalBoardGames active={locationId === 'annex'} />
           <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' || panel === 'mailbox' ? panel : `${locationId}-${activity}`}>
             {player.traveling ? (
               <TravelPanel traveling={player.traveling} mp={player.mp} onFastTravel={fastTravel} />
@@ -1609,6 +1665,7 @@ export default function Game({
                     admin={admin}
                     onMeet={meetNpc}
                     onEnhance={enhance}
+                    onSpecialEnhance={specialEnhance} onRemoveSpecial={removeSpecial}
                     onAdminGive={adminGive}
                     onGather={startGatherAction}
                     onHunt={startHuntAction}
@@ -1628,7 +1685,8 @@ export default function Game({
                     onMp={changeMp}
                     onFinish={finishBattle}
                     onLog={addLogs}
-                    onDown={downed}
+                    onDown={(...args) => { battleDownedRef.current = true; downed(...args) }}
+                    onScan={() => { battleScannedRef.current = true }}
                     tutorialDone={player.tutorialDone}
                     tutorialRewardTaken={player.tutorialRewardTaken}
                     onTutorialDone={onTutorialDone}
@@ -1682,15 +1740,6 @@ export default function Game({
               <span className="truncate">{latestLog.message}</span>
             </button>
           )}
-        </main>
-        <StatusPanel player={player} eff={effStats} onUpgrade={upgradeStat} />
-      </div>
-
-      <div className="order-2 flex shrink-0 flex-col gap-3 lg:order-3 lg:min-h-0 lg:w-80">
-        <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} unreadMail={online.mailUnread} hideLog={desktop} />
-        {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} onProfile={setCardTo} />}
-      </div>
-
       <GameModal
         course={course}
         onClose={closeCourse}
@@ -1704,6 +1753,15 @@ export default function Game({
         onSkinRunner={setSkinRunner}
         admin={admin}
       />
+        </main>
+        <StatusPanel player={player} eff={effStats} onUpgrade={upgradeStat} />
+      </div>
+
+      <div className="order-2 flex shrink-0 flex-col gap-3 lg:order-3 lg:min-h-0 lg:w-80">
+        <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} unreadMail={online.mailUnread} hideLog={desktop} />
+        {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} onProfile={setCardTo} />}
+      </div>
+
       {confirmQuit && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4">
           <div role="alertdialog" aria-modal="true" aria-label={confirmQuit.kind === 'rest' || confirmQuit.kind === 'sleep' ? '휴식 종료 확인' : confirmQuit.kind === 'wait' ? '수업 대기 종료 확인' : confirmQuit.kind === 'craft' ? '제작 중지 확인' : confirmQuit.kind === 'slowFight' ? '느린 싸움 중지 확인' : confirmQuit.kind === 'gathering' ? '채집 중지 확인' : confirmQuit.kind === 'hunting' ? '수렵 중지 확인' : confirmQuit.kind === 'travel' ? '이동 중지 확인' : '수련 포기 확인'} className="ink-panel w-full max-w-sm rounded-2xl p-5 text-center">
@@ -1829,7 +1887,9 @@ export default function Game({
           }}
         />
       )}
-      <GlobalBoardGames active={locationId === 'annex'} />
+      <button type="button" className="fixed bottom-3 left-3 z-40 flex items-center gap-1 rounded-xl border border-gold/40 bg-shade px-3 py-2 text-xs text-gold shadow-lg" onClick={() => setFriendsOpen(true)}><Candy size={16} />친구 목록</button>
+      {friendsOpen && <FriendsModal onClose={() => setFriendsOpen(false)} onGift={p => setGiftTo(p)} />}
+      {guidePrompt && <div className="fixed inset-0 z-[95] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="학교 안내서 안내"><div className="ink-panel w-full max-w-sm rounded-2xl border border-gold/50 p-5 text-center"><p className="font-serif text-xl text-gold">창록고등학교에 오신 것을 환영합니다!</p><p className="mt-3 text-sm leading-relaxed text-paper">새로운 일상을 위해 학교 안내서를 읽어보시는 것을 권장합니다.</p><button type="button" onClick={openGuide} className="flat-btn mx-auto mt-4">안내서 열기</button></div></div>}
       {online.mbInvite && (
         <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4" data-mb-invite>
           <div role="dialog" aria-modal="true" aria-label="다인 전투 초대" className="ink-panel w-full max-w-sm rounded-xl p-5 text-center">
@@ -1839,8 +1899,11 @@ export default function Game({
             </p>
             <p className="mt-1 text-sm text-paper">전투에 참여하시겠습니까?</p>
             <p className="mt-1 text-[11px] text-paper/55">참여하면 하던 일을 멈추고 전투 화면으로 이동한다.</p>
+            <p className="mt-2 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2 text-xs text-gold" role="timer" aria-live="off" data-mb-invite-countdown>
+              참여 수락 가능 · 초대 만료까지 {Math.max(0, Math.ceil(((online.mbInvite.expires ?? inviteClock) - inviteClock) / 1000))}초
+            </p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" onClick={() => (online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()))} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
+              <button type="button" onClick={() => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()) }} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
                 참여
               </button>
               <button type="button" onClick={() => mbRespond(false)} className="rounded border border-gold/40 px-6 py-1.5 text-sm text-gold hover:bg-gold/10">
@@ -1859,6 +1922,9 @@ export default function Game({
           onConfirm={(bring, psychicBring) => {
             const pick = bringPick
             setBringPick(null)
+            battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }
+            battleDownedRef.current = false
+            battleScannedRef.current = false
             if (pick.invite) mbRespond(true, { ...mbSnapshot(), bring, psychicBring })
             else mbStart(pick.enemyId, { ...mbSnapshot(), bring, psychicBring })
           }}
@@ -1920,7 +1986,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>

@@ -9,6 +9,7 @@ export default function Gym({ view, ...rest }) {
       <Hike
         player={rest.player}
         onEnhance={rest.onEnhance}
+        onSpecialEnhance={rest.onSpecialEnhance}
         onMeet={rest.onMeet}
         admin={rest.admin}
         onAdminGive={rest.onAdminGive}

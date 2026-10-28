@@ -1,5 +1,6 @@
 import { itemOf } from '../game/items'
 import { EXTRA_BG, EXTRA_ICONS } from './icons2'
+import HwatuFace from './minigames/HwatuFace'
 
 /**
  * 아이템 아이콘: 플랫 디자인의 원형 배지.
@@ -362,6 +363,11 @@ export default function ItemIcon({ item, id, size = 40, locked = false, classNam
   const it = item ?? itemOf(id)
   const key = it?.baseId ?? it?.id ?? id ?? '?'
   const px = { width: size, height: size }
+  if (!locked && key.startsWith('hwatu-')) {
+    const months = ['pine', 'plum', 'cherry', 'black-wisteria', 'orchid', 'peony', 'red-wisteria', 'gwangsan', 'chrysanthemum', 'maple', 'paulownia', 'willow']
+    const month = months.indexOf(key.slice(6)) + 1
+    if (month) return <span style={{ width: size * .72, height: size, display: 'inline-block', flexShrink: 0 }} className={className} aria-label={it?.name}><HwatuFace card={{ month, kind: 'light', type: 'light', name: it?.name }} /></span>
+  }
   if (locked) {
     return (
       <svg viewBox="0 0 64 64" {...px} className={className} aria-hidden>

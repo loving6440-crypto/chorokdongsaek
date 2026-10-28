@@ -1,20 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
-import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems } from '../game/items'
+import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
 import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
-export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onEquip, onUnequip, partyMates = [], partyBattle = false, onClose }) {
+export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onDiscard, onEquip, onUnequip, partyMates = [], partyBattle = false, onClose }) {
   const [sel, setSel] = useState(null) // 아이템 id
   const [slotSel, setSlotSel] = useState(null) // 착용 중인 부위 id
   const [targeting, setTargeting] = useState(false) // 마이쭈: 누구에게 줄까
   const [err, setErr] = useState('')
+  const [discardQty, setDiscardQty] = useState(1)
+  const [discardConfirm, setDiscardConfirm] = useState(false)
   const closeAll = () => {
     setSel(null)
     setSlotSel(null)
     setTargeting(false)
     setErr('')
+    setDiscardQty(1)
+    setDiscardConfirm(false)
   }
   const popupOpen = !!(sel || slotSel)
   useEffect(() => {
@@ -33,6 +37,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: pn, reviveOn, boostOn }) : null
   const slotItem = slotSel && eq[slotSel] ? itemOf(eq[slotSel]) : null
   const shown = picked ?? slotItem
+  const displayName = (item) => item ? `${specialTitleOf(player, item.id)}${item.name}` : ''
   // 마이쭈(boost)·쌍쌍바(giveHp): 누구에게 줄지 고르는 아이템.
   const chewyTarget = (picked?.effect?.boost || picked?.effect?.giveHp) && inBattle
 
@@ -81,12 +86,12 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                       setErr('')
                       setSlotSel(slot.id)
                     }}
-                    aria-label={`${slot.label}: ${it ? it.name : '비어 있음'}`}
+                    aria-label={`${slot.label}: ${it ? displayName(it) : '비어 있음'}`}
                     className="tilt flex w-full flex-col items-center gap-1 rounded-xl border border-edge/20 bg-shade/20 p-2 enabled:hover:bg-gold-fill/15 disabled:opacity-60"
                   >
                     <span className="text-[10px] text-paper/55">{slot.label}</span>
                     {it ? <ItemIcon item={it} size={36} className="shrink-0" /> : <span className="grid size-9 place-items-center rounded-full border-2 border-dashed border-edge/25 text-xs text-paper/30">—</span>}
-                    <span className="w-full truncate text-center text-[11px] text-paper">{it ? it.name : '비어 있음'}</span>
+                    <span className="w-full truncate text-center text-[11px] text-paper">{it ? displayName(it) : '비어 있음'}</span>
                   </button>
                 </li>
               )
@@ -109,12 +114,13 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                       setErr('')
                       setTargeting(false)
                       setSel(item.id)
+                      setDiscardQty(1)
                     }}
-                    aria-label={item.slot === 'weapon' ? `${item.name}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${item.name} ×${countOf(player, item.id)}`}
+                    aria-label={item.slot === 'weapon' ? `${displayName(item)}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${displayName(item)} ×${countOf(player, item.id)}`}
                     className="tilt flex w-full flex-col items-center gap-1 rounded-xl bg-edge/[0.07] p-2 hover:bg-gold-fill/15"
                   >
                     <ItemIcon item={item} size={40} className="shrink-0" />
-                    <span className="w-full truncate text-center text-[11px] text-paper">{item.name}</span>
+                    <span className="w-full truncate text-center text-[11px] text-paper">{displayName(item)}</span>
                     <span className="text-[11px] text-gold">{item.slot === 'weapon' ? (enhTotal(player, item.id) > 0 ? `+${enhTotal(player, item.id)}` : '') : `×${countOf(player, item.id)}`}</span>
                   </button>
                 </li>
@@ -122,7 +128,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
             </ul>
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-paper/50">
-            전투 중에는 ‘전투 중 사용 가능’한 아이템만 쓸 수 있고, 턴과 상관없이 언제든 쓸 수 있으며 써도 내 턴이 끝나지 않는다. 장비는 전투 중에 바꿀 수 없다.
+            전투 중에는 전투 사용 가능 아이템만 쓸 수 있다. #턴소모無는 다른 사람 턴에도 사용할 수 있고, #턴소모有는 본인 턴에 사용하면 턴이 종료된다. 장비는 전투 중 교체할 수 없다.
           </p>
         </div>
       {shown && (
@@ -130,7 +136,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={shown.name}
+            aria-label={displayName(shown)}
             data-item-popup={shown.id}
             className="ink-panel w-full max-w-xs rounded-xl p-4 shadow-2xl ring-1 ring-edge/30"
             onClick={(e) => e.stopPropagation()}
@@ -138,7 +144,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
             <div className="flex items-center gap-3">
               <ItemIcon item={shown} size={44} className="shrink-0" />
               <p className="font-serif text-base text-paper">
-                {shown.name} {picked && <span className="text-sm text-gold">×{pn}</span>}
+                {displayName(shown)} {picked && <span className="text-sm text-gold">×{pn}</span>}
                 {slotItem && <span className="ml-1 text-xs text-gold">(착용 중)</span>}
               </p>
             </div>
@@ -157,6 +163,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
             {picked && !pu.ok && !isMaterial(picked) && !isGear(picked) && <p className="mt-1 text-[11px] text-paper/45">{pu.why}</p>}
             {err && <p className="mt-1 text-[11px] text-crimson" role="alert">{err}</p>}
 
+            {discardConfirm && picked && <div className="mt-3 rounded-lg border border-crimson/40 p-3 text-xs"><p>정말 {displayName(picked)} {discardQty}개를 버리겠습니까? 되돌릴 수 없습니다.</p><div className="mt-2 flex gap-2"><button type="button" className="flat-btn-ghost text-xs" onClick={() => setDiscardConfirm(false)}>취소</button><button type="button" className="flat-btn text-xs" onClick={() => { const r = onDiscard?.(picked.id, discardQty); if (r?.error) setErr(r.error); else closeAll() }}>버리기 확정</button></div></div>}
             {targeting && chewyTarget ? (
               <div className="mt-3" data-chewy-targets>
                 <p className="text-xs text-paper/80">누구에게 줄까?</p>
@@ -192,7 +199,8 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                 {partyMates.length > 0 && !partyBattle && <p className="mt-1 text-[10px] text-paper/45">파티원에게 건네는 건 다인 전투 중에만 쓸 수 있다.</p>}
               </div>
             ) : (
-              <div className="mt-3 flex justify-end gap-2">
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="버릴 수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
                 {picked && !isMaterial(picked) && !isGear(picked) && (
                   <button
                     type="button"

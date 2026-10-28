@@ -759,3 +759,27 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 ### 무구 "폭죽"의 행동불능 2턴 → 1턴
 - `src/game/items.js`의 `firecracker` 항목 `effect.selfStun`을 `2`에서 `1`로, `effectText`도 그에 맞춰 "1턴 동안 행동불능"으로 바꿨다. `mbattle.js`의 `useItemCore`가 `m.stun = Math.max(m.stun||0, e.selfStun)`로 그 값을 그대로 가져다 쓰므로 이 숫자 하나만 바꾸면 실제 전투(솔로·다인 모두)에 곧장 반영된다.
 - **#4 단체 전투 튜토리얼 동기화**: 폭죽 시연 직후 "아직 폭죽 때문에 못 움직여요"를 두 번(라운드2·3) 보여주던 걸, `selfStun`이 1로 줄어든 만큼 한 번(라운드2)만 뜨도록 고쳤다. 기존 라운드3의 두 번째 "못 움직여요" 단계는, 이제 그 라운드엔 바리가 더 이상 스턴 상태가 아니라서 그대로 두면 `resolveTurn`이 아무 설명 없이 기본값(`m.bound`가 없으면 '막기')으로 조용히 행동해 버리는 문제가 있었다 — 그래서 그 단계에 `bariAct: { action: 'attack' }`을 명시로 지정하고, 대사도 "이제 저도 다시 움직일 수 있어요 — 저도 한 번 더 공격해볼게요!"로 바꿨다. 라운드4(도깨비불 시전)부터는 라운드 번호가 그대로라 다른 단계는 건드릴 필요가 없었다. 500회 시뮬레이션으로 라운드2는 항상 스턴, 라운드3은 항상 정상 공격, 이후 도깨비불 캐스트·충전·폭발까지 전부 정상 진행되는 것을 확인했다(크래시 0건).
+
+### 아이템 "마이쮸"가 다인 전투에서 턴을 소모하던 버그
+- **원인**: `items.js`의 `itemTurnFree(item)`는 "일행 전원(또는 나를 제외한 전원)을 대상으로 하는 효과가 있으면 턴을 소모한다"는 규칙으로, `e.boost || e.partyHp || e.partyMp || e.partyBoost || e.giveHp` 중 하나라도 있으면 턴소모有로 판정했다. 그런데 마이쮸(`chewy`)의 효과는 `{ boost: true }`뿐이고, 이건 폭죽의 `partyBoost`(나를 제외한 일행 전원)와 달리 **한 명에게만** 건네는 효과라 턴을 소모할 이유가 없는데도 같은 조건식에 묶여 있었다 — 아이템 자체의 태그는 이미 `#턴소모有`로 (잘못) 적혀 있었다.
+- **고침**: `itemTurnFree`의 조건에서 `e.boost`를 빼서, 한 명에게만 건네는 버프(마이쮸)는 턴을 소모하지 않고 전원 대상 효과(`partyHp`·`partyMp`·`partyBoost`·`giveHp`)만 턴을 소모하도록 바로잡았다. 마이쮸의 태그도 `#턴소모有` → `#턴소모無`로 맞췄다. `boost: true`를 쓰는 아이템이 마이쮸뿐이라 다른 아이템엔 영향이 없다.
+
+
+## v74 — 무구 강화 개편
+- 일반 강화: 선택 스탯 +1, 무구당 총 15포인트, 회당 의지력 20 및 연마석 1개.
+- 특수 강화: 무구당 1종, 해당 월 화투패 + 연마석 1개 + 의지력 50 + 영력 50 + 500냥.
+- 특수 강화 패 12종과 칭호 표기, 전투 효과 연결을 추가했다.
+- 특수 강화 기록은 `player.weaponSpecial[무구 인스턴스 ID]`에 저장된다.
+- 주의: 기존 전투 엔진에는 플레이어가 전투 중 소비하는 별도 영력 자원이 없어, 매화의 전투 영력 150은 전투 화면에 표시되지만 아직 소비하는 행동과 연결되어 있지 않다. 서버/클라이언트 전체 빌드 검증은 이 작업 환경에서 의존성 설치가 시간 초과되어 완료하지 못했다.
+
+
+### v74 매화 특수 강화 정정
+- 매화의 효과는 **전투 중 사용할 수 있는 의지력 풀 150**으로 적용한다(영력 수치/강화 비용 변경 아님).
+- 단독 전투 시작 시 전투용 의지력 풀을 150으로 설정하고, 다인 전투에서도 서버 전투원 초기 의지력/한도를 150으로 설정한다.
+- 특수 강화 부여 비용은 기존 확정안(의지력 50 + 영력 50 + 500냥 + 해당 화투패 1장 + 연마석 1개)을 유지한다.
+- 의존성 설치가 실행 제한 시간 초과로 완료되지 않아 전체 Vite 빌드는 확인하지 못했다.
+
+### V74 Pixel UI skin
+- Added a site-wide pixel-inspired visual skin while preserving existing component layout and placement.
+- Uses Neo둥근모 web font from the NeoDGM webfont kit (SIL Open Font License 1.1); see https://github.com/neodgm/neodgm-webfont for license and font information.
+- The font stylesheet is loaded from jsDelivr. An internet connection is required for the custom font; system fallbacks remain available.

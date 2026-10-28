@@ -1,4 +1,4 @@
-import { BookOpenText, LogOut, Pencil, RotateCcw, Shield, Sparkles, Trophy, UsersRound } from 'lucide-react'
+import { Backpack, BookOpenText, LogOut, Pencil, RotateCcw, Shield, Sparkles, Trophy, UsersRound } from 'lucide-react'
 import logo from '../assets/logo.png'
 import { LOCATIONS } from '../game/constants'
 import { spiritGaugeMax } from '../game/progress'
@@ -190,7 +190,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
           data-tutorial-real-items-btn
           className={`flat-btn absolute bottom-[134px] left-1/2 h-[48px] w-[248px] -translate-x-1/2 justify-center ${spotItems ? 'spot' : ''}`}
         >
-          내 소지품 확인하기
+          <Backpack size={13} aria-hidden /> 소지품
         </button>
         {onOpenGuide && (
           <button
@@ -200,7 +200,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
             className="flat-btn absolute bottom-[94px] left-1/2 h-[28px] w-[248px] -translate-x-1/2 justify-center !gap-1.5 text-xs"
           >
             <BookOpenText size={13} aria-hidden />
-            안내서 보기
+            안내서
           </button>
         )}
         <div className="absolute bottom-[40px] left-1/2 flex h-[48px] w-[248px] -translate-x-1/2 gap-2">
@@ -210,7 +210,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
             className="flat-btn min-w-0 flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
           >
             <Trophy size={13} aria-hidden />
-            업적/도감 확인하기
+            업적/도감
           </button>
           <button
             type="button"
@@ -219,7 +219,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
             className="flat-btn relative min-w-0 flex-1 justify-center !gap-1 !px-1 text-[10.5px] whitespace-nowrap"
           >
             <UsersRound size={13} aria-hidden />
-            동아리 확인하기
+            동아리
             {inClub && <span className="absolute top-1 right-1.5 size-1.5 rounded-full bg-gold" aria-hidden />}
           </button>
         </div>

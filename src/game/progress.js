@@ -2,7 +2,7 @@
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { clampSpirit, MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
-import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx } from './items'
+import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx, specialEnhOf } from './items'
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
 import { ENEMIES } from './battle'
@@ -180,12 +180,14 @@ export function effectiveStats(player, now = Date.now()) {
   for (const [k, v] of Object.entries(tempBonus(player, now))) bonus[k] = (bonus[k] || 0) + v
   const hasBonus = Object.keys(bonus).length > 0
   const fx = weaponFx(player)
-  if (!isWeak(player, now) && !hasBonus && !fx) return player.stats
+  const special = specialEnhOf(player, equipOf(player).weapon)
+  if (!isWeak(player, now) && !hasBonus && !fx && !special) return player.stats
   const weak = isWeak(player, now)
   // 쇠약으로 5할이 된 뒤에 장비 보정이 더해진다.
   const out = Object.fromEntries(Object.entries(player.stats).map(([k, v]) => [k, (weak ? Math.max(1, Math.floor(v / 2)) : v) + (bonus[k] || 0)]))
   // 무구의 특수 효과 id. 스탯 목록에는 나타나지 않도록(열거되지 않게) 붙인다.
   if (fx) Object.defineProperty(out, 'fx', { value: fx, enumerable: false })
+  if (special) Object.defineProperty(out, 'special', { value: special, enumerable: false })
   return out
 }
 export const weakLeftText = (player, now = Date.now()) => {
@@ -371,7 +373,11 @@ export function gymToday(player, now = Date.now()) {
  */
 export function applyBattleResult(player, win, reward0, now = Date.now()) {
   const g = gymToday(player, now)
-  const reward = weaponFx(player) === 'sickle' ? Math.ceil(reward0 * 1.5) : reward0 // 낫: 보상 1.5배(올림)
+  const weaponId = equipOf(player).weapon
+  const special = specialEnhOf(player, weaponId)
+  const noScanWin = !!player._battleNoScanWin
+  let reward = weaponFx(player) === 'sickle' ? Math.ceil(reward0 * 1.5) : reward0 // 낫: 보상 1.5배(올림)
+  if (special === 'peony' && noScanWin) reward *= 2
   if (!win) {
     const lost = Math.min(GYM_LOSS_PENALTY, Math.floor(player.spirit))
     // 전투불능: [쇠약] 24시간(다시 쓰러지면 그때부터 24시간으로 갱신).

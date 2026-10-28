@@ -50,6 +50,21 @@ const adminOk = (key) => {
 const admins = new Set() // 키로 확인된 관리자 id (접속할 때마다 다시 채워진다)
 
 const COURSES = ['talisman-2048', 'spell-typing', 'ward-tetris', 'folklore-spot', 'exorcism-space']
+const SCHOOL_HEADLINES = [
+  ['본관 복도에 나타난 발자국', '밤새 잠겨 있던 본관 복도에 젖은 발자국이 생겼다. 퇴마실습부는 물청소보다 먼저 흔적의 방향을 조사해 달라고 요청했다.'],
+  ['급식실의 새로운 메뉴 논의', '급식위원회가 학생 의견을 모은다. 조리부는 제철 식재료를 활용한 메뉴를 시험하고, 교내 신문은 맛 평가를 기다리고 있다.'],
+  ['오늘의 부적학 실습 소식', '부적학 시간에 작성한 괴황지 표본이 실습실 게시판에 전시되었다. 선생님은 글씨보다 정확한 호흡이 중요하다고 강조했다.'],
+  ['기숙사 사감실의 분실물 안내', '기숙사 1층에서 작은 오색 매듭이 발견되었다. 잃어버린 학생은 매듭의 색 배치를 설명한 뒤 돌려받을 수 있다.'],
+  ['뒷산 수련 코스 안전 점검', '뒷산으로 향하는 오솔길의 표지판이 새로 정비되었다. 학생회는 해가 진 뒤 혼자 이동하지 말 것을 당부했다.'],
+  ['동아리 연합 교류전 예고', '학교 동아리들이 공동 체험회를 준비 중이다. 퇴마 실습과 민속놀이 체험이 같은 날 열릴 전망이지만 일정은 아직 조정 중이다.'],
+  ['운동장에 떨어진 수상한 꽃잎', '교정에서 계절과 맞지 않는 꽃잎이 관찰됐다. 창록 교화에 대한 소문이 다시 떠올랐으나 원인은 확인되지 않았다.'],
+]
+const generatedPaper = (date) => {
+  const days = Math.floor(Date.parse(`${date}T00:00:00Z`) / 86400000)
+  if (!Number.isFinite(days)) return []
+  const [title, text] = SCHOOL_HEADLINES[((days % 7) + 7) % 7]
+  return [{ no: '교내', title, text, date }]
+}
 const HISTORY_MAX = 100
 const TEXT_MAX = 200
 const RATE_WINDOW_MS = 5000
@@ -64,6 +79,8 @@ let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade,
 const dirtyCards = new Set() // 마지막 저장 뒤 (다시) 바뀐 카드의 id — 이 사람들 것만 다음 저장 때 내보낸다
 let legacyCardsRowCleared = false // 예전의 "전원분 한 덩어리" 카드 줄을 지웠는지 (DB 연결 뒤 saveCardsNow 에서 확정)
 let cardsSaveTimer = null // scheduleCardsSave 가 부팅 중(마이그레이션)부터 바로 호출될 수 있어, 선언을 위로 올려 둔다
+let friendships = {} // { id: [친구 id] } (단방향 추가, 차단과 분리)
+let blockedUsers = {} // { id: [차단 id] }
 let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
 let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
 let clubs = Object.fromEntries(CLUB_IDS.map((id) => [id, { members: {} }])) // { [clubId]: { members: { [playerId]: {id,name,grade,age,hope,joinedAt} } } }
@@ -138,6 +155,8 @@ function applyRaw(raw) {
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.members && typeof raw.members === 'object') members = raw.members
+  if (raw?.friendships && typeof raw.friendships === 'object') friendships = raw.friendships
+  if (raw?.blockedUsers && typeof raw.blockedUsers === 'object') blockedUsers = raw.blockedUsers
   if (raw?.stories && Array.isArray(raw.stories.pending)) stories = { pending: raw.stories.pending, papers: raw.stories.papers ?? {}, seq: raw.stories.seq || 1 }
   if (raw?.mail && Array.isArray(raw.mail.log)) mail = { seq: raw.mail.seq || 1, log: raw.mail.log }
   if (raw?.clubs && typeof raw.clubs === 'object') for (const id of CLUB_IDS) if (raw.clubs[id]?.members) clubs[id] = { members: raw.clubs[id].members }
@@ -238,6 +257,8 @@ const snapshot = () => ({
   lastWeek,
   market,
   members,
+  friendships,
+  blockedUsers,
   stories,
   mail,
   clubs,
@@ -566,6 +587,7 @@ const mbInfo = (c, me) => ({
   psychicBring: me?.psychicBring === undefined ? undefined : cleanPsychicBring(me.psychicBring),
   stats: me?.stats,
   fx: me?.fx,
+  special: typeof me?.special === 'string' ? me.special : null,
   hp: me?.hp,
   hpMax: me?.hpMax,
   mp: me?.mp,
@@ -1189,7 +1211,7 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && route === '/api/newspaper') {
     const q = url.searchParams.get('date')
     const date = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : kstDate()
-    return json(res, 200, { ok: true, date, stories: (stories.papers[date] ?? []).map((s) => ({ no: s.no, text: s.text })) })
+    return json(res, 200, { ok: true, date, stories: [...generatedPaper(date), ...(stories.papers[date] ?? []).map((s) => ({ no: s.no, title: '학생 사연', text: s.text, date }))] })
   }
 
   // 내 계정 (로그인 토큰 필요): 다른 기기에서 저장한 최신 기록을 받아 간다.
@@ -1709,6 +1731,26 @@ async function handleApi(req, res, url) {
     r.status = body.accept ? 'accepted' : 'declined'
     sendTo(r.admin, { t: 'adminEdit', ev: 'result', rid: r.rid, status: r.status, targetName: r.targetName, changes: r.changes })
     return json(res, 200, { ok: true, status: r.status })
+  }
+
+  // 친구 / 차단 관계: 서버 측 저장 및 검사. 대상의 캐릭터 이름은 회원 명부로부터 가져온다.
+  if (route === '/api/friends/list') {
+    const decorate = (id) => ({ id, name: members[id]?.name || id, online: clients.has(id) })
+    return json(res, 200, { ok: true, friends: (friendships[me.id] ?? []).filter((id) => members[id]).map(decorate), blocked: (blockedUsers[me.id] ?? []).filter((id) => members[id]).map(decorate) })
+  }
+  if (route === '/api/friends/change') {
+    const to = cleanId(body.to)
+    const action = body.action
+    if (!to || to === me.id || !members[to]) return json(res, 400, { error: 'no-target' })
+    if (!['add', 'remove', 'block', 'unblock'].includes(action)) return json(res, 400, { error: 'bad-action' })
+    if (rateLimited(`friend:${me.id}`)) return json(res, 429, { error: 'slow-down' })
+    const update = (bag, add) => { const set = new Set(bag[me.id] ?? []); if (add) set.add(to); else set.delete(to); bag[me.id] = [...set].slice(0, 200) }
+    if (action === 'add') { if ((blockedUsers[me.id] ?? []).includes(to)) return json(res, 400, { error: 'blocked' }); update(friendships, true) }
+    if (action === 'remove') update(friendships, false)
+    if (action === 'block') update(blockedUsers, true)
+    if (action === 'unblock') update(blockedUsers, false)
+    scheduleSave()
+    return json(res, 200, { ok: true })
   }
 
   // 우체통: 아이템 없이 쪽지만 보내기. 접속하지 않은 사람에게도 보낼 수 있다(사물함에 쌓인다).

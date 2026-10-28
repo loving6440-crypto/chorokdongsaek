@@ -6,13 +6,13 @@ export const SKINS = [
   {
     id: 'talisman',
     name: '부적',
-    desc: '머스타드 바탕에 진빨강 글씨. 기본 스킨.',
+    desc: '괴황지에 붉은 글씨를 써서 만든 숫자들. 기본 스킨.',
     unlock: null,
   },
   {
     id: 'changnok',
     name: '창록 교화',
-    desc: '연분홍 벚꽃과 딸기빛 붉음이 번지는 아기자기한 스킨.',
+    desc: '연분홍색의 벚꽃이 퍼지는 아기자기한 스킨.',
     unlock: 'first-talisman',
     // 벚꽃봄색(#ec94ab) → 사랑에빠진딸기색(#d63e4c)
     tiles: {
@@ -34,7 +34,7 @@ export const SKINS = [
   {
     id: 'winter-snow',
     name: '흩날리는 눈의 겨울',
-    desc: '흰빛에서 짙은 겨울 하늘색까지, 눈이 휘날리듯 번지는 스킨.',
+    desc: '대한민국의 겨울을 버티려면 강인해야 한다.',
     unlock: 'unset-winter-snow-2048', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라, 관리자가 선물해 주지 않으면 아무도 열 수 없다.
     tiles: {
       2: ['#f8fbff', '#355d82'],
@@ -55,7 +55,7 @@ export const SKINS = [
   {
     id: 'dokkaebi-fire',
     name: '도깨비불',
-    desc: '베이지에서 짙은 청록까지, 불이 타오르듯 번지는 스킨.',
+    desc: '들 위로 타오르는 청록빛의 잔상.',
     unlock: 'unset-dokkaebi-fire-2048', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라, 관리자가 선물해 주지 않으면 아무도 열 수 없다.
     tiles: {
       2: ['#e9e2d0', '#2e2a24'],
@@ -76,7 +76,7 @@ export const SKINS = [
   {
     id: 'golden-dream',
     name: '황금빛 백일몽',
-    desc: '주황에서 샛노랑까지, 금메달처럼 동그랗게 빛나는 스킨. 타일이 네모가 아니라 완전한 원형이다.',
+    desc: '금메달을 깨물면 이빨모양으로 파인다고 한다.',
     unlock: 'model-student',
     round: true, // 타일을 완전한 원형으로 그린다(움직이는 논리는 보통 타일과 똑같다).
     tiles: {

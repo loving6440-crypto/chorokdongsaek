@@ -1,3 +1,4 @@
+import PsychicDetails from '../PsychicDetails'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpenText, Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import BattleTutorialHub from '../BattleTutorial2'
@@ -42,7 +43,7 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
+export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [tutorialOpen, setTutorialOpen] = useState(false) // 바리의 전투 안내(v72: 자동으로 뜨지 않고, 이 화면에서 직접 열 때만 보여 준다)
   // 튜토리얼이 열려 있는 동안엔 사이드바(ProfileSidebar)의 체력·의지력 표시도 100으로 보여 달라는
@@ -70,11 +71,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
   const [scanN, setScanN] = useState(1)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
-  useEffect(() => {
-    if (!spBanner) return undefined
-    const t = setTimeout(() => setSpBanner(null), 6200)
-    return () => clearTimeout(t)
-  }, [spBanner])
   const beginRef = useRef(null)
   const timer = useRef(null)
   const reported = useRef(false)
@@ -201,7 +197,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
     onActive?.(true)
     reported.current = false
     fightingRef.current = true
-    mpRef.current = mpProp.current
+    mpRef.current = stats.special === 'plum' ? 150 : mpProp.current
     const s = newBattle(enemyId, stats, Math.random, hp, hpMax)
     const n = seen?.[enemyId] || 0
     setFights(n)
@@ -242,6 +238,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
     (cur, action, extra = {}) => {
       const buffed = buffArmed && (action === 'attack' || action === 'charm')
       const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
+      if (action === 'scan' && !r.invalid) onScan?.()
       // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 다시 고를 수 있게 그대로 둔다.
       if (r.invalid) {
         push(r.events)
@@ -254,12 +251,15 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
       }
       spend(-r.mpCost)
       const bell = applyBell(r.state)
-      setB(bell.state)
-      push([...r.events, ...bell.events])
-      if (bell.state.over) finish(bell.state)
-      else runEnemy(bell.state)
+      let finalState = bell.state
+      let extraEvents = [...r.events, ...bell.events]
+      if (stats.special === 'cherry' && finalState.php < finalState.phpMax * 0.3) { const heal = Math.floor(stats.comprehension / 3); if (heal > 0) { const hp = Math.min(finalState.phpMax, finalState.php + heal); extraEvents.push({ kind: 'warn', text: `벚꽃의 효과! 체력 +${hp - finalState.php}.` }); finalState = { ...finalState, php: hp } } }
+      setB(finalState)
+      push(extraEvents)
+      if (finalState.over) finish(finalState)
+      else runEnemy(finalState)
     },
-    [stats, push, finish, runEnemy, spend, onBoostUsed, buffArmed],
+    [stats, push, finish, runEnemy, spend, onBoostUsed, onScan, buffArmed],
   )
 
   // 내 턴이 돌아오는 시작 시점마다 돌발 판정(1d100)을 항상 굴린다. 터지면 이번 턴은 무조건 일반 공격.
@@ -400,6 +400,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
         specials={specials}
         psychics={psychics}
         onAct={multi.onAct}
+        onScan={onScan}
         onSurvive={multi.onSurvive}
         onOpenItems={onOpenItems}
         onSpecialSeen={onSpecialSeen}
@@ -532,7 +533,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
           })}
         </ul>
         <p className="mt-4 text-[11px] leading-relaxed text-paper/50">
-          내 상태 · 체력 {Math.floor(hp)} / {hpMax} · 의지력 {Math.floor(mp)} · 돌발 행동 확률 {rash}% (호전 − 절제)
+          내 상태 · 체력 {Math.floor(hp)} / {hpMax} · 의지력 {Math.floor(stats.special === 'plum' && phase === 'fight' ? mpRef.current : mp)} · {stats.special === 'plum' ? '매화의 전투 의지력 한도 150 · ' : ''}돌발 행동 확률 {rash}% (호전 − 절제)
         </p>
       </section>
     )
@@ -646,7 +647,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
               (id === 'psychic' && (!!b.over || b.pendingDeath)) ||
               (id === 'charm' && (b.charms <= 0 || have < 1)) ||
               (id === 'scan' && have < mpCostOf(stats, 1)) ||
-              (id === 'guard' && b.bound)
+              (id === 'guard' && b.bound) || (id === 'attack' && stats.special === 'red-wisteria')
             return (
               <button
                 key={id}
@@ -720,8 +721,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
                 {mine.map((s) => (
                   <li key={s.id} data-psychic={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
                     <p className="text-sm text-paper">{s.label}</p>
-                    <p className="text-[11px] text-paper/60">{s.note}</p>
-                    {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
+                    <PsychicDetails psychic={s} stats={stats} options={s.id === 'monkey-paw' ? { sacrifice: pawAmt } : undefined} condensed />
                     {s.toggle ? (
                       <button
                         type="button"

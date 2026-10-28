@@ -280,8 +280,8 @@ const SOUNDS = {
 
   // 일행(파티) 채팅에서 메시지 끝에 <se.1> 이 붙으면 울리는 짧은 '삐릭' 알림음
   partyPing: () => {
-    tone({ f: midi(81), f2: midi(86), d: 0.07, type: 'square', v: 0.07 })
-    tone({ f: midi(86), t: 0.06, d: 0.09, type: 'square', v: 0.055 })
+    tone({ f: midi(81), f2: midi(86), d: 0.07, type: 'square', v: 0.082 })
+    tone({ f: midi(86), t: 0.06, d: 0.09, type: 'square', v: 0.062 })
   },
 }
 

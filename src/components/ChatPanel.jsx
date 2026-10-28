@@ -9,6 +9,7 @@ import {
   sendChat,
   setActiveChannel,
   useOnline,
+  fetchFriends,
 } from '../net/online'
 import { sfx } from '../game/sfx'
 
@@ -28,6 +29,8 @@ const timeOf = (at) =>
 
 export default function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
   const net = useOnline()
+  const [blockedIds, setBlockedIds] = useState([])
+  useEffect(() => { let alive = true; const update = () => fetchFriends().then(r => { if (alive && r.ok) setBlockedIds((r.blocked ?? []).map(x => x.id)) }); update(); const timer = setInterval(update, 15000); return () => { alive = false; clearInterval(timer) } }, [net.status])
   const [openState, setOpen] = useState(false)
   const open = docked || openState
   const [tab, setTab] = useState('talk')
@@ -50,7 +53,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
   }, [open, tab])
 
   const connected = net.status === 'online'
-  const msgs = net.history[tab] || []
+  const msgs = (net.history[tab] || []).filter((m) => !blockedIds.includes(m.from?.id ?? m.user?.id ?? m.idFrom))
   // 채팅은 항상 맨 아래(최신)가 보이게 한다. 기록이 100개로 꽉 차 길이가 그대로여도 마지막 글이 바뀌면 내려가고,
   // 탭을 옮기거나 접속자 목록을 닫았다 열거나 다른 곳에 갔다 와도 다시 맨 아래로 간다.
   const lastId = msgs.length ? msgs[msgs.length - 1].id : null

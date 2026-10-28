@@ -51,6 +51,9 @@ export default function Cafeteria({ online, onSubmitted }) {
   const [date] = useState(() => kstDate())
   const menu = menuOf(date)
   const [paper, setPaper] = useState({ loading: true, stories: [] })
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [archive, setArchive] = useState([])
+  const [selectedArticle, setSelectedArticle] = useState(null)
   const [text, setText] = useState('')
   const [note, setNote] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -64,6 +67,16 @@ export default function Cafeteria({ online, onSubmitted }) {
     return () => clearInterval(t)
   }, [load])
 
+  const loadArchive = async () => {
+    setArchiveOpen(true)
+    const dates = Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(`${date}T00:00:00+09:00`)
+      day.setUTCDate(day.getUTCDate() - i)
+      return new Date(day.getTime() + 9 * 3600000).toISOString().slice(0, 10)
+    })
+    const results = await Promise.all(dates.map(async (d) => ({ date: d, result: await fetchNewspaper(d) })))
+    setArchive(results.flatMap(({ date: d, result }) => result.ok ? result.stories.map(s => ({ ...s, date: d })) : []))
+  }
   const send = async (e) => {
     e.preventDefault()
     if (busy) return
@@ -94,7 +107,9 @@ export default function Cafeteria({ online, onSubmitted }) {
             <Newspaper size={18} aria-hidden className="text-gold" />
             그날의 교내 신문
           </p>
-          <p className="text-[11px] text-paper/50">{Number(m)}월 {Number(d)}일자</p>
+          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] text-paper/50">{Number(m)}월 {Number(d)}일자</p><button type="button" className="flat-btn-ghost text-xs" onClick={() => archiveOpen ? setArchiveOpen(false) : loadArchive()}>최근 일주일 신문 보기</button></div>
+          {archiveOpen && <div className="mt-3 max-h-64 space-y-1 overflow-y-auto rounded-lg bg-shade/25 p-2" aria-label="최근 일주일 신문">{archive.map((s, i) => <button type="button" key={`${s.date}-${s.no}-${i}`} className="block w-full rounded p-2 text-left text-xs hover:bg-gold/10" onClick={() => setSelectedArticle(s)}><span className="mr-2 text-paper/50">{s.date}</span>{s.title || `교내 신문 #${s.no}`}</button>)}{archive.length === 0 && <p className="py-2 text-xs text-paper/60">기사를 불러오는 중이거나 내역이 없습니다.</p>}</div>}
+          {selectedArticle && <div className="mt-2 rounded-lg border border-gold/30 p-3"><div className="flex items-center justify-between"><b className="text-sm text-gold">{selectedArticle.title || '학생 사연'}</b><button type="button" onClick={() => setSelectedArticle(null)} className="text-xs text-paper/60">닫기</button></div><p className="mt-1 text-[10px] text-paper/50">{selectedArticle.date}</p><p className="mt-2 whitespace-pre-line text-sm text-paper/85">{selectedArticle.text}</p></div>}
           {paper.stories.length === 0 ? (
             <p className="mt-3 min-h-24 rounded-lg border border-dashed border-edge/25 px-3 py-6 text-center text-sm text-paper/45" data-newspaper-empty>
               {paper.loading ? '신문을 가져오는 중…' : '아직 실린 이야기가 없다.'}
@@ -103,7 +118,7 @@ export default function Cafeteria({ online, onSubmitted }) {
             <ul className="mt-3 space-y-2">
               {paper.stories.map((s) => (
                 <li key={s.no} data-story={s.no} className="rounded-lg bg-shade/25 px-3 py-2">
-                  <p className="text-xs font-bold text-gold">#{s.no}</p>
+                  <p className="text-xs font-bold text-gold">{s.title || `#${s.no}`}</p>
                   <p className="mt-0.5 whitespace-pre-line break-words text-sm leading-relaxed text-paper/85">{s.text}</p>
                 </li>
               ))}

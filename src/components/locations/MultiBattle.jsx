@@ -6,6 +6,7 @@ import { tierLabel } from '../../game/constants'
 import { Bar, enemyHpTone, vague } from './battleUi'
 import SpBanner from '../SpBanner'
 import { AllyPsychicBanner, AllyToastStack } from '../AllyPopup'
+import PsychicDetails from '../PsychicDetails'
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
@@ -15,7 +16,7 @@ const STATUS_LABEL = { alive: '', down: '전투불능', fled: '이탈' }
  * 다인 전투 화면. 판은 서버가 진행하고, 여기서는 상태를 보여 주고 내 행동을 보낸다.
  * view: 서버가 보낸 판 상태. 라운드마다 살아 있는 모두가 행동을 고르면 한꺼번에 해결된다.
  */
-export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
+export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
   const enemy = ENEMIES.find((e) => e.id === view.enemyId)
   const me = view.members.find((m) => m.id === meId)
   const [psyOpen, setPsyOpen] = useState(false)
@@ -79,16 +80,6 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       made.forEach((t) => setTimeout(() => setToasts((prev) => prev.filter((x) => x.k !== t.k)), 2700))
     }
   }, [view.log, meId, onSpecialSeen])
-  useEffect(() => {
-    if (!spBanner) return undefined
-    const t = setTimeout(() => setSpBanner(null), 6200)
-    return () => clearTimeout(t)
-  }, [spBanner])
-  useEffect(() => {
-    if (!allyBanner) return undefined
-    const t = setTimeout(() => setAllyBanner(null), 6200)
-    return () => clearTimeout(t)
-  }, [allyBanner])
   // 새 라운드가 시작되거나, 서버가 새 로그를 보내오면(의지력 부족 등으로 행동이 무효가 되어 내 턴이 그대로 유지되는
   // 경우도 포함) 보냈다는 표시를 푼다. view.turn 등은 그대로인데 로그만 새로 온 경우를 놓치면, 유효한 행동을
   // 고를 때까지 턴은 넘어가지 않지만 '보내는 중' 표시가 풀리지 않아 아무 행동도 못 하게 되는 문제가 있었다.
@@ -116,6 +107,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const left = view.deadline ? Math.max(0, Math.ceil((view.deadline - now) / 1000)) : null
   const waiting = view.members.filter((m) => m.status === 'alive' && !m.acted && view.phase === 'input')
   const shown = Math.min(view.known, view.queue.length)
+  const orderedMates = [...view.members].sort((a, b) => (b.agility ?? 0) - (a.agility ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const nextEnemyAction = shown > 0 ? INTENTS[view.queue[0]]?.label ?? '??' : '??'
   const rash = rashPercent(stats)
 
   const send = async (act) => {
@@ -130,6 +123,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     setScanOpen(false)
     if (buffed) setBuffArmed(false)
     const r = await onAct(buffed ? { ...act, buff: true } : act)
+    if (r?.ok && act.action === 'scan') onScan?.()
     if (!r?.ok) setSending(false)
   }
   const pick = (id) => {
@@ -196,6 +190,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </span>
       </div>
 
+      {stats.special === 'plum' && <p className="mt-1 text-[11px] text-gold">매화의 효과 · 이 전투에서 사용할 수 있는 의지력 150</p>}
+
       {view.log.length > 0 && (
         <ul className="mt-2 space-y-0.5 rounded-lg bg-shade/20 px-3 py-1.5 font-mono text-[11px] leading-relaxed" aria-live="polite" aria-label="방금 일어난 일" data-mb-recent>
           {[...view.log].slice(-2).reverse().map((l) => (
@@ -211,6 +207,18 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
           보스 전투 — 가져온 아이템만 쓸 수 있다{me?.bring ? ` (남은 ${Object.values(me.bring).reduce((a, b) => a + b, 0)}개)` : ''}.
           {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{view.rage >= 2 ? '광분 — 약공이 모두 단체 공격!' : '분노 — 3라운드마다 반드시 영능력!'}</b> : null}
         </p>
+      )}
+      {!view.over && (
+        <div className="mt-3 rounded-xl border border-gold/25 bg-gold/5 px-3 py-2.5" aria-label="전체 행동 순서" data-mb-action-order>
+          <p className="text-[11px] text-gold">행동 순서 · 신속이 높은 아군부터</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-paper/90">
+            {(view.order?.length ? view.order.map(id => view.members.find(m => m.id === id)).filter(Boolean) : orderedMates).filter((m) => m.status === 'alive').map((m, i, arr) => <span key={m.id} className="contents"><b className={m.id === view.turn ? 'rounded bg-gold px-1.5 py-0.5 text-ink' : 'rounded bg-edge/10 px-1.5 py-0.5'}>{m.name}</b><span className="text-gold/60">›</span></span>)}
+            <b className="rounded bg-crimson/15 px-1.5 py-0.5 text-crimson">적 · 다음 행동: {nextEnemyAction}</b>
+            <span className="text-gold/60">›</span>
+            <span className="text-paper/45">다음 라운드 반복</span>
+          </div>
+          {shown === 0 && <p className="mt-1 text-[10px] text-paper/50">적의 행동은 간파한 경우에만 공개된다.</p>}
+        </div>
       )}
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="ink-panel rounded-xl p-4">
@@ -387,7 +395,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                   <li key={s.id} data-psychic={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
                     <p className="text-sm text-paper">{s.label}</p>
                     <p className="text-[11px] text-paper/60">{s.note}</p>
-                    {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
+                    <PsychicDetails psychic={s} stats={stats} options={{ sacrifice: pawAmt }} condensed />
                     {s.toggle ? (
                       <button
                         type="button"
