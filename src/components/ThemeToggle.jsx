@@ -142,7 +142,7 @@ export default function ThemeToggle({ theme, onSelect }) {
                 <Type size={15} aria-hidden /> 글씨 크기 조절
               </legend>
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="text-xs text-paper/60">전체 게임 글씨 크기</span>
+                <span className="text-xs text-paper/60">글자만 크기 조절</span>
                 <output htmlFor="ui-font-size" className="text-sm font-bold text-gold tabular-nums">{fontSize}%</output>
               </div>
               <input
@@ -170,7 +170,7 @@ export default function ThemeToggle({ theme, onSelect }) {
                 <span>{FONT_SIZE_MAX}% · 크게</span>
               </div>
             </fieldset>
-            <p className="mt-3 text-[11px] leading-relaxed text-paper/50">글씨체와 크기는 즉시 적용되며 이 브라우저에 저장됩니다. 글씨가 커지면 일부 화면의 줄바꿈이 달라질 수 있습니다.</p>
+            <p className="mt-3 text-[11px] leading-relaxed text-paper/50">글씨체와 크기는 즉시 적용되며 이 브라우저에 저장됩니다. 버튼과 창 크기는 유지되지만 큰 글씨는 줄바꿈될 수 있습니다.</p>
           </div>
         </div>,
         document.body,

@@ -17,12 +17,12 @@
         var fontSize = Number.isFinite(savedFontSize) && savedFontSize >= 80 && savedFontSize <= 130
           ? Math.round(savedFontSize / 5) * 5 : 100
         document.documentElement.dataset.uiFontSize = String(fontSize)
-        document.documentElement.style.setProperty('--ui-font-size', fontSize + '%')
+        document.documentElement.style.setProperty('--ui-font-scale', String(fontSize / 100))
       } catch (e) {
         document.documentElement.dataset.theme = 'dark'
         document.documentElement.dataset.uiFont = 'neo'
         document.documentElement.dataset.uiFontSize = '100'
-        document.documentElement.style.setProperty('--ui-font-size', '100%')
+        document.documentElement.style.setProperty('--ui-font-scale', '1')
       }
     </script>
     <title>草綠同色</title>

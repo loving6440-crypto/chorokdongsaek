@@ -28,11 +28,20 @@ test('설정 대화상자에 접근 가능한 크기 슬라이더와 원래 크�
 })
 
 test('폰트 크기 설정은 즉시 적용, 저장, 재접속 사전 복원, 다른 탭 동기화가 가능하다', () => {
-  assert.match(hook, /setProperty\('--ui-font-size', `\$\{size\}%`\)/)
+  assert.match(hook, /setProperty\('--ui-font-scale', String\(size \/ 100\)\)/)
   assert.match(hook, /localStorage\.setItem\(FONT_SIZE_STORAGE_KEY, String\(next\)\)/)
   assert.match(hook, /addEventListener\('storage'/)
   assert.match(html, /getItem\('changnok-ui-font-size'\)/)
-  assert.match(html, /style\.setProperty\('--ui-font-size', fontSize \+ '%'\)/)
-  assert.match(css, /html \{ font-size: var\(--ui-font-size, 100%\); \}/)
+  assert.match(html, /style\.setProperty\('--ui-font-scale', String\(fontSize \/ 100\)\)/)
+  assert.match(css, /--text-sm: calc\(\.875rem \* var\(--ui-font-scale\)\)/)
   assert.match(css, /size-adjust: 115%/)
+})
+
+test('글자 크기 조절은 rem 기반 UI의 폭/간격을 변경하지 않는다', () => {
+  assert.doesNotMatch(css, /html\s*\{\s*font-size\s*:/)
+  assert.match(css, /--text-xs: calc\(\.75rem \* var\(--ui-font-scale\)\)/)
+  assert.match(css, /--text-2xl: calc\(1\.5rem \* var\(--ui-font-scale\)\)/)
+  assert.match(css, /\[class~="text-\[11px\]"\] \{ font-size: calc\(11px \* var\(--ui-font-scale\)\); \}/)
+  assert.match(css, /body \{ font-size: calc\(1rem \* var\(--ui-font-scale\)\); \}/)
+  assert.doesNotMatch(html, /--ui-font-size/)
 })

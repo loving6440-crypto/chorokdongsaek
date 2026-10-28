@@ -10,8 +10,8 @@ function readInitialSize() {
 
 function applyFontSize(size) {
   document.documentElement.dataset.uiFontSize = String(size)
-  // 초기 HTML 스크립트에서도 동일한 변수를 사용해 첫 화면 깜빡임을 피한다.
-  document.documentElement.style.setProperty('--ui-font-size', `${size}%`)
+  // rem 레이아웃 크기를 유지하도록 텍스트 전용 배율만 적용한다.
+  document.documentElement.style.setProperty('--ui-font-scale', String(size / 100))
 }
 
 /** 테마/서체와 독립적인 브라우저별 글씨 크기 설정. */
