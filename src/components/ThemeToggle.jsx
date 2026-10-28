@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Moon, Settings2, Sun, Type, X } from 'lucide-react'
 import { UI_FONTS, useFont } from '../hooks/useFont'
+import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, FONT_SIZE_STEP, useFontSize } from '../hooks/useFontSize'
 
 /**
  * 테마 버튼은 토글이 아니라 화면 설정 대화상자를 연다.
@@ -10,6 +11,7 @@ import { UI_FONTS, useFont } from '../hooks/useFont'
 export default function ThemeToggle({ theme, onSelect }) {
   const [open, setOpen] = useState(false)
   const { font, selectFont } = useFont()
+  const { fontSize, selectFontSize } = useFontSize()
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
   const closeRef = useRef(null)
@@ -48,7 +50,7 @@ export default function ThemeToggle({ theme, onSelect }) {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
-        title="화면 설정 (테마·글씨체)"
+        title="화면 설정 (테마·글씨체·글씨 크기)"
         aria-label="화면 설정"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -135,7 +137,40 @@ export default function ThemeToggle({ theme, onSelect }) {
                 ))}
               </div>
             </fieldset>
-            <p className="mt-3 text-[11px] leading-relaxed text-paper/50">선택 즉시 적용되며, 이 브라우저에 설정이 저장됩니다.</p>
+            <fieldset className="mt-5 border-t border-edge/20 pt-4">
+              <legend className="mb-2 flex w-full items-center gap-1.5 text-xs font-bold tracking-wide text-paper/85">
+                <Type size={15} aria-hidden /> 글씨 크기 조절
+              </legend>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-xs text-paper/60">전체 게임 글씨 크기</span>
+                <output htmlFor="ui-font-size" className="text-sm font-bold text-gold tabular-nums">{fontSize}%</output>
+              </div>
+              <input
+                id="ui-font-size"
+                type="range"
+                min={FONT_SIZE_MIN}
+                max={FONT_SIZE_MAX}
+                step={FONT_SIZE_STEP}
+                value={fontSize}
+                onChange={(event) => selectFontSize(event.target.value)}
+                aria-label="글씨 크기"
+                aria-valuetext={`${fontSize}%`}
+                className="w-full cursor-pointer accent-[var(--c-gold-fill)]"
+              />
+              <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-paper/55">
+                <span>{FONT_SIZE_MIN}% · 작게</span>
+                <button
+                  type="button"
+                  onClick={() => selectFontSize(FONT_SIZE_DEFAULT)}
+                  disabled={fontSize === FONT_SIZE_DEFAULT}
+                  className="border border-edge/25 px-2 py-1 text-paper/80 enabled:hover:border-gold/50 disabled:opacity-40"
+                >
+                  기본 크기 (100%)
+                </button>
+                <span>{FONT_SIZE_MAX}% · 크게</span>
+              </div>
+            </fieldset>
+            <p className="mt-3 text-[11px] leading-relaxed text-paper/50">글씨체와 크기는 즉시 적용되며 이 브라우저에 저장됩니다. 글씨가 커지면 일부 화면의 줄바꿈이 달라질 수 있습니다.</p>
           </div>
         </div>,
         document.body,
