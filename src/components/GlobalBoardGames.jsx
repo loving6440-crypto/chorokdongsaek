@@ -16,8 +16,8 @@ export default function GlobalBoardGames({ active }) {
   const has = net.omokInvite || net.omok || net.yutInvite || net.yut || net.rummiInvite || net.rummi || net.yachtInvite || net.yacht
   if (!has) return null
   return (
-    <div className="modal-scrim fixed inset-0 z-[75] grid place-items-center p-4" data-global-board-game>
-      <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto">
+    <div className="absolute inset-0 z-[35] flex min-h-0 items-start justify-center overflow-auto rounded-2xl bg-ink/95 p-3" data-global-board-game>
+      <div className="w-full max-w-lg overflow-visible">
         {(net.omokInvite || net.omok) && <OmokGame />}
         {(net.yutInvite || net.yut) && <YutGame />}
         {(net.rummiInvite || net.rummi) && <RummikubGame />}

@@ -163,16 +163,16 @@ export default function GameModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center modal-scrim p-4"
+      className="absolute inset-0 z-40 flex items-center justify-center bg-shade/95 p-2 sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
         role="dialog"
-        aria-modal="true"
+        aria-modal="false"
         aria-label={`${course.title} · ${course.game}`}
-        className={`ink-panel max-h-[94vh] w-full overflow-y-auto rounded-lg p-5 ${
+        className={`ink-panel max-h-full w-full overflow-y-auto rounded-lg p-5 ${
           entry ? entry.width : 'max-w-md'
         }`}
       >

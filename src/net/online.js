@@ -48,8 +48,12 @@ let source = null
 let noticeSeq = 1
 let activeChannel = null // 지금 화면에 열려 있는 채팅 탭 (안 읽음 계산용)
 
-const pushNotice = (text) =>
-  set({ notices: [...state.notices, { id: noticeSeq++, text }].slice(-5) })
+const pushNotice = (text) => {
+  const id = noticeSeq++
+  const notice = { id, text }
+  const msg = { id: `private-notice-${id}`, text, system: true, at: Date.now() }
+  set({ notices: [...state.notices, notice].slice(-5), history: { ...state.history, talk: cap([...state.history.talk, msg]) } })
+}
 
 const cap = (arr) => (arr.length > HISTORY_MAX ? arr.slice(-HISTORY_MAX) : arr)
 
@@ -264,6 +268,8 @@ async function post(path, body) {
 }
 
 export const sendChat = (channel, text) => post('/api/chat', { channel, text })
+export const fetchFriends = () => post('/api/friends/list', {})
+export const changeFriend = (to, action) => post('/api/friends/change', { to, action })
 
 export async function inviteToParty(toId) {
   const r = await post('/api/party/invite', { to: toId })

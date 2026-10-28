@@ -1,3 +1,5 @@
+import { PSYCHICS } from '../game/battle'
+import PsychicDetails from './PsychicDetails'
 import { useEffect, useState } from 'react'
 import { BookMarked, Check, Lock, Trophy, X } from 'lucide-react'
 import { ACHIEVEMENTS, rewardText } from '../game/achievements'
@@ -56,6 +58,7 @@ export function Entry({ e, admin, onGet, have }) {
         {e.where && <p className="text-[11px] text-paper/50">{e.where}</p>}
         {e.from && <p className="text-[11px] text-paper/50">{e.from}의 영능력</p>}
         <p className={`mt-1 whitespace-pre-line text-xs leading-relaxed ${e.desc ? 'text-paper/75' : 'text-paper/40'}`}>{e.desc || EMPTY_DESC}</p>
+        {e.kind === 'skill' && e.id.startsWith('my-') && <PsychicDetails psychic={PSYCHICS.find(p => p.id === e.id.slice(3))} />}
         {e.extra && <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-gold">{e.extra}</p>}
         {admin && e.kind === 'item' && (
           <button type="button" data-admin-get={e.id} onClick={() => onGet?.(e.id)} className="mt-2 rounded-full bg-crimson/80 px-2.5 py-0.5 text-[11px] text-[#fbf6e9]">

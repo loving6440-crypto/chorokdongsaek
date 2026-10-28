@@ -12,7 +12,7 @@
  * tags: 화면에 칩으로 붙는 분류. ('재료', '완성품', '선물' ...) 재료/완성품은 아래 ITEMS 에서 자동으로 붙는다.
  * battle: 전투 중 사용 가능하다고 명시된 것만 true. (tags 에 '전투 중 사용 가능' 칩도 함께 붙인다.)
  * only: 'battle' 이면 전투 중에만 쓸 수 있다.  party: 일행(파티) 상태에서만 쓸 수 있다.
- * 다인 전투에서 아이템은 자기 차례에만 쓸 수 있다. 그중 '일행'(나 말고 다른 사람)에게도 쓸 수 있는 아이템은 쓰는 순간 그 턴이 끝나고(#턴소모有),
+ * 다인 전투에서 #턴소모無 아이템은 타인의 턴에도 쓸 수 있다. 그중 '일행'(나 말고 다른 사람)에게도 쓸 수 있는 아이템은 쓰는 순간 그 턴이 끝나고(#턴소모有),
  * 나를 포함한 '개인'에게만 쓸 수 있는 아이템은 턴을 소모하지 않아 같은 턴에 다른 행동도 이어서 할 수 있다(#턴소모無). (v71)
  */
 /** 턴소모有/無 판정: 일행 전원(또는 나를 제외한 전원)을 대상으로 하는 효과(partyHp·partyMp·partyBoost·giveHp)가 있으면 턴을 소모한다.
@@ -699,7 +699,7 @@ const RAW_ITEMS = [
     name: '석장',
     price: null,
     desc: '불교에서 수행자들이 사용하는 의식 도구. 깊은 불심을 가진 사람이 주술을 시전하는 데에 도움을 주거나 영능력을 보조하는 데에 쓰인다.',
-    effectText: '전투 중 모든 의지력 소모가 50%로 줄어든다.',
+    effectText: '전투 중 모든 의지력 소모가 20% 줄어든다. (소수점 내림)',
     effect: {},
     bonus: {},
     battle: false,
@@ -717,6 +717,15 @@ const RAW_ITEMS = [
     effect: {},
     bonus: {},
     battle: false,
+  },
+  {
+    id: 'polishing-stone', kind: 'tool', tags: ['완성품', '무구 강화'], name: '연마석',
+    price: null, desc: '무구를 다듬을 때 쓰는 단단한 연마석.', effectText: '무구 일반 강화와 특수 강화에 쓰이는 재료.', effect: {}, battle: false,
+  },
+  {
+    id: 'plain-cloth', kind: 'tool', tags: ['완성품', '특수 강화 해제'], name: '무명천',
+    price: null, desc: '아무 문양도 없는 고운 무명천. 무구에 깃든 특수한 기운을 씻어 낸다.',
+    effectText: '무구보관소에서 특수 강화를 제거하고 사용했던 화투패를 돌려받는다. 일반 강화는 유지된다.', effect: {}, battle: false,
   },
   // ───────── 무구 강화 재료(완성품): 스탯 0→1 숫돌 · 1→2 기름 먹인 천 · 2→3 오색 매듭 · 3→4 주사 호신부 · 4→5 은입사 장식 ─────────
   {
@@ -737,7 +746,7 @@ const RAW_ITEMS = [
     name: '기름 먹인 천',
     price: null,
     desc: '무구의 날과 자루를 닦아 윤을 내는 천. 손에 쥐는 맛이 달라진다.',
-    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
+    effectText: '무구보관소에서 무구를 일반 강화할 때 쓰는 재료다.',
     effect: {},
     battle: false,
   },
@@ -748,7 +757,7 @@ const RAW_ITEMS = [
     name: '오색 매듭',
     price: null,
     desc: '무구의 자루에 다는 오방색 매듭. 눈에 익은 장식이 쥔 사람의 마음가짐까지 가다듬는다.',
-    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
+    effectText: '무구보관소에서 무구를 일반 강화할 때 쓰는 재료다.',
     effect: {},
     battle: false,
   },
@@ -759,7 +768,7 @@ const RAW_ITEMS = [
     name: '주사 호신부',
     price: null,
     desc: '붉은 주사로 한 획 한 획 써 내린 작은 부적. 무구에 붙여 두면 쓰는 이의 기운이 한결 안정된다.',
-    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
+    effectText: '무구보관소에서 무구를 일반 강화할 때 쓰는 재료다.',
     effect: {},
     battle: false,
   },
@@ -770,7 +779,7 @@ const RAW_ITEMS = [
     name: '은입사 장식',
     price: null,
     desc: '무구에 은실을 박아 넣는 장인의 장식. 이 단계까지 오른 무구는 더 손댈 곳이 없다고들 한다.',
-    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
+    effectText: '무구보관소에서 무구를 일반 강화할 때 쓰는 재료다.',
     effect: {},
     battle: false,
   },
@@ -859,8 +868,20 @@ export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
 // 강화 1회당 선택 스탯 +1, 무구당 총 15포인트. 매회 연마석 1개와 의지력 20 소모.
 export const ENH_MAX = 15
 export const ENH_TIER_SIZE = 1
-export const ENH_ITEMS = ['whetstone']
-export const enhMaterialFor = () => 'whetstone'
+export const ENH_ITEMS = ['polishing-stone', 'whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay', 'plain-cloth']
+/** 강화 단계에 따라 연마석, 보조 재료, 영력 비용이 올라간다. */
+export function enhCostFor(level) {
+  const lv = Math.max(0, Math.floor(level))
+  if (lv >= ENH_MAX) return null
+  const tier = Math.floor(lv / 3)
+  return {
+    polishing: tier + 1,
+    material: ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'][tier],
+    quantity: lv % 3 + 1,
+    spirit: (tier + 1) * 10,
+  }
+}
+export const enhMaterialFor = (level = 0) => enhCostFor(level)?.material ?? null
 export const SPECIAL_ENHANCEMENTS = [
   { id: 'pine', card: 'hwatu-pine', title: '솔의', displayTitle: '솔의', effect: '전투불능 없이 승리하면 전투 직전 체력·의지력 복구' },
   { id: 'plum', card: 'hwatu-plum', title: '매화의', displayTitle: '매화의', effect: '전투 중 의지력 150' },
@@ -950,17 +971,21 @@ export function enhanceWeapon(player, weaponId, stat, admin = false) {
   if (!ENH_STATS.includes(stat)) return { error: '올릴 수 없는 스탯이다.' }
   const total = enhTotal(player, weaponId)
   if (total >= ENH_MAX) return { error: '이 무구는 일반 강화 15포인트를 모두 사용했다.' }
-  if (!admin && (player.mp ?? 0) < 20) return { error: '의지력이 20 필요하다.' }
-  const material = 'whetstone'
+  const cost = enhCostFor(total)
+  const material = cost.material
   let inventory = { ...(player.inventory ?? {}) }
   if (!admin) {
-    if (!countOf(player, material)) return { error: '연마석이 필요하다.' }
-    inventory[material] -= 1
-    if (inventory[material] <= 0) delete inventory[material]
+    if ((player.spirit ?? 0) < cost.spirit) return { error: `영력이 ${cost.spirit} 필요하다.` }
+    if (countOf(player, 'polishing-stone') < cost.polishing) return { error: `연마석이 ${cost.polishing}개 필요하다.` }
+    if (countOf(player, material) < cost.quantity) return { error: `${itemOf(material)?.name}이(가) ${cost.quantity}개 필요하다.` }
+    for (const [id, qty] of [['polishing-stone', cost.polishing], [material, cost.quantity]]) {
+      inventory[id] -= qty
+      if (inventory[id] <= 0) delete inventory[id]
+    }
   }
   const from = enhLevel(player, weaponId, stat)
   const enh = { ...(player.enh ?? {}), [weaponId]: { ...(player.enh?.[weaponId] ?? {}), [stat]: from + 1 } }
-  return { player: { ...player, inventory, mp: admin ? player.mp : player.mp - 20, enh }, from, to: from + 1, total: total + 1, material }
+  return { player: { ...player, inventory, spirit: admin ? player.spirit : player.spirit - cost.spirit, enh }, from, to: from + 1, total: total + 1, material, cost }
 }
 
 /** 화투패로 특수 강화. 무구당 1종, 같은 특수 강화 중복 불가. */
@@ -976,13 +1001,44 @@ export function specialEnhanceWeapon(player, weaponId, specialId, admin = false)
     if ((player.spirit ?? 0) < 50) return { error: '영력이 50 필요하다.' }
     if ((player.money ?? 0) < 500) return { error: '500냥이 필요하다.' }
     if (countOf(player, sp.card) < 1) return { error: `${itemOf(sp.card)?.name ?? '해당 화투패'}가 필요하다.` }
-    if (countOf(player, 'whetstone') < 1) return { error: '연마석 1개가 필요하다.' }
+    if (countOf(player, 'whetstone') < 1) return { error: '숫돌 1개가 필요하다.' }
   }
   const inventory = { ...(player.inventory ?? {}) }
   if (!admin) {
     for (const id of [sp.card, 'whetstone']) { inventory[id] = (inventory[id] ?? 0) - 1; if (inventory[id] <= 0) delete inventory[id] }
   }
   return { player: { ...player, inventory, mp: admin ? player.mp : player.mp - 50, spirit: admin ? player.spirit : player.spirit - 50, money: admin ? player.money : player.money - 500, weaponSpecial: { ...(player.weaponSpecial ?? {}), [weaponId]: specialId } }, special: sp }
+}
+/** 무명천으로 무구의 특수 강화만 떼고 화투패를 되돌려준다. */
+export function removeWeaponSpecial(player, weaponId, admin = false) {
+  if (!ownsWeapon(player, weaponId)) return { error: '소지한 무구가 아니다.' }
+  const id = specialEnhOf(player, weaponId)
+  const special = SPECIAL_ENHANCEMENTS.find((s) => s.id === id)
+  if (!special) return { error: '특수 강화가 붙어 있지 않다.' }
+  if (!admin && countOf(player, 'plain-cloth') < 1) return { error: '무명천이 1개 필요하다.' }
+  const inventory = { ...(player.inventory ?? {}) }
+  if (!admin) {
+    inventory['plain-cloth'] -= 1
+    if (inventory['plain-cloth'] <= 0) delete inventory['plain-cloth']
+  }
+  inventory[special.card] = (inventory[special.card] || 0) + 1
+  const weaponSpecial = { ...(player.weaponSpecial ?? {}) }
+  delete weaponSpecial[weaponId]
+  return { player: { ...player, inventory, weaponSpecial }, special }
+}
+/** 본인 소지품에서 아이템을 버린다. 장착 장비는 먼저 해제해야 한다. */
+export function discardInventoryItem(player, itemId, amount) {
+  const qty = Number(amount)
+  const it = itemOf(itemId)
+  if (!it || !Number.isSafeInteger(qty) || qty < 1 || qty > (player.inventory?.[itemId] || 0)) return { error: '버릴 수량이나 소지품이 올바르지 않다.' }
+  if (it.id === 'uniform' || it.tags?.includes('버릴 수 없음')) return { error: '버릴 수 없는 물건이다.' }
+  if (it.slot === 'weapon' && qty !== 1) return { error: '무구는 한 벌씩 버려야 한다.' }
+  const inventory = { ...(player.inventory ?? {}) }
+  inventory[itemId] -= qty
+  if (!inventory[itemId]) delete inventory[itemId]
+  const enh = { ...(player.enh ?? {}) }, weaponSpecial = { ...(player.weaponSpecial ?? {}) }
+  if (it.slot === 'weapon') { delete enh[itemId]; delete weaponSpecial[itemId] }
+  return { player: { ...player, inventory, enh, weaponSpecial }, name: it.name, amount: qty }
 }
 /**
  * 선물로 무구를 보낼 때 함께 가는 강화: 보낸 뒤에 그 무구를 더는 갖고(끼고) 있지 않을 때만 강화가 따라간다.

@@ -8,9 +8,9 @@ export default function SpBanner({ sp, className = 'top-10', onEnd }) {
       key={sp.k}
       role="alert"
       data-sp-banner
-      className={`sp-banner pointer-events-none absolute inset-x-0 ${className} z-30 mx-auto w-[min(28rem,94%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl`}
-      onAnimationEnd={onEnd}
+      className={`absolute inset-x-0 ${className} z-30 mx-auto w-[min(28rem,94%)] rounded-2xl border-2 border-crimson bg-ink/95 px-5 py-4 text-center shadow-2xl`}
     >
+      <button type="button" onClick={onEnd} aria-label="영능력 팝업 닫기" className="absolute right-2 top-2 grid size-8 place-items-center rounded-full border border-crimson/40 text-xl leading-none text-crimson hover:bg-crimson/15">×</button>
       <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
       <p className="mt-1 font-serif text-3xl text-gold">《{sp.label}》</p>
       <p className="mt-1 text-sm text-paper/90">{sp.note}</p>

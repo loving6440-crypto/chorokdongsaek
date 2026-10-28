@@ -1,3 +1,4 @@
+import PsychicDetails from '../PsychicDetails'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpenText, Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import BattleTutorialHub from '../BattleTutorial2'
@@ -70,11 +71,6 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
   const [scanN, setScanN] = useState(1)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
-  useEffect(() => {
-    if (!spBanner) return undefined
-    const t = setTimeout(() => setSpBanner(null), 6200)
-    return () => clearTimeout(t)
-  }, [spBanner])
   const beginRef = useRef(null)
   const timer = useRef(null)
   const reported = useRef(false)
@@ -725,8 +721,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
                 {mine.map((s) => (
                   <li key={s.id} data-psychic={s.id} className="rounded-lg bg-edge/[0.07] px-3 py-2">
                     <p className="text-sm text-paper">{s.label}</p>
-                    <p className="text-[11px] text-paper/60">{s.note}</p>
-                    {s.detail && <p className="mt-1 text-[11px] text-gold/80">{s.detail}</p>}
+                    <PsychicDetails psychic={s} stats={stats} options={s.id === 'monkey-paw' ? { sacrifice: pawAmt } : undefined} condensed />
                     {s.toggle ? (
                       <button
                         type="button"

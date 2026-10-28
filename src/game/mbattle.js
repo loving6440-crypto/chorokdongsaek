@@ -253,8 +253,8 @@ function useItemCore(mb, id, item, targetId) {
   const m = mb.members.find((x) => x.id === id)
   const t = mb.members.find((x) => x.id === (targetId || id))
   if (!m || !t || m.status !== 'alive' || mb.phase !== 'input') return { error: 'not-fighting' }
-  if (mb.turn !== id) return { error: 'not-your-turn' } // 아이템도 자기 차례에만 쓸 수 있다.
-  if (m.act) return { error: 'already' }
+  if (!itemTurnFree(item) && mb.turn !== id) return { error: 'not-your-turn' } // #턴소모無는 다른 사람 턴에도 사용 가능.
+  if (!itemTurnFree(item) && m.act) return { error: 'already' }
   if (m.stun > 0 || m.fire > 0) return { error: 'busy' } // 행동불능·도깨비불 충전 중엔 아이템도 쓸 수 없다.
   const e = item?.effect ?? {}
   if (!item?.battle) return { error: 'not-battle-item' }
@@ -772,6 +772,7 @@ export function viewOf(mb, extra = {}) {
     members: mb.members.map((m) => ({
       id: m.id,
       name: m.name,
+      agility: m.stats.agility,
       php: m.php,
       phpMax: m.phpMax,
       mp: m.mp,

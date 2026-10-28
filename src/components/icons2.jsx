@@ -17,6 +17,21 @@ export const EXTRA_BG = {
 }
 
 export const EXTRA_ICONS = {
+  'polishing-stone': { bg: 'stone', art: (<>
+    <path d="M14 37 L23 20 L41 15 L51 30 L46 48 L25 52Z" fill="#e8e2d4" />
+    <path d="M23 20 L41 15 L36 35 L14 37Z" fill="#a0a7ae" />
+    <path d="M36 35 L51 30 L46 48 L25 52Z" fill="#bcc5c9" />
+    <path d="M17 41 L28 47 L43 44" stroke="#7e8b94" strokeWidth="2" fill="none" strokeLinecap="round" />
+    <path d="M39 10 L41 15 L46 17 L41 19 L39 24 L37 19 L32 17 L37 15Z" fill="#fff8ce" />
+  </>) },
+  'plain-cloth': { bg: 'paper', art: (<>
+    <path d="M17 19 C24 16 28 20 34 17 C40 14 47 18 48 24 L44 47 C38 50 32 46 27 49 C22 51 17 48 15 45Z" fill="#f7f2df" />
+    <path d="M17 19 C24 16 28 20 34 17 C40 14 47 18 48 24 L44 47 C38 50 32 46 27 49 C22 51 17 48 15 45Z" fill="none" stroke="#a79b83" strokeWidth="2" />
+    <path d="M19 26 Q25 29 32 25 Q38 23 45 27 M18 37 Q25 40 32 36 Q38 33 45 38" stroke="#d9ceba" strokeWidth="2" fill="none" />
+    <path d="M24 18 L29 49 M38 17 L34 47" stroke="#ded4c1" strokeWidth="1.3" opacity=".8" />
+    <path d="M31 27 l3 5 -4 6 -3 -5Z" fill="#b7a17f" opacity=".5" />
+  </>) },
+
   // ── 재료 ──
   brush: { bg: 'indigo', art: (<>
     <path d="M46 9 L53 16 L31 38 L24 31Z" fill="#d9b779" />

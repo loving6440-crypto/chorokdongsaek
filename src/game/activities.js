@@ -17,8 +17,7 @@ export const ACTIVITIES = {
   ],
   dorm: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },
-    { id: 'sleep', label: '휴식', icon: BedDouble },
-    { id: 'train', label: '수련', icon: Moon },
+    { id: 'my-room', label: '내 기숙사', icon: BedDouble },
     { id: 'store', label: '매점', icon: ShoppingBag },
     { id: 'cafeteria', label: '급식실', icon: Utensils },
   ],

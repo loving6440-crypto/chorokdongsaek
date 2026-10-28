@@ -5,37 +5,37 @@ export const SKINS_RUNNER = [
   {
     id: 'fox',
     name: '여우',
-    desc: '이마에 부적을 붙인 여우. 기본 스킨.',
+    desc: '이마에 부적을 붙인 여우. 열심히 뛰고 있지만 다리가 짧다.',
     unlock: null,
   },
   {
     id: 'changnok-bloom',
     name: '창록 교화',
-    desc: '데굴데굴 굴러가는 분홍빛 벚꽃 한 송이.',
+    desc: '꽃이 왜 굴러다니고 있어? 벌써 황사 시즌이야?',
     unlock: 'first-practice',
   },
   {
     id: 'dokkaebi-fire',
     name: '도깨비불',
-    desc: '눈코입 없이 그저 활활 타오르는 청록빛 불.',
+    desc: '청록색 불꽃. 놀라지 마시라. 사특한 존재는 아니니까.',
     unlock: 'unset-dokkaebi-fire-runner', // 취득 경로 아직 미설정 — 존재하지 않는 업적 id라, 관리자가 선물해 주지 않으면 아무도 열 수 없다.
   },
   {
     id: 'wheat-rabbit',
     name: '황금빛 밀밭',
-    desc: '귀가 축 늘어진 갈색 롭이어 토끼.',
+    desc: '이 토끼는 원래 롭이어였다. 귀신을 너무 많이 봐서 쫑긋귀가 되었다고 한다.',
     unlock: 'unset-wheat-rabbit',
   },
   {
     id: 'ugly-duckling',
     name: '미운 오리',
-    desc: '아장아장 뛰어다니는 새까만 새끼 오리.',
+    desc: '미운 오리는 왜 다리가 4개일까? 이거 미운 오리 아니고 미친 오리 아냐?',
     unlock: 'unset-ugly-duckling',
   },
   {
     id: 'walking-plant',
     name: '걷는 식물',
-    desc: '짧고 동그란 발(신발?)이 달려 뛰어다니는 화분.',
+    desc: '뭘 봐? 식물이 걷는 거 처음 봐?',
     unlock: 'unset-walking-plant',
   },
 ]

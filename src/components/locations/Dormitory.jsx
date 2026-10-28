@@ -105,9 +105,18 @@ export default function Dormitory({ view, control, spirit = 0, training, sleepin
   const endAt = training ? training.startedAt + training.minutes * 60000 : 0
   const progress = training ? Math.min(1, (now - training.startedAt) / (training.minutes * 60000)) : 0
 
+  const [roomTab, setRoomTab] = useState('sleep')
   if (view === 'intro') return <LocationIntro id="dorm" />
+  if (view === 'my-room') return <section><h2 className="font-serif text-2xl text-gold">내 기숙사</h2><div className="mt-3 flex flex-wrap gap-2">{[['sleep', '휴식'], ['train', '수련'], ['decorate', '기숙사 꾸미기']].map(([id, label]) => <button type="button" key={id} onClick={() => setRoomTab(id)} className={roomTab === id ? 'flat-btn' : 'flat-btn-ghost'}>{label}</button>)}</div><div className="mt-4">{roomTab === 'sleep' ? <Sleep spirit={spirit} sleeping={sleeping} onStartSleep={onStartSleep} onStopSleep={onStopSleep} /> : roomTab === 'decorate' ? <div className="ink-panel rounded-xl p-6 text-sm text-paper/70">기숙사 꾸미기는 준비 중입니다.</div> : <TrainingView control={control} training={training} minutes={minutes} setMinutes={setMinutes} now={now} onStartTraining={onStartTraining} onStopTraining={onStopTraining} />}</div></section>
   if (view === 'sleep') return <Sleep spirit={spirit} sleeping={sleeping} onStartSleep={onStartSleep} onStopSleep={onStopSleep} />
 
+  return <TrainingView control={control} training={training} minutes={minutes} setMinutes={setMinutes} now={now} onStartTraining={onStartTraining} onStopTraining={onStopTraining} />
+}
+
+function TrainingView({ control, training, minutes, setMinutes, now, onStartTraining, onStopTraining }) {
+  const total = training ? (training.reward ?? training.minutes / TRAIN_UNIT_MIN) : 0
+  const endAt = training ? training.startedAt + training.minutes * 60000 : 0
+  const progress = training ? Math.min(1, (now - training.startedAt) / (training.minutes * 60000)) : 0
   return (
     <section>
       <div className="ink-panel w-full rounded-md p-5">

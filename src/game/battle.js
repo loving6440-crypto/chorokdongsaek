@@ -576,8 +576,15 @@ function attackRoll(stats, rng, noMiss = false) {
 }
 
 // ───────── 무구 효과(stats.fx) ─────────
-/** 석장: 전투 중 의지력 소모가 절반(올림) */
-export const mpCostOf = (stats, cost) => (stats.fx === 'staff' ? Math.ceil(cost / 2) : cost)
+/** 석장: 기본 의지력 소모에서 20% 할인(소수점 내림). */
+export const mpCostOf = (stats, cost) => (stats.fx === 'staff' ? Math.floor(cost * 0.8) : cost)
+/** 인내 수동 피해 저항: (인내 / 2)% 확률로 1d인내 감소. */
+export function enduranceMitigation(endurance, damage, rng = Math.random) {
+  const e = Math.max(0, Math.floor(endurance || 0))
+  if (!e || damage <= 0 || rng() * 100 >= Math.min(100, e / 2)) return { damage: Math.max(0, damage), reduced: 0 }
+  const reduced = die(e, rng)
+  return { damage: Math.max(0, damage - reduced), reduced: Math.min(damage, reduced) }
+}
 /** 악기 보정값: 악기를 든 사람의 [이해] 값으로 고정 (더 이상 주사위를 굴리지 않는다). (v71) */
 export const auraOf = (stats) => (stats.fx === 'instrument' ? Math.max(0, Math.floor(stats.comprehension || 0)) : 0)
 /** 악기를 든 사람 자신에게 적용될 때는 75%만 적용된다. (v71) */
@@ -789,6 +796,9 @@ export function enemyTurn(state, ctx, rng = Math.random) {
     }
     let dmg = stats.fx === 'mace' ? Math.ceil(raw * 1.5) : raw // 철퇴: 받는 피해 ×1.5
     if (stats.special === 'paulownia') dmg = Math.max(0, dmg - Math.ceil(dmg * 0.1))
+    const resisted = enduranceMitigation(stats.endurance, dmg, rng)
+    dmg = resisted.damage
+    if (resisted.reduced) ev.push({ kind: 'warn', text: `인내로 피해 ${resisted.reduced} 감소!` })
     // 칼: 막기 성공 여부와 상관없이, 공격 대상이 될 때마다(실제로 공격이 들어올 때마다) 반격한다. (v70)
     // 완전 방어(최대 굴림)나 호전이 더 높은 경우 등 기존 반격-강화 조건을 함께 만족하면 1d호전×3으로 올라간다. (v71)
     const sword = stats.fx === 'sword'
@@ -937,9 +947,11 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   // 저주: 방금 건 턴에는 들어가지 않고, 이후 상대 턴마다 들어간다.
   if (s.curse > 0 && !(intent === 'special' && enemy.id === 'wonhon')) {
     const per = die(Math.max(1, Math.floor(enemy.spirit / 2)), rng)
-    s.php -= per
+    const resisted = enduranceMitigation(stats.endurance, per, rng)
+    s.php -= resisted.damage
     s.curse -= 1
-    ev.push({ kind: 'enemy', dmg: per, text: `저주가 스며든다. ${per} 피해! (남은 ${s.curse}턴)` })
+    if (resisted.reduced) ev.push({ kind: 'warn', text: `인내로 저주 피해 ${resisted.reduced} 감소!` })
+    ev.push({ kind: 'enemy', dmg: resisted.damage, text: `저주가 스며든다. ${resisted.damage} 피해! (남은 ${s.curse}턴)` })
   }
 
   // 다음 라운드 준비
