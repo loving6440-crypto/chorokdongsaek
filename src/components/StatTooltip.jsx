@@ -1,44 +1,68 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { STAT_META } from '../game/constants'
+import { tooltipPosition } from './statTooltipPosition.mjs'
 
-/** 기질 이름에 마우스를 올리거나 포커스하면 설명(머리줄 + 두 문단)을 띄운다. */
+/**
+ * 스탯 설명은 마우스 좌표에 붙여 표시한다.
+ * 스크롤/transform/overflow가 있는 부모 안에서 fixed가 어긋나지 않도록
+ * 툴팁만 document.body 포털에 그린다.
+ */
 export default function StatTooltip({ statKey, side = 'left', children }) {
   const tip = STAT_META[statKey]?.tip
-  const [pos, setPos] = useState(null)
-  const ref = useRef(null)
+  const [cursor, setCursor] = useState(null)
+  const triggerRef = useRef(null)
+  const tooltipRef = useRef(null)
   const id = useId()
+
+  useLayoutEffect(() => {
+    const node = tooltipRef.current
+    if (!cursor || !node) return
+
+    // 실제 설명창 크기를 측정해 화면 바깥으로 잘리지 않게 배치한다.
+    const bounds = node.getBoundingClientRect()
+    const { left, top } = tooltipPosition({
+      x: cursor.x,
+      y: cursor.y,
+      width: bounds.width,
+      height: bounds.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      above: side === 'above',
+    })
+    node.style.left = `${left}px`
+    node.style.top = `${top}px`
+  }, [cursor, side])
+
   if (!tip) return children
 
-  const show = () => {
-    const r = ref.current?.getBoundingClientRect()
-    if (!r) return
-    const W = Math.min(320, window.innerWidth - 16)
-    let left = side === 'left' ? r.left - W - 10 : r.right + 10
-    if (side === 'below' || side === 'above') left = r.left
-    left = Math.max(8, Math.min(left, window.innerWidth - W - 8))
-    const top = side === 'below' ? r.bottom + 8 : Math.max(8, Math.min(r.top - 6, window.innerHeight - 300))
-    setPos(side === 'above' ? { left, bottom: window.innerHeight - r.top + 8, W } : { left, top, W })
+  const showAtPointer = (event) => setCursor({ x: event.clientX, y: event.clientY })
+  const showAtFocus = () => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) setCursor({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
   }
-  const hide = () => setPos(null)
+  const hide = () => setCursor(null)
 
   return (
     <span
-      ref={ref}
+      ref={triggerRef}
       tabIndex={0}
-      aria-describedby={pos ? id : undefined}
-      onMouseEnter={show}
+      aria-describedby={cursor ? id : undefined}
+      onMouseEnter={showAtPointer}
+      onMouseMove={showAtPointer}
       onMouseLeave={hide}
-      onFocus={show}
+      onFocus={showAtFocus}
       onBlur={hide}
       className="cursor-help rounded-sm underline decoration-gold/40 decoration-dotted underline-offset-4 outline-none focus-visible:ring-1 focus-visible:ring-gold"
     >
       {children}
-      {pos && (
+      {cursor && createPortal(
         <span
+          ref={tooltipRef}
           id={id}
           role="tooltip"
-          className="ink-panel pointer-events-none fixed z-[70] block rounded-lg p-3 text-left font-sans text-xs leading-relaxed font-normal text-paper"
-          style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.W }}
+          className="ink-panel pointer-events-none fixed z-[9999] block overflow-y-auto rounded-lg p-3 text-left font-sans text-xs leading-relaxed font-normal text-paper"
+          style={{ left: -9999, top: -9999, width: 'min(320px, calc(100vw - 16px))', maxHeight: 'calc(100vh - 16px)' }}
         >
           <b className="block text-[13px] leading-snug text-gold">{tip.head}</b>
           {tip.paras.map((p, i) => (
@@ -46,7 +70,8 @@ export default function StatTooltip({ statKey, side = 'left', children }) {
               {p}
             </span>
           ))}
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   )
