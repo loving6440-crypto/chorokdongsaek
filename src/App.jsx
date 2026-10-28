@@ -130,15 +130,16 @@ export default function App() {
     [user],
   )
 
+  // 자동저장은 저장소에만 반영한다. App의 user 상태를 매번 바꾸면 Game 전체가
+  // 리렌더되고 onSave 함수 참조까지 달라져 Game의 저장 effect가 다시 실행되는 악순환이 생긴다.
+  // 캐릭터 생성/계정 전환 시의 상태 변경은 기존 전용 핸들러가 처리한다.
+  const saveUserId = user?.id
   const handleSave = useCallback(
     (saveData) => {
-      if (!user) return
-      saveGameState(user.id, saveData)
-      setUser((prev) =>
-        prev ? { ...prev, save: { ...saveData, savedAt: Date.now() } } : prev,
-      )
+      if (!saveUserId) return
+      saveGameState(saveUserId, saveData)
     },
-    [user],
+    [saveUserId],
   )
 
   // 관리자 프로필 전환: 바꾸기 · 새로 만들기 · 지우기

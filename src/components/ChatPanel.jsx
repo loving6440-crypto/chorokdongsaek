@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Gift, MessageCircle, Send, UserPlus, Users, X } from 'lucide-react'
 import {
   disbandParty,
@@ -27,10 +27,37 @@ const TABS = [
 const timeOf = (at) =>
   new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export default function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
+function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
   const net = useOnline()
   const [blockedIds, setBlockedIds] = useState([])
-  useEffect(() => { let alive = true; const update = () => fetchFriends().then(r => { if (alive && r.ok) setBlockedIds((r.blocked ?? []).map(x => x.id)) }); update(); const timer = setInterval(update, 15000); return () => { alive = false; clearInterval(timer) } }, [net.status])
+  useEffect(() => {
+    if (net.status !== 'online') return undefined
+    let alive = true
+    let fetching = false
+    const update = async () => {
+      if (!alive || fetching || document.visibilityState === 'hidden') return
+      fetching = true
+      try {
+        const r = await fetchFriends()
+        if (alive && r.ok) {
+          const ids = (r.blocked ?? []).map(x => x.id)
+          setBlockedIds(prev => prev.length === ids.length && prev.every((id, i) => id === ids[i]) ? prev : ids)
+        }
+      } finally { fetching = false }
+    }
+    update()
+    const onVisible = () => { if (document.visibilityState === 'visible') update() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('chorok:friends-changed', update)
+    // 서버 측에서 바뀐 차단 정보도 동기화하되 상시 15초 폴링은 제거한다.
+    const timer = window.setInterval(update, 120000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('chorok:friends-changed', update)
+    }
+  }, [net.status])
   const [openState, setOpen] = useState(false)
   const open = docked || openState
   const [tab, setTab] = useState('talk')
@@ -365,3 +392,6 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
     </>
   )
 }
+
+// 채팅은 내부 온라인 구독으로 갱신하며 Game의 자연회복 리렌더에는 반응할 필요가 없다.
+export default memo(ChatPanel)

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useOnline } from '../net/online'
 import OmokGame from './locations/OmokGame'
 import YutGame from './locations/YutGame'
@@ -10,7 +11,7 @@ import YachtGame from './locations/YachtGame'
  * 통해 수락하고 그대로 이어서 둘 수 있다. 별관 [놀이하기] 화면에 있을 때는 거기서 이미 보여 주므로
  * 여기서는 중복으로 띄우지 않는다.
  */
-export default function GlobalBoardGames({ active }) {
+function GlobalBoardGames({ active }) {
   const net = useOnline()
   if (active) return null
   const has = net.omokInvite || net.omok || net.yutInvite || net.yut || net.rummiInvite || net.rummi || net.yachtInvite || net.yacht
@@ -26,3 +27,5 @@ export default function GlobalBoardGames({ active }) {
     </div>
   )
 }
+
+export default memo(GlobalBoardGames)

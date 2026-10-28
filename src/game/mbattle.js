@@ -353,6 +353,7 @@ export function resolveTurn(mb, rng = Math.random) {
     m.fireBuffed = !!f.state.fireBuffed
     if (f.boostUsed) m.boost = false // 터지는 순간 공격력 버프(마이쮸·폭죽)를 다 썼으니 끈다 — 이후 행동에 또 적용되지 않게.
     m.guard = false
+    m.bound = false // 자동 충전/발동 턴도 내 턴을 사용했으므로 막기 불가가 만료된다.
     mb.ehp = f.state.ehp
     m.php = Math.max(0, Math.min(m.phpMax, f.state.php))
     m.act = null
@@ -388,6 +389,7 @@ export function resolveTurn(mb, rng = Math.random) {
   // 아이템 사용: 효과는 useItemMB 에서 이미 적용됐다. 이번 턴은 그걸로 끝 — 그대로 다음 사람에게 넘긴다.
   if (m.act?.action === 'item') {
     m.act = null
+    m.bound = false // 턴 소모 아이템으로 넘긴 턴에서도 '다음 내 턴 막기 불가'는 해제한다.
     evs.push(...nextActor(mb, rng))
     if (mb.turn) return evs // 다음 사람의 차례
     if (!aliveOf(mb).length) {
@@ -401,6 +403,7 @@ export function resolveTurn(mb, rng = Math.random) {
   if (m.stun > 0) {
     m.stun -= 1
     m.act = null
+    m.bound = false // 행동불능으로 지나간 내 턴에도 막기 불가가 영구 유지되지 않는다.
     evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] 행동불능 상태라 움직이지 못했다. (남은 ${m.stun}턴)` }], m.id))
     evs.push(...nextActor(mb, rng))
     if (mb.turn) return evs // 다음 사람의 차례

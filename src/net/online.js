@@ -269,7 +269,11 @@ async function post(path, body) {
 
 export const sendChat = (channel, text) => post('/api/chat', { channel, text })
 export const fetchFriends = () => post('/api/friends/list', {})
-export const changeFriend = (to, action) => post('/api/friends/change', { to, action })
+export const changeFriend = async (to, action) => {
+  const result = await post('/api/friends/change', { to, action })
+  if (result.ok && typeof window !== 'undefined') window.dispatchEvent(new Event('chorok:friends-changed'))
+  return result
+}
 
 export async function inviteToParty(toId) {
   const r = await post('/api/party/invite', { to: toId })

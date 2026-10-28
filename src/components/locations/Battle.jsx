@@ -745,7 +745,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
                             className="h-7 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50"
                           />
                           <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
-                          <span className="text-[11px] text-paper/60">의지력 {Math.ceil(Math.min(pawMax, pawAmt) / 2)} 소모</span>
+                          <span className="text-[11px] text-paper/60">의지력 {mpCostOf(stats, Math.min(pawMax, pawAmt))} 소모</span>
                         </div>
                         <button type="button" data-psychic-use="monkey-paw" disabled={!myTurn} onClick={() => usePsychic('monkey-paw', { sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용

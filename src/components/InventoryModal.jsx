@@ -200,7 +200,6 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap justify-end gap-2">
-                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="버릴 수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
                 {picked && !isMaterial(picked) && !isGear(picked) && (
                   <button
                     type="button"
@@ -221,6 +220,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                     벗기
                   </button>
                 )}
+                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="버릴 수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
                 <button type="button" onClick={closeAll} className="rounded-lg bg-edge/10 px-3 py-1 text-xs text-paper/80 hover:bg-edge/20">
                   닫기
                 </button>

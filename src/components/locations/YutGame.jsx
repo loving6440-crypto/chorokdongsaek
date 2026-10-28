@@ -195,7 +195,7 @@ function YutBoard({ game, me }) {
 
       {myTurn && phase === 'branch' && pendingBranch && (
         <div className="mt-3 rounded-lg border border-gold/40 bg-gold/10 p-3">
-          <p className="text-sm text-paper">갈림길이다. 어느 쪽으로 갈까?</p>
+          <p className="text-sm text-paper">꼭짓점에 멈춘 말이다. 어느 방향으로 이동할까?</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {pendingBranch.options.map((o) => (
               <button key={o.id} type="button" onClick={() => chooseYutBranch(o.id)} className="flat-btn !py-1 text-xs">

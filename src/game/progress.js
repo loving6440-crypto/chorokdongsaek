@@ -322,9 +322,12 @@ export function tickPlayer(player, now, dtSec) {
 
   // 대기 중이 아닐 때만 자연 회복. 영력은 절제에 따라, 체력은 그 2배 속도. 의지력은 저절로 차지 않는다.
   if (!waiting) {
-    p = { ...p, spirit: p.spirit + (spiritPerMin(p.stats.control) * dtSec) / 60 }
-    const dHp = (2 * spiritPerMin(p.stats.control) * dtSec) / 60
-    if (p.hp < p.hpMax) p = { ...p, hp: Math.min(p.hpMax, p.hp + dHp) }
+    // 상한에 도달했다면 새 객체 자체를 만들지 않는다. 이전에는 매초 200을
+    // 초과하도록 더한 후 clampSpirit에서 다시 잘라 불필요하게 전체 UI를 갱신했다.
+    const rate = spiritPerMin(p.stats.control) * dtSec / 60
+    const nextSpirit = Math.min(SPIRIT_BASELINE_MAX, p.spirit + rate)
+    const nextHp = Math.min(p.hpMax, p.hp + 2 * rate)
+    if (nextSpirit !== p.spirit || nextHp !== p.hp) p = { ...p, spirit: nextSpirit, hp: nextHp }
   }
 
   // 수업 대기 종료 / 지난 날짜의 찌꺼기 정리
