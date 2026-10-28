@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Gift, MessageCircle, Send, UserPlus, Users, X } from 'lucide-react'
 import {
   disbandParty,
@@ -10,6 +10,7 @@ import {
   setActiveChannel,
   useOnline,
   fetchFriends,
+  changeFriend,
 } from '../net/online'
 import { sfx } from '../game/sfx'
 
@@ -27,10 +28,46 @@ const TABS = [
 const timeOf = (at) =>
   new Date(at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-export default function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
+function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
   const net = useOnline()
   const [blockedIds, setBlockedIds] = useState([])
-  useEffect(() => { let alive = true; const update = () => fetchFriends().then(r => { if (alive && r.ok) setBlockedIds((r.blocked ?? []).map(x => x.id)) }); update(); const timer = setInterval(update, 15000); return () => { alive = false; clearInterval(timer) } }, [net.status])
+  const [friendFeedback, setFriendFeedback] = useState('')
+  const [addingFriend, setAddingFriend] = useState(null)
+  const addFriend = async (person) => {
+    if (addingFriend || !net.me?.id || person.id === net.me.id) return
+    setAddingFriend(person.id)
+    const result = await changeFriend(person.id, 'add')
+    setFriendFeedback(result.ok ? (result.already ? `${person.name}님은 이미 친구야.` : `${person.name}님을 친구로 추가했어. 알림을 보냈어.`) : `친구 추가 실패: ${result.error || '연결 오류'}`)
+    setAddingFriend(null)
+  }
+  useEffect(() => {
+    if (net.status !== 'online') return undefined
+    let alive = true
+    let fetching = false
+    const update = async () => {
+      if (!alive || fetching || document.visibilityState === 'hidden') return
+      fetching = true
+      try {
+        const r = await fetchFriends()
+        if (alive && r.ok) {
+          const ids = (r.blocked ?? []).map(x => x.id)
+          setBlockedIds(prev => prev.length === ids.length && prev.every((id, i) => id === ids[i]) ? prev : ids)
+        }
+      } finally { fetching = false }
+    }
+    update()
+    const onVisible = () => { if (document.visibilityState === 'visible') update() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('chorok:friends-changed', update)
+    // 서버 측에서 바뀐 차단 정보도 동기화하되 상시 15초 폴링은 제거한다.
+    const timer = window.setInterval(update, 120000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('chorok:friends-changed', update)
+    }
+  }, [net.status])
   const [openState, setOpen] = useState(false)
   const open = docked || openState
   const [tab, setTab] = useState('talk')
@@ -244,13 +281,14 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
                     {confirmDisband ? '정말로 전원 내보낼까? (다시 누르면 해체)' : '일행 해체하기'}
                   </button>
                 )}
+                {friendFeedback && <p className="mb-2 text-xs text-gold" role="status">{friendFeedback}</p>}
                 <ul className="space-y-1">
                   {[...net.online].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map((p) => {
                     const mine = p.id === net.me?.id
                     const mate = net.party?.members.some((m) => m.id === p.id)
                     return (
-                      <li key={p.id} className="flex items-center justify-between gap-2 rounded bg-shade/20 px-2 py-1.5 text-xs">
-                        <span className="truncate text-paper">
+                      <li key={p.id} className="flex flex-wrap items-center justify-end gap-1.5 rounded bg-shade/20 px-2 py-1.5 text-xs">
+                        <span className="w-full min-w-0 truncate text-paper">
                           {p.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px text-[10px] font-medium text-white" data-title>[{p.title}]</span>}
                           <button type="button" data-sfx="none" onClick={() => onProfile?.({ id: p.id, name: p.name })} aria-label={`${p.name}의 인적사항 보기`} className="underline-offset-2 hover:text-gold hover:underline">
                             {p.name}
@@ -259,6 +297,7 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
                           {mine && <span className="ml-1 text-[10px] text-gold">나</span>}
                           {mate && !mine && <span className="ml-1 text-[10px] text-gold">일행</span>}
                         </span>
+                        {!mine && <button type="button" data-online-add-friend={p.id} disabled={!!addingFriend} onClick={() => addFriend(p)} className="inline-flex shrink-0 items-center gap-1 rounded border border-gold/40 px-2 py-0.5 text-[11px] text-gold hover:bg-gold/10 disabled:opacity-40"><UserPlus size={11}/> 친구</button>}
                         {!mine && onGift && (
                           <button
                             type="button"
@@ -365,3 +404,6 @@ export default function ChatPanel({ docked = false, logs = null, onGift = null, 
     </>
   )
 }
+
+// 채팅은 내부 온라인 구독으로 갱신하며 Game의 자연회복 리렌더에는 반응할 필요가 없다.
+export default memo(ChatPanel)

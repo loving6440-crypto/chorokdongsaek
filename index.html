@@ -11,8 +11,11 @@
       try {
         var t = localStorage.getItem('changnok-theme')
         document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark'
+        var font = localStorage.getItem('changnok-ui-font')
+        document.documentElement.dataset.uiFont = ['neo', 'stardust', 'galmuri9', 'silver', 'ramche'].includes(font) ? font : 'neo'
       } catch (e) {
         document.documentElement.dataset.theme = 'dark'
+        document.documentElement.dataset.uiFont = 'neo'
       }
     </script>
     <title>草綠同色</title>

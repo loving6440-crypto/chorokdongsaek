@@ -423,7 +423,9 @@ if (typeof window !== 'undefined') {
       clearTimeout(pushTimer)
       pushTimer = null
     }
-    pushNow({ keepalive: true })
+    // Game의 visibilitychange 리스너가 최신 자연 회복을 저장한 뒤 서버에 보낸다.
+    // 이벤트 리스너가 등록된 순서상 기존에는 오래된 스냅샷부터 먼저 송신할 수 있었다.
+    queueMicrotask(() => pushNow({ keepalive: true }))
   }
   window.addEventListener('pagehide', flush)
   document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush())

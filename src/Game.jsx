@@ -3,6 +3,7 @@ import { createPlayer, gradeOf } from './game/character'
 import ChatPanel from './components/ChatPanel'
 import GlobalBoardGames from './components/GlobalBoardGames'
 import FriendsModal from './components/FriendsModal'
+import InviteCountdown from './components/InviteCountdown'
 import { Candy } from 'lucide-react'
 import InventoryModal from './components/InventoryModal'
 import CodexToast from './components/CodexToast'
@@ -39,6 +40,7 @@ import MainHall from './components/locations/MainHall'
 import Shrine from './components/locations/Shrine'
 import { markLineSeen } from './game/npcLines'
 import { deposit, withdraw } from './game/locker'
+import { canAddInventory, capacityFor, claimPending, limitNewGains } from './game/inventoryCapacity'
 import {
   LOCATIONS,
   STAT_META,
@@ -141,7 +143,20 @@ export default function Game({
 }) {
   const restored = initialSave?.player
 
-  const [player, setPlayer] = useState(() => (restored ? sanitizeRestored(restored, joinedAt, admin) : syncCodex(createPlayer(character))))
+  const [player, setPlayerState] = useState(() => (restored ? sanitizeRestored(restored, joinedAt, admin) : syncCodex(createPlayer(character))))
+  // 직접 조작으로 생긴 변화만 즉시 저장 대상으로 분류한다. 매초 자연 회복은 별도 주기로 저장한다.
+  const playerActionDirty = useRef(false)
+  const setPlayer = useCallback((value) => {
+    playerActionDirty.current = true
+    setPlayerState((previous) => {
+      const candidate = typeof value === 'function' ? value(previous) : value
+      // 구매·선물·퀘스트·제작·관리자 지급 등 모든 획득 경로의 마지막 안전망.
+      // 기존 30칸 초과 계정의 소지품은 보존하고 새로 얻은 초과분만 수령 대기로 보낸다.
+      const safe = limitNewGains(previous, candidate)
+      playerRef.current = safe
+      return safe
+    })
+  }, [])
   const [locationId, setLocationId] = useState(() => initialSave?.locationId || 'dorm')
   const battleRef = useRef(false)
   const reviveRef = useRef(false)
@@ -221,6 +236,9 @@ export default function Game({
   // 저장 디바운스용
   const saveTimer = useRef(null)
   const isFirstMount = useRef(true)
+  const lastUiTick = useRef(Date.now())
+  const lastSavedAt = useRef(Date.now())
+  const lastSavedSnapshot = useRef(null)
 
   const addLog = useCallback((message) => {
     setLogs((prev) => [{ id: Date.now() + Math.random(), time: stamp(), message }, ...prev].slice(0, 80))
@@ -294,7 +312,8 @@ export default function Game({
       const now = Date.now()
       const dt = Math.max(0, (now - last) / 1000)
       last = now
-      const r = tickPlayer(playerRef.current, now, dt)
+      const previousPlayer = playerRef.current
+      const r = tickPlayer(previousPlayer, now, dt)
       let nextPlayer = r.player
       // 이동(건물이 바뀌는 여정)이 끝났으면 실제로 그 구역에 들어선다.
       const trv = nextPlayer.traveling
@@ -305,13 +324,48 @@ export default function Game({
         setLocationId(trv.toId)
         addLog(`${LOCATIONS[trv.toId].name}에 도착했다.`)
       }
+      nextPlayer = limitNewGains(previousPlayer, nextPlayer)
+      const pendingGained = Object.entries(nextPlayer.pendingInventory ?? {}).some(([id, n]) => n > (previousPlayer.pendingInventory?.[id] ?? 0))
+      if (pendingGained) addLog('소지품이 30칸을 초과해 일부 보상을 수령 대기 물품으로 보관했다. 소지품을 정리한 뒤 수령할 수 있다.')
       playerRef.current = nextPlayer
-      setPlayer(nextPlayer)
+      // 자연 회복의 소수점 변화만으로 Game 전체를 초당 한 번씩 리렌더링하지 않는다.
+      // 실질적인 다른 필드/퀘스트/대기 상태 변화는 즉시 표시한다.
+      const sameFieldsApartFromRecovery =
+        Object.keys(previousPlayer).length === Object.keys(nextPlayer).length &&
+        Object.keys(previousPlayer).every((key) => key === 'hp' || key === 'spirit' || previousPlayer[key] === nextPlayer[key])
+      const passiveOnly = sameFieldsApartFromRecovery && !r.logs.length && !(r.unlocked?.length)
+      if (nextPlayer !== previousPlayer && (!passiveOnly || now - lastUiTick.current >= 5000)) {
+        lastUiTick.current = now
+        setPlayerState(nextPlayer) // passive tick는 사용자 조작 저장 플래그를 세우지 않는다.
+      }
       r.logs.forEach(addLog)
       if (r.unlocked?.length) setAchPopupQueue((q) => [...q, ...r.unlocked])
     }
-    const timer = window.setInterval(tick, 1000)
-    return () => window.clearInterval(timer)
+    // 쉬는 중에는 5초 주기로 계산해 CPU 낭비를 줄인다. 완료 대기 중에는 1초
+    // 주기를 유지하고, 탭 복귀 시 경과한 시간을 시각 기반으로 즉시 정산한다.
+    let timer = null
+    let stopped = false
+    const schedule = () => {
+      if (stopped) return
+      const p = playerRef.current
+      const busy = !!(p.training || p.sleeping || p.resting || p.traveling || p.crafting ||
+        p.slowFight || p.gathering || p.hunting ||
+        Object.values(p.lessons ?? {}).some(l => l.waitUntil && l.waitUntil > Date.now()))
+      timer = window.setTimeout(() => { tick(); schedule() }, busy ? 1000 : 5000)
+    }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || stopped) return
+      clearTimeout(timer)
+      tick() // 비활성 탭에서 놓친 회복·완료를 실제 경과 시간으로 즉시 처리
+      schedule()
+    }
+    schedule()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [addLog])
 
   // 프로필을 고치면 저장되는 character 도 같이 바뀐다.
@@ -326,45 +380,71 @@ export default function Game({
   // 반복해서 왕복하는 자동저장 본문 크기를 줄인다(활동 로그는 참고용이라 다시 불러왔을 때 조금 짧아도 무방하다). (v72)
   const SAVE_LOG_CAP = 30
 
-  // 상태 변경 시 자동 저장 (약 0.8초 디바운스).
-  // (v72) 1초마다 도는 영력·체력 자연회복 틱이 매번 player 를 새 객체로 만들어서, 가만히 있기만 해도
-  // 이 effect 가 계속 다시 돌며 디바운스 타이머를 매번 새로 거는 문제가 있었다 — 그 결과 거의 쉬지 않고
-  // (몇 초에 한 번씩) 로컬 저장 → 서버 자동저장까지 줄줄이 일어나, 실제로는 거의 안 바뀐 상태를 계속 Supabase 로
-  // 내보내고 있었다. 이미 예약된 타이머가 있으면 새로 걸지 않고 그대로 두는 쪽(= 지금 바뀐 값이 아니라, 그 사이
-  // 가장 최신 값을 ref 로 읽어 저장)으로 바꿔서, 쉬지 않고 바뀌는 상황에서도 저장은 800ms 에 한 번만 나간다.
+  // 저장 정책: 사용자 행동은 0.8초 안에 로컬 저장, 자연 회복은 최대 60초에
+  // 한 번 체크포인트로 저장한다. onSave(상위 App)는 상태 갱신을 유발하지 않는다.
+  // 데이터/로그/캐릭터 직렬화 형태는 종전과 동일하다.
+  const persistNow = useCallback(() => {
+    if (!onSave) return
+    const snapshot = {
+      character: charOutRef.current,
+      player: playerRef.current,
+      locationId: locationIdRef.current,
+      logs: logsRef.current.slice(0, SAVE_LOG_CAP),
+    }
+    onSave(snapshot)
+    lastSavedSnapshot.current = {
+      player: snapshot.player,
+      character: snapshot.character,
+      locationId: snapshot.locationId,
+      logs: logsRef.current,
+    }
+    lastSavedAt.current = Date.now()
+    playerActionDirty.current = false
+  }, [onSave])
+
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false
-      // 첫 마운트 시 player가 새로 만들어진 경우 즉시 저장
-      if (!restored && onSave) {
-        onSave({
-          character: charOut,
-          player,
-          locationId,
-          logs: logs.slice(0, SAVE_LOG_CAP),
-        })
-      }
+      lastSavedSnapshot.current = { player, character: charOut, locationId, logs }
+      lastSavedAt.current = Date.now()
+      if (!restored && onSave) persistNow()
       return
     }
-
     if (!onSave) return
-    if (saveTimer.current) return // 이미 예약돼 있으면 그대로 둔다 — 실행될 때 가장 최신 값(ref)을 쓴다.
-
-    saveTimer.current = setTimeout(() => {
+    const prev = lastSavedSnapshot.current
+    const otherChanged = !prev || prev.locationId !== locationId || prev.logs !== logs ||
+      prev.character !== charOut
+    const checkpointDue = Date.now() - lastSavedAt.current >= 60000
+    if (!playerActionDirty.current && !otherChanged && !checkpointDue) return
+    if (saveTimer.current) return // 이미 예약된 경우 최신 refs를 읽어 일괄 저장
+    saveTimer.current = window.setTimeout(() => {
       saveTimer.current = null
-      onSave({
-        character: charOutRef.current,
-        player: playerRef.current,
-        locationId: locationIdRef.current,
-        logs: logsRef.current.slice(0, SAVE_LOG_CAP),
-      })
+      persistNow()
     }, 800)
-    // (cleanup을 여기서 걸면 안 된다 — player 가 바뀔 때마다 이 effect 가 다시 돌기 직전에 cleanup 이 먼저
-    // 불려서, 방금 건 타이머를 그 즉시 지워 버린다. 그러면 위의 "이미 예약돼 있으면 그대로 둔다" 가 무력화된다.
-    // 언마운트 때만 정리하면 되므로, 그 정리는 아래 별도의 effect 하나로 뺐다.)
-  }, [player, locationId, logs, charOut, onSave, restored])
-  // 화면을 떠날 때만 예약된 저장 타이머를 정리한다.
-  useEffect(() => () => clearTimeout(saveTimer.current), [])
+  }, [player, locationId, logs, charOut, onSave, restored, persistNow])
+
+  // 탭이 숨겨질 때 아직 저장하지 않은 자연 회복을 로컬 저장소에 반영한다.
+  // 서버에 전송하는 주기는 auth.js에서 별도로 제어한다.
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState !== 'hidden') return
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+        saveTimer.current = null
+      }
+      const previous = lastSavedSnapshot.current
+      if (previous && (previous.player !== playerRef.current ||
+          previous.locationId !== locationIdRef.current ||
+          previous.logs !== logsRef.current || previous.character !== charOutRef.current)) {
+        persistNow()
+      }
+    }
+    document.addEventListener('visibilitychange', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', flush)
+      clearTimeout(saveTimer.current)
+    }
+  }, [persistNow])
 
   // ───────── 수련 · 대기: 다른 곳으로 이동하거나 새 동작을 시작하면 끊긴다 ─────────
   // (탭·창을 내리거나, 소지품·로그를 보거나, 영력으로 스탯을 올리는 것은 괜찮다.)
@@ -709,6 +789,7 @@ export default function Game({
       const cur = playerRef.current
       const n = Math.max(1, Math.min(99, Math.floor(qty)))
       if (!item || item.price == null || (!admin && cur.money < item.price * n) || !isStoreOpen()) return
+      if (!canAddInventory(cur.inventory, { [id]: n })) { addLog('소지품이 30칸을 넘는다. 보관함에 물건을 맡기거나 정리해 줘.'); return }
       const cost = item.price * n
       const next = bumpWeekly({ ...cur, money: admin ? cur.money : cur.money - cost, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + n } }, 'shopBuy')
       playerRef.current = next
@@ -811,6 +892,7 @@ export default function Game({
     async (l) => {
       const cur = playerRef.current
       if (!admin && cur.money < l.total) return { ok: false, message: '냥이 모자란다.' }
+      if (!canAddInventory(cur.inventory, { [l.item]: l.qty })) return { ok: false, message: '소지품이 30칸을 넘어서 살 수 없다.' }
       const r = await marketBuy(l.id)
       if (!r.ok) return { ok: false, message: r.status === 404 ? '이미 팔렸거나 내려간 매물이다.' : r.error === 'own' ? '내가 올린 매물은 살 수 없다.' : '구매하지 못했다.' }
       const now = playerRef.current
@@ -824,6 +906,7 @@ export default function Game({
   )
   const marketCancelIt = useCallback(
     async (l) => {
+      if (!canAddInventory(playerRef.current.inventory, { [l.item]: l.qty })) return { ok: false, message: '소지품이 30칸을 넘는다. 공간을 만든 다음 매물을 내려 줘.' }
       const r = await marketCancel(l.id)
       if (!r.ok) return { ok: false, message: '이미 팔렸거나 내려간 매물이다.' }
       const now = playerRef.current
@@ -837,6 +920,15 @@ export default function Game({
   )
 
   // ───────── 물품보관함 ─────────
+  const claimInventoryPending = useCallback((id, amount) => {
+    const result = claimPending(playerRef.current, id, amount)
+    if (result.error) { notify(result.error); return result }
+    playerRef.current = result.player
+    setPlayer(result.player)
+    addLog(`수령 대기 물품 ${itemOf(id)?.name ?? id} ${amount}개를 소지품에 넣었다.`)
+    return result
+  }, [addLog])
+
   const lockerMove = useCallback(
     (mode, grade, id, n) => {
       const cur = playerRef.current
@@ -870,6 +962,7 @@ export default function Game({
       if (battleRef.current) return { error: '전투 중에는 장비를 바꿀 수 없다.' }
       const r = equipItem(playerRef.current, id)
       if (r.error) return r
+      if (!canAddInventory(r.player.inventory)) return { error: '소지품이 30칸을 넘는다. 공간을 확보한 뒤 장비를 교체해 주세요.' }
       playerRef.current = r.player
       setPlayer(r.player)
       addLog(`[${itemOf(id).name}]을(를) 착용했다.`)
@@ -884,6 +977,7 @@ export default function Game({
       const was = equipOf(cur)[slot]
       const r = unequipSlot(cur, slot)
       if (r.error) return r
+      if (!canAddInventory(r.player.inventory)) return { error: '소지품이 30칸을 넘는다. 공간을 확보한 뒤 벗어 주세요.' }
       playerRef.current = r.player
       setPlayer(r.player)
       addLog(`[${itemOf(was).name}]을(를) 벗었다.`)
@@ -1062,11 +1156,12 @@ export default function Game({
         const cur = playerRef.current
         const inv = { ...(cur.inventory ?? {}) }
         for (const [id, n] of Object.entries(gift.items)) if (itemOf(id)) inv[id] = (inv[id] || 0) + n
-        const next = mergeEnh({ ...cur, inventory: inv }, gift.enh)
+        const next = limitNewGains(cur, mergeEnh({ ...cur, inventory: inv }, gift.enh))
+        const waiting = Object.entries(next.pendingInventory ?? {}).some(([id, n]) => n > (cur.pendingInventory?.[id] ?? 0))
         playerRef.current = next
         setPlayer(next)
-        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}${gift.enh ? ' (무구 강화 포함)' : ''}`)
-        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}${gift.note ? ' (쪽지가 사물함에 있다)' : ''}`)
+        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}${gift.enh ? ' (무구 강화 포함)' : ''}${waiting ? ' (일부 물품은 수령 대기)' : ''}`)
+        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}${waiting ? ' (일부 수령 대기)' : ''}${gift.note ? ' (쪽지가 사물함에 있다)' : ''}`)
       }),
     [addLog],
   )
@@ -1292,12 +1387,6 @@ export default function Game({
     return { stats: effectiveStats(cur), fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
-  const [inviteClock, setInviteClock] = useState(() => Date.now())
-  useEffect(() => {
-    if (!online.mbInvite) return undefined
-    const t = setInterval(() => setInviteClock(Date.now()), 250)
-    return () => clearInterval(t)
-  }, [online.mbInvite?.bid])
   const mbLive = !!online.mb && !online.mb.view.over
   const mbLiveRef = useRef(false)
   mbLiveRef.current = mbLive
@@ -1537,7 +1626,12 @@ export default function Game({
         locationId={locationId}
         theme={theme}
         onToggleTheme={onToggleTheme}
-        onLogout={onLogout}
+        onLogout={() => {
+          // 로그아웃 직전의 사용자 행동과 자연 회복까지 반드시 먼저 저장한다.
+          if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+          persistNow()
+          onLogout?.()
+        }}
         userId={userId}
         twitter={twitter}
         onOpenItems={() => setInvOpen(true)}
@@ -1900,7 +1994,7 @@ export default function Game({
             <p className="mt-1 text-sm text-paper">전투에 참여하시겠습니까?</p>
             <p className="mt-1 text-[11px] text-paper/55">참여하면 하던 일을 멈추고 전투 화면으로 이동한다.</p>
             <p className="mt-2 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2 text-xs text-gold" role="timer" aria-live="off" data-mb-invite-countdown>
-              참여 수락 가능 · 초대 만료까지 {Math.max(0, Math.ceil(((online.mbInvite.expires ?? inviteClock) - inviteClock) / 1000))}초
+              <InviteCountdown expires={online.mbInvite.expires} />
             </p>
             <div className="mt-4 flex justify-center gap-2">
               <button type="button" onClick={() => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()) }} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
@@ -1986,7 +2080,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} onClaimPending={claimInventoryPending} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>

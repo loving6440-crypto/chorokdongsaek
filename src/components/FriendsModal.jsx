@@ -12,7 +12,7 @@ export default function FriendsModal({ onClose, onGift }) {
   const [feedback, setFeedback] = useState('')
   const load = useCallback(async () => { const r = await fetchFriends(); if (r.ok) setData(r) }, [])
   useEffect(() => { load() }, [load])
-  const change = async (id, action) => { const r = await changeFriend(id, action); setFeedback(r.ok ? '변경했습니다.' : `실패: ${r.error || '연결 오류'}`); if (r.ok) { setSearch(''); load() } }
+  const change = async (id, action) => { const r = await changeFriend(id, action); setFeedback(r.ok ? (action === 'add' ? (r.already ? '이미 친구로 추가된 사람이야.' : '친구를 추가하고 상대에게 알림을 보냈어.') : '변경했습니다.') : `실패: ${r.error || '연결 오류'}`); if (r.ok) { setSearch(''); load() } }
   const send = async () => { if (!message.trim()) return; const r = await sendNote(noteTo.id, message.trim()); setFeedback(r.ok ? '쪽지를 보냈습니다.' : `보내지 못했습니다: ${r.error}`); if (r.ok) { setNoteTo(null); setMessage('') } }
   return <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-3" onClick={onClose}><section role="dialog" aria-modal="true" aria-label="친구 목록" className="ink-panel w-full max-w-md rounded-2xl p-4 text-paper" onClick={e => e.stopPropagation()}>
     <header className="flex items-center justify-between"><h2 className="flex items-center gap-2 font-serif text-lg text-gold"><Candy size={18} />친구 목록</h2><button type="button" aria-label="닫기" onClick={onClose}><X size={17}/></button></header>

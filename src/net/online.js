@@ -196,6 +196,7 @@ function handle(ev) {
     case 'mail':
       set({ mailUnread: state.mailUnread + 1, mailTick: state.mailTick + 1 })
       if (ev.mail?.kind === 'note') pushNotice(`${ev.mail.from.name}님의 쪽지가 사물함에 도착했다.`)
+      if (ev.mail?.kind === 'friend') pushNotice(`${ev.mail.from.name}님이 친구로 추가했어. 사물함에서 확인할 수 있어.`)
       break
     case 'adminEdit':
       if (ev.ev === 'request') set({ editReq: { rid: ev.rid, adminName: ev.adminName, changes: ev.changes, expires: ev.expires } })
@@ -269,7 +270,11 @@ async function post(path, body) {
 
 export const sendChat = (channel, text) => post('/api/chat', { channel, text })
 export const fetchFriends = () => post('/api/friends/list', {})
-export const changeFriend = (to, action) => post('/api/friends/change', { to, action })
+export const changeFriend = async (to, action) => {
+  const result = await post('/api/friends/change', { to, action })
+  if (result.ok && typeof window !== 'undefined') window.dispatchEvent(new Event('chorok:friends-changed'))
+  return result
+}
 
 export async function inviteToParty(toId) {
   const r = await post('/api/party/invite', { to: toId })

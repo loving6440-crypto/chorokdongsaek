@@ -5,7 +5,7 @@ const AFFECTS = {
   'echo-form': ['인내', '절제', '호전', '체력'], 'karmic-recompense': ['공격 대상'], 'falling-light': ['방어 태세'], 'cotton-mist': ['상대 행동'],
 }
 const costBase = (s, stats, opts) => {
-  if (s.id === 'monkey-paw') return Math.ceil(Math.max(0, opts?.sacrifice || 1) / 2)
+  if (s.id === 'monkey-paw') return Math.max(0, opts?.sacrifice || 1)
   if (s.id === 'echo-form') return stats ? Math.max(20, Math.min(99, 50 - stats.endurance - stats.control + stats.aggression)) : null
   return Number.isFinite(s.mp) ? s.mp : null
 }

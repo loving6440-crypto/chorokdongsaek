@@ -1745,7 +1745,14 @@ async function handleApi(req, res, url) {
     if (!['add', 'remove', 'block', 'unblock'].includes(action)) return json(res, 400, { error: 'bad-action' })
     if (rateLimited(`friend:${me.id}`)) return json(res, 429, { error: 'slow-down' })
     const update = (bag, add) => { const set = new Set(bag[me.id] ?? []); if (add) set.add(to); else set.delete(to); bag[me.id] = [...set].slice(0, 200) }
-    if (action === 'add') { if ((blockedUsers[me.id] ?? []).includes(to)) return json(res, 400, { error: 'blocked' }); update(friendships, true) }
+    if (action === 'add') {
+      if ((blockedUsers[me.id] ?? []).includes(to)) return json(res, 400, { error: 'blocked' })
+      if ((friendships[me.id] ?? []).includes(to)) return json(res, 200, { ok: true, already: true })
+      if ((friendships[me.id] ?? []).length >= 200) return json(res, 400, { error: 'friend-limit' })
+      update(friendships, true)
+      // 상대가 오프라인이어도 사물함에 알림을 남긴다. 이미 추가한 상대에게 중복 알림을 보내지 않는다.
+      addMail({ kind: 'friend', from: { id: me.id, name: me.name }, to: { id: to, name: members[to].name }, text: `${me.name}님이 친구 목록에 추가했어.` })
+    }
     if (action === 'remove') update(friendships, false)
     if (action === 'block') update(blockedUsers, true)
     if (action === 'unblock') update(blockedUsers, false)

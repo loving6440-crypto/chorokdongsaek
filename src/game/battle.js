@@ -183,7 +183,7 @@ export const PSYCHICS = [
     id: 'monkey-paw',
     label: '원숭이 손',
     note: '얻는 만큼 잃는다. 영구적이게 얻고자 한다면 영구적이게 잃는다.',
-    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력의 1/2(올림)만큼 소모한다.',
+    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력만큼 소모한다. (석장 등 의지력 소비 감소 효과는 적용된다.)',
     cond: '(취득 경로 미정 · 박신아가 가지고 있다)',
     owner: 'shinah',
     use: true,
@@ -273,7 +273,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     // 효험은 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면 효험 없이 쓴다. (v70)
     const buffed = !!ctx.buff && mpNow0 >= mpCostOf(stats, BUFF_COST)
     const buffCost = buffed ? mpCostOf(stats, BUFF_COST) : 0
-    const mpCost = Math.ceil(amt / 2) + buffCost
+    const mpCost = mpCostOf(stats, amt) + buffCost
     if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     s.php = curPhp - amt
     const aura = ctx.aura ?? auraSelfOf(stats)
@@ -593,12 +593,12 @@ export const auraSelfOf = (stats) => Math.floor(auraOf(stats) * 0.75)
 export const maxSurvives = (stats) => (stats.fx === 'bell' ? 2 : 1)
 
 /**
- * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) (이해×2, 100% 상한)% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
+ * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) (이해)% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
  * 무당방울이 없거나 발동하지 않으면 null.
  */
 export function bellTick(stats, rng = Math.random) {
   if (stats.fx !== 'bell') return null
-  const chance = Math.min(100, (stats.comprehension || 0) * 2)
+  const chance = Math.max(0, Math.min(100, stats.comprehension || 0))
   if (chance <= 0) return null
   const roll = die(100, rng)
   if (roll > chance) return null

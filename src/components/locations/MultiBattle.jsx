@@ -263,7 +263,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         <div className={`ink-panel rounded-xl p-4 ${danger ? 'ring-2 ring-crimson/70' : ''}`}>
           <p className="font-serif text-lg text-paper">일행</p>
           <ul className="mt-2 space-y-2" aria-label="일행 상태">
-            {view.members.map((m) => (
+            {orderedMates.map((m) => (
               <li key={m.id} data-mb-member={m.id} data-current-turn={m.id === view.turn && view.phase === 'input' && !view.over && m.status === 'alive' ? '1' : '0'} className={`rounded-lg px-3 py-2 transition-shadow ${m.id === view.turn && view.phase === 'input' && !view.over && m.status === 'alive' ? 'bg-gold-fill/35 ring-2 ring-gold shadow-[0_0_14px_rgba(250,204,21,0.45)]' : m.id === meId ? 'bg-gold-fill/15' : 'bg-edge/[0.07]'} ${m.status !== 'alive' ? 'opacity-60' : ''}`}>
                 <div className="flex items-baseline justify-between gap-2 text-xs">
                   <span className="text-paper">
@@ -284,7 +284,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                   <span>의지력 {Math.floor(m.mp)}</span>
                   <span>· 부적 {m.charms}장</span>
                   {m.bound && <span className="text-crimson">· 막기 불가</span>}
-                  {m.boost && <span className="text-gold">· 마이쮸 대기</span>}
+                  {m.boost && <span className="text-gold">· 아이템 대기</span>}
                   {m.revive && <span className="text-gold">· 부활 대기</span>}
                 </p>
               </li>
@@ -418,7 +418,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                             className="h-7 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50"
                           />
                           <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
-                          <span className="text-[11px] text-paper/60">의지력 {Math.ceil(Math.min(pawMax, pawAmt) / 2)} 소모</span>
+                          <span className="text-[11px] text-paper/60">의지력 {mpCostOf(stats, Math.min(pawMax, pawAmt))} 소모</span>
                         </div>
                         <button type="button" data-psychic-use="monkey-paw" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: 'monkey-paw', sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
