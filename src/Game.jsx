@@ -8,7 +8,7 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -192,7 +192,10 @@ export default function Game({
   const boostRef = useRef(false)
   boostRef.current = boostOn
   const [itemsUsed, setItemsUsed] = useState(0)
-  const [battleUsedItems, setBattleUsedItems] = useState([]) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다, 에너지드링크 1회 제한에도 쓴다
+  const [battleUsedItems, setBattleUsedItems] = useState([])
+  const battleVitalsRef = useRef(null)
+  const battleDownedRef = useRef(false)
+  const battleScannedRef = useRef(false) // 지금 전투(1인) 중 사용한 아이템 종류 — [형상 기억]이 재활용 후보로 쓴다, 에너지드링크 1회 제한에도 쓴다
   const battleUsedItemsRef = useRef([])
   battleUsedItemsRef.current = battleUsedItems
   const [spotItems, setSpotItems] = useState(false)
@@ -232,7 +235,7 @@ export default function Game({
   logsRef.current = logs
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
   // 장비 보정(무복 등)도 여기서 더해진다.
-  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weakUntil, player.buffs])
+  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weaponSpecial, player.weakUntil, player.buffs])
   const viewPlayer = useMemo(() => (effStats === player.stats ? player : { ...player, stats: effStats }), [player, effStats])
 
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
@@ -925,6 +928,15 @@ export default function Game({
     },
     [addLog, admin],
   )
+  const specialEnhance = useCallback((weaponId, specialId) => {
+    if (battleRef.current) return { error: '전투 중이다.' }
+    const r = specialEnhanceWeapon(playerRef.current, weaponId, specialId, admin)
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    addLog(`${r.special.title}${itemOf(weaponId).name}에 특수 강화가 붙었다.`)
+    return r
+  }, [addLog, admin])
   const adminGive = useCallback(
     (id) => {
       if (!admin) return
@@ -1153,6 +1165,9 @@ export default function Game({
       interruptAll('새 동작을 시작해')
       const cur = playerRef.current
       const next = { ...cur, seen: { ...cur.seen, [enemyId]: (cur.seen?.[enemyId] || 0) + 1 } }
+      battleVitalsRef.current = { hp: cur.hp, mp: cur.mp }
+      battleDownedRef.current = false
+      battleScannedRef.current = false
       playerRef.current = next
       setPlayer(next)
       setBattleUsedItems([])
@@ -1247,7 +1262,7 @@ export default function Game({
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
   const mbSnapshot = () => {
     const cur = playerRef.current
-    return { stats: effectiveStats(cur), fx: weaponFx(cur), hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { stats: effectiveStats(cur), fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
   const mbLive = !!online.mb && !online.mb.view.over
@@ -1304,6 +1319,7 @@ export default function Game({
     }
     if (mbView.over && !rec2.finished) {
       rec2.finished = true
+      battleDownedRef.current = rec2.downed
       const enemy = ENEMIES.find((e) => e.id === mbView.enemyId)
       reviveRef.current = false
       setReviveOn(false)
@@ -1358,7 +1374,7 @@ export default function Game({
     isLeader: !!online.party?.members?.length && online.party.members[0].id === online.me?.id,
     canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online) && online.party.members[0].id === online.me?.id,
     lobby: online.mbLobby,
-    onStart: (enemyId) => (ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot())),
+    onStart: (enemyId) => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot()) },
     onCancel: mbCancel,
   }
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
@@ -1370,9 +1386,16 @@ export default function Game({
         addLog(`퇴마 실습: 생존본능으로 ${enemy.name}에게서 도망쳤다. (보상도 손실도 없다)`)
         return
       }
-      const r = applyBattleResult(playerRef.current, win, enemy.reward)
-      playerRef.current = r.player
-      setPlayer(r.player)
+      const cur = playerRef.current
+      const weaponId = equipOf(cur).weapon
+      const special = cur.weaponSpecial?.[weaponId]
+      const rewardPlayer = { ...cur, _battleNoScanWin: !battleScannedRef.current }
+      const r = applyBattleResult(rewardPlayer, win, enemy.reward)
+      let resultPlayer = r.player
+      if (win && special === 'pine' && !battleDownedRef.current && battleVitalsRef.current) resultPlayer = { ...resultPlayer, hp: Math.min(resultPlayer.hpMax, battleVitalsRef.current.hp), mp: Math.min(resultPlayer.mpMax, battleVitalsRef.current.mp) }
+      delete resultPlayer._battleNoScanWin
+      playerRef.current = resultPlayer
+      setPlayer(resultPlayer)
       if (win) {
         addLog(
           r.granted
@@ -1609,6 +1632,7 @@ export default function Game({
                     admin={admin}
                     onMeet={meetNpc}
                     onEnhance={enhance}
+                    onSpecialEnhance={specialEnhance}
                     onAdminGive={adminGive}
                     onGather={startGatherAction}
                     onHunt={startHuntAction}
@@ -1628,7 +1652,8 @@ export default function Game({
                     onMp={changeMp}
                     onFinish={finishBattle}
                     onLog={addLogs}
-                    onDown={downed}
+                    onDown={(...args) => { battleDownedRef.current = true; downed(...args) }}
+                    onScan={() => { battleScannedRef.current = true }}
                     tutorialDone={player.tutorialDone}
                     tutorialRewardTaken={player.tutorialRewardTaken}
                     onTutorialDone={onTutorialDone}
@@ -1840,7 +1865,7 @@ export default function Game({
             <p className="mt-1 text-sm text-paper">전투에 참여하시겠습니까?</p>
             <p className="mt-1 text-[11px] text-paper/55">참여하면 하던 일을 멈추고 전투 화면으로 이동한다.</p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" onClick={() => (online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()))} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
+              <button type="button" onClick={() => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()) }} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
                 참여
               </button>
               <button type="button" onClick={() => mbRespond(false)} className="rounded border border-gold/40 px-6 py-1.5 text-sm text-gold hover:bg-gold/10">
@@ -1859,6 +1884,9 @@ export default function Game({
           onConfirm={(bring, psychicBring) => {
             const pick = bringPick
             setBringPick(null)
+            battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }
+            battleDownedRef.current = false
+            battleScannedRef.current = false
             if (pick.invite) mbRespond(true, { ...mbSnapshot(), bring, psychicBring })
             else mbStart(pick.enemyId, { ...mbSnapshot(), bring, psychicBring })
           }}

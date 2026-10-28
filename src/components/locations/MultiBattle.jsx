@@ -15,7 +15,7 @@ const STATUS_LABEL = { alive: '', down: '전투불능', fled: '이탈' }
  * 다인 전투 화면. 판은 서버가 진행하고, 여기서는 상태를 보여 주고 내 행동을 보낸다.
  * view: 서버가 보낸 판 상태. 라운드마다 살아 있는 모두가 행동을 고르면 한꺼번에 해결된다.
  */
-export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
+export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
   const enemy = ENEMIES.find((e) => e.id === view.enemyId)
   const me = view.members.find((m) => m.id === meId)
   const [psyOpen, setPsyOpen] = useState(false)
@@ -130,6 +130,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     setScanOpen(false)
     if (buffed) setBuffArmed(false)
     const r = await onAct(buffed ? { ...act, buff: true } : act)
+    if (r?.ok && act.action === 'scan') onScan?.()
     if (!r?.ok) setSending(false)
   }
   const pick = (id) => {
@@ -195,6 +196,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       : `${turnName ? `${turnName} 님의 차례` : '상대의 차례'}를 기다리는 중${left != null && turnName ? ` · ${left}초` : ''}`}
         </span>
       </div>
+
+      {stats.special === 'plum' && <p className="mt-1 text-[11px] text-gold">매화의 효과 · 이 전투에서 사용할 수 있는 의지력 150</p>}
 
       {view.log.length > 0 && (
         <ul className="mt-2 space-y-0.5 rounded-lg bg-shade/20 px-3 py-1.5 font-mono text-[11px] leading-relaxed" aria-live="polite" aria-label="방금 일어난 일" data-mb-recent>

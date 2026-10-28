@@ -127,7 +127,7 @@ const Placeholder = ({ name }) => (
 )
 
 /** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. */
-export default function Hike({ player, admin, onEnhance, onMeet, onAdminGive, onGather, onHunt, onVisit, onGiveNpc }) {
+export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMeet, onAdminGive, onGather, onHunt, onVisit, onGiveNpc }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
@@ -236,7 +236,7 @@ export default function Hike({ player, admin, onEnhance, onMeet, onAdminGive, on
       {spot && (
         <div className="mt-2">
           {spot.id === 'armory' ? (
-            <Armory player={player} onEnhance={onEnhance} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} />
+            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} />
           ) : spot.id === 'garden' ? (
             <GatherSpot player={player} spotId={spot.id} onGather={onGather} />
           ) : spot.id === 'outside' ? (

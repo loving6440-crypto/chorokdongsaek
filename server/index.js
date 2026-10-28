@@ -566,6 +566,7 @@ const mbInfo = (c, me) => ({
   psychicBring: me?.psychicBring === undefined ? undefined : cleanPsychicBring(me.psychicBring),
   stats: me?.stats,
   fx: me?.fx,
+  special: typeof me?.special === 'string' ? me.special : null,
   hp: me?.hp,
   hpMax: me?.hpMax,
   mp: me?.mp,

@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost } from './battle.js'
+import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, rollIntent } from './battle.js'
 import { itemTurnFree } from './items.js'
 
 /** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
@@ -31,11 +31,12 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring }) {
+export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
   if (fxId) Object.defineProperty(st, 'fx', { value: fxId, enumerable: false })
+  if (typeof special === 'string') Object.defineProperty(st, 'special', { value: special, enumerable: false })
   const phpMax = Math.round(clampNum(hpMax ?? maxHp(st), 1, 9999))
   return {
     id,
@@ -43,13 +44,15 @@ export function makeMember({ id, name, stats, fx, hp, hpMax, mp, mpMax, revive, 
     stats: st,
     php: Math.round(clampNum(hp ?? phpMax, 1, phpMax)),
     phpMax,
-    mp: Math.floor(clampNum(mp ?? 0, 0, 9999)),
-    mpMax: Math.floor(clampNum(mpMax ?? mp ?? 0, 0, 9999)),
+    mp: special === 'plum' ? 150 : Math.floor(clampNum(mp ?? 0, 0, 9999)),
+    mpMax: special === 'plum' ? 150 : Math.floor(clampNum(mpMax ?? mp ?? 0, 0, 9999)),
     charms: 3,
     guard: false,
     bound: false,
     stun: 0, // 남은 행동불능 턴 수(0이면 정상). 폭죽 등으로 걸린다.
-    fire: 0, // 도깨비불: 기를 모으는 중 남은 자동 턴 수(0이면 정상). 쓰고 나면 다음 턴들은 입력 없이 자동으로 진행된다.
+    specialSaved: false,
+  specialSeen: false,
+  fire: 0, // 도깨비불: 기를 모으는 중 남은 자동 턴 수(0이면 정상). 쓰고 나면 다음 턴들은 입력 없이 자동으로 진행된다.
     fireBuffed: false, // 도깨비불을 효험과 함께 썼는지 — 터지는 순간(fireTurn)까지 들고 있다가 그때 적용하고 꺼진다.
     curse: 0,
     survived: 0,
@@ -123,6 +126,8 @@ const viewOfMember = (mb, m) => ({
   party: true,
   over: null,
   fire: m.fire || 0,
+  specialSaved: !!m.specialSaved,
+  specialSeen: !!m.specialSeen,
   fireBuffed: !!m.fireBuffed,
 })
 
@@ -198,6 +203,7 @@ export function submit(mb, id, act) {
   if (m.act) return { error: 'already' }
   const a = act?.action
   if (!['attack', 'guard', 'charm', 'scan', 'psychic'].includes(a)) return { error: 'bad-action' }
+  if (a === 'attack' && m.stats.special === 'red-wisteria') return { error: '홍싸리나무의 특수 강화로 일반 공격을 직접 선택할 수 없다.' }
   // 효험(모두가 가진 영능력): 일반 공격·부적·생존본능과 함께, 토글로 켜서 같이 제출한다.
   // 부적처럼 의지력이 모자라도(0까지) 쓸 수 있으므로 제출 자체를 막지는 않는다.
   // 원숭이 손·도깨비불처럼 영능력 자체가 공격력을 산출하는 경우에도 효험이 적용된다.
@@ -471,6 +477,11 @@ export function resolveTurn(mb, rng = Math.random) {
   )
   m.act = null
   if (r.state.over === 'fled') m.status = 'fled'
+  const cherryBearer = aliveOf(mb).find(x => x.stats.special === 'cherry')
+  if (cherryBearer) {
+    const heal = Math.max(0, Math.floor(cherryBearer.stats.comprehension / 3))
+    if (heal) for (const ally of aliveOf(mb)) if (ally.php < ally.phpMax * 0.3) ally.php = Math.min(ally.phpMax, ally.php + heal)
+  }
   if (mb.ehp <= 0) {
     mb.over = 'win'
     mb.phase = 'over'
@@ -530,6 +541,20 @@ function enemyPhase(mb, rng) {
   const gim = bossGimmick(mb, mb.queue[0])
   let intent = gim.intent
   for (const n of gim.notes) evs.push(...addLog(mb, [{ kind: 'warn', text: n }], 'enemy'))
+  const willowBearer = aliveOf(mb).find(m => m.stats.special === 'willow')
+  if (intent === 'special' && willowBearer && Math.floor(willowBearer.stats.comprehension / 2) >= Math.ceil(rng() * 100)) {
+    const rerolled = rollIntent(mb.queue[0], rng, true, !!mb.enemy.boss)
+    intent = rerolled
+    evs.push(...addLog(mb, [{ kind: 'warn', text: `[${willowBearer.name}] 버드나무의 효과! 적의 아군 대상 영능력 행동을 재굴림했다.` }], willowBearer.id))
+  }
+  if (intent === 'special') {
+    const orchidBearer = aliveOf(mb).find(m => m.stats.special === 'orchid' && !m.specialSeen)
+    if (orchidBearer) {
+      orchidBearer.specialSeen = true
+      intent = 'none'
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `[${orchidBearer.name}] 난초의 효과! 처음 목격한 영능력을 완전히 무효화했다.` }], orchidBearer.id))
+    }
+  }
   // 영능력 전용 영력이 다하면 영능력 대신 약공으로 대신한다(다인 전투에서는 일행 수와 무관하게 한 번만 깎인다).
   if (intent === 'special' && (mb.espirit ?? mb.enemy.spirit) <= 0) {
     intent = 'jab'
@@ -593,7 +618,7 @@ function enemyPhase(mb, rng) {
     // 내려쬐는 빛으로 대신 맞는 공격은 무조건 '막기'로 처리된다. (v71)
     const v = { ...viewOfMember(mb, t), guard: flTarget && t.id === flTarget.id ? true : t.guard, queue: q }
     const prevPhp = t.php
-    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: auraFor(mb, t.id) }, rng) // 악기: 반격자 본인이면 75%만
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: auraFor(mb, t.id), willowHandled: true }, rng) // 악기: 반격자 본인이면 75%만
     if (karmicMult > 1) {
       const dealt = Math.max(0, prevPhp - r.state.php)
       const extra = dealt * (karmicMult - 1)
@@ -620,6 +645,8 @@ function enemyPhase(mb, rng) {
     }
     mb.ehp = r.state.ehp // 막기 반격으로 쓰러질 수도 있다
     t.php = r.state.php
+    t.specialSaved = !!r.state.specialSaved
+    t.specialSeen = !!r.state.specialSeen
     t.curse = r.state.curse
     t.bound = r.state.bound || t.bound
     t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
@@ -761,6 +788,8 @@ export function viewOf(mb, extra = {}) {
       reviveUsed: !!m.reviveUsed,
       psychicBring: m.psychicBring,
       fire: m.fire || 0,
+  specialSaved: !!m.specialSaved,
+  specialSeen: !!m.specialSeen,
       acted: !!m.act,
       result: resultOf(mb, m.id),
     })),

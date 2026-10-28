@@ -1,3 +1,4 @@
+@import url('https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@latest/neodgm/style.css');
 @import "tailwindcss";
 
 /* 라이트 모드 전용 variant: <html data-theme="light"> 아래에서만 적용된다. (예: light:text-red-700) */
@@ -646,3 +647,64 @@ button.bg-gold { border-radius: 0.55rem; }
 }
 .petal { animation: petal-fall 8s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .petal { animation: none; opacity: 0; } }
+
+/* ─────────────────────────────────────────────────────────────
+   V74 PIXEL SKIN — 외형만 교체. 레이아웃/위치/상호작용은 변경하지 않음.
+   프레임 모티프: 사용자가 준 붉은 직각 선 장식 + 레트로 RPG 패널
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --font-sans: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'NeoDunggeunmo', 'Jua', 'Noto Serif KR', serif;
+  --pixel-frame: #f1cf68;
+  --pixel-frame-cool: #65c9c5;
+  --pixel-red: #e9554f;
+}
+html, body, #root { image-rendering: pixelated; }
+body, button, input, textarea, select, option {
+  font-family: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', sans-serif !important;
+  letter-spacing: 0;
+  text-rendering: geometricPrecision;
+}
+/* Pixel art uses stepped corners rather than smooth rounded surfaces. */
+[class*="rounded-"] { border-radius: 2px !important; }
+button, input, textarea, select {
+  border-radius: 2px !important;
+}
+button:not(:disabled) { transition: background-color .08s steps(2), color .08s steps(2), filter .08s steps(2); }
+button:not(:disabled):active { filter: brightness(1.12); }
+/* Main surfaces get angular inset frames with tiny stair-step corner motifs. */
+.ink-panel {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--pixel-frame) 78%, transparent) !important;
+  border-radius: 2px !important;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-ink) 80%, transparent),
+              inset 0 0 0 3px color-mix(in srgb, var(--pixel-frame-cool) 22%, transparent) !important;
+  background-image:
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame)),
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame)),
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame)),
+    linear-gradient(var(--pixel-frame),var(--pixel-frame)),linear-gradient(var(--pixel-frame),var(--pixel-frame));
+  background-size: 12px 2px,2px 12px,12px 2px,2px 12px,12px 2px,2px 12px,12px 2px,2px 12px;
+  background-position: left 3px top 3px,left 3px top 3px,right 3px top 3px,right 3px top 3px,
+                       left 3px bottom 3px,left 3px bottom 3px,right 3px bottom 3px,right 3px bottom 3px;
+  background-repeat: no-repeat;
+}
+/* Buttons and tabs: crisp single-pixel edge with gold selected state. */
+button {
+  outline-offset: 2px;
+}
+button:not(:disabled):hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pixel-frame) 62%, transparent);
+}
+button.bg-gold, button[class*="bg-gold"] {
+  border: 1px solid color-mix(in srgb, var(--pixel-frame) 85%, white 15%) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b4e0a 24%, transparent) !important;
+}
+input, textarea, select {
+  border: 1px solid color-mix(in srgb, var(--pixel-frame-cool) 48%, var(--c-paper) 12%) !important;
+  background-image: repeating-linear-gradient(0deg, transparent 0 5px, rgb(255 255 255 / .012) 5px 6px);
+}
+/* Portrait diamonds, status bars, icons retain their dimensions; only the rendering style changes. */
+img, canvas, svg { image-rendering: pixelated; }
+/* Disable buttery motion that clashes with frame-by-frame retro UI. */
+.tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }

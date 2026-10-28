@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
 import { ARMORY, SHINAH } from '../../game/armory'
 import { STAT_META } from '../../game/constants'
-import { ENH_ITEMS, ENH_MAX, ENH_STATS, WEAPONS, countOf, enhLevel, enhMaterialFor, enhTotal, equipOf, itemOf, ownedWeapons } from '../../game/items'
+import { ENH_ITEMS, ENH_MAX, ENH_STATS, SPECIAL_ENHANCEMENTS, WEAPONS, countOf, enhLevel, enhMaterialFor, enhTotal, equipOf, itemOf, ownedWeapons, specialEnhOf, specialTitleOf } from '../../game/items'
 import NpcDialog from '../NpcDialog'
 
 /** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
-export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }) {
+export default function Armory({ player, onEnhance, onSpecialEnhance, onMeet, admin, onAdminGive }) {
   const owned = ownedWeapons(player)
   // 같은 종류가 여럿이면 ①②… 로 구분한다.
   const nameOf = (w) => {
+    const title = specialTitleOf(player, w.id)
     const same = owned.filter((x) => x.baseId === w.baseId)
-    return same.length > 1 ? `${w.name} ${'①②③④⑤⑥⑦⑧⑨⑩'[same.indexOf(w)] ?? same.indexOf(w) + 1}` : w.name
+    const name = same.length > 1 ? `${w.name} ${'①②③④⑤⑥⑦⑧⑨⑩'[same.indexOf(w)] ?? same.indexOf(w) + 1}` : w.name
+    return `${title}${name}`
   }
   const [sel, setSel] = useState(null)
   const [msg, setMsg] = useState('')
@@ -21,8 +23,9 @@ export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }
 
   const go = (stat) => {
     const r = onEnhance(cur.id, stat)
-    setMsg(r?.error ? r.error : `${cur.name}의 ${STAT_META[stat].label}이(가) +${r.to}가 되었다.`)
+    setMsg(r?.error ? r.error : `${nameOf(cur)}의 ${STAT_META[stat].label} +1 (총 ${r.total}/15).`)
   }
+  const specialGo = (id) => { const r = onSpecialEnhance(cur.id, id); setMsg(r?.error ? r.error : `${r.special.title} ${cur.name}이(가) 되었다.`) }
 
   return (
     <section aria-label={ARMORY.label} data-armory>
@@ -50,24 +53,36 @@ export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }
             {cur && (
               <>
                 <p className="mt-3 text-xs leading-relaxed text-paper/65">{cur.effectText}</p>
+                <p className="mt-2 text-xs text-gold">일반 강화: {enhTotal(player, cur.id)}/15 · 1회당 의지력 20 + 연마석 1개</p>
                 <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
                   {ENH_STATS.map((s) => {
                     const lv = enhLevel(player, cur.id, s)
-                    const max = lv >= ENH_MAX
-                    const mat = max ? null : itemOf(enhMaterialFor(lv))
+                    const max = enhTotal(player, cur.id) >= ENH_MAX
+                    const mat = max ? null : itemOf(enhMaterialFor())
                     const have = mat ? countOf(player, mat.id) : 0
                     return (
                       <li key={s} data-enh-stat={s} className="flex items-center justify-between gap-2 rounded-lg bg-shade/25 px-3 py-2 text-sm">
                         <span className="text-paper/90">{STAT_META[s].label} <b className="text-gold" data-enh-lv>+{lv}</b>
-                          <span className="block text-[10px] text-paper/50">{max ? '최대 강화' : `필요: ${mat.name} (${have}개 보유)`}</span>
+                          <span className="block text-[10px] text-paper/50">{max ? '총 15포인트 완료' : `필요: 의지력 20 · ${mat.name} (${have}개)`}</span>
                         </span>
-                        <button type="button" disabled={max || (!admin && !have)} onClick={() => go(s)} className="flat-btn text-xs disabled:opacity-40">
+                        <button type="button" disabled={max || (!admin && (!have || (player.mp ?? 0) < 20))} onClick={() => go(s)} className="flat-btn text-xs disabled:opacity-40">
                           {max ? 'MAX' : `+${lv + 1}`}
                         </button>
                       </li>
                     )
                   })}
                 </ul>
+                <div className="mt-5 border-t border-edge/30 pt-4">
+                  <p className="text-sm text-gold">특수 강화</p>
+                  <p className="mt-1 text-xs text-paper/60">무구당 1종 · 의지력 50 + 영력 50 + 500냥 + 해당 화투패 + 연마석 1개</p>
+                  {specialEnhOf(player, cur.id) ? (
+                    <p className="mt-2 rounded-lg bg-shade/25 p-3 text-sm">{specialTitleOf(player, cur.id)} · {SPECIAL_ENHANCEMENTS.find(x => x.id === specialEnhOf(player, cur.id))?.effect}</p>
+                  ) : (
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {SPECIAL_ENHANCEMENTS.map((sp) => { const card = itemOf(sp.card); const have = countOf(player, sp.card); const duplicate = Object.values(player.weaponSpecial ?? {}).includes(sp.id); const ok = admin || (!duplicate && (player.mp ?? 0) >= 50 && (player.spirit ?? 0) >= 50 && (player.money ?? 0) >= 500 && have > 0 && countOf(player, 'whetstone') > 0); return <div key={sp.id} className="rounded-lg bg-shade/25 p-3"><p className="text-sm text-paper/90">{sp.title}{cur.name}</p><p className="mt-1 text-xs text-paper/60">{sp.effect}</p><p className="mt-1 text-[10px] text-paper/50">{card?.name}: {have}개 · 연마석: {countOf(player, 'whetstone')}개{duplicate ? ' · 이미 다른 무구에 적용됨' : ''}</p><button type="button" disabled={!ok} onClick={() => specialGo(sp.id)} className="flat-btn mt-2 text-xs disabled:opacity-40">특수 강화</button></div> })}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </>
@@ -79,7 +94,7 @@ export default function Armory({ player, onEnhance, onMeet, admin, onAdminGive }
         <div className="ink-panel mt-4 w-full rounded-xl p-4" data-armory-admin>
           <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 무구와 재료 받기</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {[...WEAPONS, ...ENH_ITEMS.map(itemOf)].map((it) => (
+            {[...WEAPONS, ...ENH_ITEMS.map(itemOf), ...SPECIAL_ENHANCEMENTS.map(x => itemOf(x.card))].filter(Boolean).map((it) => (
               <button key={it.id} type="button" data-give={it.id} onClick={() => onAdminGive(it.id)} className="rounded-full bg-shade/30 px-2.5 py-1 text-xs text-paper/85">{it.name} +1</button>
             ))}
           </div>

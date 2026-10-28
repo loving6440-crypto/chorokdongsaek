@@ -15,10 +15,11 @@
  * 다인 전투에서 아이템은 자기 차례에만 쓸 수 있다. 그중 '일행'(나 말고 다른 사람)에게도 쓸 수 있는 아이템은 쓰는 순간 그 턴이 끝나고(#턴소모有),
  * 나를 포함한 '개인'에게만 쓸 수 있는 아이템은 턴을 소모하지 않아 같은 턴에 다른 행동도 이어서 할 수 있다(#턴소모無). (v71)
  */
-/** 턴소모有/無 판정: 일행(다른 사람)에게도 쓸 수 있는 효과(boost·partyHp·partyMp·partyBoost·giveHp)가 있으면 턴을 소모한다. */
+/** 턴소모有/無 판정: 일행 전원(또는 나를 제외한 전원)을 대상으로 하는 효과(partyHp·partyMp·partyBoost·giveHp)가 있으면 턴을 소모한다.
+ *  boost(마이쮸: 한 명에게만 건네는 공격력 버프)는 대상이 한 명뿐이라 턴을 소모하지 않는다. */
 export const itemTurnFree = (item) => {
   const e = item?.effect ?? {}
-  return item?.battle && !(e.boost || e.partyHp || e.partyMp || e.partyBoost || e.giveHp)
+  return item?.battle && !(e.partyHp || e.partyMp || e.partyBoost || e.giveHp)
 }
 export const START_MONEY = 50
 
@@ -71,7 +72,7 @@ const RAW_ITEMS = [
     name: '마이쮸',
     price: 5,
     desc: '친해지고 싶은 상대에게 나눠주자. 전투 중에는 같이 싸우는 파티원에게도(물론 혼자 먹어도) 건넬 수 있다.',
-    tags: ['전투 중 사용 가능', '#턴소모有'],
+    tags: ['전투 중 사용 가능', '#턴소모無'],
     effectText: '전투 중: 파티원(나 자신 포함) 한 명에게 건네면 그 사람의 다음 행동 피해가 1턴 동안 2배가 된다. 전투가 아닐 때: NPC에게 주면 호감도가 오른다.',
     effect: { boost: true },
     battle: true,
@@ -736,7 +737,7 @@ const RAW_ITEMS = [
     name: '기름 먹인 천',
     price: null,
     desc: '무구의 날과 자루를 닦아 윤을 내는 천. 손에 쥐는 맛이 달라진다.',
-    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
     effect: {},
     battle: false,
   },
@@ -747,7 +748,7 @@ const RAW_ITEMS = [
     name: '오색 매듭',
     price: null,
     desc: '무구의 자루에 다는 오방색 매듭. 눈에 익은 장식이 쥔 사람의 마음가짐까지 가다듬는다.',
-    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
     effect: {},
     battle: false,
   },
@@ -758,7 +759,7 @@ const RAW_ITEMS = [
     name: '주사 호신부',
     price: null,
     desc: '붉은 주사로 한 획 한 획 써 내린 작은 부적. 무구에 붙여 두면 쓰는 이의 기운이 한결 안정된다.',
-    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
     effect: {},
     battle: false,
   },
@@ -769,10 +770,24 @@ const RAW_ITEMS = [
     name: '은입사 장식',
     price: null,
     desc: '무구에 은실을 박아 넣는 장인의 장식. 이 단계까지 오른 무구는 더 손댈 곳이 없다고들 한다.',
-    effectText: '무구보관소에서 무구를 강화할 때 쓴다.',
+    effectText: '구버전 강화 재료. v74에서는 일반 강화에 연마석만 사용한다.',
     effect: {},
     battle: false,
   },
+  ...[
+    ['pine', '소나무 패', '1월 소나무', '전투불능이 되지 않고 승리하면 전투 직전의 체력과 의지력으로 복구된다.'],
+    ['plum', '매화 패', '2월 매화', '전투 중 사용할 수 있는 의지력이 150이 된다.'],
+    ['cherry', '벚꽃 패', '3월 벚꽃', '전투 중 매 턴, 체력이 30% 미만인 아군은 장착자의 이해/3만큼 회복한다.'],
+    ['black-wisteria', '흑싸리 패', '4월 흑싸리', '공격 명중 시 간파를 쓰지 않아도 상대의 행동을 2턴 더 확인한다. 간파와 중첩된다.'],
+    ['orchid', '난초 패', '5월 난초', '전투 중 장착자가 직접 목격한 영능력 1회를 턴 소모 없이 무효화한다.'],
+    ['peony', '모란 패', '6월 모란', '간파를 한 번도 쓰지 않고 승리하면 승리 보상이 2배가 된다.'],
+    ['red-wisteria', '홍싸리 패', '7월 홍싸리', '직접 일반 공격을 선택할 수 없는 대신 반격 피해가 항상 2배가 된다. 돌발 행동 공격은 유지된다.'],
+    ['gwangsan', '공산 패', '8월 공산', '강공을 막아 반격에 성공하면 적의 향후 5턴 방어 태세가 행동 없음으로 바뀐다.'],
+    ['chrysanthemum', '국화 패', '9월 국화', '전투당 최초로 체력이 0이 되는 피해를 대가 없이 무효화한다.'],
+    ['maple', '단풍 패', '10월 단풍', '모든 공격력에 +10%(올림) 보정이 붙는다.'],
+    ['paulownia', '오동 패', '11월 오동', '장착자가 주고받는 모든 종류의 피해가 10%(올림) 감소한다.'],
+    ['willow', '버드나무 패', '12월 버드나무', '전투 중 적이 아군을 대상으로 영능력을 쓰려 할 때 이해/2% 확률로 행동을 다시 굴린다.'],
+  ].map(([id, name, month, effectText]) => ({ id: `hwatu-${id}`, kind: 'tool', tags: ['완성품', '특수 강화 패'], name, price: null, desc: `${month}에 대응하는 무구 특수 강화용 화투패.`, effectText, effect: {}, battle: false })),
 ]
 
 /**
@@ -840,14 +855,28 @@ export function gearBonus(player) {
 /** 지금 든 무구의 특수 효과 id (없으면 null) */
 export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
 
-// ───────── 무구 강화 ─────────
-// v72: 스탯마다 균등하게 5까지가 아니라, 하나의 스탯만 원하는 만큼(최대 15까지) 자유롭게 밀어 올릴 수 있다.
-// 재료는 3단계씩 구간을 나눠 쓴다: 0→3 숫돌 · 3→6 기름 먹인 천 · 6→9 오색 매듭 · 9→12 주사 호신부 · 12→15 은입사 장식.
-export const ENH_MAX = 15 // 육조 스탯 하나당 최대 +15
-export const ENH_TIER_SIZE = 3 // 재료 하나가 담당하는 레벨 구간 크기
-export const ENH_ITEMS = ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'] // 구간 0(0~2)·1(3~5)·2(6~8)·3(9~11)·4(12~14) → 다음 단계에 쓰는 재료
-/** 지금 수치(from)에서 다음 단계로 올릴 때 필요한 재료 id. */
-export const enhMaterialFor = (from) => ENH_ITEMS[Math.min(ENH_ITEMS.length - 1, Math.floor(Math.max(0, from) / ENH_TIER_SIZE))]
+// ───────── 무구 강화 v74 ─────────
+// 강화 1회당 선택 스탯 +1, 무구당 총 15포인트. 매회 연마석 1개와 의지력 20 소모.
+export const ENH_MAX = 15
+export const ENH_TIER_SIZE = 1
+export const ENH_ITEMS = ['whetstone']
+export const enhMaterialFor = () => 'whetstone'
+export const SPECIAL_ENHANCEMENTS = [
+  { id: 'pine', card: 'hwatu-pine', title: '솔의', displayTitle: '솔의', effect: '전투불능 없이 승리하면 전투 직전 체력·의지력 복구' },
+  { id: 'plum', card: 'hwatu-plum', title: '매화의', displayTitle: '매화의', effect: '전투 중 의지력 150' },
+  { id: 'cherry', card: 'hwatu-cherry', title: '벚꽃의', displayTitle: '벚꽃의', effect: '매 턴 체력 30% 미만 아군을 이해/3 회복' },
+  { id: 'black-wisteria', card: 'hwatu-black-wisteria', title: '흑등나무의', displayTitle: '흑등나무의', effect: '공격 명중 시 상대 행동 확인 +2턴' },
+  { id: 'orchid', card: 'hwatu-orchid', title: '난초의', displayTitle: '난초의', effect: '목격한 영능력 최초 1회 무효화' },
+  { id: 'peony', card: 'hwatu-peony', title: '모란의', displayTitle: '모란의', effect: '간파 미사용 승리 보상 2배' },
+  { id: 'red-wisteria', card: 'hwatu-red-wisteria', title: '홍싸리나무의', displayTitle: '홍싸리나무의', effect: '직접 일반 공격 불가, 반격 피해 2배' },
+  { id: 'gwangsan', card: 'hwatu-gwangsan', title: '공산의', displayTitle: '공산의', effect: '강공 막기 반격 성공 시 적 방어 태세 5턴 무효화' },
+  { id: 'chrysanthemum', card: 'hwatu-chrysanthemum', title: '국화의', displayTitle: '국화의', effect: '전투당 최초 치명 피해 무효화' },
+  { id: 'maple', card: 'hwatu-maple', title: '단풍의', displayTitle: '단풍의', effect: '공격력 +10%(올림)' },
+  { id: 'paulownia', card: 'hwatu-paulownia', title: '오동의', displayTitle: '오동의', effect: '주는/받는 피해 -10%(올림)' },
+  { id: 'willow', card: 'hwatu-willow', title: '버드나무의', displayTitle: '버드나무의', effect: '적의 아군 대상 영능력 이해/2%로 재굴림' },
+]
+export const specialEnhOf = (player, weaponId) => player.weaponSpecial?.[weaponId] ?? null
+export const specialTitleOf = (player, weaponId) => SPECIAL_ENHANCEMENTS.find(x => x.id === specialEnhOf(player, weaponId))?.title ?? ''
 export const ENH_STATS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
 export const WEAPONS = ITEMS.filter((i) => i.kind === 'gear' && i.slot === 'weapon') // 무구 종류(기본형)
 /** 새 무구 한 벌을 소지품에 넣는다. 반환 { player, id } */
@@ -919,17 +948,41 @@ export function enhanceWeapon(player, weaponId, stat, admin = false) {
   if (!w || w.slot !== 'weapon') return { error: '무구가 아니다.' }
   if (!ownsWeapon(player, weaponId)) return { error: '그 무구를 갖고 있지 않다.' }
   if (!ENH_STATS.includes(stat)) return { error: '올릴 수 없는 스탯이다.' }
-  const from = enhLevel(player, weaponId, stat)
-  if (from >= ENH_MAX) return { error: `이 스탯은 이미 최대(+${ENH_MAX})까지 강화했다.` }
-  const material = enhMaterialFor(from)
-  let inventory = player.inventory ?? {}
+  const total = enhTotal(player, weaponId)
+  if (total >= ENH_MAX) return { error: '이 무구는 일반 강화 15포인트를 모두 사용했다.' }
+  if (!admin && (player.mp ?? 0) < 20) return { error: '의지력이 20 필요하다.' }
+  const material = 'whetstone'
+  let inventory = { ...(player.inventory ?? {}) }
   if (!admin) {
-    if (!countOf(player, material)) return { error: `${itemOf(material).name}이(가) 필요하다.` }
-    inventory = { ...inventory, [material]: inventory[material] - 1 }
+    if (!countOf(player, material)) return { error: '연마석이 필요하다.' }
+    inventory[material] -= 1
     if (inventory[material] <= 0) delete inventory[material]
   }
+  const from = enhLevel(player, weaponId, stat)
   const enh = { ...(player.enh ?? {}), [weaponId]: { ...(player.enh?.[weaponId] ?? {}), [stat]: from + 1 } }
-  return { player: { ...player, inventory, enh }, from, to: from + 1, material }
+  return { player: { ...player, inventory, mp: admin ? player.mp : player.mp - 20, enh }, from, to: from + 1, total: total + 1, material }
+}
+
+/** 화투패로 특수 강화. 무구당 1종, 같은 특수 강화 중복 불가. */
+export function specialEnhanceWeapon(player, weaponId, specialId, admin = false) {
+  const w = itemOf(weaponId)
+  if (!w || w.slot !== 'weapon' || !ownsWeapon(player, weaponId)) return { error: '강화할 무구를 소지하고 있지 않다.' }
+  if (specialEnhOf(player, weaponId)) return { error: '이 무구에는 이미 특수 강화가 붙어 있다.' }
+  const sp = SPECIAL_ENHANCEMENTS.find(x => x.id === specialId)
+  if (!sp) return { error: '존재하지 않는 특수 강화다.' }
+  if (Object.values(player.weaponSpecial ?? {}).includes(specialId)) return { error: '동일한 특수 강화는 중복해서 붙일 수 없다.' }
+  if (!admin) {
+    if ((player.mp ?? 0) < 50) return { error: '의지력이 50 필요하다.' }
+    if ((player.spirit ?? 0) < 50) return { error: '영력이 50 필요하다.' }
+    if ((player.money ?? 0) < 500) return { error: '500냥이 필요하다.' }
+    if (countOf(player, sp.card) < 1) return { error: `${itemOf(sp.card)?.name ?? '해당 화투패'}가 필요하다.` }
+    if (countOf(player, 'whetstone') < 1) return { error: '연마석 1개가 필요하다.' }
+  }
+  const inventory = { ...(player.inventory ?? {}) }
+  if (!admin) {
+    for (const id of [sp.card, 'whetstone']) { inventory[id] = (inventory[id] ?? 0) - 1; if (inventory[id] <= 0) delete inventory[id] }
+  }
+  return { player: { ...player, inventory, mp: admin ? player.mp : player.mp - 50, spirit: admin ? player.spirit : player.spirit - 50, money: admin ? player.money : player.money - 500, weaponSpecial: { ...(player.weaponSpecial ?? {}), [weaponId]: specialId } }, special: sp }
 }
 /**
  * 선물로 무구를 보낼 때 함께 가는 강화: 보낸 뒤에 그 무구를 더는 갖고(끼고) 있지 않을 때만 강화가 따라간다.

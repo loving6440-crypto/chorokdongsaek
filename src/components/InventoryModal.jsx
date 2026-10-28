@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
-import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems } from '../game/items'
+import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
 import ItemIcon from './ItemIcon'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
@@ -33,6 +33,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: pn, reviveOn, boostOn }) : null
   const slotItem = slotSel && eq[slotSel] ? itemOf(eq[slotSel]) : null
   const shown = picked ?? slotItem
+  const displayName = (item) => item ? `${specialTitleOf(player, item.id)}${item.name}` : ''
   // 마이쭈(boost)·쌍쌍바(giveHp): 누구에게 줄지 고르는 아이템.
   const chewyTarget = (picked?.effect?.boost || picked?.effect?.giveHp) && inBattle
 
@@ -81,12 +82,12 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                       setErr('')
                       setSlotSel(slot.id)
                     }}
-                    aria-label={`${slot.label}: ${it ? it.name : '비어 있음'}`}
+                    aria-label={`${slot.label}: ${it ? displayName(it) : '비어 있음'}`}
                     className="tilt flex w-full flex-col items-center gap-1 rounded-xl border border-edge/20 bg-shade/20 p-2 enabled:hover:bg-gold-fill/15 disabled:opacity-60"
                   >
                     <span className="text-[10px] text-paper/55">{slot.label}</span>
                     {it ? <ItemIcon item={it} size={36} className="shrink-0" /> : <span className="grid size-9 place-items-center rounded-full border-2 border-dashed border-edge/25 text-xs text-paper/30">—</span>}
-                    <span className="w-full truncate text-center text-[11px] text-paper">{it ? it.name : '비어 있음'}</span>
+                    <span className="w-full truncate text-center text-[11px] text-paper">{it ? displayName(it) : '비어 있음'}</span>
                   </button>
                 </li>
               )
@@ -110,11 +111,11 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                       setTargeting(false)
                       setSel(item.id)
                     }}
-                    aria-label={item.slot === 'weapon' ? `${item.name}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${item.name} ×${countOf(player, item.id)}`}
+                    aria-label={item.slot === 'weapon' ? `${displayName(item)}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${displayName(item)} ×${countOf(player, item.id)}`}
                     className="tilt flex w-full flex-col items-center gap-1 rounded-xl bg-edge/[0.07] p-2 hover:bg-gold-fill/15"
                   >
                     <ItemIcon item={item} size={40} className="shrink-0" />
-                    <span className="w-full truncate text-center text-[11px] text-paper">{item.name}</span>
+                    <span className="w-full truncate text-center text-[11px] text-paper">{displayName(item)}</span>
                     <span className="text-[11px] text-gold">{item.slot === 'weapon' ? (enhTotal(player, item.id) > 0 ? `+${enhTotal(player, item.id)}` : '') : `×${countOf(player, item.id)}`}</span>
                   </button>
                 </li>
@@ -130,7 +131,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={shown.name}
+            aria-label={displayName(shown)}
             data-item-popup={shown.id}
             className="ink-panel w-full max-w-xs rounded-xl p-4 shadow-2xl ring-1 ring-edge/30"
             onClick={(e) => e.stopPropagation()}
@@ -138,7 +139,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
             <div className="flex items-center gap-3">
               <ItemIcon item={shown} size={44} className="shrink-0" />
               <p className="font-serif text-base text-paper">
-                {shown.name} {picked && <span className="text-sm text-gold">×{pn}</span>}
+                {displayName(shown)} {picked && <span className="text-sm text-gold">×{pn}</span>}
                 {slotItem && <span className="ml-1 text-xs text-gold">(착용 중)</span>}
               </p>
             </div>
