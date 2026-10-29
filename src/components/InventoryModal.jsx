@@ -3,16 +3,14 @@ import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
 import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
 import ItemIcon from './ItemIcon'
-import { INVENTORY_SLOTS, countSlots, inventoryStacks, maxStack, capacityFor } from '../game/inventoryCapacity'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
-export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onDiscard, onEquip, onUnequip, onClaimPending, partyMates = [], partyBattle = false, onClose }) {
+export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onDiscard, onEquip, onUnequip, partyMates = [], partyBattle = false, onClose }) {
   const [sel, setSel] = useState(null) // 아이템 id
   const [slotSel, setSlotSel] = useState(null) // 착용 중인 부위 id
   const [targeting, setTargeting] = useState(false) // 마이쭈: 누구에게 줄까
   const [err, setErr] = useState('')
   const [discardQty, setDiscardQty] = useState(1)
-  const [selectedStack, setSelectedStack] = useState(null)
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const closeAll = () => {
     setSel(null)
@@ -20,7 +18,6 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
     setTargeting(false)
     setErr('')
     setDiscardQty(1)
-    setSelectedStack(null)
     setDiscardConfirm(false)
   }
   const popupOpen = !!(sel || slotSel)
@@ -34,12 +31,10 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, popupOpen])
   const owned = ownedItems(player)
-  const stacks = owned.flatMap(item => inventoryStacks({ [item.id]: countOf(player, item.id) }).map(stack => ({ item, ...stack })))
   const eq = equipOf(player)
   const picked = sel ? owned.find((i) => i.id === sel) : null
-  const ownedCount = picked ? countOf(player, picked.id) : 0
-  const pn = picked ? Math.min(ownedCount, selectedStack?.id === picked.id ? selectedStack.quantity : ownedCount) : 0
-  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: ownedCount, reviveOn, boostOn }) : null
+  const pn = picked ? countOf(player, picked.id) : 0
+  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: pn, reviveOn, boostOn }) : null
   const slotItem = slotSel && eq[slotSel] ? itemOf(eq[slotSel]) : null
   const shown = picked ?? slotItem
   const displayName = (item) => item ? `${specialTitleOf(player, item.id)}${item.name}` : ''
@@ -70,7 +65,6 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
           <h2 className="flex items-center gap-2 font-serif text-lg text-gold">
             <Backpack size={18} aria-hidden />
             소지품
-            <span className="font-sans text-xs font-normal text-paper/60" data-inventory-slots>{countSlots(player.inventory)} / {INVENTORY_SLOTS}칸</span>
             <span className="font-sans text-xs font-normal text-paper/60">{Math.floor(player.money)}냥</span>
           </h2>
           <button type="button" onClick={onClose} aria-label="소지품 닫기" className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper/80 hover:bg-edge/20">
@@ -105,10 +99,14 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
           </ul>
 
           <p className="mt-4 text-[11px] tracking-widest text-paper/55">가진 물건</p>
-          {owned.length === 0 && <p className="mt-2 text-xs text-paper/50">가진 물건이 없다. 기숙사 매점에서 살 수 있다.</p>}
-          <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="가진 물건">
-              {stacks.map(({ item, ...stack }) => (
-                <li key={`${item.id}:${stack.index}`}>
+          {owned.length === 0 ? (
+            <p className="mt-2 rounded-xl border-2 border-dashed border-edge/20 p-6 text-center text-sm text-paper/55">
+              가진 물건이 없다. 기숙사 매점에서 살 수 있다.
+            </p>
+          ) : (
+            <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="가진 물건">
+              {owned.map((item) => (
+                <li key={item.id}>
                   <button
                     type="button"
                     data-item={item.id}
@@ -116,32 +114,18 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                       setErr('')
                       setTargeting(false)
                       setSel(item.id)
-                      setSelectedStack(stack)
                       setDiscardQty(1)
                     }}
-                    aria-label={item.slot === 'weapon' ? `${displayName(item)}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${displayName(item)} ×${stack.quantity}`}
+                    aria-label={item.slot === 'weapon' ? `${displayName(item)}${enhTotal(player, item.id) > 0 ? ` +${enhTotal(player, item.id)}` : ''}` : `${displayName(item)} ×${countOf(player, item.id)}`}
                     className="tilt flex w-full flex-col items-center gap-1 rounded-xl bg-edge/[0.07] p-2 hover:bg-gold-fill/15"
                   >
                     <ItemIcon item={item} size={40} className="shrink-0" />
                     <span className="w-full truncate text-center text-[11px] text-paper">{displayName(item)}</span>
-                    <span className="text-[11px] text-gold">{item.slot === 'weapon' ? (enhTotal(player, item.id) > 0 ? `+${enhTotal(player, item.id)}` : '') : `×${stack.quantity}`}</span>
+                    <span className="text-[11px] text-gold">{item.slot === 'weapon' ? (enhTotal(player, item.id) > 0 ? `+${enhTotal(player, item.id)}` : '') : `×${countOf(player, item.id)}`}</span>
                   </button>
                 </li>
               ))}
-              {Array.from({ length: Math.max(0, INVENTORY_SLOTS - stacks.length) }, (_, i) => (
-                <li key={`empty:${i}`} aria-hidden="true" className="flex min-h-24 flex-col items-center justify-center rounded-xl border border-dashed border-edge/15 bg-shade/10 text-xs text-paper/20">—</li>
-              ))}
-          </ul>
-          {!inBattle && Object.values(player.pendingInventory ?? {}).some(n => n > 0) && (
-            <section className="mt-3 rounded-lg border border-gold/40 p-3" aria-label="수령 대기 물품">
-              <p className="text-xs font-semibold text-gold">수령 대기 물품 (빈 소지품 칸이 생기면 수령 가능)</p>
-              {Object.entries(player.pendingInventory).filter(([, n]) => n > 0).map(([id, n]) => (
-                <div key={id} className="mt-2 flex items-center justify-between gap-2 text-xs">
-                  <span className="text-paper">{itemOf(id)?.name ?? id} ×{n}</span>
-                  <button type="button" className="flat-btn-ghost text-xs disabled:opacity-40" disabled={!capacityFor(player.inventory, id)} onClick={() => onClaimPending?.(id, Math.min(n, maxStack(id), capacityFor(player.inventory, id)))}>최대 {Math.min(n, maxStack(id), capacityFor(player.inventory, id))}개 수령</button>
-                </div>
-              ))}
-            </section>
+            </ul>
           )}
           <p className="mt-3 text-[11px] leading-relaxed text-paper/50">
             전투 중에는 전투 사용 가능 아이템만 쓸 수 있다. #턴소모無는 다른 사람 턴에도 사용할 수 있고, #턴소모有는 본인 턴에 사용하면 턴이 종료된다. 장비는 전투 중 교체할 수 없다.

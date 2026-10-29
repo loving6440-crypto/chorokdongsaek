@@ -196,7 +196,6 @@ function handle(ev) {
     case 'mail':
       set({ mailUnread: state.mailUnread + 1, mailTick: state.mailTick + 1 })
       if (ev.mail?.kind === 'note') pushNotice(`${ev.mail.from.name}님의 쪽지가 사물함에 도착했다.`)
-      if (ev.mail?.kind === 'friend') pushNotice(`${ev.mail.from.name}님이 친구로 추가했어. 사물함에서 확인할 수 있어.`)
       break
     case 'adminEdit':
       if (ev.ev === 'request') set({ editReq: { rid: ev.rid, adminName: ev.adminName, changes: ev.changes, expires: ev.expires } })

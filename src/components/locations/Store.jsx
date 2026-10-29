@@ -5,7 +5,6 @@ import { RECIPE_SHOP, knowsRecipe } from '../../game/crafting'
 import { STORE_INFO, YUMIN } from '../../game/store'
 import { pickNpcLine } from '../../game/npcLines'
 import ItemIcon from '../ItemIcon'
-import { capacityFor } from '../../game/inventoryCapacity'
 import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
 
@@ -30,7 +29,7 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
     setQty(1)
     setTarget(item)
   }
-  const maxQty = target ? Math.min(99, capacityFor(player.inventory, target.id), admin ? 99 : Math.floor(player.money / target.price)) : 0
+  const maxQty = target ? (admin ? 99 : Math.min(99, Math.floor(player.money / target.price))) : 0
   const q = Math.max(1, Math.min(Math.max(1, maxQty), qty))
   useEffect(() => {
     if (!target) return
@@ -70,8 +69,7 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
       )}
       <ul className="mt-3 grid gap-3 md:grid-cols-2">
         {STORE_ITEMS.map((item) => {
-          const hasSpace = capacityFor(player.inventory, item.id) >= 1
-          const can = open && hasSpace && (admin || player.money >= item.price)
+          const can = open && (admin || player.money >= item.price)
           return (
             <li key={item.id} className="ink-panel flex flex-col rounded-xl p-4" data-item={item.id}>
               <div className="flex items-start gap-3">
@@ -95,7 +93,7 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
               <div className="mt-3 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-paper/50">보유 {countOf(player, item.id)}개</span>
                 <button type="button" disabled={!can} onClick={() => askBuy(item)} className="flat-btn !py-1 text-sm disabled:opacity-40">
-                  {!open ? '영업 종료' : !hasSpace ? '소지품 가득 참' : can ? '구매' : '냥이 모자라다'}
+                  {!open ? '영업 종료' : can ? '구매' : '냥이 모자라다'}
                 </button>
               </div>
             </li>

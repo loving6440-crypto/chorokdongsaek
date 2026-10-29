@@ -93,7 +93,7 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete, on
               </button>
             )}
             <SoundToggle />
-            <ThemeToggle theme={theme} onSelect={onToggleTheme} />
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           </div>
         </div>
 

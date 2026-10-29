@@ -103,7 +103,7 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
         {/* 프로필 마름모 위, 왼쪽: 음악 설정 · 테마 전환 · 로그아웃 — 원형 + 아이콘으로 통일 */}
         <div className="absolute top-[78px] left-[52px] z-10 flex items-center gap-1.5">
           <SoundToggle />
-          <ThemeToggle theme={theme} onSelect={onToggleTheme} />
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           {onLogout && (
             <button
               type="button"

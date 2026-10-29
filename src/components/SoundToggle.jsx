@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { createPortal } from 'react-dom'
-import { Music, Volume2, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Music, Volume2 } from 'lucide-react'
 import { sfx } from '../game/sfx'
 import { bgm } from '../game/bgm'
 
@@ -42,47 +41,47 @@ function ChannelRow({ label, store, icon: Icon }) {
   )
 }
 
-/**
- * 음악 설정은 프로필 마름모 / 스크롤 가능한 미니게임 창 어디에서 열더라도
- * 원래 버튼 아래로 튀어나오지 않고 화면 중앙의 작은 창으로 표시한다.
- * document.body 포털을 사용하여 부모 transform/overflow/z-index 영향을 피한다.
- */
+const POPUP_WIDTH = 208 // w-52
+const EDGE_MARGIN = 8
+
+/** 음악 설정: 버튼 하나를 누르면 효과음 · 배경음악을 한 창에서 각각 따로 끄고 켜고, 볼륨을 조절한다. */
 export default function SoundToggle({ className = '' }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState(null) // {top, left} — 뷰포트 기준(position: fixed)
   const btnRef = useRef(null)
-  const dialogRef = useRef(null)
-  const closeRef = useRef(null)
+  const popRef = useRef(null)
 
   useEffect(() => {
-    if (!open) return undefined
-    closeRef.current?.focus()
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setOpen(false)
-      }
-      if (event.key !== 'Tab' || !dialogRef.current) return
-      const focusable = Array.from(dialogRef.current.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]'))
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
+    if (!open) return
+    const close = (e) => {
+      if (popRef.current?.contains(e.target) || btnRef.current?.contains(e.target)) return
+      setOpen(false)
     }
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('pointerdown', close, true)
+    return () => document.removeEventListener('pointerdown', close, true)
+  }, [open])
+
+  // 버튼이 모달처럼 잘리는(overflow:hidden) 창 안에 있어도 갇히지 않도록, 드롭다운을 뷰포트 기준
+  // position:fixed 로 띄우고 버튼 위치를 직접 계산해 화면 가장자리를 넘지 않게 자리를 잡는다.
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return undefined
+    const place = () => {
+      const r = btnRef.current.getBoundingClientRect()
+      const left = Math.min(Math.max(EDGE_MARGIN, r.left), window.innerWidth - POPUP_WIDTH - EDGE_MARGIN)
+      const top = Math.min(r.bottom + 6, window.innerHeight - EDGE_MARGIN)
+      setPos({ top, left })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      btnRef.current?.focus()
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
     }
   }, [open])
 
   return (
-    <div className={className}>
+    <div className={`relative ${className}`}>
       <button
         ref={btnRef}
         type="button"
@@ -90,47 +89,21 @@ export default function SoundToggle({ className = '' }) {
         title="음악 설정"
         aria-label="음악 설정"
         aria-expanded={open}
-        aria-haspopup="dialog"
         className="grid size-8 shrink-0 place-items-center rounded-full border border-gold/50 bg-ink/70 text-gold transition hover:bg-gold/15"
       >
         <Music size={15} />
       </button>
-      {open && createPortal(
+      {open && pos && (
         <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-shade/75 p-4"
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false)
-          }}
+          ref={popRef}
+          role="dialog"
+          aria-label="음악 설정"
+          style={{ top: pos.top, left: pos.left, width: POPUP_WIDTH }}
+          className="ink-panel fixed z-[100] space-y-3 rounded-xl p-3 shadow-lg"
         >
-          <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="음악 설정"
-            className="ink-panel w-full max-w-[320px] max-h-[calc(100dvh-32px)] overflow-y-auto p-4"
-          >
-            <div className="mb-4 flex items-center justify-between gap-3 border-b border-edge/25 pb-2">
-              <span className="flex items-center gap-2 font-serif text-sm text-gold">
-                <Music size={16} aria-hidden /> 음악 설정
-              </span>
-              <button
-                ref={closeRef}
-                type="button"
-                data-sfx="none"
-                onClick={() => setOpen(false)}
-                aria-label="음악 설정 닫기"
-                className="grid size-7 place-items-center border border-gold/40 text-paper/80 hover:bg-gold/15"
-              >
-                <X size={15} aria-hidden />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <ChannelRow label="효과음" store={sfx} icon={Volume2} />
-              <ChannelRow label="배경음악" store={bgm} icon={Music} />
-            </div>
-          </div>
-        </div>,
-        document.body,
+          <ChannelRow label="효과음" store={sfx} icon={Volume2} />
+          <ChannelRow label="배경음악" store={bgm} icon={Music} />
+        </div>
       )}
     </div>
   )

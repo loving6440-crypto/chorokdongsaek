@@ -1,98 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Sprout, Footprints } from 'lucide-react'
+import { useState } from 'react'
+import { Footprints } from 'lucide-react'
 import { HIKE_PATHS, hikeSpotKey, OUTSIDE_BARI_LINES } from '../../game/hike'
-import { GATHER_MINUTES } from '../../game/gather'
-import { HUNT_MINUTES, HUNT_TABLES } from '../../game/hunt'
+import HuntField from './HuntField'
 import Armory from './Armory'
 import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
-
-const leftText = (ms) => {
-  const m = Math.max(0, Math.ceil(ms / 60000))
-  return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`
-}
-
-/** 텃밭: [채집하기] — 20분을 기다리면 확률표에 따라 무언가를 얻는다. */
-function GatherSpot({ player, spotId, onGather }) {
-  const [, setTick] = useState(0)
-  const gt = player.gathering
-  const mine = gt?.spotId === spotId
-  useEffect(() => {
-    if (!mine) return undefined
-    const t = setInterval(() => setTick((n) => n + 1), 1000)
-    return () => clearInterval(t)
-  }, [mine])
-
-  if (gt) {
-    const left = gt.startedAt + gt.minutes * 60000 - Date.now()
-    return (
-      <div className="ink-panel mt-4 w-full rounded-xl p-5" data-gathering={gt.spotId}>
-        <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700">
-          <Sprout size={12} aria-hidden />
-          채집 중
-        </p>
-        <p className="mt-2 text-sm text-paper/85">{mine ? '이곳에서' : '다른 곳에서'} 채집하는 중이다.</p>
-        <p className="mt-2 text-sm text-gold" data-gather-left>
-          남은 시간: {left > 0 ? leftText(left) : '거의 다 됐다'}
-        </p>
-      </div>
-    )
-  }
-  return (
-    <div className="ink-panel mt-4 w-full rounded-xl p-5">
-      <p className="text-sm leading-relaxed text-paper/80">잘 가꾸어진 텃밭이다. 운이 좋으면 쓸 만한 것을 얻을 수 있을지도 모른다.</p>
-      <button type="button" onClick={() => onGather?.(spotId)} className="flat-btn mt-3 text-xs">
-        <Sprout size={14} aria-hidden />
-        채집하기 ({GATHER_MINUTES}분)
-      </button>
-    </div>
-  )
-}
-
-/** 수렵 시도: 채집과 마찬가지로 20분을 기다리면, 조우한 상대에 따라 승리(또는 간파) 보상을 얻는다. */
-function HuntSpot({ player, pathId, onHunt }) {
-  const [, setTick] = useState(0)
-  const ht = player.hunting
-  const mine = ht?.pathId === pathId
-  useEffect(() => {
-    if (!mine) return undefined
-    const t = setInterval(() => setTick((n) => n + 1), 1000)
-    return () => clearInterval(t)
-  }, [mine])
-
-  if (!HUNT_TABLES[pathId]) {
-    return (
-      <div className="ink-panel mt-4 w-full rounded-xl p-5">
-        <p className="text-sm leading-relaxed text-paper/60">이 길에서는 아직 수렵할 수 없다. (준비 중)</p>
-      </div>
-    )
-  }
-
-  if (ht) {
-    const left = ht.startedAt + ht.minutes * 60000 - Date.now()
-    return (
-      <div className="ink-panel mt-4 w-full rounded-xl p-5" data-hunting={ht.pathId}>
-        <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700">
-          <Footprints size={12} aria-hidden />
-          수렵 중
-        </p>
-        <p className="mt-2 text-sm text-paper/85">{mine ? '이곳에서' : '다른 곳에서'} 무언가의 기척을 쫓는 중이다.</p>
-        <p className="mt-2 text-sm text-gold" data-hunt-left>
-          남은 시간: {left > 0 ? leftText(left) : '거의 다 됐다'}
-        </p>
-      </div>
-    )
-  }
-  return (
-    <div className="ink-panel mt-4 w-full rounded-xl p-5">
-      <p className="text-sm leading-relaxed text-paper/80">기척을 숨기고 한참을 기다리면, 무언가와 조우하게 될지도 모른다.</p>
-      <button type="button" onClick={() => onHunt?.(pathId)} className="flat-btn mt-3 text-xs">
-        <Footprints size={14} aria-hidden />
-        수렵 시도 ({HUNT_MINUTES}분)
-      </button>
-    </div>
-  )
-}
 
 /** 둘레길 · 교외: NPC 바리가 나타나 돌아가라고 말린다. */
 function OutsideBari({ player, onMeet, onGiveNpc }) {
@@ -127,11 +39,11 @@ const Placeholder = ({ name }) => (
 )
 
 /** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. */
-export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMeet, onAdminGive, onGather, onHunt, onVisit, onGiveNpc }) {
+export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance, onMeet, onAdminGive, onHuntAction, onVisit, onGiveNpc }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
-  const [huntOn, setHuntOn] = useState(false)
+  const [huntOn, setHuntOn] = useState(() => player.huntExpedition?.status === 'active')
 
   const path = HIKE_PATHS.find((p) => p.id === pathId)
   const branch = path?.branches?.find((b) => b.id === branchId)
@@ -155,6 +67,8 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMee
     onVisit?.(hikeSpotKey(pathId, s.id, branchId))
   }
   const pickHunt = () => {
+    setPathId(null)
+    setBranchId(null)
     setSpotId(null)
     setHuntOn(true)
   }
@@ -176,21 +90,16 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMee
             {p.name}
           </button>
         ))}
+        <button
+          type="button"
+          aria-pressed={huntOn}
+          onClick={pickHunt}
+          className={`tilt flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm ${huntOn ? 'bg-gold-fill text-ink' : 'bg-edge/[0.07] text-paper/85 hover:bg-gold-fill/20'}`}
+        >
+          <Footprints size={13} aria-hidden />
+          수렵
+        </button>
       </div>
-
-      {pathId && (
-        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="수렵">
-          <button
-            type="button"
-            aria-pressed={huntOn}
-            onClick={pickHunt}
-            className={`tilt flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm ${huntOn ? 'bg-gold-fill text-ink' : 'bg-edge/[0.07] text-paper/85 hover:bg-gold-fill/20'}`}
-          >
-            <Footprints size={13} aria-hidden />
-            수렵 시도
-          </button>
-        </div>
-      )}
 
       {path?.branches && (
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="중앙길 갈래 선택">
@@ -229,7 +138,7 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMee
 
       {huntOn && (
         <div className="mt-2">
-          <HuntSpot player={player} pathId={pathId} onHunt={onHunt} />
+          <HuntField player={player} stats={stats} onAction={onHuntAction} />
         </div>
       )}
 
@@ -237,8 +146,6 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMee
         <div className="mt-2">
           {spot.id === 'armory' ? (
             <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} />
-          ) : spot.id === 'garden' ? (
-            <GatherSpot player={player} spotId={spot.id} onGather={onGather} />
           ) : spot.id === 'outside' ? (
             <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />
           ) : (

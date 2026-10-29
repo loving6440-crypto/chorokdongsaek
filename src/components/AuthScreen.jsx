@@ -91,7 +91,7 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
     <div className="stage-bg flex min-h-full flex-col items-center justify-center px-4 py-10 text-paper">
       <div className="absolute right-4 top-4 flex items-center gap-2">
         <SoundToggle />
-        <ThemeToggle theme={theme} onSelect={onToggleTheme} />
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </div>
 
       <div className="w-full max-w-md">
