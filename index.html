@@ -7,24 +7,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 첫 페인트 전에 저장된 테마를 적용해 화면 깜빡임을 막는다. (저장값이 없으면 다크) -->
-    <script>
-      try {
-        var t = localStorage.getItem('changnok-theme')
-        document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark'
-        var font = localStorage.getItem('changnok-ui-font')
-        document.documentElement.dataset.uiFont = ['neo', 'stardust', 'galmuri9', 'silver', 'ramche'].includes(font) ? font : 'neo'
-        var savedFontSize = Number(localStorage.getItem('changnok-ui-font-size'))
-        var fontSize = Number.isFinite(savedFontSize) && savedFontSize >= 80 && savedFontSize <= 130
-          ? Math.round(savedFontSize / 5) * 5 : 100
-        document.documentElement.dataset.uiFontSize = String(fontSize)
-        document.documentElement.style.setProperty('--ui-font-scale', String(fontSize / 100))
-      } catch (e) {
-        document.documentElement.dataset.theme = 'dark'
-        document.documentElement.dataset.uiFont = 'neo'
-        document.documentElement.dataset.uiFontSize = '100'
-        document.documentElement.style.setProperty('--ui-font-scale', '1')
-      }
-    </script>
+    <script src="/theme-bootstrap.js"></script>
     <title>草綠同色</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
+import { applySecurityHeaders } from './securityHeaders.js'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
 import { ENEMIES, PSYCHICS } from '../src/game/battle.js'
@@ -2528,6 +2529,9 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.json': 'application/json',
   '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.webp': 'image/webp', // (v69) 캐릭터 사진들이 이 포맷이라 빠져 있으면 안 됐다
   '.mp3': 'audio/mpeg', // (v69) 배경음악 파일 — 빠져 있어서 지금까지 전부 application/octet-stream 으로 나가고 있었다
 }
@@ -2577,6 +2581,7 @@ function serveStatic(req, res, url) {
 }
 
 const server = http.createServer((req, res) => {
+  applySecurityHeaders(req, res)
   const url = new URL(req.url, 'http://localhost')
   if (url.pathname.startsWith('/api/')) {
     handleApi(req, res, url).catch((e) => {
