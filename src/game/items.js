@@ -182,6 +182,14 @@ const RAW_ITEMS = [
     effect: {},
     battle: false,
   },
+  // ───────── 타일 수렵·채집 재료 ─────────
+  ...[
+    ['mushroom', '버섯', '산길에서 채집한 버섯.'],
+    ['poison-mushroom', '독버섯', '함부로 먹을 수 없는 독버섯.'],
+    ['rock', '바위', '산길의 돌무더기에서 얻은 단단한 바위.'],
+    ['raspberry', '산딸기', '덤불 사이에서 따낸 산딸기.'],
+    ['trap-scrap', '덫 찌꺼기', '동물을 쫓다가 발견한 덫의 잔해.'],
+  ].map(([id, name, desc]) => ({ id, name, desc, kind: 'material', tags: ['재료'], price: null, effectText: '', effect: {}, battle: false })),
   // ───────── 재료 · 먹을거리 (아직 어디서 나오는지는 정해지지 않았다) ─────────
   {
     id: 'dove-feather',

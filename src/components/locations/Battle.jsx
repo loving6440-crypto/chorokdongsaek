@@ -43,7 +43,7 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
+export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [tutorialOpen, setTutorialOpen] = useState(false) // 바리의 전투 안내(v72: 자동으로 뜨지 않고, 이 화면에서 직접 열 때만 보여 준다)
   // 튜토리얼이 열려 있는 동안엔 사이드바(ProfileSidebar)의 체력·의지력 표시도 100으로 보여 달라는
@@ -160,7 +160,7 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
       fightingRef.current = false
       onActive?.(false)
       setPhase('result')
-      onFinish({ win: state.over === 'win', fled: state.over === 'fled', enemy: state.enemy, log: fullLogRef.current })
+      onFinish({ win: state.over === 'win', fled: state.over === 'fled', enemy: state.enemy, hp: state.php, mp: mpRef.current, log: fullLogRef.current })
     },
     [onFinish, onActive],
   )
@@ -192,14 +192,15 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
   )
 
   const start = (enemyId) => {
-    onStart?.(enemyId)
+    const enemyKey = typeof enemyId === 'object' ? enemyId.id : enemyId
+    onStart?.(enemyKey)
     setPsyOpen(false)
     onActive?.(true)
     reported.current = false
     fightingRef.current = true
     mpRef.current = stats.special === 'plum' ? 150 : mpProp.current
     const s = newBattle(enemyId, stats, Math.random, hp, hpMax)
-    const n = seen?.[enemyId] || 0
+    const n = seen?.[enemyKey] || 0
     setFights(n)
     const init = rollInitiative(s.enemy, stats)
     const lines = [{ kind: 'info', text: `${s.enemy.name}이(가) 나타났다.` }]
@@ -388,6 +389,15 @@ export default function Battle({ stats, mp, hp, hpMax, seen, specials, rewardLef
   }, [phase, act])
 
   const rash = rashPercent(stats)
+
+  if (phase === 'pick' && encounter) {
+    return <section aria-label="수렵 중 조우">
+      <h3 className="font-serif text-xl text-gold">{encounter.name}과 마주쳤다</h3>
+      {encounter.tier && <p className="mt-2 text-xs text-paper/70">{encounter.tier}단계 · {recLabel(encounter)} · {partyLabel(encounter)}</p>}
+      <p className="mt-2 text-sm text-paper/80">수렵은 잠시 멈춥니다. 승리하면 영력 20을 얻습니다.</p>
+      <button type="button" className="flat-btn mt-4" onClick={() => start(encounter)}>전투 시작</button>
+    </section>
+  }
 
   // 다인 전투가 진행 중이면 그 화면을 보여 준다. (판은 서버가 진행한다)
   if (multi?.view) {

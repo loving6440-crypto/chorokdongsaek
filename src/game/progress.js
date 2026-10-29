@@ -130,6 +130,11 @@ export function cancelWaits(player) {
 export function sanitizeRestored(player, joinedAt, admin = false) {
   // 의지력 최대치가 100으로 늘었다: 예전 저장분도 최대치만 올려 준다.
   let p = !admin && player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
+  // 산 탐색의 20분 채집·수렵은 타일 수렵으로 교체되었다. 과거 대기를 재개하지 않는다.
+  if (p.gathering || p.hunting) {
+    const { gathering: _gathering, hunting: _hunting, ...rest } = p
+    p = rest
+  }
   // (예전 저장분 정리) 전투 교육이 있던 시절, 교육 도중에 닫았다면 맡아 둔 체력·의지력을 돌려준다. 지금은 전투 교육 자체가 없다.
   if (p.tutorialSnap) {
     const { tutorialSnap: snap, ...rest } = p

@@ -495,6 +495,7 @@ export function specialEffects(enemy) {
     case 'snake':
       return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.', spiritNote]
     case 'wonhon':
+    case 'mountain-ghost':
       return [`저주 3턴: 걸린 다음 상대 턴부터 세 번, 매번 1d${Math.max(1, Math.floor(spirit / 2))} 피해 (1~${Math.max(1, Math.floor(spirit / 2))}).`, '막을 수 없고, 저주 중 다시 걸면 3턴으로 갱신된다.', spiritNote]
     default:
       return [enemy.special?.note ?? '상대마다 다른 비기.', spiritNote]
@@ -945,7 +946,7 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   }
 
   // 저주: 방금 건 턴에는 들어가지 않고, 이후 상대 턴마다 들어간다.
-  if (s.curse > 0 && !(intent === 'special' && enemy.id === 'wonhon')) {
+  if (s.curse > 0 && !(intent === 'special' && (enemy.id === 'wonhon' || enemy.id === 'mountain-ghost'))) {
     const per = die(Math.max(1, Math.floor(enemy.spirit / 2)), rng)
     const resisted = enduranceMitigation(stats.endurance, per, rng)
     s.php -= resisted.damage

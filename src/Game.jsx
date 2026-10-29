@@ -35,6 +35,7 @@ import Annex from './components/locations/Annex'
 import { playHoljjak as playHoljjakGame } from './game/holjjak'
 import Dormitory from './components/locations/Dormitory'
 import Gym from './components/locations/Gym'
+import HuntBattleModal from './components/HuntBattleModal'
 import Infirmary from './components/locations/Infirmary'
 import MainHall from './components/locations/MainHall'
 import Shrine from './components/locations/Shrine'
@@ -52,8 +53,8 @@ import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
-import { GATHER_MINUTES } from './game/gather'
-import { HUNT_MINUTES } from './game/hunt'
+import { HUNT_SITES } from './game/huntSites'
+import { enterHuntSite, moveOnHunt, attemptHunt, leaveHuntSite, resolveHuntEncounter } from './game/huntField'
 import { travelMinutes } from './game/travel'
 import TravelPanel from './components/TravelPanel'
 import { HIKE_SPOT_IDS } from './game/hike'
@@ -87,10 +88,9 @@ import {
   startSlowFight,
   cancelSlowFight,
   slowFightMinutes,
-  startGather,
   cancelGather,
-  startHunt,
   cancelHunt,
+  WEAK_MS,
   dayKey,
 } from './game/progress'
 import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, sendPartyStats, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers, fetchRanking } from './net/online'
@@ -1288,37 +1288,42 @@ export default function Game({
     [interruptAll, addLog],
   )
 
-  /** 채집하기: 20분을 기다리면 확률표에 따라 무언가를 얻는다. */
-  const startGatherAction = useCallback(
-    (spotId) => {
-      guardTraining(() => {
-        interruptAll('채집을 시작해')
-        const cur = playerRef.current
-        const r = startGather(cur, spotId)
-        if (r.error) return addLog(r.error)
-        playerRef.current = r.player
-        setPlayer(r.player)
-        addLog(`채집을 시작했다. (${GATHER_MINUTES}분)`)
-      })
-    },
-    [interruptAll, addLog],
-  )
+  const huntAction = action => {
+    const run = () => {
+      if (action.type === 'enter') interruptAll('수렵을 시작해')
+      const cur = playerRef.current
+      const now = Date.now()
+      const stats = effectiveStats(cur, now)
+      const result = action.type === 'enter' ? enterHuntSite(cur, HUNT_SITES[action.siteId], now)
+        : action.type === 'move' ? moveOnHunt(cur, action.position, now)
+        : action.type === 'attempt' ? attemptHunt(cur, action.nodeId, stats, now)
+        : action.type === 'leave' ? leaveHuntSite(cur, now) : null
+      if (!result) return
+      if (result.error) return addLog(result.error)
+      const next = syncCodex(result.player)
+      playerRef.current = next
+      setPlayer(next)
+      addLogs(result.logs)
+    }
+    if (action.type === 'enter') guardTraining(run)
+    else run()
+  }
 
-  /** 수렵 시도: 20분을 기다리면 1d10으로 조우한 상대가 정해지고, 승리(또는 간파) 보상을 받는다. */
-  const startHuntAction = useCallback(
-    (pathId) => {
-      guardTraining(() => {
-        interruptAll('수렵을 시작해')
-        const cur = playerRef.current
-        const r = startHunt(cur, pathId)
-        if (r.error) return addLog(r.error)
-        playerRef.current = r.player
-        setPlayer(r.player)
-        addLog(`수렵을 시작했다. (${HUNT_MINUTES}분)`)
-      })
-    },
-    [interruptAll, addLog],
-  )
+  const finishHuntBattle = result => {
+    const r = resolveHuntEncounter(playerRef.current, result)
+    if (r.error) return addLog(r.error)
+    const lost = !result.win && !result.fled
+    const vitals = { ...r.player, hp: Math.max(1, Math.min(r.player.hpMax, Math.ceil(result.hp))) }
+    const next = lost ? { ...vitals, weakUntil: Date.now() + WEAK_MS } : vitals
+    playerRef.current = next
+    setPlayer(next)
+    addLogs(r.logs)
+    if (lost) {
+      setActivity('intro')
+      setLocationId('infirmary')
+      addLog('산귀신에게 쓰러져 양호실에서 눈을 떴다. [쇠약] 모든 육조 스탯이 5할로 줄었다. (24시간)')
+    }
+  }
 
   // 전투 중 처음으로 전투불능이 되면 영능력 [생존본능]을 얻는다.
   const downed = useCallback(() => {
@@ -1735,8 +1740,7 @@ export default function Game({
                     onEnhance={enhance}
                     onSpecialEnhance={specialEnhance} onRemoveSpecial={removeSpecial}
                     onAdminGive={adminGive}
-                    onGather={startGatherAction}
-                    onHunt={startHuntAction}
+                    onHuntAction={huntAction}
                     onVisit={visitSpot}
                     onGiveNpc={giveNpc}
                     stats={effStats}
@@ -1808,6 +1812,25 @@ export default function Game({
               <span className="truncate">{latestLog.message}</span>
             </button>
           )}
+      {player.huntExpedition?.status === 'active' && player.huntExpedition.encounter && (
+        <HuntBattleModal
+          encounter={player.huntExpedition.encounter.enemy}
+          stats={effStats} mp={player.mp} hp={player.hp} hpMax={player.hpMax}
+          seen={player.seen} specials={player.specials} psychics={player.psychics ?? []}
+          onStart={startBattle} onHp={changeHp} onMp={changeMp}
+          onFinish={finishHuntBattle} onLog={addLogs} onDown={downed} onSpecialSeen={seeSpecial}
+          reviveOn={reviveOn} onReviveUsed={() => { reviveRef.current = false; setReviveOn(false) }}
+          boostOn={boostOn} onBoostUsed={() => { boostRef.current = false; setBoostOn(false) }}
+          onActive={on => {
+            setBattleActive(on)
+            battleRef.current = on
+            if (!on) { boostRef.current = false; setBoostOn(false); reviveRef.current = false; setReviveOn(false) }
+          }}
+          usedItems={battleUsedItems} onSpotItems={setSpotItems}
+          onOpenItems={() => setInvOpen(true)} onGiveItem={giveItem}
+        />
+      )}
+
       <GameModal
         course={course}
         onClose={closeCourse}

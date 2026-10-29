@@ -708,3 +708,9 @@ input, textarea, select {
 img, canvas, svg { image-rendering: pixelated; }
 /* Disable buttery motion that clashes with frame-by-frame retro UI. */
 .tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }
+
+/* Hunting map: colors intentionally stay the same in light and dark themes. */
+.hunt-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); border-top: 1px solid #b9b9b9; border-left: 1px solid #b9b9b9; }
+.hunt-tile { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-right: 1px solid #b9b9b9; border-bottom: 1px solid #b9b9b9; border-radius: 0; font-family: Georgia, serif; font-size: clamp(13px, 3vw, 22px); line-height: 1; cursor: pointer; touch-action: manipulation; }
+.hunt-tile:focus-visible, .hunt-tile[aria-pressed="true"] { outline: 3px solid #d69e00; outline-offset: -3px; z-index: 1; }
+.hunt-tile-under { position: absolute; right: 2px; bottom: 2px; font-size: 10px; line-height: 1; }
