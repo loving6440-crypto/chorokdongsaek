@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
-import { ARMORY, SHINAH } from '../../game/armory'
+import { ARMORY, SHINAH, pickShinahLine, shinahGiftLine } from '../../game/armory'
 import { STAT_META } from '../../game/constants'
 import { ENH_ITEMS, ENH_MAX, ENH_STATS, enhCostFor, SPECIAL_ENHANCEMENTS, WEAPONS, countOf, enhLevel, enhMaterialFor, enhTotal, equipOf, itemOf, ownedWeapons, specialEnhOf, specialTitleOf } from '../../game/items'
 import NpcDialog from '../NpcDialog'
+import NpcGift from '../NpcGift'
 
 /** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
-export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, admin, onAdminGive }) {
+export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, admin, onAdminGive, onGiveNpc }) {
   const owned = ownedWeapons(player)
   // 같은 종류가 여럿이면 ①②… 로 구분한다.
   const nameOf = (w) => {
@@ -18,8 +19,12 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
   const [sel, setSel] = useState(null)
   const [msg, setMsg] = useState('')
   const [confirm, setConfirm] = useState(null)
+  const [line, setLine] = useState(() => pickShinahLine())
   const cur = owned.find((w) => w.id === sel) ?? owned[0] ?? null
-  const line = SHINAH.lines[0].text
+  const giftReaction = (result) => {
+    const reaction = shinahGiftLine(result?.level ?? 0)
+    if (reaction) setLine(reaction)
+  }
   useEffect(() => { onMeet?.(SHINAH.id) }, [onMeet])
 
   const go = (stat) => {
@@ -37,6 +42,10 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
         <p className="text-sm leading-[1.9] break-keep text-paper/85" data-armory-desc>{ARMORY.desc}</p>
       </div>
       <NpcDialog npc={SHINAH.name} src={SHINAH.portrait} dataNpc="shinah">{line}</NpcDialog>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" className="flat-btn-ghost text-xs" data-shinah-talk onClick={() => setLine(pickShinahLine())}>다시 말을 건다</button>
+      </div>
+      <NpcGift npcId={SHINAH.id} player={player} onGive={onGiveNpc} onGift={giftReaction} />
 
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
         <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><Hammer size={12} aria-hidden />무구 강화</p>
