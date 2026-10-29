@@ -99,6 +99,20 @@ function handle(ev) {
       set({ online })
       break
     }
+    case 'chatTitle': {
+      // 칭호가 바뀌면 접속자·일행 명단뿐 아니라 이미 보이는 이전 채팅에도 즉시 반영한다.
+      const id = ev.id
+      const title = ev.title || undefined
+      const retitle = (arr) => Array.isArray(arr) ? arr.map(m => m?.from?.id === id ? { ...m, from: { ...m.from, title } } : m) : arr
+      set({
+        me: state.me?.id === id ? { ...state.me, title } : state.me,
+        online: state.online.map(p => p.id === id ? { ...p, title } : p),
+        history: Object.fromEntries(Object.entries(state.history).map(([ch, list]) => [ch, retitle(list)])),
+        party: state.party ? { ...state.party, members: state.party.members.map(m => m.id === id ? { ...m, title } : m) } : null,
+        club: state.club ? { ...state.club, log: retitle(state.club.log) } : null,
+      })
+      break
+    }
     case 'chat': {
       const ch = ev.channel
       const history = { ...state.history, [ch]: cap([...state.history[ch], ev.msg]) }
@@ -548,6 +562,9 @@ export async function fetchBgmPlaylist() {
 }
 /** 관리자: 배경음악 재생목록을 통째로 바꾼다. playlist: [{ id, title }]. 빈 배열이면 로컬 mp3 로 되돌아간다. */
 export const adminSetBgmPlaylist = (id, key, playlist) => adminPost('/api/admin/bgm', id, key, { playlist })
+
+/** 관리자: 계정별 채팅 칭호 부여/변경. title=''이면 해제한다. */
+export const adminSetChatTitle = (id, key, target, title) => adminPost('/api/admin/chat-title', id, key, { target, title })
 
 /** 관리자: 회원(서버에 데이터가 남은 계정) 목록. { ok, members, total, error } */
 export async function fetchMembers(id, key) {

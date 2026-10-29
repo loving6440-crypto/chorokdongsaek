@@ -12,6 +12,7 @@ import path from 'node:path'
 import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 import { applySecurityHeaders } from './securityHeaders.js'
+import { cleanChatTitle, retitleMessages } from './chatTitles.js'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
 import { ENEMIES, PSYCHICS } from '../src/game/battle.js'
@@ -40,6 +41,7 @@ const CARDS_FILE = process.env.CHOROK_CARDS_DATA || path.join(__dirname, 'cards.
 //  - 관리자 계정은 마음대로 스탯을 조절하므로 랭킹에는 오르지 않는다.
 const ADMIN_KEY = process.env.CHOROK_ADMIN_KEY || ''
 const ADMIN_TITLE = '관리자'
+let customChatTitles = Object.create(null) // 관리자 수여 칭호: 계정 ID → 칭호 (서버 스냅샷에 영구 저장)
 let keyFails = [] // 틀린 키 시도 시각 (무차별 대입 방지: 10분에 20번을 넘으면 잠시 막는다)
 const keyBlocked = () => (keyFails = keyFails.filter((t) => Date.now() - t < 600_000)).length >= 20
 const adminOk = (key) => {
@@ -156,6 +158,13 @@ function applyRaw(raw) {
   for (const c of COURSES) if (raw?.ranking?.[c]) ranking[c] = raw.ranking[c]
   if (raw?.cards && typeof raw.cards === 'object') cards = raw.cards
   if (raw?.members && typeof raw.members === 'object') members = raw.members
+  if (raw?.customChatTitles && typeof raw.customChatTitles === 'object' && !Array.isArray(raw.customChatTitles)) {
+    customChatTitles = Object.create(null)
+    for (const [id, value] of Object.entries(raw.customChatTitles)) {
+      const title = cleanChatTitle(value)
+      if (/^[a-zA-Z0-9가-힣_]{2,40}$/.test(id) && title) customChatTitles[id] = title
+    }
+  }
   if (raw?.friendships && typeof raw.friendships === 'object') friendships = raw.friendships
   if (raw?.blockedUsers && typeof raw.blockedUsers === 'object') blockedUsers = raw.blockedUsers
   if (raw?.stories && Array.isArray(raw.stories.pending)) stories = { pending: raw.stories.pending, papers: raw.stories.papers ?? {}, seq: raw.stories.seq || 1 }
@@ -258,6 +267,7 @@ const snapshot = () => ({
   lastWeek,
   market,
   members,
+  customChatTitles,
   friendships,
   blockedUsers,
   stories,
@@ -378,6 +388,18 @@ const sendTo = (id, payload) => {
   if (c) send(c, payload)
 }
 const broadcast = (payload) => clients.forEach((c) => send(c, payload))
+const effectiveChatTitle = (id, isAdmin = admins.has(id)) => isAdmin ? ADMIN_TITLE : (customChatTitles[id] || undefined)
+function refreshChatTitle(id) {
+  const live = clients.get(id)
+  const title = effectiveChatTitle(id, live?.isAdmin)
+  if (live) live.title = title
+  for (const channel of ['rp', 'talk']) history[channel] = retitleMessages(history[channel], id, title)
+  for (const party of parties.values()) party.log = retitleMessages(party.log, id, title)
+  for (const club of CLUB_IDS) clubChat[club] = retitleMessages(clubChat[club], id, title)
+  broadcast({ t: 'chatTitle', id, title: title ?? null })
+  if (live) pushPresence({ update: [presenceEntry(id)] })
+  return title ?? null
+}
 const onlineList = () =>
   [...clients.values()].map((c) => ({ id: c.id, name: c.name, title: c.title, partyId: partyOf.get(c.id) ?? null }))
 // 접속 중인 사람 한 명의 명부 항목(접속 중이 아니면 null).
@@ -1268,7 +1290,7 @@ async function handleApi(req, res, url) {
         /* 이미 닫힘 */
       }
     }
-    const client = { id, name, res, joinedAt: Date.now(), title: isAdmin ? ADMIN_TITLE : undefined }
+    const client = { id, name, res, joinedAt: Date.now(), isAdmin, title: effectiveChatTitle(id, isAdmin) }
     {
       const m = members[id]
       const now = Date.now()
@@ -1542,6 +1564,7 @@ async function handleApi(req, res, url) {
     if (!acc) return json(res, 400, { error: 'no-account' })
     await accounts.delete(acc)
     delete members[target]
+    delete customChatTitles[target]
     delete cards[target]
     if (db) await db.query('delete from saves where id = $1', [CARD_ROW_PREFIX + target]).catch(() => {})
     for (const co of COURSES) delete ranking[co][target]
@@ -1569,6 +1592,8 @@ async function handleApi(req, res, url) {
     if (keyBlocked()) return json(res, 429, { error: 'slow-down' })
     if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
     admins.add(id)
+    const live = clients.get(id)
+    if (live) { live.isAdmin = true; refreshChatTitle(id) }
     return json(res, 200, { ok: true })
   }
 
@@ -1589,6 +1614,27 @@ async function handleApi(req, res, url) {
     broadcast({ t: 'bgm', playlist: bgmPlaylist })
     scheduleSave()
     return json(res, 200, { ok: true, playlist: bgmPlaylist })
+  }
+
+  // 관리자 전용: 특정 계정의 채팅 칭호를 부여하거나 변경/삭제한다. 대상은 오프라인이어도 된다.
+  // [관리자] 표시와 운영 권한은 별개이며, 비밀키가 없는 유저는 이 API를 사용할 수 없다.
+  if (route === '/api/admin/chat-title') {
+    const id = cleanId(body.id)
+    if (!id) return json(res, 400, { error: 'bad-id' })
+    if (rateLimited(`admin:${id}`)) return json(res, 429, { error: 'slow-down' })
+    if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
+    if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
+    const target = nfc(typeof body.target === 'string' ? body.target.trim() : '')
+    if (!ID_RULE.test(target)) return json(res, 400, { error: 'bad-target' })
+    const title = cleanChatTitle(body.title)
+    if (title === null) return json(res, 400, { error: 'bad-title' })
+    const account = await accounts.get(target)
+    if (!account) return json(res, 400, { error: 'no-account' })
+    if (title) customChatTitles[target] = title
+    else delete customChatTitles[target]
+    const displayed = refreshChatTitle(target)
+    scheduleSave()
+    return json(res, 200, { ok: true, target, title: title || null, displayedTitle: displayed })
   }
 
   if (route === '/api/admin/members') {
@@ -1615,6 +1661,7 @@ async function handleApi(req, res, url) {
         visits: m?.visits ?? 0,
         online: clients.has(pid),
         admin: admins.has(pid),
+        chatTitle: customChatTitles[pid] || null,
         scores,
       }
     })
