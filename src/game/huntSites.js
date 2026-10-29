@@ -21,9 +21,9 @@ export const HUNT_SPECIES = {
   snakeBerry: { name: '뱀딸기', kind: 'plant', rewards: [{ item: 'snake-berry', dice: 2 }] },
   mushroom: { name: '버섯', kind: 'plant', rewards: [{ item: 'mushroom', dice: 2 }] },
   poisonMushroom: { name: '독버섯', kind: 'plant', rewards: [{ item: 'poison-mushroom', amount: 1 }] },
-  stoneTower: { name: '돌탑', kind: 'obstacle', rewards: [{ item: 'rock', dice: 3 }] },
-  bush: { name: '덤불', kind: 'obstacle', rewards: [{ item: 'raspberry', amount: 1 }] },
-  stonePillar: { name: '바위 기둥', kind: 'obstacle', rewards: [{ item: 'rock', dice: 2 }] },
+  stoneTower: { name: '돌탑', kind: 'obstacle', rewards: [{ item: 'stone', dice: 3 }] },
+  bush: { name: '덤불', kind: 'obstacle', rewards: [{ item: 'wild-raspberry', amount: 1 }] },
+  stonePillar: { name: '바위 기둥', kind: 'obstacle', rewards: [{ item: 'stone', dice: 2 }] },
   mugwort: { name: '쑥', kind: 'plant', rewards: [{ item: 'mugwort', amount: 1 }] },
   brokenJangseung: { name: '부러진 장승', kind: 'spirit', rewards: [{ item: 'jangseung-piece', dice: 3 }] },
 }
@@ -31,7 +31,7 @@ export const HUNT_SPECIES = {
 export const HUNT_BONUSES = {
   plant: { item: 'fine-woodchip', amount: 1 },
   obstacle: { item: 'whetstone', dice: 2 },
-  animal: { item: 'trap-scrap', amount: 1 },
+  animal: { item: 'trap-scraps', amount: 1 },
 }
 
 // 종류별로 영향을 주는 스탯을 단순 합산한다. 영물은 여섯 스탯 모두의 합을 쓴다.
@@ -63,8 +63,8 @@ export const LEFT_TRAIL_ONE = {
     point('G6', 'stonePillar', 5),
     point('E8', 'stonePillar', 5),
     point('C10', 'bush', 2),
-    { ...point('A3', 'snake', 10), route: clockwiseRoute(0, 2, 4) },
-    { ...point('I3', 'fox', 15), route: clockwiseRoute(0, 1, 9) },
+    { ...point('A3', 'snake', 10), route: clockwiseRoute(0, 2, 2) },
+    { ...point('I3', 'fox', 15), route: clockwiseRoute(7, 2, 3) },
   ],
   // 입장 시 독립적으로 한 번씩 판정. 위치는 비어 있는 흰 타일 중 무작위.
   spirit: { ...HUNT_SPECIES.brokenJangseung, species: 'brokenJangseung', chance: 0.2, level: 30 },

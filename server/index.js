@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
+import { applySecurityHeaders } from './securityHeaders.js'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
 import { ENEMIES, PSYCHICS } from '../src/game/battle.js'
@@ -1745,7 +1746,14 @@ async function handleApi(req, res, url) {
     if (!['add', 'remove', 'block', 'unblock'].includes(action)) return json(res, 400, { error: 'bad-action' })
     if (rateLimited(`friend:${me.id}`)) return json(res, 429, { error: 'slow-down' })
     const update = (bag, add) => { const set = new Set(bag[me.id] ?? []); if (add) set.add(to); else set.delete(to); bag[me.id] = [...set].slice(0, 200) }
-    if (action === 'add') { if ((blockedUsers[me.id] ?? []).includes(to)) return json(res, 400, { error: 'blocked' }); update(friendships, true) }
+    if (action === 'add') {
+      if ((blockedUsers[me.id] ?? []).includes(to)) return json(res, 400, { error: 'blocked' })
+      if ((friendships[me.id] ?? []).includes(to)) return json(res, 200, { ok: true, already: true })
+      if ((friendships[me.id] ?? []).length >= 200) return json(res, 400, { error: 'friend-limit' })
+      update(friendships, true)
+      // 상대가 오프라인이어도 사물함에 알림을 남긴다. 이미 추가한 상대에게 중복 알림을 보내지 않는다.
+      addMail({ kind: 'friend', from: { id: me.id, name: me.name }, to: { id: to, name: members[to].name }, text: `${me.name}님이 친구 목록에 추가했어.` })
+    }
     if (action === 'remove') update(friendships, false)
     if (action === 'block') update(blockedUsers, true)
     if (action === 'unblock') update(blockedUsers, false)
@@ -2521,6 +2529,9 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.json': 'application/json',
   '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.webp': 'image/webp', // (v69) 캐릭터 사진들이 이 포맷이라 빠져 있으면 안 됐다
   '.mp3': 'audio/mpeg', // (v69) 배경음악 파일 — 빠져 있어서 지금까지 전부 application/octet-stream 으로 나가고 있었다
 }
@@ -2570,6 +2581,7 @@ function serveStatic(req, res, url) {
 }
 
 const server = http.createServer((req, res) => {
+  applySecurityHeaders(req, res)
   const url = new URL(req.url, 'http://localhost')
   if (url.pathname.startsWith('/api/')) {
     handleApi(req, res, url).catch((e) => {

@@ -25,17 +25,15 @@ export function useTheme() {
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => {
-      const next = prev === 'light' ? 'dark' : 'light'
-      try {
-        localStorage.setItem(STORAGE_KEY, next)
-      } catch {
-        // 저장소를 쓸 수 없는 환경에서는 이번 세션에만 적용한다.
-      }
-      return next
-    })
+  const selectTheme = useCallback((value) => {
+    const next = normalize(value)
+    setTheme(next)
+    try {
+      localStorage.setItem(STORAGE_KEY, next)
+    } catch {
+      // 저장소를 쓸 수 없는 환경에서는 이번 세션에만 적용한다.
+    }
   }, [])
 
-  return { theme, toggleTheme }
+  return { theme, selectTheme }
 }

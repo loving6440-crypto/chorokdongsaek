@@ -31,12 +31,9 @@ const BLANK_WEEKLY = () => ({
   claimed: {},
 })
 
-/** 매일 낮 12시(KST)에 바뀌는 '하루'의 시작(그 날 낮 12시) UTC ms. */
-const NOON_MS = 12 * 3600 * 1000
-export const dayStartOf = (now = Date.now()) => {
-  const k = now + KST_MS - NOON_MS
-  return Math.floor(k / DAY_MS) * DAY_MS + NOON_MS - KST_MS
-}
+/** 이 시각이 속한 날의 시작(매일 00:00 KST)의 UTC ms. */
+export const dayStartOf = (now = Date.now()) =>
+  Math.floor((now + KST_MS) / DAY_MS) * DAY_MS - KST_MS
 
 const BLANK_DAILY = () => ({
   dayStart: 0,
@@ -189,7 +186,7 @@ export function claimMetaQuest(player, questId, now = Date.now()) {
   return { player: clampSpirit(next), ok: true, log: `동아리 활동: [${q.label}] 보상을 받았다. ${rewardText(r)}`.trim() }
 }
 
-// ───────── 오늘의 동아리 활동(일일 퀘스트) — 매일 낮 12시(KST)에 초기화된다 ─────────
+// ───────── 오늘의 동아리 활동(일일 퀘스트) — 매일 00시(KST)에 초기화된다 ─────────
 export const DAILY_QUESTS = [
   { id: 'd_craft1', label: '제작 1회 하기', reward: { money: 5 }, done: (d) => (d.craft || 0) >= 1 },
   { id: 'd_gather1', label: '채집 1회 하기', reward: { money: 5 }, done: (d) => (d.gather || 0) >= 1 },

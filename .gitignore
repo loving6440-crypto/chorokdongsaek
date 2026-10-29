@@ -24,3 +24,6 @@ dist-ssr
 server/data.json
 
 server/accounts.json
+
+# Local player profile cache — do not commit to Git
+server/cards.json

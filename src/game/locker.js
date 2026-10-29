@@ -2,8 +2,9 @@
 //  - 최대 100칸. 같은 물건은 개수와 상관없이 '한 종류'로 치지만, 한 칸에 담기는 묶음에는 한도가 있다.
 //    재료(재료 태그) 99개 · 그 밖의 아이템 9개. 넘으면 나뉘어 여러 칸을 쓴다. (아이템 30개 → 9/9/9/3 = 4칸)
 //  - 내용물은 player.lockers[학년] = { 아이템id: 개수 } 에 저장된다.
-import { CAT_MATERIAL, itemOf } from './items'
-import { gradeOf } from './character'
+import { CAT_MATERIAL, itemOf } from './items.js'
+import { gradeOf } from './character.js'
+import { canAddInventory } from './inventoryCapacity.js'
 
 export const LOCKER_SLOTS = 100
 export const STACK_MATERIAL = 99
@@ -46,6 +47,7 @@ export function withdraw(player, grade, id, n) {
   const cur = lockerOf(player, grade)
   const have = cur[id] || 0
   if (!itemOf(id) || !Number.isInteger(n) || n < 1 || n > have) return { error: '개수를 확인해 주세요.' }
+  if (!canAddInventory(player.inventory, { [id]: n })) return { error: '소지품이 30칸을 넘는다. 빈 칸을 만든 뒤 꺼내 주세요.' }
   const box = { ...cur, [id]: have - n }
   if (box[id] <= 0) delete box[id]
   return { player: { ...player, inventory: { ...player.inventory, [id]: (player.inventory?.[id] || 0) + n }, lockers: { ...(player.lockers ?? {}), [grade]: box } } }

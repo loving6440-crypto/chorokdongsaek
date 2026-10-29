@@ -1,4 +1,4 @@
-@import url('https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@latest/neodgm/style.css');
+@import url('https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@1.601/neodgm/style.css');
 @import "tailwindcss";
 
 /* 라이트 모드 전용 variant: <html data-theme="light"> 아래에서만 적용된다. (예: light:text-red-700) */
@@ -653,15 +653,16 @@ button.bg-gold { border-radius: 0.55rem; }
    프레임 모티프: 사용자가 준 붉은 직각 선 장식 + 레트로 RPG 패널
    ───────────────────────────────────────────────────────────── */
 :root {
-  --font-sans: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'NeoDunggeunmo', 'Jua', 'Noto Serif KR', serif;
+  --ui-font-family: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', sans-serif;
+  --font-sans: var(--ui-font-family);
+  --font-serif: var(--ui-font-family);
   --pixel-frame: #f1cf68;
   --pixel-frame-cool: #65c9c5;
   --pixel-red: #e9554f;
 }
 html, body, #root { image-rendering: pixelated; }
 body, button, input, textarea, select, option {
-  font-family: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', sans-serif !important;
+  font-family: var(--ui-font-family) !important;
   letter-spacing: 0;
   text-rendering: geometricPrecision;
 }
@@ -709,6 +710,89 @@ img, canvas, svg { image-rendering: pixelated; }
 /* Disable buttery motion that clashes with frame-by-frame retro UI. */
 .tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }
 
+/* v76.0.9 — 전체 UI 글꼴 선택: 스탯/채팅/팝업에도 동일 적용 */
+/* 첨부 폰트는 사용자가 자신의 프로젝트 public/fonts/ 에 복사해야 한다. */
+@font-face {
+  font-family: 'PF Stardust';
+  src: url('/fonts/PF-Stardust-Regular.ttf') format('truetype');
+  font-style: normal; font-weight: 400; font-display: swap;
+}
+@font-face {
+  font-family: 'PF Stardust';
+  src: url('/fonts/PF-Stardust-Bold.ttf') format('truetype');
+  font-style: normal; font-weight: 700; font-display: swap;
+}
+@font-face {
+  font-family: 'PF Stardust';
+  src: url('/fonts/PF-Stardust-ExtraBold.ttf') format('truetype');
+  font-style: normal; font-weight: 800 900; font-display: swap;
+}
+@font-face {
+  font-family: 'Silver';
+  src: url('/fonts/Silver.ttf') format('truetype');
+  font-style: normal; font-weight: 400; font-display: swap;
+  /* Silver의 원래 글자 모양이 작게 보여 글리프만 15% 키운다.
+     다른 글씨체나 UI 기준 글자 크기는 변경하지 않는다. */
+  size-adjust: 115%;
+}
+@font-face {
+  font-family: 'Ramche';
+  src: url('/fonts/Ramche.ttf') format('truetype');
+  font-style: normal; font-weight: 400; font-display: swap;
+}
+/* 갈무리9 — quiple/galmuri 릴리스 v2.40.4 고정 */
+@font-face {
+  font-family: 'Galmuri9';
+  src: url('https://cdn.jsdelivr.net/gh/quiple/galmuri@v2.40.4/dist/Galmuri9.woff2') format('woff2');
+  font-style: normal; font-weight: 400; font-display: swap;
+}
+:root, [data-ui-font='neo'] {
+  --ui-font-family: 'NeoDunggeunmo', 'Gowun Dodum', 'Noto Sans KR', sans-serif;
+}
+[data-ui-font='stardust'] { --ui-font-family: 'PF Stardust', 'NeoDunggeunmo', sans-serif; }
+[data-ui-font='galmuri9'] { --ui-font-family: 'Galmuri9', 'NeoDunggeunmo', sans-serif; }
+[data-ui-font='silver'] { --ui-font-family: 'Silver', 'NeoDunggeunmo', sans-serif; }
+[data-ui-font='ramche'] { --ui-font-family: 'Ramche', 'NeoDunggeunmo', sans-serif; }
+/* 원래 글꼴을 강제하던 V74 스킨의 스타일을 가변 글꼴로 치환. */
+html[data-ui-font] .font-mono {
+  font-family: var(--ui-font-family);
+}
+
+/* v76.0.15 — 글자만 확대한다. html의 font-size를 바꾸면 rem 기반
+ * 여백·패널·버튼·아이콘까지 함께 바뀌므로 HTML 기본 크기는 그대로 둔다.
+ * Tailwind의 텍스트 크기 토큰과 글자용 고정 px 클래스만 보정한다. */
+html {
+  --ui-font-scale: 1;
+  --text-xs: calc(.75rem * var(--ui-font-scale));
+  --text-sm: calc(.875rem * var(--ui-font-scale));
+  --text-base: calc(1rem * var(--ui-font-scale));
+  --text-lg: calc(1.125rem * var(--ui-font-scale));
+  --text-xl: calc(1.25rem * var(--ui-font-scale));
+  --text-2xl: calc(1.5rem * var(--ui-font-scale));
+  --text-3xl: calc(1.875rem * var(--ui-font-scale));
+  --text-4xl: calc(2.25rem * var(--ui-font-scale));
+  --text-5xl: calc(3rem * var(--ui-font-scale));
+  --text-6xl: calc(3.75rem * var(--ui-font-scale));
+  --text-7xl: calc(4.5rem * var(--ui-font-scale));
+  --text-8xl: calc(6rem * var(--ui-font-scale));
+  --text-9xl: calc(8rem * var(--ui-font-scale));
+}
+/* 텍스트 크기를 따로 지정하지 않은 영역(문장, 폼의 일반 텍스트) */
+body { font-size: calc(1rem * var(--ui-font-scale)); }
+/* Tailwind arbitrary font sizes bypass --text-* tokens.
+ * 해당 클래스만 보정하되 padding, margin, width, height, gap은 건드리지 않는다. */
+[class~="text-[8px]"] { font-size: calc(8px * var(--ui-font-scale)); }
+[class~="text-[9px]"] { font-size: calc(9px * var(--ui-font-scale)); }
+[class~="text-[10px]"] { font-size: calc(10px * var(--ui-font-scale)); }
+[class~="text-[10.5px]"] { font-size: calc(10.5px * var(--ui-font-scale)); }
+[class~="text-[11px]"] { font-size: calc(11px * var(--ui-font-scale)); }
+[class~="text-[12px]"] { font-size: calc(12px * var(--ui-font-scale)); }
+[class~="text-[13px]"] { font-size: calc(13px * var(--ui-font-scale)); }
+[class~="text-[15px]"] { font-size: calc(15px * var(--ui-font-scale)); }
+[class~="text-[36px]"] { font-size: calc(36px * var(--ui-font-scale)); }
+
+
+/* v78 병합 — 기존 v77 텍스트 크기/폰트는 건드리지 않는 수렵 타일 UI */
 /* Hunting map: colors intentionally stay the same in light and dark themes. */
 .hunt-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); border-top: 1px solid #b9b9b9; border-left: 1px solid #b9b9b9; }
 .hunt-tile { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-right: 1px solid #b9b9b9; border-bottom: 1px solid #b9b9b9; border-radius: 0; font-family: Georgia, serif; font-size: clamp(13px, 3vw, 22px); line-height: 1; cursor: pointer; touch-action: manipulation; }

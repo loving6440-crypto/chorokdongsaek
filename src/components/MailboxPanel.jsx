@@ -35,7 +35,7 @@ export default function MailboxPanel({ online, meId }) {
     load()
   }, [load, online.mailTick])
 
-  const notes = box.received.filter((m) => m.kind === 'note' || m.text)
+  const notes = box.received.filter((m) => m.kind === 'note' || m.kind === 'friend' || (m.kind === 'gift' && m.text))
   const gifts = box.received.filter((m) => m.kind === 'gift')
   const sentGifts = box.sent.filter((m) => m.kind === 'gift')
 
@@ -69,7 +69,7 @@ export default function MailboxPanel({ online, meId }) {
               {notes.map((m) => (
                 <li key={m.id} data-mail={m.id} className="rounded-xl bg-shade/25 px-3 py-2.5">
                   <p className="flex items-center justify-between gap-2 text-xs text-paper/60">
-                    <span><b className="font-serif text-sm text-paper">{m.from.name}</b>님의 쪽지{m.kind === 'gift' && <Gift size={12} className="ml-1 inline text-gold" aria-label="선물과 함께" />}</span>
+                    <span><b className="font-serif text-sm text-paper">{m.from.name}</b>님의 {m.kind === 'friend' ? '친구 추가 알림' : '쪽지'}{m.kind === 'gift' && <Gift size={12} className="ml-1 inline text-gold" aria-label="선물과 함께" />}</span>
                     <span>{fmtAt(m.at)}</span>
                   </p>
                   <p className="mt-1 whitespace-pre-wrap break-words text-sm text-paper/90">{m.text}</p>

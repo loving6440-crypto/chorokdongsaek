@@ -1,29 +1,4 @@
-# 草綠同色 (초록동색) v78
-
-## v78 실행 안내
-
-Node.js 24 LTS 권장 (Vite 최소 요구 사항: Node 20.19 또는 22.12 이상).
-압축 파일에는 소스와 최신 `dist/` 빌드가 함께 들어 있다.
-
-```bash
-npm ci
-npm start
-```
-
-실행 후 브라우저에서 `http://localhost:8787`을 연다.
-화면을 수정한 뒤에는 `npm run build`로 다시 빌드한다.
-개발 모드는 `npm run server`와 `npm run dev`를 각각 실행한다.
-
-- 새 수렵: 뒷산 → 산 탐색 → 수렵 → 왼길 → 산길-1 (최대 20턴).
-- 산길-1은 쑥 13레벨, 영물 부러진 장승 30레벨, 산귀신 2단계 전투를 포함한다.
-- 나머지 수렵 터는 선택 메뉴만 준비되어 있다.
-- 검증: `node --test --test-reporter=spec tests/*.test.mjs`.
-- 배포 파일에는 계정·랭킹·인적사항 카드 등 운영 데이터와 비밀 설정을 포함하지 않는다.
-- 기존 서버를 업데이트할 때는 `server/accounts.json`, `server/data.json`, `server/cards.json` 및 별도로 지정한 저장 경로와 환경 설정을 그대로 보존한다.
-
-전체 변경 내용은 게임 안의 [업데이트 노트]에서 확인할 수 있다.
-
----
+# 草綠同色 (초록동색)
 
 방치형 수련 + 미니게임 학원물 웹 게임. (구 '국립 창록고등학교')
 
@@ -815,3 +790,26 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 - Added a site-wide pixel-inspired visual skin while preserving existing component layout and placement.
 - Uses Neo둥근모 web font from the NeoDGM webfont kit (SIL Open Font License 1.1); see https://github.com/neodgm/neodgm-webfont for license and font information.
 - The font stylesheet is loaded from jsDelivr. An internet connection is required for the custom font; system fallbacks remain available.
+
+
+## v78.0.1 — v77.0.2 기반 수렵 시스템 병합
+
+**주의:** 이 배포본은 v78 전체를 v77에 덮어쓴 것이 아닙니다. 사용자가 업로드한 v77.0.2를 기준으로 v78의 타일 수렵 기능만 통합해, 기존 폰트 설정, 6종 보안 헤더, 재료 99개/완성품 9개 소지품 묶음, 수업 완료 카운팅, 일·주간 자정 리셋, 활동 로그 정렬, v77의 아이템과 텃밭 채집을 보존했습니다.
+
+- 뒷산 > 산 탐색 > 수렵 > 왼길 > 산길-1: 10×10, 최대 20턴, 50분 재입장 대기.
+- 뱀은 A3 기준 2×2, 여우는 I3를 포함한 3×3 시계 방향 테두리를 이동합니다.
+- 빈 칸에는 툴팁과 타일 상세 내용이 나오지 않습니다.
+- 행동 횟수 소진/수렵 종료/마지막 턴 전투 종료 뒤에는 수렵 화면이 자동으로 닫히며, 다음 입장 시 A10(왼쪽 아래)에서 새로 시작합니다.
+- 수렵 중 얻은 자원은 즉시 소지품으로 들어가고 종료 후 유지됩니다. 소지품이 30칸을 넘으면 기존 v77의 수령 대기 로직이 적용됩니다.
+- 사용자 이전 v78 저장분의 오래된 보상 ID(rock, raspberry, trap-scrap)와 순찰 경로도 자동 보정합니다.
+
+자세한 병합 내용: `V78_01_MERGE_NOTES.md`.
+
+배포 ZIP에는 로컬 계정 비밀키(`server/accounts.json`)와 로컬 캐릭터 캐시(`server/cards.json`)를 포함하지 않습니다. 실서비스의 Render/Supabase 데이터는 변경하지 않으며, 기존 로컬 데이터는 업로드한 v77 원본 ZIP에서 별도 보관하세요.
+
+
+## v78.0.2 — 채집 후 산 탐색 화면 초기화 방지
+
+- 서버 동기화로 컴포넌트가 다시 열릴 때 산 탐색 선택 상태 복원
+- 서버 저장 충돌 경고 표시, 수렵 예외 진단 메시지 및 정상 종료 로그 추가
+- 자세한 내용: `V78_02_GATHER_SCREEN_FIX.md`
