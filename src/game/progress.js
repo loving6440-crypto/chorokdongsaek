@@ -9,6 +9,7 @@ import { ENEMIES } from './battle'
 import { bumpWeekly, bumpDaily, markWeeklySet, ensureDaily, checkClubQuests } from './clubQuests'
 import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
 import { finishHunt, startHunt as startHuntAt, cancelHunt as cancelHuntAt } from './hunt'
+import { migrateHuntSave } from './huntMigration'
 import { SKINS } from './skins2048'
 import { SKINS_RUNNER } from './skinsRunner'
 
@@ -85,18 +86,20 @@ export function completeLesson(player, courseId, now = Date.now()) {
   const st = lessonOf(player, courseId, now)
   if (st.done) return { player, logs: [] }
   const name = courseTitle(courseId)
+  // 실제로 수업을 한 번 완료한 경우에만 일·주간 동아리 카운트를 각각 +1 한다.
+  // 본관 미니게임 즉시 완료와 30분 대기 완료가 모두 이 함수로 들어온다.
   if (courseId === 'divination-fortune') {
     return {
-      player: setLesson(player, courseId, { ...st, done: true, waitUntil: null, pendingStat: true }),
+      player: bumpDaily(bumpWeekly(setLesson(player, courseId, { ...st, done: true, waitUntil: null, pendingStat: true }), 'lesson', 1, now), 'lesson', 1, now),
       logs: [`${name}: 운세를 뽑았다. 올릴 스탯을 하나 고를 수 있다.`],
     }
   }
   return {
-    player: clampSpirit({
+    player: bumpDaily(bumpWeekly(clampSpirit({
       ...setLesson(player, courseId, { ...st, done: true, waitUntil: null }),
       cleared: { ...(player.cleared ?? {}), [courseId]: player.cleared?.[courseId] ?? now }, // 처음 마친 시각(업적용)
       spirit: player.spirit + LESSON_SPIRIT_REWARD,
-    }),
+    }), 'lesson', 1, now), 'lesson', 1, now),
     logs: [`${name} 수업을 마쳤다. 영력 +${LESSON_SPIRIT_REWARD}`],
   }
 }
@@ -130,11 +133,6 @@ export function cancelWaits(player) {
 export function sanitizeRestored(player, joinedAt, admin = false) {
   // 의지력 최대치가 100으로 늘었다: 예전 저장분도 최대치만 올려 준다.
   let p = !admin && player.mpMax < MP_MAX ? { ...player, mpMax: MP_MAX } : player
-  // 산 탐색의 20분 채집·수렵은 타일 수렵으로 교체되었다. 과거 대기를 재개하지 않는다.
-  if (p.gathering || p.hunting) {
-    const { gathering: _gathering, hunting: _hunting, ...rest } = p
-    p = rest
-  }
   // (예전 저장분 정리) 전투 교육이 있던 시절, 교육 도중에 닫았다면 맡아 둔 체력·의지력을 돌려준다. 지금은 전투 교육 자체가 없다.
   if (p.tutorialSnap) {
     const { tutorialSnap: snap, ...rest } = p
@@ -142,6 +140,7 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
   }
   if (p.money == null) p = { ...p, money: START_MONEY }
   if (!p.inventory) p = { ...p, inventory: {} }
+  p = migrateHuntSave(p)
   // 최초 입학 프로필: 예전 저장분엔 없으니 지금 값을 최초 값으로 삼는다.
   if (!p.profile0) p = { ...p, profile0: { name: p.name, greeting: p.greeting ?? '', age: p.age, grade: p.grade ?? null, avatar: p.avatar } }
   // 캐릭터를 만든 시각(업적 기준). 예전 저장분엔 없으니 계정을 만든 시각으로 대신한다.
@@ -342,7 +341,7 @@ export function tickPlayer(player, now, dtSec) {
     if (!st) continue
     if (st.waitUntil && now >= st.waitUntil) {
       const r = completeLesson(p, id, st.waitUntil)
-      p = bumpDaily(bumpWeekly(r.player, 'lesson', 1, now), 'lesson', 1, now)
+      p = r.player // completeLesson 에서 중복 없이 일·주간 퀘스트를 갱신한다.
       logs.push(`${courseTitle(id)}: 30분의 대기가 끝났다.`, ...r.logs)
     } else if (st.day !== today && !st.waitUntil && !st.pendingStat) {
       const { [id]: _drop, ...rest } = p.lessons
@@ -353,7 +352,7 @@ export function tickPlayer(player, now, dtSec) {
   const cq = checkClubQuests(p, now)
   p = cq.player
   logs.push(...cq.logs)
-  // 오늘의 동아리 활동(하루가 바뀌었으면 비운다 — 낮 12시 KST 기준)
+  // 오늘의 동아리 활동(하루가 바뀌었으면 비운다 — 00시 KST 기준)
   p = ensureDaily(p, now)
 
   // 도감 · 업적

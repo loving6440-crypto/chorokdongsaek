@@ -69,7 +69,7 @@ export function enterHuntSite(player, site, now = Date.now(), rng = Math.random)
   let session = {
     siteId: site.id, name: site.name, status: 'active', enteredAt: now, maxTurns: site.maxTurns, turn: 0,
     position: { ...site.start }, encounter: null, rewards: {}, spiritGained: 0,
-    nodes: site.nodes.map(node => ({ ...HUNT_SPECIES[node.species], ...node, attemptsLeft: HUNT_ATTEMPTS })),
+    nodes: site.nodes.map(node => ({ ...HUNT_SPECIES[node.species], ...node, ...(node.route ? { route: node.route.map(point => ({ ...point })) } : {}), attemptsLeft: HUNT_ATTEMPTS })),
     log: [`${site.name}에 들어왔다. 이동과 채집·수렵 시도는 각각 1턴이다.`],
   }
   // 두 출현 판정을 독립적으로 수행한다. 한쪽의 위치 추첨이 다른 쪽의 출현 판정에 영향을 주지 않는다.

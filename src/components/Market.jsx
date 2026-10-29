@@ -3,6 +3,7 @@ import { RefreshCw, Store } from 'lucide-react'
 import { ITEMS, countOf, itemOf } from '../game/items'
 import { marketFetch } from '../net/online'
 import ItemIcon from './ItemIcon'
+import { canAddInventory } from '../game/inventoryCapacity'
 
 export const MARKET_QTY_MAX = 99
 export const MARKET_PRICE_MAX = 99999
@@ -94,7 +95,8 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
         {(listings ?? []).map((l) => {
           const item = itemOf(l.item)
           if (!item) return null
-          const can = admin || player.money >= l.total
+          const hasSpace = canAddInventory(player.inventory, { [l.item]: l.qty })
+          const can = hasSpace && (admin || player.money >= l.total)
           return (
             <li key={l.id} data-listing={l.id} data-item={l.item} data-total={l.total} className="flex items-center gap-3 rounded-xl bg-edge/[0.07] px-3 py-2.5">
               <ItemIcon item={item} size={36} className="shrink-0" />
@@ -112,7 +114,7 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
                   내리기
                 </button>
               ) : (
-                <button type="button" disabled={!can || busy} onClick={() => setConfirm(l)} className="flat-btn !py-1 text-xs disabled:opacity-40">
+                <button type="button" title={!hasSpace ? '소지품이 30칸을 넘어 구매할 수 없다' : undefined} disabled={!can || busy} onClick={() => setConfirm(l)} className="flat-btn !py-1 text-xs disabled:opacity-40">
                   {can ? '구매' : '냥이 모자라다'}
                 </button>
               )}

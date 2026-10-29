@@ -9,7 +9,7 @@ export function fixtureSite(overrides = {}) {
     ...LEFT_TRAIL_ONE, maxTurns: 80,
     nodes: LEFT_TRAIL_ONE.nodes.map((node, index) => ({
       ...node, species: species[index], level: 17,
-      ...(node.kind === 'animal' ? { route: clockwiseRoute(0, node.x === 0 ? 2 : 1, node.x === 0 ? 4 : 9) } : {}),
+      ...(node.kind === 'animal' ? { route: node.route } : {}),
     })),
     spirit: { ...LEFT_TRAIL_ONE.spirit, level: 20, rewards: [{ item: 'fine-woodchip', amount: 1 }] },
     ...overrides,

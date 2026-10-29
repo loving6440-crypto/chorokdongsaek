@@ -30,7 +30,7 @@ import { useTheme } from './hooks/useTheme'
  * 3. 저장 데이터 있음 → Game (이어서 플레이)
  */
 export default function App() {
-  const { theme, toggleTheme } = useTheme()
+  const { theme, selectTheme } = useTheme()
   const [user, setUser] = useState(null) // { id, twitter, save, ... }
   const [ready, setReady] = useState(false) // 초기 세션 확인 완료 여부
   const [creating, setCreating] = useState(false) // 캐릭터 생성 중
@@ -199,7 +199,7 @@ export default function App() {
     return (
       <AuthScreen
         theme={theme}
-        onToggleTheme={toggleTheme}
+        onToggleTheme={selectTheme}
         onSuccess={handleAuthSuccess}
         presetId={relogin ?? undefined}
         notice={relogin ? '이제 기록이 서버에 저장돼 어느 기기에서든 이어서 할 수 있어요. 이 브라우저의 기록을 옮기기 위해 한 번만 다시 로그인해 주세요.' : undefined}
@@ -214,7 +214,7 @@ export default function App() {
         {(!introPlaying || introLeaving) && !letterOpen && (
           <CharacterCreation
             theme={theme}
-            onToggleTheme={toggleTheme}
+            onToggleTheme={selectTheme}
             onComplete={handleCharacterComplete}
             onCancel={isAdminUser(user) && user.profiles && Object.keys(user.profiles).length > 1 ? handleCancelCreate : undefined}
           />
@@ -234,7 +234,7 @@ export default function App() {
       character={saved.character}
       initialSave={saved}
       theme={theme}
-      onToggleTheme={toggleTheme}
+      onToggleTheme={selectTheme}
       onSave={handleSave}
       onLogout={handleLogout}
       userId={user.id}

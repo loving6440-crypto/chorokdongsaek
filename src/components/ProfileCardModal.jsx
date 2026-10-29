@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { UserRoundPlus, X } from 'lucide-react'
 import Avatar from './Avatar'
-import { fetchCard } from '../net/online'
+import { changeFriend, fetchCard } from '../net/online'
 import { STAT_KEYS, STAT_META } from '../game/constants'
 import { baseIdOf, itemOf } from '../game/items'
 
@@ -61,8 +61,18 @@ function PartyStatus({ stats }) {
 export default function ProfileCardModal({ target, party, meId, onClose }) {
   const mate = target.id !== meId && party?.members?.some((m) => m.id === target.id) ? party.members.find((m) => m.id === target.id) : null
   const [state, setState] = useState({ loading: true })
+  const [friendStatus, setFriendStatus] = useState('')
+  const [addingFriend, setAddingFriend] = useState(false)
+  const addFriend = async () => {
+    if (addingFriend || target.id === meId) return
+    setAddingFriend(true)
+    const result = await changeFriend(target.id, 'add')
+    setFriendStatus(result.ok ? (result.already ? '이미 친구 목록에 추가된 사람이야.' : '친구 목록에 추가했어. 상대에게 알림을 보냈어.') : `친구 추가 실패: ${result.error || '연결 오류'}`)
+    setAddingFriend(false)
+  }
   useEffect(() => {
     let alive = true
+    setFriendStatus('')
     setState({ loading: true })
     fetchCard(target.id).then((r) => {
       if (alive) setState(r.ok ? { card: r.card, online: r.online, title: r.title } : { error: r.status === 404 ? '아직 인적사항을 올리지 않은 사람이다.' : '인적사항을 불러오지 못했다.' })
@@ -86,6 +96,10 @@ export default function ProfileCardModal({ target, party, meId, onClose }) {
             <X size={14} />
           </button>
         </div>
+        {target.id !== meId && <div className="mt-3 border-b border-edge/15 pb-3">
+          <button type="button" data-profile-add-friend disabled={addingFriend} onClick={addFriend} className="flat-btn mx-auto text-xs disabled:opacity-50"><UserRoundPlus size={13}/> 친구 추가</button>
+          {friendStatus && <p className="mt-2 text-center text-xs text-gold" role="status">{friendStatus}</p>}
+        </div>}
         {state.loading ? (
           <p className="mt-6 text-center text-sm text-paper/55">불러오는 중…</p>
         ) : state.error ? (

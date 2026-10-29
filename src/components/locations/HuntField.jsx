@@ -23,12 +23,13 @@ export default function HuntField({ player, stats, onAction }) {
     return () => clearInterval(timer)
   }, [])
   const site = HUNT_SITES[siteId]
-  const current = expedition?.siteId === siteId ? expedition : null
+  const current = expedition?.siteId === siteId && running ? expedition : null
   const active = current?.status === 'active'
   const nodes = current?.nodes ?? site?.nodes ?? []
   const position = current?.position ?? site?.start
   const focusCell = hovered ?? selected ?? position
   const points = nodes.filter(node => liveNode(node) && same(node, focusCell))
+  const hasInformation = points.length > 0 || (active && same(focusCell, position))
   const cooldown = huntCooldownLeft(player, siteId, now)
   const missing = siteMissingData(site)
   const act = action => onAction?.(action)
@@ -91,12 +92,12 @@ export default function HuntField({ player, stats, onAction }) {
                 const p = { x: index % HUNT_SIZE, y: Math.floor(index / HUNT_SIZE) }
                 const occupants = nodes.filter(node => liveNode(node) && same(node, p)).sort((a, b) => ['ghost', 'spirit', 'animal', 'obstacle', 'plant'].indexOf(a.kind) - ['ghost', 'spirit', 'animal', 'obstacle', 'plant'].indexOf(b.kind))
                 const node = occupants[0]
-                const isPlayer = same(position, p)
+                const isPlayer = active && same(position, p)
                 const style = HUNT_KINDS[isPlayer ? 'player' : node?.kind ?? 'empty']
                 const label = occupants.map(n => `${nameOf(n)} · 적정 레벨 ${n.level ?? '미정'} · 남은 시도 ${n.kind === 'ghost' ? '전투' : n.attemptsLeft ?? 3}`).join(', ')
-                return <button key={index} type="button" className="hunt-tile" data-hunt-cell={cellName(p)} data-kind={isPlayer ? 'player' : node?.kind ?? 'empty'} aria-label={`${cellName(p)} ${isPlayer ? '플레이어, ' : ''}${label || '빈 칸'}`} aria-pressed={same(selected, p)} title={`${cellName(p)} · ${isPlayer ? '플레이어 / ' : ''}${label || '빈 칸'}`} style={{ background: style.background, color: style.color }} onPointerMove={() => setHovered(p)} onMouseLeave={() => setHovered(null)} onFocus={() => { setSelected(p); setHovered(null) }} onClick={() => chooseCell(p)}>
+                return <button key={index} type="button" className="hunt-tile" data-hunt-cell={cellName(p)} data-kind={isPlayer ? 'player' : node?.kind ?? 'empty'} aria-label={`${cellName(p)} ${isPlayer ? '플레이어, ' : ''}${label || '빈 칸'}`} aria-pressed={same(selected, p)} title={(node || isPlayer) ? `${cellName(p)} · ${isPlayer && active ? '플레이어 / ' : ''}${label}` : undefined} style={{ background: style.background, color: style.color }} onPointerEnter={() => setHovered(p)} onMouseLeave={() => setHovered(null)} onFocus={() => { setSelected(p); setHovered(null) }} onClick={() => chooseCell(p)}>
                   <span aria-hidden="true">{style.symbol}</span>
-                  {isPlayer && node && <span className="hunt-tile-under" aria-hidden="true">{HUNT_KINDS[node.kind].symbol}</span>}
+                  {isPlayer && active && node && <span className="hunt-tile-under" aria-hidden="true">{HUNT_KINDS[node.kind].symbol}</span>}
                   {occupants.length > 1 && <span className="hunt-tile-under" aria-hidden="true">+{occupants.length - 1}</span>}
                 </button>
               })}
@@ -105,11 +106,11 @@ export default function HuntField({ player, stats, onAction }) {
           </div>
           <div>
             <div className="min-h-28 rounded border border-edge/15 p-3 text-xs leading-relaxed text-paper/80" aria-live="polite" aria-label="타일 정보">
-              <p className="font-bold text-paper">{focusCell ? cellName(focusCell) : '타일 정보'}</p>
-              {points.length ? points.map(node => {
+              {hasInformation && <p className="font-bold text-paper">{focusCell ? cellName(focusCell) : '타일 정보'}</p>}
+              {hasInformation && (points.length ? points.map(node => {
                 const odds = Number.isFinite(node.level) && node.kind !== 'ghost' ? huntOdds(node.kind, node.level, stats) : null
                 return <div key={node.id} className="mt-2"><p>{nameOf(node)} · {HUNT_KINDS[node.kind].label}</p><p>적정 레벨 {node.level ?? '미정'}</p>{node.kind === 'ghost' ? <p>만나면 별도 전투가 시작됩니다.</p> : <><p>남은 시도 {node.attemptsLeft ?? 3}회</p>{odds && <p>내 산출값 {odds.value}<br />성공 {odds.success}%{node.kind !== 'spirit' && <> · 보너스 {odds.bonus}%</>}</p>}</>}</div>
-              }) : <p className="mt-2">{same(focusCell, position) ? '현재 내 위치입니다.' : '아무것도 없는 빈 칸입니다.'}</p>}
+              }) : <p className="mt-2">현재 내 위치입니다.</p>)}
             </div>
             {active && <>
               <div className="mx-auto mt-3 grid w-36 grid-cols-3 gap-1" role="group" aria-label="수렵 이동">

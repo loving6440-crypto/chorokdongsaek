@@ -10,6 +10,7 @@ import {
   setActiveChannel,
   useOnline,
   fetchFriends,
+  changeFriend,
 } from '../net/online'
 import { sfx } from '../game/sfx'
 
@@ -30,6 +31,15 @@ const timeOf = (at) =>
 function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = null }) {
   const net = useOnline()
   const [blockedIds, setBlockedIds] = useState([])
+  const [friendFeedback, setFriendFeedback] = useState('')
+  const [addingFriend, setAddingFriend] = useState(null)
+  const addFriend = async (person) => {
+    if (addingFriend || !net.me?.id || person.id === net.me.id) return
+    setAddingFriend(person.id)
+    const result = await changeFriend(person.id, 'add')
+    setFriendFeedback(result.ok ? (result.already ? `${person.name}님은 이미 친구야.` : `${person.name}님을 친구로 추가했어. 알림을 보냈어.`) : `친구 추가 실패: ${result.error || '연결 오류'}`)
+    setAddingFriend(null)
+  }
   useEffect(() => {
     if (net.status !== 'online') return undefined
     let alive = true
@@ -66,12 +76,16 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
   const [confirmDisband, setConfirmDisband] = useState(false)
   const [seenLog, setSeenLog] = useState(null)
   const isLog = tab === 'log'
-  const latestLogId = logs?.[0]?.id ?? null
+  const latestLogId = logs?.[logs.length - 1]?.id ?? null
   useEffect(() => {
     if (isLog) setSeenLog(latestLogId)
   }, [isLog, latestLogId])
   const logUnread = !!logs && !isLog && latestLogId !== null && latestLogId !== seenLog
   const listRef = useRef(null)
+  const activityLogRef = useRef(null)
+  useLayoutEffect(() => {
+    if (isLog && activityLogRef.current) activityLogRef.current.scrollTop = activityLogRef.current.scrollHeight
+  }, [isLog, open]) // 활동 로그 탭에 들어갈 때만 최신 위치로 이동한다. 새 기록이 생길 때는 현재 위치 유지.
 
   // 열려 있는 탭은 읽은 것으로 친다.
   useEffect(() => {
@@ -180,7 +194,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
             className={`ink-panel flex flex-col overflow-hidden rounded-xl ${docked ? 'min-h-[16rem] flex-1' : 'h-[26rem] max-h-[70vh] w-[22rem] max-w-[calc(100vw-2rem)]'}`}
           >
             <div className="flex items-center gap-1 border-b border-edge/15 px-2 pt-2">
-              {[...TABS, ...(logs ? [{ id: 'log', label: '활동 로그', hint: '교내에서 있었던 일이 최근 순으로 기록된다.' }] : [])].map((t) => (
+              {[...TABS, ...(logs ? [{ id: 'log', label: '활동 로그', hint: '기록은 오래된 순서대로 표시되며 새 기록이 아래에 추가된다.' }] : [])].map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -219,7 +233,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
             </div>
 
             <p className="px-3 pt-1.5 text-[10px] text-paper/45">
-              {isLog ? '교내에서 있었던 일이 최근 순으로 기록된다.' : TABS.find((t) => t.id === tab).hint}
+              {isLog ? '기록은 오래된 순서대로 표시되며 새 기록이 아래에 추가된다.' : TABS.find((t) => t.id === tab).hint}
               {!isLog &&
                 tab === 'party' &&
                 inParty &&
@@ -232,7 +246,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
             </p>
 
             {isLog ? (
-              <div className="flex-1 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed text-paper/80" aria-label="활동 로그">
+              <div ref={activityLogRef} className="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed text-paper/80" aria-label="활동 로그" style={{ overflowAnchor: 'none' }}>
                 {logs.length === 0 ? (
                   <p className="text-paper/40">아직 기록된 일이 없다.</p>
                 ) : (
@@ -271,13 +285,14 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
                     {confirmDisband ? '정말로 전원 내보낼까? (다시 누르면 해체)' : '일행 해체하기'}
                   </button>
                 )}
+                {friendFeedback && <p className="mb-2 text-xs text-gold" role="status">{friendFeedback}</p>}
                 <ul className="space-y-1">
                   {[...net.online].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map((p) => {
                     const mine = p.id === net.me?.id
                     const mate = net.party?.members.some((m) => m.id === p.id)
                     return (
-                      <li key={p.id} className="flex items-center justify-between gap-2 rounded bg-shade/20 px-2 py-1.5 text-xs">
-                        <span className="truncate text-paper">
+                      <li key={p.id} className="flex flex-wrap items-center justify-end gap-1.5 rounded bg-shade/20 px-2 py-1.5 text-xs">
+                        <span className="w-full min-w-0 truncate text-paper">
                           {p.title && <span className="mr-1 rounded bg-crimson/80 px-1 py-px text-[10px] font-medium text-white" data-title>[{p.title}]</span>}
                           <button type="button" data-sfx="none" onClick={() => onProfile?.({ id: p.id, name: p.name })} aria-label={`${p.name}의 인적사항 보기`} className="underline-offset-2 hover:text-gold hover:underline">
                             {p.name}
@@ -286,6 +301,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
                           {mine && <span className="ml-1 text-[10px] text-gold">나</span>}
                           {mate && !mine && <span className="ml-1 text-[10px] text-gold">일행</span>}
                         </span>
+                        {!mine && <button type="button" data-online-add-friend={p.id} disabled={!!addingFriend} onClick={() => addFriend(p)} className="inline-flex shrink-0 items-center gap-1 rounded border border-gold/40 px-2 py-0.5 text-[11px] text-gold hover:bg-gold/10 disabled:opacity-40"><UserPlus size={11}/> 친구</button>}
                         {!mine && onGift && (
                           <button
                             type="button"

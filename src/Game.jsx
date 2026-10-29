@@ -15,6 +15,7 @@ import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, 
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
+import { appendActivityLog, appendActivityLogs, latestActivityLog, normalizeActivityLogs } from './game/activityLogs'
 import MenuPanel from './components/MenuPanel'
 import MailboxPanel from './components/MailboxPanel'
 import EditConsent from './components/EditConsent'
@@ -34,13 +35,14 @@ import StatusPanel from './components/StatusPanel'
 import Annex from './components/locations/Annex'
 import { playHoljjak as playHoljjakGame } from './game/holjjak'
 import Dormitory from './components/locations/Dormitory'
-import Gym from './components/locations/Gym'
 import HuntBattleModal from './components/HuntBattleModal'
+import Gym from './components/locations/Gym'
 import Infirmary from './components/locations/Infirmary'
 import MainHall from './components/locations/MainHall'
 import Shrine from './components/locations/Shrine'
 import { markLineSeen } from './game/npcLines'
 import { deposit, withdraw } from './game/locker'
+import { canAddInventory, capacityFor, claimPending, limitNewGains } from './game/inventoryCapacity'
 import {
   LOCATIONS,
   STAT_META,
@@ -53,6 +55,8 @@ import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
+import { GATHER_MINUTES } from './game/gather'
+import { HUNT_MINUTES } from './game/hunt'
 import { HUNT_SITES } from './game/huntSites'
 import { enterHuntSite, moveOnHunt, attemptHunt, leaveHuntSite, resolveHuntEncounter } from './game/huntField'
 import { travelMinutes } from './game/travel'
@@ -88,9 +92,11 @@ import {
   startSlowFight,
   cancelSlowFight,
   slowFightMinutes,
-  cancelGather,
-  cancelHunt,
   WEAK_MS,
+  startGather,
+  cancelGather,
+  startHunt,
+  cancelHunt,
   dayKey,
 } from './game/progress'
 import { connect, disconnect, mbAct, mbCancel, mbClose, mbItem, mbRespond, mbStart, mbSurvive, sendCard, sendPartyStats, marketBuy, marketCancel, marketClaim, marketList, notify, onGift, onMarketSold, sendGift, useOnline, applyClub, fetchClubMembers, fetchRanking } from './net/online'
@@ -147,7 +153,14 @@ export default function Game({
   const playerActionDirty = useRef(false)
   const setPlayer = useCallback((value) => {
     playerActionDirty.current = true
-    setPlayerState(value)
+    setPlayerState((previous) => {
+      const candidate = typeof value === 'function' ? value(previous) : value
+      // 구매·선물·퀘스트·제작·관리자 지급 등 모든 획득 경로의 마지막 안전망.
+      // 기존 30칸 초과 계정의 소지품은 보존하고 새로 얻은 초과분만 수령 대기로 보낸다.
+      const safe = limitNewGains(previous, candidate)
+      playerRef.current = safe
+      return safe
+    })
   }, [])
   const [locationId, setLocationId] = useState(() => initialSave?.locationId || 'dorm')
   const battleRef = useRef(false)
@@ -155,7 +168,7 @@ export default function Game({
   const locRef = useRef(locationId)
   locRef.current = locationId
   const [logs, setLogs] = useState(() => {
-    if (initialSave?.logs?.length) return initialSave.logs
+    if (initialSave?.logs?.length) return normalizeActivityLogs(initialSave.logs)
     return [
       {
         id: 0,
@@ -233,14 +246,14 @@ export default function Game({
   const lastSavedSnapshot = useRef(null)
 
   const addLog = useCallback((message) => {
-    setLogs((prev) => [{ id: Date.now() + Math.random(), time: stamp(), message }, ...prev].slice(0, 80))
+    setLogs((prev) => appendActivityLog(prev, { id: Date.now() + Math.random(), time: stamp(), message }))
   }, [])
   // 여러 줄을 한 번에 남긴다 (예: 전투 로그 전체를 활동 로그에 남길 때). messages 는 시간순(오래된 것부터). (v71)
   const addLogs = useCallback((messages) => {
     if (!messages?.length) return
     const t = stamp()
     const entries = messages.map((message, i) => ({ id: Date.now() + i / 1000 + Math.random(), time: t, message }))
-    setLogs((prev) => [...entries.slice().reverse(), ...prev].slice(0, 80))
+    setLogs((prev) => appendActivityLogs(prev, entries))
   }, [])
 
   // 항상 최신 player 를 들고 있는 ref. (수업 시스템의 콜백이 늘 같은 함수로 남도록)
@@ -316,6 +329,9 @@ export default function Game({
         setLocationId(trv.toId)
         addLog(`${LOCATIONS[trv.toId].name}에 도착했다.`)
       }
+      nextPlayer = limitNewGains(previousPlayer, nextPlayer)
+      const pendingGained = Object.entries(nextPlayer.pendingInventory ?? {}).some(([id, n]) => n > (previousPlayer.pendingInventory?.[id] ?? 0))
+      if (pendingGained) addLog('소지품이 30칸을 초과해 일부 보상을 수령 대기 물품으로 보관했다. 소지품을 정리한 뒤 수령할 수 있다.')
       playerRef.current = nextPlayer
       // 자연 회복의 소수점 변화만으로 Game 전체를 초당 한 번씩 리렌더링하지 않는다.
       // 실질적인 다른 필드/퀘스트/대기 상태 변화는 즉시 표시한다.
@@ -378,7 +394,7 @@ export default function Game({
       character: charOutRef.current,
       player: playerRef.current,
       locationId: locationIdRef.current,
-      logs: logsRef.current.slice(0, SAVE_LOG_CAP),
+      logs: logsRef.current.slice(-SAVE_LOG_CAP),
     }
     onSave(snapshot)
     lastSavedSnapshot.current = {
@@ -778,6 +794,7 @@ export default function Game({
       const cur = playerRef.current
       const n = Math.max(1, Math.min(99, Math.floor(qty)))
       if (!item || item.price == null || (!admin && cur.money < item.price * n) || !isStoreOpen()) return
+      if (!canAddInventory(cur.inventory, { [id]: n })) { addLog('소지품이 30칸을 넘는다. 보관함에 물건을 맡기거나 정리해 줘.'); return }
       const cost = item.price * n
       const next = bumpWeekly({ ...cur, money: admin ? cur.money : cur.money - cost, inventory: { ...cur.inventory, [id]: (cur.inventory?.[id] || 0) + n } }, 'shopBuy')
       playerRef.current = next
@@ -880,6 +897,7 @@ export default function Game({
     async (l) => {
       const cur = playerRef.current
       if (!admin && cur.money < l.total) return { ok: false, message: '냥이 모자란다.' }
+      if (!canAddInventory(cur.inventory, { [l.item]: l.qty })) return { ok: false, message: '소지품이 30칸을 넘어서 살 수 없다.' }
       const r = await marketBuy(l.id)
       if (!r.ok) return { ok: false, message: r.status === 404 ? '이미 팔렸거나 내려간 매물이다.' : r.error === 'own' ? '내가 올린 매물은 살 수 없다.' : '구매하지 못했다.' }
       const now = playerRef.current
@@ -893,6 +911,7 @@ export default function Game({
   )
   const marketCancelIt = useCallback(
     async (l) => {
+      if (!canAddInventory(playerRef.current.inventory, { [l.item]: l.qty })) return { ok: false, message: '소지품이 30칸을 넘는다. 공간을 만든 다음 매물을 내려 줘.' }
       const r = await marketCancel(l.id)
       if (!r.ok) return { ok: false, message: '이미 팔렸거나 내려간 매물이다.' }
       const now = playerRef.current
@@ -906,6 +925,15 @@ export default function Game({
   )
 
   // ───────── 물품보관함 ─────────
+  const claimInventoryPending = useCallback((id, amount) => {
+    const result = claimPending(playerRef.current, id, amount)
+    if (result.error) { notify(result.error); return result }
+    playerRef.current = result.player
+    setPlayer(result.player)
+    addLog(`수령 대기 물품 ${itemOf(id)?.name ?? id} ${amount}개를 소지품에 넣었다.`)
+    return result
+  }, [addLog])
+
   const lockerMove = useCallback(
     (mode, grade, id, n) => {
       const cur = playerRef.current
@@ -939,6 +967,7 @@ export default function Game({
       if (battleRef.current) return { error: '전투 중에는 장비를 바꿀 수 없다.' }
       const r = equipItem(playerRef.current, id)
       if (r.error) return r
+      if (!canAddInventory(r.player.inventory)) return { error: '소지품이 30칸을 넘는다. 공간을 확보한 뒤 장비를 교체해 주세요.' }
       playerRef.current = r.player
       setPlayer(r.player)
       addLog(`[${itemOf(id).name}]을(를) 착용했다.`)
@@ -953,6 +982,7 @@ export default function Game({
       const was = equipOf(cur)[slot]
       const r = unequipSlot(cur, slot)
       if (r.error) return r
+      if (!canAddInventory(r.player.inventory)) return { error: '소지품이 30칸을 넘는다. 공간을 확보한 뒤 벗어 주세요.' }
       playerRef.current = r.player
       setPlayer(r.player)
       addLog(`[${itemOf(was).name}]을(를) 벗었다.`)
@@ -1131,11 +1161,12 @@ export default function Game({
         const cur = playerRef.current
         const inv = { ...(cur.inventory ?? {}) }
         for (const [id, n] of Object.entries(gift.items)) if (itemOf(id)) inv[id] = (inv[id] || 0) + n
-        const next = mergeEnh({ ...cur, inventory: inv }, gift.enh)
+        const next = limitNewGains(cur, mergeEnh({ ...cur, inventory: inv }, gift.enh))
+        const waiting = Object.entries(next.pendingInventory ?? {}).some(([id, n]) => n > (cur.pendingInventory?.[id] ?? 0))
         playerRef.current = next
         setPlayer(next)
-        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}${gift.enh ? ' (무구 강화 포함)' : ''}`)
-        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}${gift.note ? ' (쪽지가 사물함에 있다)' : ''}`)
+        addLog(`${gift.from.name}님에게 선물을 받았다: ${itemList(gift.items)}${gift.enh ? ' (무구 강화 포함)' : ''}${waiting ? ' (일부 물품은 수령 대기)' : ''}`)
+        notify(`${gift.from.name}님이 선물을 보냈다: ${itemList(gift.items)}${waiting ? ' (일부 수령 대기)' : ''}${gift.note ? ' (쪽지가 사물함에 있다)' : ''}`)
       }),
     [addLog],
   )
@@ -1221,6 +1252,7 @@ export default function Game({
         inventory: { ...cur.inventory, [id]: cur.inventory[id] - 1 },
         hp: e.hp || giveHp ? Math.min(cur.hpMax, cur.hp + (e.hp || 0) + giveHp) : cur.hp,
         mp: e.mp ? Math.min(cur.mpMax, cur.mp + e.mp) : cur.mp,
+        money: e.sellMoney ? (cur.money || 0) + e.sellMoney : cur.money,
         weakUntil: weakUntilNext,
       }
       playerRef.current = next
@@ -1247,9 +1279,11 @@ export default function Game({
                   ? '[쇠약] 즉시 회복'
                   : e.weakCap != null
                     ? '[쇠약] 남은 시간이 1시간으로 줄었다'
-                    : e.giveHp
-                      ? `체력 +${e.giveHp.self}`
-                      : item.effectText
+                    : e.sellMoney
+                      ? `${e.sellMoney}냥 획득`
+                      : e.giveHp
+                        ? `체력 +${e.giveHp.self}`
+                        : item.effectText
         })`,
       )
     },
@@ -1288,36 +1322,71 @@ export default function Game({
     [interruptAll, addLog],
   )
 
-  const huntAction = action => {
+  /** 채집하기: 20분을 기다리면 확률표에 따라 무언가를 얻는다. */
+  const startGatherAction = useCallback(
+    (spotId) => {
+      guardTraining(() => {
+        interruptAll('채집을 시작해')
+        const cur = playerRef.current
+        const r = startGather(cur, spotId)
+        if (r.error) return addLog(r.error)
+        playerRef.current = r.player
+        setPlayer(r.player)
+        addLog(`채집을 시작했다. (${GATHER_MINUTES}분)`)
+      })
+    },
+    [interruptAll, addLog],
+  )
+
+  /** 수렵 시도: 20분을 기다리면 1d10으로 조우한 상대가 정해지고, 승리(또는 간파) 보상을 받는다. */
+  const startHuntAction = useCallback(
+    (pathId) => {
+      guardTraining(() => {
+        interruptAll('수렵을 시작해')
+        const cur = playerRef.current
+        const r = startHunt(cur, pathId)
+        if (r.error) return addLog(r.error)
+        playerRef.current = r.player
+        setPlayer(r.player)
+        addLog(`수렵을 시작했다. (${HUNT_MINUTES}분)`)
+      })
+    },
+    [interruptAll, addLog],
+  )
+
+  // v78 타일 수렵: 기존 v77 대기형 채집·수렵 로직은 유지하고, 새 수렵은 독립적으로 관리한다.
+  const huntAction = (action) => {
     const run = () => {
       if (action.type === 'enter') interruptAll('수렵을 시작해')
-      const cur = playerRef.current
+      const current = playerRef.current
       const now = Date.now()
-      const stats = effectiveStats(cur, now)
-      const result = action.type === 'enter' ? enterHuntSite(cur, HUNT_SITES[action.siteId], now)
-        : action.type === 'move' ? moveOnHunt(cur, action.position, now)
-        : action.type === 'attempt' ? attemptHunt(cur, action.nodeId, stats, now)
-        : action.type === 'leave' ? leaveHuntSite(cur, now) : null
+      const stats = effectiveStats(current, now)
+      const result = action.type === 'enter' ? enterHuntSite(current, HUNT_SITES[action.siteId], now)
+        : action.type === 'move' ? moveOnHunt(current, action.position, now)
+        : action.type === 'attempt' ? attemptHunt(current, action.nodeId, stats, now)
+        : action.type === 'leave' ? leaveHuntSite(current, now)
+        : null
       if (!result) return
-      if (result.error) return addLog(result.error)
+      if (result.error) { addLog(result.error); return }
       const next = syncCodex(result.player)
       playerRef.current = next
       setPlayer(next)
-      addLogs(result.logs)
+      if (result.logs?.length) addLogs(result.logs)
     }
     if (action.type === 'enter') guardTraining(run)
     else run()
   }
 
-  const finishHuntBattle = result => {
+  const finishHuntBattle = (result) => {
     const r = resolveHuntEncounter(playerRef.current, result)
-    if (r.error) return addLog(r.error)
+    if (r.error) { addLog(r.error); return }
     const lost = !result.win && !result.fled
-    const vitals = { ...r.player, hp: Math.max(1, Math.min(r.player.hpMax, Math.ceil(result.hp))) }
-    const next = lost ? { ...vitals, weakUntil: Date.now() + WEAK_MS } : vitals
+    const hp = Number.isFinite(result.hp) ? result.hp : r.player.hp
+    const nextVitals = { ...r.player, hp: Math.max(1, Math.min(r.player.hpMax, Math.ceil(hp))) }
+    const next = lost ? { ...nextVitals, weakUntil: Date.now() + WEAK_MS } : nextVitals
     playerRef.current = next
     setPlayer(next)
-    addLogs(r.logs)
+    if (r.logs?.length) addLogs(r.logs)
     if (lost) {
       setActivity('intro')
       setLocationId('infirmary')
@@ -1582,7 +1651,7 @@ export default function Game({
     onProfileAction?.(action)
   }
 
-  const latestLog = logs[0]
+  const latestLog = latestActivityLog(logs)
   const unreadLog = panel !== 'log' && latestLog && latestLog.id !== seenLog
   const selectPanel = (id) => {
     setPanel(id)
@@ -1740,6 +1809,7 @@ export default function Game({
                     onEnhance={enhance}
                     onSpecialEnhance={specialEnhance} onRemoveSpecial={removeSpecial}
                     onAdminGive={adminGive}
+                    onGather={startGatherAction}
                     onHuntAction={huntAction}
                     onVisit={visitSpot}
                     onGiveNpc={giveNpc}
@@ -1830,7 +1900,6 @@ export default function Game({
           onOpenItems={() => setInvOpen(true)} onGiveItem={giveItem}
         />
       )}
-
       <GameModal
         course={course}
         onClose={closeCourse}
@@ -2077,7 +2146,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} onClaimPending={claimInventoryPending} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>

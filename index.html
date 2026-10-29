@@ -7,14 +7,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 첫 페인트 전에 저장된 테마를 적용해 화면 깜빡임을 막는다. (저장값이 없으면 다크) -->
-    <script>
-      try {
-        var t = localStorage.getItem('changnok-theme')
-        document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark'
-      } catch (e) {
-        document.documentElement.dataset.theme = 'dark'
-      }
-    </script>
+    <script src="/theme-bootstrap.js"></script>
     <title>草綠同色</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

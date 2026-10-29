@@ -40,7 +40,7 @@ test('시트의 셀 메모와 좌표를 반영하며 덤불은 회색 장애물�
     assert.equal(node.kind, HUNT_SPECIES[node.species].kind)
     if (node.kind === 'animal') {
       assert.ok(node.route.some(p => p.x === node.x && p.y === node.y))
-      assert.equal(node.route.length, node.species === 'snake' ? 12 : 32)
+      assert.equal(node.route.length, node.species === 'snake' ? 4 : 8)
     }
   }
   const bush = LEFT_TRAIL_ONE.nodes.find(node => node.id === 'C10')
@@ -176,7 +176,7 @@ test('모든 확정 보상과 보너스 아이템은 소지품 정의가 있고 
       assert.ok(itemOf(reward.item), reward.item)
       assert.equal(result.rewards[reward.item], reward.dice ?? reward.amount)
     }
-    const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'whetstone' : definition.kind === 'animal' ? 'trap-scrap' : null
+    const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'whetstone' : definition.kind === 'animal' ? 'trap-scraps' : null
     if (bonus) {
       assert.ok(result.rewards[bonus] > 0, bonus)
       assert.ok(itemOf(bonus))
@@ -197,8 +197,8 @@ test('인접 장애물 채집과 같은 칸 동물 수렵만 허용하며 수렵
   assert.deepEqual(result.huntExpedition.nodes.find(node => node.id === animal.id).y, animal.y)
 })
 
-test('뱀 4×4, 여우 9×9는 시계 방향 테두리만 이동하고 내부는 방문하지 않는다', () => {
-  for (const size of [4, 9]) {
+test('뱀 2×2, 여우 3×3은 시계 방향 테두리만 이동하고 내부는 방문하지 않는다', () => {
+  for (const size of [2, 3]) {
     const route = clockwiseRoute(0, 0, size)
     assert.equal(route.length, 4 * (size - 1))
     assert.equal(new Set(route.map(p => `${p.x},${p.y}`)).size, route.length)
@@ -215,7 +215,7 @@ test('뱀 4×4, 여우 9×9는 시계 방향 테두리만 이동하고 내부는
 })
 
 test('이동해 따라잡은 동물은 같은 칸에 멈추며 고정 채집물은 움직이지 않는다', () => {
-  const site = fixtureSite({ nodes: [{ id: 'snake', kind: 'animal', species: 'snake', level: 10, x: 1, y: 9, route: clockwiseRoute(0, 6, 4) },
+  const site = fixtureSite({ nodes: [{ id: 'snake', kind: 'animal', species: 'snake', level: 10, x: 1, y: 9, route: clockwiseRoute(0, 8, 2) },
     { id: 'plant', kind: 'plant', species: 'mugwort', level: 10, x: 5, y: 5 }] })
   const p = moveOnHunt(enter(site), { x: 1, y: 9 }).player
   assert.equal(p.huntExpedition.nodes[0].x, 1)

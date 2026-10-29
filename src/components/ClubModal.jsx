@@ -203,7 +203,7 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers, 
             {/* 오늘의 동아리 활동(일일 퀘스트) */}
             <p className="mt-4 flex items-center justify-between text-[11px] tracking-widest text-paper/50">
               <span>오늘의 동아리 활동</span>
-              <span className="text-paper/40">({dailyDoneCount}/{DAILY_QUESTS.length} · 매일 낮 12시 초기화)</span>
+              <span className="text-paper/40">({dailyDoneCount}/{DAILY_QUESTS.length} · 매일 0시 초기화)</span>
             </p>
             <ul className="mt-1.5 space-y-1 rounded-lg bg-shade/25 p-2.5" data-club-daily-quests>
               {DAILY_QUESTS.map((q) => {
