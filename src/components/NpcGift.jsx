@@ -6,7 +6,7 @@ import { countOf, ITEMS } from '../game/items'
 const GIFT_ITEMS = ITEMS.filter((it) => it.giftNpc)
 
 /** NPC 대화창 아래: 호감도 표시 + 선물 건네기(마이쮸 등). (전투 중이 아닐 때만 여기서 줄 수 있다) */
-export default function NpcGift({ npcId, player, onGive }) {
+export default function NpcGift({ npcId, player, onGive, onGift }) {
   const [msg, setMsg] = useState('')
   if (!onGive) return null
   const lv = player.affinity?.[npcId] || 0
@@ -22,7 +22,15 @@ export default function NpcGift({ npcId, player, onGive }) {
             key={it.id}
             type="button"
             disabled={n < 1}
-            onClick={() => setMsg(onGive(npcId, it.id)?.error || `${it.name}을(를) 건넸다. 호감도가 올랐다!`)}
+            onClick={() => {
+              const result = onGive(npcId, it.id)
+              if (result?.error) {
+                setMsg(result.error)
+              } else {
+                setMsg(`${it.name}을(를) 건넸다. 호감도가 올랐다!`)
+                onGift?.(result)
+              }
+            }}
             className="flat-btn !py-1 text-xs disabled:opacity-40"
           >
             <Gift size={13} aria-hidden />

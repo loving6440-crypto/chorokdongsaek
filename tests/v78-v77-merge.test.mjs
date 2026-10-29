@@ -63,7 +63,7 @@ test('v77 기존 수업·일퀘·로그·보안·폰트·아이템 구현 파일
 test('빈 수렵 칸의 title/정보 표시를 막고 수렵 종료 시 메뉴가 접힌다', () => {
   assert.match(source('src/components/locations/HuntField.jsx'), /title=\{\(node \|\| isPlayer\) \?[^]*: undefined\}/)
   assert.match(source('src/components/locations/HuntField.jsx'), /hasInformation &&/)
-  assert.match(source('src/components/locations/Hike.jsx'), /previousHuntStatus\.current === 'active' && status !== 'active'/)
+  assert.match(source('src/components/locations/Hike.jsx'), /previousHuntStatus\.current === 'active' && status === 'finished'/)
   assert.match(source('src/components/locations/Hike.jsx'), /setHuntOn\(false\)/)
   assert.match(source('src/components/locations/Hike.jsx'), /<GatherSpot/)
   assert.match(source('src/Game.jsx'), /onHuntAction=\{huntAction\}/)

@@ -235,7 +235,11 @@ export default function Game({
   reviveRef.current = reviveOn
   const [panel, setPanel] = useState('world') // world | log | items | stats  (오른쪽 메뉴)
   const [seenLog, setSeenLog] = useState(null) // 활동 로그 화면에서 마지막으로 본 기록 id
-  const [activity, setActivity] = useState('intro') // 지금 구역에서 고른 활동 (구역을 옮기면 intro 로)
+  // 서버 동기화로 Game이 재마운트돼도 진행 중인 수렵 화면으로 복귀한다.
+  // v78.0.1에서는 언제나 intro로 초기화되어 정상적인 채집 뒤 저장 충돌이 나면
+  // 사용자가 산 탐색에서 튕겨난 것처럼 보였다.
+  const [activity, setActivity] = useState(() => initialSave?.locationId === 'gym' &&
+    (restored?.huntExpedition?.status === 'active' || initialSave?.activity === 'hike') ? 'hike' : 'intro')
   const [course, setCourse] = useState(null)
 
   // 저장 디바운스용
@@ -263,6 +267,8 @@ export default function Game({
   // effect 가 다시 돌지 않을 수도 있다 — 그때도 가장 최근 값을 쓸 수 있도록 매 렌더마다 최신으로 갱신해 둔다.
   const locationIdRef = useRef(locationId)
   locationIdRef.current = locationId
+  const activityRef = useRef(activity)
+  activityRef.current = activity
   const logsRef = useRef(logs)
   logsRef.current = logs
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
@@ -394,6 +400,8 @@ export default function Game({
       character: charOutRef.current,
       player: playerRef.current,
       locationId: locationIdRef.current,
+      // 수렵 화면은 새로고침/서버 저장 충돌 뒤에도 같은 탭을 복원한다.
+      activity: locationIdRef.current === 'gym' && activityRef.current === 'hike' ? 'hike' : 'intro',
       logs: logsRef.current.slice(-SAVE_LOG_CAP),
     }
     onSave(snapshot)
@@ -401,6 +409,7 @@ export default function Game({
       player: snapshot.player,
       character: snapshot.character,
       locationId: snapshot.locationId,
+      activity: snapshot.activity,
       logs: logsRef.current,
     }
     lastSavedAt.current = Date.now()
@@ -410,14 +419,16 @@ export default function Game({
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false
-      lastSavedSnapshot.current = { player, character: charOut, locationId, logs }
+      lastSavedSnapshot.current = { player, character: charOut, locationId,
+        activity: locationId === 'gym' && activity === 'hike' ? 'hike' : 'intro', logs }
       lastSavedAt.current = Date.now()
       if (!restored && onSave) persistNow()
       return
     }
     if (!onSave) return
     const prev = lastSavedSnapshot.current
-    const otherChanged = !prev || prev.locationId !== locationId || prev.logs !== logs ||
+    const selectedActivity = locationId === 'gym' && activity === 'hike' ? 'hike' : 'intro'
+    const otherChanged = !prev || prev.locationId !== locationId || prev.activity !== selectedActivity || prev.logs !== logs ||
       prev.character !== charOut
     const checkpointDue = Date.now() - lastSavedAt.current >= 60000
     if (!playerActionDirty.current && !otherChanged && !checkpointDue) return
@@ -426,7 +437,7 @@ export default function Game({
       saveTimer.current = null
       persistNow()
     }, 800)
-  }, [player, locationId, logs, charOut, onSave, restored, persistNow])
+  }, [player, locationId, activity, logs, charOut, onSave, restored, persistNow])
 
   // 탭이 숨겨질 때 아직 저장하지 않은 자연 회복을 로컬 저장소에 반영한다.
   // 서버에 전송하는 주기는 auth.js에서 별도로 제어한다.
@@ -440,7 +451,8 @@ export default function Game({
       const previous = lastSavedSnapshot.current
       if (previous && (previous.player !== playerRef.current ||
           previous.locationId !== locationIdRef.current ||
-          previous.logs !== logsRef.current || previous.character !== charOutRef.current)) {
+          previous.logs !== logsRef.current || previous.character !== charOutRef.current ||
+          previous.activity !== (locationIdRef.current === 'gym' && activityRef.current === 'hike' ? 'hike' : 'intro'))) {
         persistNow()
       }
     }
@@ -1357,21 +1369,37 @@ export default function Game({
   // v78 타일 수렵: 기존 v77 대기형 채집·수렵 로직은 유지하고, 새 수렵은 독립적으로 관리한다.
   const huntAction = (action) => {
     const run = () => {
-      if (action.type === 'enter') interruptAll('수렵을 시작해')
-      const current = playerRef.current
-      const now = Date.now()
-      const stats = effectiveStats(current, now)
-      const result = action.type === 'enter' ? enterHuntSite(current, HUNT_SITES[action.siteId], now)
-        : action.type === 'move' ? moveOnHunt(current, action.position, now)
-        : action.type === 'attempt' ? attemptHunt(current, action.nodeId, stats, now)
-        : action.type === 'leave' ? leaveHuntSite(current, now)
-        : null
-      if (!result) return
-      if (result.error) { addLog(result.error); return }
-      const next = syncCodex(result.player)
-      playerRef.current = next
-      setPlayer(next)
-      if (result.logs?.length) addLogs(result.logs)
+      try {
+        if (action.type === 'enter') interruptAll('수렵을 시작해')
+        const current = playerRef.current
+        const now = Date.now()
+        const stats = effectiveStats(current, now)
+        const result = action.type === 'enter' ? enterHuntSite(current, HUNT_SITES[action.siteId], now)
+          : action.type === 'move' ? moveOnHunt(current, action.position, now)
+          : action.type === 'attempt' ? attemptHunt(current, action.nodeId, stats, now)
+          : action.type === 'leave' ? leaveHuntSite(current, now)
+          : null
+        if (!result) return
+        if (result.error) { addLog(result.error); notify(result.error); return }
+        // 채집/수렵 성공·실패는 마지막 행동이 아니면 지도를 닫지 않는다.
+        // 마지막 행동에 의한 정상 종료는 기존처럼 수렵 화면을 접는다.
+        if (action.type === 'attempt' && current.huntExpedition?.status === 'active' &&
+          result.player.huntExpedition?.status === 'finished' &&
+          result.player.huntExpedition.turn < result.player.huntExpedition.maxTurns) {
+          throw new Error('수렵 턴이 남아 있는데 채집으로 종료되었습니다.')
+        }
+        const next = syncCodex(result.player)
+        playerRef.current = next
+        setPlayer(next)
+        if (result.logs?.length) addLogs(result.logs)
+        if (action.type === 'attempt' && next.huntExpedition?.status === 'finished') {
+          addLog('수렵 행동 횟수를 모두 사용하여 탐색을 마쳤다. 획득한 자원은 유지된다.')
+        }
+      } catch (error) {
+        console.error('[초록동색] 수렵 명령 처리 오류:', action, error)
+        notify('수렵 처리 중 오류가 발생했습니다. 진행 상태는 유지했으며, 브라우저 콘솔에서 자세한 내용을 확인할 수 있습니다.')
+        addLog(`수렵 명령 오류: ${error?.message || '알 수 없는 오류'}`)
+      }
     }
     if (action.type === 'enter') guardTraining(run)
     else run()

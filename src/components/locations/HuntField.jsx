@@ -13,8 +13,11 @@ const liveNode = node => node.kind === 'ghost' || (node.attemptsLeft ?? 3) > 0
 export default function HuntField({ player, stats, onAction }) {
   const expedition = player.huntExpedition
   const running = expedition?.status === 'active'
-  const [pathId, setPathId] = useState(() => expedition?.siteId.split('-')[0] ?? 'left')
-  const [siteId, setSiteId] = useState(() => expedition?.siteId ?? 'left-trail-1')
+  const [pathId, setPathId] = useState(() => {
+    const saved = expedition?.siteId?.split('-')[0]
+    return HUNT_PATHS.some(path => path.id === saved) ? saved : 'left'
+  })
+  const [siteId, setSiteId] = useState(() => HUNT_SITES[expedition?.siteId] ? expedition.siteId : 'left-trail-1')
   const [selected, setSelected] = useState(null)
   const [hovered, setHovered] = useState(null)
   const [now, setNow] = useState(Date.now)

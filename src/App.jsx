@@ -40,6 +40,7 @@ export default function App() {
   const [mustReset, setMustReset] = useState(false)
   const [relogin, setRelogin] = useState(null) // 서버 저장으로 바뀌어 다시 로그인해야 하는 아이디
   const [syncKey, setSyncKey] = useState(0) // 다른 기기의 최신 기록을 받으면 올려서 게임 화면을 새로 그린다
+  const [syncConflict, setSyncConflict] = useState(false) // 저장 충돌로 게임 화면이 초기화된 원인을 알린다
 
   // 효과음: 첫 입력에서 오디오를 깨우고, 모든 버튼 클릭에 공통 클릭음을 낸다.
   // 버튼에 data-sfx="none" 을 달면 소리를 끄고, data-sfx="nav" 처럼 다른 소리 이름을 줄 수도 있다.
@@ -85,7 +86,8 @@ export default function App() {
   // 다른 기기에서 더 최근에 저장한 기록이 들어오면 그 기록으로 게임을 다시 연다.
   useEffect(
     () =>
-      onRemoteUpdate((fresh) => {
+      onRemoteUpdate((fresh, reason) => {
+        if (reason === 'conflict') setSyncConflict(true)
         setUser(fresh)
         setCreating(!fresh.save?.character)
         setSyncKey((k) => k + 1)
@@ -94,6 +96,7 @@ export default function App() {
   )
 
   const handleAuthSuccess = useCallback((loggedInUser, opts) => {
+    setSyncConflict(false)
     setRelogin(null)
     setMustReset(!!opts?.mustReset)
     setUser(loggedInUser)
@@ -178,6 +181,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     serverLogout()
+    setSyncConflict(false)
     setUser(null)
     setCreating(false)
     setIntroPlaying(false)
@@ -229,20 +233,28 @@ export default function App() {
   const saved = loadGameState(user.id) || user.save
 
   return (
-    <Game
-      key={`${activeProfileId(user)}:${syncKey}`}
-      character={saved.character}
-      initialSave={saved}
-      theme={theme}
-      onToggleTheme={selectTheme}
-      onSave={handleSave}
-      onLogout={handleLogout}
-      userId={user.id}
-      twitter={user.twitter}
-      joinedAt={user.createdAt}
-      admin={isAdminUser(user)}
-      adminKey={getAdminKey()}
-      onProfileAction={handleProfileAction}
-    />
+    <>
+      {syncConflict && (
+        <div role="alert" className="fixed inset-x-3 top-3 z-[120] mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-lg border border-yellow-500/70 bg-ink px-4 py-3 text-sm text-paper shadow-2xl">
+          <span>다른 기기나 브라우저 탭의 저장 기록과 충돌해 서버 기록을 다시 불러왔습니다. 같은 계정으로 열린 다른 탭이 있다면 닫아 주세요.</span>
+          <button type="button" className="flat-btn shrink-0 text-xs" onClick={() => setSyncConflict(false)}>닫기</button>
+        </div>
+      )}
+      <Game
+        key={`${activeProfileId(user)}:${syncKey}`}
+        character={saved.character}
+        initialSave={saved}
+        theme={theme}
+        onToggleTheme={selectTheme}
+        onSave={handleSave}
+        onLogout={handleLogout}
+        userId={user.id}
+        twitter={user.twitter}
+        joinedAt={user.createdAt}
+        admin={isAdminUser(user)}
+        adminKey={getAdminKey()}
+        onProfileAction={handleProfileAction}
+      />
+    </>
   )
 }

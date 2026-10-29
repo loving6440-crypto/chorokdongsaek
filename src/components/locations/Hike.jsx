@@ -82,18 +82,34 @@ const Placeholder = ({ name }) => (
 )
 
 /** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. */
-export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMeet, onAdminGive, onGather, onHuntAction, stats, onVisit, onGiveNpc }) {
+export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, onAdminGive, onGather, onHuntAction, stats, onVisit, onGiveNpc }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
   const [huntOn, setHuntOn] = useState(() => player.huntExpedition?.status === 'active')
+  const [turnExhausted, setTurnExhausted] = useState(false)
   const previousHuntStatus = useRef(player.huntExpedition?.status)
   useEffect(() => {
     const status = player.huntExpedition?.status
-    // 행동 횟수 소진/조기 종료/조우 전투 종료 시 수렵 지도 전체를 닫는다.
-    if (previousHuntStatus.current === 'active' && status !== 'active') setHuntOn(false)
+    if (previousHuntStatus.current === 'active' && status === 'finished') {
+      const session = player.huntExpedition
+      if (session?.turn >= session?.maxTurns) {
+        // 행동을 모두 쓴 경우 먼저 안내를 보여 주고, 확인할 때까지 수렵 화면을 유지한다.
+        setTurnExhausted(true)
+      } else {
+        // 조기 귀환과 전투 패배 등은 기존대로 수렵 화면을 닫는다.
+        setHuntOn(false)
+      }
+    }
     previousHuntStatus.current = status
-  }, [player.huntExpedition?.status])
+  }, [player.huntExpedition?.status, player.huntExpedition?.turn, player.huntExpedition?.maxTurns])
+  const acknowledgeTurnExhausted = () => {
+    setTurnExhausted(false)
+    setHuntOn(false)
+    setPathId(null)
+    setBranchId(null)
+    setSpotId(null)
+  }
 
   const path = HIKE_PATHS.find((p) => p.id === pathId)
   const branch = path?.branches?.find((b) => b.id === branchId)
@@ -188,10 +204,19 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onMee
         </div>
       )}
 
+      {turnExhausted && (
+        <div className="fixed inset-0 z-[110] grid place-items-center bg-black/75 p-4" data-hunt-turn-exhausted-overlay>
+          <div className="ink-panel w-full max-w-sm rounded-xl p-5 text-center" role="alertdialog" aria-modal="true" aria-label="채집 종료 안내" aria-describedby="hunt-turn-exhausted-message" data-hunt-turn-exhausted>
+            <p id="hunt-turn-exhausted-message" className="text-sm leading-relaxed text-paper">행동 가능한 턴을 소진했습니다. 채집을 종료합니다.</p>
+            <button type="button" className="flat-btn mt-5 justify-center" onClick={acknowledgeTurnExhausted} autoFocus data-hunt-end-confirm>확인</button>
+          </div>
+        </div>
+      )}
+
       {spot && (
         <div className="mt-2">
           {spot.id === 'armory' ? (
-            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} />
+            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
           ) : spot.id === 'garden' ? (
             <GatherSpot player={player} spotId={spot.id} onGather={onGather} />
           ) : spot.id === 'outside' ? (
