@@ -60,7 +60,7 @@ foreach ($name in $expected) {
     if ((Get-Item -LiteralPath $path).Length -lt 5000) { throw "Font file unexpectedly small: $name" }
 }
 
-$destination = Join-Path (Split-Path -Parent $project) 'chorokdongsaek-v76.0.12-with-fonts.zip'
+$destination = Join-Path (Split-Path -Parent $project) 'chorokdongsaek-v77.0.2-with-fonts.zip'
 if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Force }
 $zip = [System.IO.Compression.ZipFile]::Open($destination, [System.IO.Compression.ZipArchiveMode]::Create)
 try {

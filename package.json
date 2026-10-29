@@ -1,7 +1,7 @@
 {
   "name": "chorokdongsaek",
   "private": true,
-  "version": "76.0.16",
+  "version": "77.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",

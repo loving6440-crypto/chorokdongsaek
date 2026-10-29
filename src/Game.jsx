@@ -15,6 +15,7 @@ import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, 
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
+import { appendActivityLog, appendActivityLogs, latestActivityLog, normalizeActivityLogs } from './game/activityLogs'
 import MenuPanel from './components/MenuPanel'
 import MailboxPanel from './components/MailboxPanel'
 import EditConsent from './components/EditConsent'
@@ -163,7 +164,7 @@ export default function Game({
   const locRef = useRef(locationId)
   locRef.current = locationId
   const [logs, setLogs] = useState(() => {
-    if (initialSave?.logs?.length) return initialSave.logs
+    if (initialSave?.logs?.length) return normalizeActivityLogs(initialSave.logs)
     return [
       {
         id: 0,
@@ -241,14 +242,14 @@ export default function Game({
   const lastSavedSnapshot = useRef(null)
 
   const addLog = useCallback((message) => {
-    setLogs((prev) => [{ id: Date.now() + Math.random(), time: stamp(), message }, ...prev].slice(0, 80))
+    setLogs((prev) => appendActivityLog(prev, { id: Date.now() + Math.random(), time: stamp(), message }))
   }, [])
   // 여러 줄을 한 번에 남긴다 (예: 전투 로그 전체를 활동 로그에 남길 때). messages 는 시간순(오래된 것부터). (v71)
   const addLogs = useCallback((messages) => {
     if (!messages?.length) return
     const t = stamp()
     const entries = messages.map((message, i) => ({ id: Date.now() + i / 1000 + Math.random(), time: t, message }))
-    setLogs((prev) => [...entries.slice().reverse(), ...prev].slice(0, 80))
+    setLogs((prev) => appendActivityLogs(prev, entries))
   }, [])
 
   // 항상 최신 player 를 들고 있는 ref. (수업 시스템의 콜백이 늘 같은 함수로 남도록)
@@ -389,7 +390,7 @@ export default function Game({
       character: charOutRef.current,
       player: playerRef.current,
       locationId: locationIdRef.current,
-      logs: logsRef.current.slice(0, SAVE_LOG_CAP),
+      logs: logsRef.current.slice(-SAVE_LOG_CAP),
     }
     onSave(snapshot)
     lastSavedSnapshot.current = {
@@ -1247,6 +1248,7 @@ export default function Game({
         inventory: { ...cur.inventory, [id]: cur.inventory[id] - 1 },
         hp: e.hp || giveHp ? Math.min(cur.hpMax, cur.hp + (e.hp || 0) + giveHp) : cur.hp,
         mp: e.mp ? Math.min(cur.mpMax, cur.mp + e.mp) : cur.mp,
+        money: e.sellMoney ? (cur.money || 0) + e.sellMoney : cur.money,
         weakUntil: weakUntilNext,
       }
       playerRef.current = next
@@ -1273,9 +1275,11 @@ export default function Game({
                   ? '[쇠약] 즉시 회복'
                   : e.weakCap != null
                     ? '[쇠약] 남은 시간이 1시간으로 줄었다'
-                    : e.giveHp
-                      ? `체력 +${e.giveHp.self}`
-                      : item.effectText
+                    : e.sellMoney
+                      ? `${e.sellMoney}냥 획득`
+                      : e.giveHp
+                        ? `체력 +${e.giveHp.self}`
+                        : item.effectText
         })`,
       )
     },
@@ -1603,7 +1607,7 @@ export default function Game({
     onProfileAction?.(action)
   }
 
-  const latestLog = logs[0]
+  const latestLog = latestActivityLog(logs)
   const unreadLog = panel !== 'log' && latestLog && latestLog.id !== seenLog
   const selectPanel = (id) => {
     setPanel(id)

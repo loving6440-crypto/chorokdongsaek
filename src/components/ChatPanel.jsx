@@ -76,12 +76,16 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
   const [confirmDisband, setConfirmDisband] = useState(false)
   const [seenLog, setSeenLog] = useState(null)
   const isLog = tab === 'log'
-  const latestLogId = logs?.[0]?.id ?? null
+  const latestLogId = logs?.[logs.length - 1]?.id ?? null
   useEffect(() => {
     if (isLog) setSeenLog(latestLogId)
   }, [isLog, latestLogId])
   const logUnread = !!logs && !isLog && latestLogId !== null && latestLogId !== seenLog
   const listRef = useRef(null)
+  const activityLogRef = useRef(null)
+  useLayoutEffect(() => {
+    if (isLog && activityLogRef.current) activityLogRef.current.scrollTop = activityLogRef.current.scrollHeight
+  }, [isLog, open]) // 활동 로그 탭에 들어갈 때만 최신 위치로 이동한다. 새 기록이 생길 때는 현재 위치 유지.
 
   // 열려 있는 탭은 읽은 것으로 친다.
   useEffect(() => {
@@ -190,7 +194,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
             className={`ink-panel flex flex-col overflow-hidden rounded-xl ${docked ? 'min-h-[16rem] flex-1' : 'h-[26rem] max-h-[70vh] w-[22rem] max-w-[calc(100vw-2rem)]'}`}
           >
             <div className="flex items-center gap-1 border-b border-edge/15 px-2 pt-2">
-              {[...TABS, ...(logs ? [{ id: 'log', label: '활동 로그', hint: '교내에서 있었던 일이 최근 순으로 기록된다.' }] : [])].map((t) => (
+              {[...TABS, ...(logs ? [{ id: 'log', label: '활동 로그', hint: '기록은 오래된 순서대로 표시되며 새 기록이 아래에 추가된다.' }] : [])].map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -229,7 +233,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
             </div>
 
             <p className="px-3 pt-1.5 text-[10px] text-paper/45">
-              {isLog ? '교내에서 있었던 일이 최근 순으로 기록된다.' : TABS.find((t) => t.id === tab).hint}
+              {isLog ? '기록은 오래된 순서대로 표시되며 새 기록이 아래에 추가된다.' : TABS.find((t) => t.id === tab).hint}
               {!isLog &&
                 tab === 'party' &&
                 inParty &&
@@ -242,7 +246,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
             </p>
 
             {isLog ? (
-              <div className="flex-1 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed text-paper/80" aria-label="활동 로그">
+              <div ref={activityLogRef} className="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed text-paper/80" aria-label="활동 로그" style={{ overflowAnchor: 'none' }}>
                 {logs.length === 0 ? (
                   <p className="text-paper/40">아직 기록된 일이 없다.</p>
                 ) : (

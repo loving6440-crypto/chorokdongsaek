@@ -9,12 +9,13 @@ const EXITS = { infirmary: 'mainHall' }
 
 // 위쪽 칸은 높이를 고정한다. 안의 내용만 메뉴에 따라 바뀌고, 넘치면 칸 안에서 스크롤된다.
 const BOX = 'ink-panel shrink-0 overflow-auto rounded-2xl p-3 sm:p-4 max-lg:max-h-[24rem] lg:h-[17rem] xl:h-[9.75rem]'
+const LOG_BOX = 'ink-panel flex h-[18rem] shrink-0 flex-col overflow-hidden rounded-2xl p-3 sm:p-4 lg:h-[17rem] xl:h-[9.75rem]'
 
 /** 위쪽 칸: 구역을 옮기고, 지금 구역에서 할 활동을 고른다. 고른 활동은 아래 칸에 나온다. */
 export default function ActivityBar({ panel, locationId, onMove, activity, onSelect, logs }) {
   if (panel === 'log') {
     return (
-      <header className={BOX} aria-label="활동 선택">
+      <header className={LOG_BOX} aria-label="활동 로그">
         <LogView logs={logs} />
       </header>
     )
