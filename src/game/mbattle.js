@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, rollIntent } from './battle.js'
+import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent } from './battle.js'
 import { itemTurnFree } from './items.js'
 
 /** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
@@ -20,6 +20,14 @@ const STAT_KEYS = ['insight', 'aggression', 'endurance', 'control', 'agility', '
 // 다인 전투에서 쓸 수 있는 영능력 id 전체(기존엔 생존본능뿐이었으나, 솔로 전투에서 구현된 6종도 모두 받아들인다).
 const PSYCHIC_IDS = ['earth-step','warding-scripture','spirit-barrier','seven-stars','language-barrier','survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense', 'dokkaebi-fire']
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? +v : lo))
+
+/** 영력결계: 일반 다인 전투는 습득만 하면 상시 적용. 보스전에서는 가져간 경우에만 적용한다. */
+export const hasActiveSpiritBarrier = (member, enemy) =>
+  !!member?.psychics?.includes('spirit-barrier') &&
+  (!enemy?.boss || (Array.isArray(member.psychicBring) && member.psychicBring.includes('spirit-barrier')))
+
+/** 영력결계 상태에서도 스스로 또는 아군을 대상으로 쓰는 영능력은 사용할 수 있다. */
+export const BARRIER_ALLY_SKILLS = ['survival', 'echo-form', 'falling-light', 'karmic-recompense', 'warding-scripture', 'earth-step', 'seven-stars']
 
 /** 클라이언트가 보낸 스탯을 안전한 정수로 고친다. */
 export function cleanStats(raw = {}) {
@@ -219,7 +227,9 @@ export function submit(mb, id, act) {
   if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
-  if (a === 'psychic' && m.psychics?.includes('spirit-barrier') && !['warding-scripture', 'earth-step', 'seven-stars'].includes(act.psychic)) return { error: '영력결계를 가진 사람은 적을 향해 영능력을 쓸 수 없다.' }
+  const barrierActive = hasActiveSpiritBarrier(m, mb.enemy)
+  if (barrierActive && act?.buff) return { error: '영력결계가 발동 중이면 효험을 사용할 수 없다.' }
+  if (a === 'psychic' && barrierActive && !BARRIER_ALLY_SKILLS.includes(act.psychic)) return { error: '영력결계가 발동 중이면 적 대상 영능력을 사용할 수 없다.' }
   if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
   // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
   if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
@@ -662,18 +672,35 @@ function enemyPhase(mb, rng) {
       )
     }
   }
+  // 대상 전원이 결계로 보호되더라도 적의 영능력 시전은 사라지지 않는다.
+  // 영력 소모, 시전 팝업, 후속 행동은 그대로 유지한다. (단일 시전은 약공으로 대체.)
+  if (intent === 'special' && targets.every(t => hasActiveSpiritBarrier(t, mb.enemy))) {
+    const psychic = group && mb.enemy.special2 ? mb.enemy.special2 : mb.enemy.special
+    evs.push(...addLog(mb, [{
+      kind: 'special', label: psychic?.label, note: psychic?.note,
+      enemyId: group && mb.enemy.special2 ? `${mb.enemy.id}-2` : mb.enemy.id,
+      chance: SPECIAL_PERCENT, effects: specialEffects(mb.enemy),
+      result: group
+        ? '정상 시전되었으나 모든 대상이 영력결계로 효과를 받지 않았다.'
+        : '단일 대상이 영력결계를 지녀 약공으로 대체되었다.',
+    }], 'enemy'))
+  }
   targets.forEach((t, i) => {
     if (mb.ehp <= 0) return
-    if (intent === 'special' && t.psychics?.includes('spirit-barrier')) {
-      if (group) {
-        evs.push(...addLog(mb, [{kind:'warn',text:`[${t.name}] 영력결계! 적의 영능력을 무효화했다.`}],t.id))
-        return
-      }
-      evs.push(...addLog(mb, [{kind:'warn',text:`[${t.name}] 영력결계! 단일 영능력이 약공으로 바뀌었다.`}],t.id))
+    const barrierActive = hasActiveSpiritBarrier(t, mb.enemy)
+    const blocksGroupSpecial = intent === 'special' && group && barrierActive
+    const downgradesSingleSpecial = intent === 'special' && !group && barrierActive
+    if (blocksGroupSpecial) {
+      // 적의 '단체 영능력' 행동을 삭제하지 않는다. 해당 대상에게만 피해/부가 효과가 없다.
+      // 이 대상이 마지막 순서라도 enemyTurn('none')으로 라운드/행동 큐는 반드시 한 번 진행한다.
+      evs.push(...addLog(mb, [{ kind:'warn', text:`[${t.name}] 영력결계! 단체 영능력의 효과를 받지 않았다.` }], t.id))
+    } else if (downgradesSingleSpecial) {
+      evs.push(...addLog(mb, [{ kind:'warn', text:`[${t.name}] 영력결계! 자신을 향한 단일 영능력이 약공으로 바뀌었다.` }], t.id))
     }
     const last = i === targets.length - 1
     const q = [...mb.queue]
-    if (intent === 'group' || (intent === 'special' && !group && t.psychics?.includes('spirit-barrier'))) q[0] = 'jab'
+    if (blocksGroupSpecial) q[0] = 'none' // 이 대상에게만 무효: 다른 파티원에게는 원래 영능력을 적용
+    else if (intent === 'group' || downgradesSingleSpecial) q[0] = 'jab'
     // 내려쬐는 빛으로 대신 맞는 공격은 무조건 '막기'로 처리된다. (v71)
     const v = { ...viewOfMember(mb, t), guard: flTarget && t.id === flTarget.id ? true : t.guard, queue: q }
     const prevPhp = t.php
@@ -713,7 +740,9 @@ function enemyPhase(mb, rng) {
     t.curse = r.state.curse
     t.bound = r.state.bound || t.bound
     t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
-    let tevs = r.events.map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : group && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
+    // 대상 면역일 때 생긴 내부 '행동이 무효화' 안내는 적 전체가 공격을 취소한 것으로 오해될 수 있으므로 숨긴다.
+    let tevs = (blocksGroupSpecial ? r.events.filter(e => !/행동이 무효화/.test(e.text || '')) : r.events)
+      .map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : group && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
     const downed = r.state.pendingDeath || r.state.over === 'lose'
     if (downed && t.revive) {
       t.revive = false

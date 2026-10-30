@@ -19,6 +19,8 @@ const STATUS_LABEL = { alive: '', down: '전투불능', fled: '이탈' }
 export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
   const enemy = ENEMIES.find((e) => e.id === view.enemyId)
   const me = view.members.find((m) => m.id === meId)
+  // 보스전의 상시 영능력은 '가져가기'로 골랐을 때만 발동한다.
+  const barrierActive = psychics.includes('spirit-barrier') && (!view.boss || me?.psychicBring?.includes('spirit-barrier'))
   const [psyOpen, setPsyOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
@@ -117,7 +119,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const send = async (act) => {
     if (!canAct) return
     const buffed =
-      buffArmed &&
+      !barrierActive && buffArmed &&
       (act.action === 'attack' ||
         act.action === 'charm' ||
         (act.action === 'psychic' && (act.psychic === 'survival' || act.psychic === 'monkey-paw' || act.psychic === 'dokkaebi-fire')))
@@ -148,6 +150,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   // 의지력 10을 정확히 다 낼 수 있어야만 켤 수 있다(모자라면 토글 자체가 막힌다). (v70)
   const toggleBuff = () => {
     if (!canAct) return
+    if (barrierActive) return
     setBuffArmed((v) => (!v && have < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
   useEffect(() => {
@@ -403,11 +406,11 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       <button
                         type="button"
                         aria-pressed={buffArmed}
-                        disabled={!canAct || (!buffArmed && have < mpCostOf(stats, BUFF_COST))}
+                        disabled={barrierActive || !canAct || (!buffArmed && have < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
-                        {buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
+                        {barrierActive ? '영력결계로 사용 불가' : buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
                       </button>
                     ) : s.id === 'monkey-paw' ? (
                       <>
@@ -423,7 +426,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                           <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
                           <span className="text-[11px] text-paper/60">의지력 {mpCostOf(stats, Math.min(pawMax, pawAmt))} 소모</span>
                         </div>
-                        <button type="button" data-psychic-use="monkey-paw" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: 'monkey-paw', sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use="monkey-paw" disabled={!canAct || barrierActive} onClick={() => send({ action: 'psychic', psychic: 'monkey-paw', sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       </>
@@ -462,7 +465,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       <div className="mt-2">
                         <p className="text-xs text-paper/65">재굴림할 적 행동의 순서 3개 (1~20)</p>
                         <div className="flex gap-2">{rerollTurns.map((n,i)=><input key={i} aria-label={`재굴림 ${i+1}번째 턴`} type="number" min="1" max="20" value={n} onChange={e=>setRerollTurns(a=>a.map((v,j)=>i===j?Math.max(1,Math.min(20,Math.floor(Number(e.target.value)||1))):v))} className="mt-1 w-16 rounded bg-shade px-2 py-1 text-paper" />)}</div>
-                        <button type="button" className="flat-btn mt-2" disabled={!canAct} onClick={()=>send({action:'psychic',psychic:s.id,rerolls:rerollTurns.map(n=>n-1)})}>간파 및 재굴림</button>
+                        <button type="button" className="flat-btn mt-2" disabled={!canAct || barrierActive} onClick={()=>send({action:'psychic',psychic:s.id,rerolls:rerollTurns.map(n=>n-1)})}>간파 및 재굴림</button>
                       </div>
                     ) : s.id === 'karmic-recompense' ? (
                       <>
@@ -491,7 +494,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       </>
                     ) : (
                       s.use && (
-                        <button type="button" data-psychic-use={s.id} disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use={s.id} disabled={!canAct || (barrierActive && ['cotton-mist', 'dokkaebi-fire'].includes(s.id))} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       )

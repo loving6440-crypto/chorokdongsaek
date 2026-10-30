@@ -50,7 +50,7 @@ export default function BringPicker({ player, psychics = [], enemyName, onConfir
           </ul>
         )}
         <p className="mt-5 font-serif text-lg text-gold">가져갈 영능력 고르기</p>
-        <p className="mt-1 text-xs text-paper/70">보스 전투에는 영능력도 1인당 <b>{PSYCHIC_BRING_MAX}개</b>까지만 가져갈 수 있다. (효험은 제한 없이 항상 쓸 수 있다)</p>
+        <p className="mt-1 text-xs text-paper/70">보스 전투에는 영능력도 1인당 <b>{PSYCHIC_BRING_MAX}개</b>까지만 가져갈 수 있다. (효험은 기본 영능력이나, 영력결계를 가져오면 효험을 사용할 수 없다. 영력결계는 가져온 경우에만 발동한다)</p>
         <p className="mt-2 text-sm text-paper" data-psy-bring-total>{psySel.length} / {PSYCHIC_BRING_MAX}</p>
         {psyList.length === 0 ? (
           <p className="mt-3 text-xs text-paper/60">익힌 영능력이 없다.</p>

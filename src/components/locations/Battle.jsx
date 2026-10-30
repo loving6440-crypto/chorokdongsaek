@@ -43,7 +43,7 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
+export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [tutorialOpen, setTutorialOpen] = useState(false) // 바리의 전투 안내(v72: 자동으로 뜨지 않고, 이 화면에서 직접 열 때만 보여 준다)
   // 튜토리얼이 열려 있는 동안엔 사이드바(ProfileSidebar)의 체력·의지력 표시도 100으로 보여 달라는
@@ -172,7 +172,7 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
       setBusy(true)
       timer.current = setTimeout(() => {
         // 영력결계는 자신을 향한 적 영능력을 약공으로 바꾼다.
-        const barrier = psychics.includes('spirit-barrier') && state.queue?.[0] === 'special'
+        const barrier = psychics.includes('spirit-barrier') && !state.enemy?.boss && state.queue?.[0] === 'special'
         const state0 = barrier ? {...state, queue: ['jab', ...state.queue.slice(1)]} : state
         const r = enemyTurn(state0, { stats, mp: mpRef.current })
         if (barrier) r.events.unshift({kind:'warn',text:'영력결계! 적의 단일 영능력이 약공으로 바뀌었다.'})
@@ -247,7 +247,7 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
   // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
   const resolve = useCallback(
     (cur, action, extra = {}) => {
-      const buffed = buffArmed && (action === 'attack' || action === 'charm')
+      const buffed = !(psychics.includes('spirit-barrier') && !cur.enemy?.boss) && buffArmed && (action === 'attack' || action === 'charm')
       const r = playerTurn(cur, action, { stats: cur.starBonus ? {...stats, aggression: stats.aggression + cur.starBonus} : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
       if (action === 'scan' && !r.invalid) onScan?.()
       // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 다시 고를 수 있게 그대로 둔다.
@@ -341,6 +341,7 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
   const toggleBuff = () => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight' || !myTurn) return
+    if (psychics.includes('spirit-barrier') && !cur.enemy?.boss) return
     setBuffArmed((v) => (!v && Math.floor(mpRef.current) < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
 
@@ -356,11 +357,26 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
   const usePsychic = (id, extra = {}) => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
-    const buffed = buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
-    if (psychics.includes('spirit-barrier') && !['earth-step','seven-stars','warding-scripture'].includes(id)) {
+    const buffed = !(psychics.includes('spirit-barrier') && !cur.enemy?.boss) && buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
+    if (psychics.includes('spirit-barrier') && !cur.enemy?.boss && !['survival','echo-form','falling-light','karmic-recompense','earth-step','seven-stars','warding-scripture'].includes(id)) {
       push([{kind:'warn',text:'영력결계를 보유하여 적을 향한 영능력은 사용할 수 없다.'}]);return
     }
-    const r = psychicTurn(cur, id, { stats, baseAggression: baseAggression ?? stats.aggression, mp: mpRef.current, boost: boostRef.current, buff: buffed, ...extra }, Math.random)
+    let r
+    try {
+      r = psychicTurn(cur, id, {
+        stats,
+        baseAggression: Number.isFinite(baseAggression) ? baseAggression : stats.aggression,
+        mp: mpRef.current,
+        boost: boostRef.current,
+        buff: buffed,
+        ...extra,
+      }, Math.random)
+    } catch (error) {
+      // 영능력 데이터에 문제가 있어도 게임 화면 전체가 사라지지 않게 한다.
+      console.error('[Battle] 영능력 처리 오류', { id, error })
+      push([{ kind: 'warn', text: '영능력 처리 중 오류가 발생했다. 잠시 후 다시 시도해 주세요.' }])
+      return
+    }
     if (r.invalid) {
       if (r.events?.length) push(r.events)
       return
@@ -750,11 +766,11 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
                         type="button"
                         data-psychic-toggle={s.id}
                         aria-pressed={buffArmed}
-                        disabled={!myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
+                        disabled={(psychics.includes('spirit-barrier') && !b?.enemy?.boss) || !myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
-                        {buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
+                        {psychics.includes('spirit-barrier') && !b?.enemy?.boss ? '영력결계로 사용 불가' : buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
                       </button>
                     ) : s.id === 'monkey-paw' ? (
                       <>
