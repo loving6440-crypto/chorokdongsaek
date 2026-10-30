@@ -80,10 +80,8 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
       <div className="sidebar-canvas relative mx-auto mb-9 h-[804px] w-[352px]">
         {/* 로고: 위쪽 전체 폭 가운데로. */}
         <div className="absolute top-0 left-1/2 h-[76px] w-[204px] -translate-x-1/2">
-          <div aria-hidden className="absolute top-3 left-3 h-[72px] w-[200px] rounded-[50%] border-2 border-gold/35" />
-          <div className="logo-tag absolute top-0 left-0 grid h-[72px] w-[200px] place-items-center !rounded-[50%]">
+          <div className="absolute top-0 left-0 grid h-[72px] w-[200px] place-items-center">
             <img src={logo} alt="草綠同色 초록동색" className="block h-12 w-auto select-none" draggable={false} />
-            <span className="sparkle absolute top-1 right-5 text-base" aria-hidden="true" />
           </div>
         </div>
 
@@ -168,9 +166,9 @@ export default function ProfileSidebar({ player, locationId, theme, onToggleThem
 
         {/* 체력 · 영력 · 의지력: 같은 높이의 세 막대를 가지런히 */}
         <div className="absolute bottom-[246px] left-1/2 flex -translate-x-1/2 items-end gap-8" aria-label="자원">
-          <VBar label="체력" value={player.hp} max={player.hpMax} height={126} fill="bg-crimson" />
-          <VBar label="영력" value={player.spirit} max={spiritMax} height={126} fill="bg-spirit" />
-          <VBar label="의지력" value={player.mp} max={player.mpMax} height={126} fill="bg-mana" />
+          <VBar label="체력" value={player.hp} max={player.hpMax} height={108} fill="bg-crimson" />
+          <VBar label="영력" value={player.spirit} max={spiritMax} height={108} fill="bg-spirit" />
+          <VBar label="의지력" value={player.mp} max={player.mpMax} height={108} fill="bg-mana" />
         </div>
 
         {/* 소지금 + 소지품 버튼 */}

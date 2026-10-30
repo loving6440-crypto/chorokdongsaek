@@ -25,14 +25,14 @@ test('무당방울: 이해 10이면 10%만 회복 발동, 무당방울 없으면
   assert.equal(bellTick(stats({fx:'bell', comprehension:250}),rng(0.99))?.chance,100)
 })
 
-test('원숭이 손: 체력 30 감소 시 의지력 30 소모, 부족하면 무효',()=>{
+test('원숭이 손: 체력 30 감소 시 의지력 40 소모, 부족하면 무효',()=>{
   const s = newBattle('scarecrow',stats(),rng(0.5),100,100)
   const r = psychicTurn(s,'monkey-paw',{stats:stats(),mp:50,sacrifice:30},rng(0.5))
   assert.equal(r.invalid,undefined)
-  assert.equal(r.mpCost,30)
+  assert.equal(r.mpCost,40)
   assert.equal(r.state.php,70)
   assert.equal(s.php,100)
-  const missing = psychicTurn(s,'monkey-paw',{stats:stats(),mp:29,sacrifice:30},rng(0.5))
+  const missing = psychicTurn(s,'monkey-paw',{stats:stats(),mp:39,sacrifice:30},rng(0.5))
   assert.equal(missing.invalid,true)
   assert.equal(missing.state.php,100)
 })
@@ -42,7 +42,7 @@ test('원숭이 손: 석장 소모 할인 및 효험 추가 소모가 상세 설
   const s = newBattle('scarecrow',st,rng(0.5),100,100)
   assert.equal(mpCostOf(st,30),24)
   const r = psychicTurn(s,'monkey-paw',{stats:st,mp:100,sacrifice:30,buff:true},rng(0.5))
-  assert.equal(r.mpCost,32) // 30 체력 => 기본 의지력 30, 석장 20% 할인 24 + 효험 8
+  assert.equal(r.mpCost,40) // 30 체력 +10 기본 의지력 40, 석장 20% 할인 32 + 효험 8
 })
 
 test('불가살이: 막기 불가 상태에서 턴 소모 아이템을 쓰면 상태 해제되고 다음 사람 차례로 넘어간다',()=>{
@@ -61,7 +61,7 @@ test('불가살이: 턴 비소모 아이템을 사용한 것만으로 막기 불
   const mb=setupMulti()
   const fast=mb.members.find(m=>m.id==='fast')
   fast.bound=true
-  assert.equal(useItemMB(mb,'fast',itemOf('ramen')).ok,true)
+  assert.equal(useItemMB(mb,'fast',itemOf('picnic')).ok,true)
   assert.equal(fast.bound,true)
   assert.equal(mb.turn,'fast')
   assert.equal(submit(mb,'fast',{action:'guard'}).error,'bound')

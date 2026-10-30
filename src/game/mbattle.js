@@ -18,7 +18,7 @@ export const MB_LOG_MAX = 80
 
 const STAT_KEYS = ['insight', 'aggression', 'endurance', 'control', 'agility', 'comprehension']
 // 다인 전투에서 쓸 수 있는 영능력 id 전체(기존엔 생존본능뿐이었으나, 솔로 전투에서 구현된 6종도 모두 받아들인다).
-const PSYCHIC_IDS = ['survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense', 'dokkaebi-fire']
+const PSYCHIC_IDS = ['earth-step','warding-scripture','spirit-barrier','seven-stars','language-barrier','survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense', 'dokkaebi-fire']
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? +v : lo))
 
 /** 클라이언트가 보낸 스탯을 안전한 정수로 고친다. */
@@ -31,7 +31,7 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring }) {
+export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0 }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
@@ -42,6 +42,9 @@ export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax,
     id,
     name,
     stats: st,
+    baseAggression: baseAggression ?? st.aggression,
+    curseUntil: Math.max(0, Number(curseUntil) || 0),
+    psychics: Array.isArray(psychics) ? psychics : [],
     php: Math.round(clampNum(hp ?? phpMax, 1, phpMax)),
     phpMax,
     mp: special === 'plum' ? 150 : Math.floor(clampNum(mp ?? 0, 0, 9999)),
@@ -51,6 +54,8 @@ export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax,
     bound: false,
     stun: 0, // 남은 행동불능 턴 수(0이면 정상). 폭죽 등으로 걸린다.
     specialSaved: false,
+    earthReduction: 0,
+    starBonus: 0,
   specialSeen: false,
   fire: 0, // 도깨비불: 기를 모으는 중 남은 자동 턴 수(0이면 정상). 쓰고 나면 다음 턴들은 입력 없이 자동으로 진행된다.
     fireBuffed: false, // 도깨비불을 효험과 함께 썼는지 — 터지는 순간(fireTurn)까지 들고 있다가 그때 적용하고 꺼진다.
@@ -93,6 +98,7 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
     log: [],
     fallingLight: null, // 내려쬐는 빛을 쓴 일행의 id. 다음 적의 공격(단일·단체 모두)이 그 사람에게 쏠리고, 쓰일 때마다 소모된다(또 쓰면 다시 걸 수 있다).
     karmicTarget: null, // 업인과보로 지정한 대상의 id(쓰면 단체 공격·다중 타겟 영능력이 모두 이 사람에게, 인원수만큼 곱해져서 쏠린다).
+    enemyVulnerabilityRounds: 0,
   }
   addLog(mb, [{ kind: 'info', text: `${enemy.name}이(가) 나타났다. (${members.length}인 전투: ${members.map((m) => m.name).join(', ')})` }])
   return mb
@@ -213,6 +219,7 @@ export function submit(mb, id, act) {
   if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
+  if (a === 'psychic' && m.psychics?.includes('spirit-barrier') && !['warding-scripture', 'earth-step', 'seven-stars'].includes(act.psychic)) return { error: '영력결계를 가진 사람은 적을 향해 영능력을 쓸 수 없다.' }
   if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
   // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
   if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
@@ -222,8 +229,10 @@ export function submit(mb, id, act) {
     psychic: act.psychic,
     buff,
     // 원숭이 손: 깎을 체력. 업인과보·형상 기억: 지정한 대상(형상 기억은 자신 또는 치유할 일행).
+    amount: a === 'psychic' && act.psychic === 'warding-scripture' ? Math.max(1, Math.floor(act.amount ?? 10)) : undefined,
+    rerolls: a === 'psychic' && act.psychic === 'language-barrier' && Array.isArray(act.rerolls) ? act.rerolls.slice(0,3) : undefined,
     sacrifice: a === 'psychic' && act.psychic === 'monkey-paw' ? Math.max(0, Math.floor(act.sacrifice ?? 0)) : undefined,
-    target: a === 'psychic' && (act.psychic === 'karmic-recompense' || act.psychic === 'echo-form') && typeof act.target === 'string' ? act.target : undefined,
+    target: a === 'psychic' && ['karmic-recompense', 'echo-form', 'warding-scripture'].includes(act.psychic) && typeof act.target === 'string' ? act.target : undefined,
   }
   return { ok: true }
 }
@@ -260,6 +269,23 @@ function useItemCore(mb, id, item, targetId) {
   if (!item?.battle) return { error: 'not-battle-item' }
   if (mb.enemy.boss) {
     if ((m.bring?.[item.id] || 0) < 1) return { error: 'not-brought' } // 가져오지 않은 아이템은 쓸 수 없다
+  }
+  // 초보용 고독: 앞으로 3라운드 적이 받는 피해 +20% (보스 포함).
+  if (e.enemyVulnerability) {
+    mb.enemyVulnerabilityRounds = Math.max(mb.enemyVulnerabilityRounds || 0, e.enemyVulnerability)
+    addLog(mb, [{kind:'warn',text:`${m.name}의 초보용 고독! 적이 ${e.enemyVulnerability}라운드 동안 피해를 20% 더 받는다.`}],m.id)
+    return {ok:true}
+  }
+  // 고독: 보스 포함 즉시 처치, 전투 참여자 모두 3일간 현실 시간 기준 저주.
+  if (e.instantKill) {
+    const until = Date.now() + 3 * 24 * 60 * 60 * 1000
+    for (const member of mb.members) member.curseUntil = Math.max(member.curseUntil || 0, until)
+    mb.ehp = 0
+    mb.phase = 'over'
+    mb.over = 'win'
+    mb.turn = null
+    addLog(mb, [{kind:'end',text:`${m.name}의 고독! ${mb.enemy.name}이(가) 즉시 쓰러졌다. 참가자 전원이 3일간 [저주]를 받았다.`}],m.id)
+    return {ok:true}
   }
   if (e.boost) {
     if (t.status !== 'alive') return { error: 'bad-target' }
@@ -415,6 +441,17 @@ export function resolveTurn(mb, rng = Math.random) {
     return evs
   }
   const act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
+  // 고독의 저주: 실제 시간 3일 동안 10% 확률로 내 턴을 자해 행동으로 대체한다.
+  if (m.curseUntil > Date.now() && rng() < 0.1) {
+    const selfDamage = Math.max(1, Math.ceil(rng() * Math.max(1, m.stats.aggression)))
+    m.php = Math.max(0, m.php - selfDamage)
+    m.act = null
+    evs.push(...addLog(mb, [{kind:'warn',text:`[${m.name}] [저주] 돌발행동으로 자신을 공격해 체력 ${selfDamage}을 잃었다.`}],m.id))
+    if (m.php <= 0) { m.status='down'; evs.push(...addLog(mb,[{kind:'warn',text:`[${m.name}] 저주에 쓰러졌다.`}],m.id)) }
+    evs.push(...nextActor(mb, rng))
+    if (!mb.turn) { if (!finishIfOver(mb)) evs.push(...enemyPhase(mb,rng)) }
+    return evs
+  }
   const v = viewOfMember(mb, m)
   const aura = auraFor(mb, m.id) // 악기: 일행 모두의 공격·반격에 붙는 보정(자기 자신에게는 75%만)
   let r
@@ -425,7 +462,7 @@ export function resolveTurn(mb, rng = Math.random) {
     r = psychicTurn(
       v,
       act.psychic ?? 'survival',
-      { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff, sacrifice: act.sacrifice, target: targetId, selfId: m.id },
+      { stats: m.stats, mp: m.mp, boost: m.boost, aura, buff: act.buff, sacrifice: act.sacrifice, target: targetId, selfId: m.id, amount: act.amount, rerolls: act.rerolls, baseAggression: m.baseAggression },
       rng,
     )
   } else {
@@ -448,13 +485,25 @@ export function resolveTurn(mb, rng = Math.random) {
     if (r.state.karmicTarget) mb.karmicTarget = targetId
     // 형상 기억: 자기 자신이면 r.state.php 가 이미 100으로 반영되어 아래에서 그대로 적용되지만,
     // 다른 일행을 대상으로 골랐으면 그 사람의 체력은 이 함수가 알지 못하므로 여기서 직접 100으로 맞춘다.
+    if (r.earthReduction != null) mb.earthReduction = Math.max(mb.earthReduction || 0, r.earthReduction)
+    if (r.starBonus) { m.starBonus = r.starBonus; m.stats.aggression += r.starBonus }
+    if (r.healMpTarget) {
+      const target = mb.members.find(x => x.id === r.healMpTarget && x.status === 'alive')
+      if (target) target.mp = Math.min(target.mpMax, target.mp + (r.healMpAmount || 0))
+    }
     if (r.healTarget && r.healTarget !== m.id) {
       const healed = mb.members.find((x) => x.id === r.healTarget && x.status === 'alive')
       if (healed) healed.php = Math.min(healed.phpMax, 100)
     }
   }
   if (r.boostUsed) m.boost = false
+  // 벽사진경은 의지력을 실제로 지불한 다음 회복시킨다. 자기에게 쓴 경우에도 유효하다.
+  if (r.healMpTarget === m.id) r.selfMpRestoration = r.healMpAmount
   m.mp = Math.max(0, m.mp - (r.mpCost || 0))
+  if (r.selfMpRestoration) m.mp = Math.min(m.mpMax, m.mp + r.selfMpRestoration)
+  // 초보용 고독 효과는 공격으로 실제 감소한 적 체력에 적용한다.
+  const hit = Math.max(0, mb.ehp - r.state.ehp)
+  if (hit && mb.enemyVulnerabilityRounds > 0) r.state.ehp = Math.max(0, r.state.ehp - Math.ceil(hit * .2))
   mb.ehp = r.state.ehp
   mb.queue = r.state.queue
   mb.known = r.state.known
@@ -615,13 +664,24 @@ function enemyPhase(mb, rng) {
   }
   targets.forEach((t, i) => {
     if (mb.ehp <= 0) return
+    if (intent === 'special' && t.psychics?.includes('spirit-barrier')) {
+      if (group) {
+        evs.push(...addLog(mb, [{kind:'warn',text:`[${t.name}] 영력결계! 적의 영능력을 무효화했다.`}],t.id))
+        return
+      }
+      evs.push(...addLog(mb, [{kind:'warn',text:`[${t.name}] 영력결계! 단일 영능력이 약공으로 바뀌었다.`}],t.id))
+    }
     const last = i === targets.length - 1
     const q = [...mb.queue]
-    if (intent === 'group') q[0] = 'jab'
+    if (intent === 'group' || (intent === 'special' && !group && t.psychics?.includes('spirit-barrier'))) q[0] = 'jab'
     // 내려쬐는 빛으로 대신 맞는 공격은 무조건 '막기'로 처리된다. (v71)
     const v = { ...viewOfMember(mb, t), guard: flTarget && t.id === flTarget.id ? true : t.guard, queue: q }
     const prevPhp = t.php
     const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: auraFor(mb, t.id), willowHandled: true }, rng) // 악기: 반격자 본인이면 75%만
+    if (mb.earthReduction > 0 && r.state.php < prevPhp) {
+      r.state.php = Math.min(t.phpMax, r.state.php + Math.floor((prevPhp - r.state.php) * mb.earthReduction))
+      if (r.state.php > 0) {r.state.pendingDeath = false; if(r.state.over === 'lose') r.state.over = null}
+    }
     if (karmicMult > 1) {
       const dealt = Math.max(0, prevPhp - r.state.php)
       const extra = dealt * (karmicMult - 1)
@@ -686,6 +746,7 @@ function enemyPhase(mb, rng) {
 
 /** 버티기 대기자가 있으면 그 단계로, 없으면 다음 라운드로 */
 export function afterEnemy(mb, rng = Math.random) {
+  if (mb.enemyVulnerabilityRounds > 0) mb.enemyVulnerabilityRounds -= 1
   if (mb.members.some((m) => m.pendingDeath)) {
     mb.phase = 'survive'
     return []
@@ -791,6 +852,7 @@ export function viewOf(mb, extra = {}) {
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
       psychicBring: m.psychicBring,
+      curseUntil: m.curseUntil || 0,
       fire: m.fire || 0,
   specialSaved: !!m.specialSaved,
   specialSeen: !!m.specialSeen,

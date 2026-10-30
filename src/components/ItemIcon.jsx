@@ -1,6 +1,9 @@
 import { itemOf } from '../game/items'
 import { EXTRA_BG, EXTRA_ICONS } from './icons2'
+import { V79_ICONS } from './icons79'
+import { V79_EXTRA_ICONS } from './icons79extra'
 import HwatuFace from './minigames/HwatuFace'
+import { GARDEN_ITEM_ICONS } from './icons79garden'
 
 /**
  * 아이템 아이콘: 플랫 디자인의 원형 배지.
@@ -528,7 +531,14 @@ export default function ItemIcon({ item, id, size = 40, locked = false, classNam
   }
   const custom = CUSTOM_ICONS[key]
   const bg = custom?.bg ?? AUTO_BG[hash(key) % AUTO_BG.length]
-  const art = custom?.art ?? AUTO_ART[it?.kind] ?? AUTO_DEFAULT_ART
+  const seed = hash(key)
+  // 신규 아이템도 각자 다른 문양을 갖도록 이름 기반의 고유 플랫 벡터를 생성한다.
+  const customShape = (
+    <><path d={`M${14+seed%8} 24 L${33+seed%9} ${12+seed%7} L${50-seed%5} 32 L${31+seed%6} ${53-seed%4} L17 46Z`} fill={['#fbf6e9','#efdcad','#f4f1e5'][seed%3]} />
+      <circle cx={24+seed%14} cy={27+seed%12} r={5+seed%5} fill={['#d9534f','#4f9d6b','#f5c84c','#6b4a3a'][seed%4]} />
+      <path d={`M${22+seed%4} 38 L${38+seed%6} ${26+seed%4} M${21+seed%8} 45 L${40+seed%3} 46`} stroke="#2f3447" strokeWidth="2.6" strokeLinecap="round"/></>
+  )
+  const art = custom?.art ?? customShape
   return (
     <svg viewBox="0 0 64 64" {...px} className={className} role="img" aria-label={it?.name ?? '아이템'} data-icon-id={key} data-icon-auto={custom ? undefined : '1'}>
       <circle cx="32" cy="32" r="32" fill={BG[bg]} />
@@ -538,5 +548,5 @@ export default function ItemIcon({ item, id, size = 40, locked = false, classNam
 }
 
 Object.assign(BG, EXTRA_BG)
-Object.assign(CUSTOM_ICONS, EXTRA_ICONS)
+Object.assign(CUSTOM_ICONS, EXTRA_ICONS, V79_EXTRA_ICONS, V79_ICONS, GARDEN_ITEM_ICONS)
 export const CUSTOM_ICON_IDS = Object.keys(CUSTOM_ICONS)

@@ -11,7 +11,7 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -55,11 +55,12 @@ import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
-import { GATHER_MINUTES } from './game/gather'
+import { buyGardenSeed, plantGardenSeed, harvestGardenPlot } from './game/garden'
 import { HUNT_MINUTES } from './game/hunt'
 import { HUNT_SITES } from './game/huntSites'
 import { enterHuntSite, moveOnHunt, attemptHunt, leaveHuntSite, resolveHuntEncounter } from './game/huntField'
 import { travelMinutes } from './game/travel'
+import { rollTravelEvent } from './game/travelEvents'
 import TravelPanel from './components/TravelPanel'
 import { HIKE_SPOT_IDS } from './game/hike'
 import { FLOORS as MAINHALL_FLOORS } from './game/explore'
@@ -239,7 +240,7 @@ export default function Game({
   // v78.0.1에서는 언제나 intro로 초기화되어 정상적인 채집 뒤 저장 충돌이 나면
   // 사용자가 산 탐색에서 튕겨난 것처럼 보였다.
   const [activity, setActivity] = useState(() => initialSave?.locationId === 'gym' &&
-    (restored?.huntExpedition?.status === 'active' || initialSave?.activity === 'hike') ? 'hike' : 'intro')
+    (restored?.huntExpedition?.status === 'active' || ['hike','pioneer'].includes(initialSave?.activity)) ? 'pioneer' : 'intro')
   const [course, setCourse] = useState(null)
 
   // 저장 디바운스용
@@ -273,7 +274,7 @@ export default function Game({
   logsRef.current = logs
   // [쇠약] 중에는 모든 육조 스탯이 5할. 화면과 전투·탐사에는 effStats 를 쓰고, 강화 비용·저장은 원래 스탯 기준.
   // 장비 보정(무복 등)도 여기서 더해진다.
-  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weaponSpecial, player.weakUntil, player.buffs])
+  const effStats = useMemo(() => effectiveStats(playerRef.current), [player.stats, player.equip, player.enh, player.weaponSpecial, player.weakUntil, player.curseUntil, player.buffs])
   const viewPlayer = useMemo(() => (effStats === player.stats ? player : { ...player, stats: effStats }), [player, effStats])
 
   // 배경음악은 신입생 등록을 마치고 게임 화면에 들어선 뒤부터 흐른다.
@@ -330,7 +331,8 @@ export default function Game({
       const trv = nextPlayer.traveling
       if (trv && now >= trv.startedAt + trv.minutes * 60000) {
         const { traveling: _t, ...rest } = nextPlayer
-        nextPlayer = rest
+        nextPlayer = trv.event?.reward ? { ...rest, inventory: { ...rest.inventory, [trv.event.reward]: (rest.inventory?.[trv.event.reward] || 0) + 1 } } : rest
+        if (trv.event?.reward) setTravelRewardPopup(trv.event.reward)
         setActivity('intro')
         setLocationId(trv.toId)
         addLog(`${LOCATIONS[trv.toId].name}에 도착했다.`)
@@ -401,7 +403,7 @@ export default function Game({
       player: playerRef.current,
       locationId: locationIdRef.current,
       // 수렵 화면은 새로고침/서버 저장 충돌 뒤에도 같은 탭을 복원한다.
-      activity: locationIdRef.current === 'gym' && activityRef.current === 'hike' ? 'hike' : 'intro',
+      activity: locationIdRef.current === 'gym' && ['hike','pioneer'].includes(activityRef.current) ? activityRef.current : 'intro',
       logs: logsRef.current.slice(-SAVE_LOG_CAP),
     }
     onSave(snapshot)
@@ -420,14 +422,14 @@ export default function Game({
     if (isFirstMount.current) {
       isFirstMount.current = false
       lastSavedSnapshot.current = { player, character: charOut, locationId,
-        activity: locationId === 'gym' && activity === 'hike' ? 'hike' : 'intro', logs }
+        activity: locationId === 'gym' && ['hike','pioneer'].includes(activity) ? activity : 'intro', logs }
       lastSavedAt.current = Date.now()
       if (!restored && onSave) persistNow()
       return
     }
     if (!onSave) return
     const prev = lastSavedSnapshot.current
-    const selectedActivity = locationId === 'gym' && activity === 'hike' ? 'hike' : 'intro'
+    const selectedActivity = locationId === 'gym' && ['hike','pioneer'].includes(activity) ? activity : 'intro'
     const otherChanged = !prev || prev.locationId !== locationId || prev.activity !== selectedActivity || prev.logs !== logs ||
       prev.character !== charOut
     const checkpointDue = Date.now() - lastSavedAt.current >= 60000
@@ -452,7 +454,7 @@ export default function Game({
       if (previous && (previous.player !== playerRef.current ||
           previous.locationId !== locationIdRef.current ||
           previous.logs !== logsRef.current || previous.character !== charOutRef.current ||
-          previous.activity !== (locationIdRef.current === 'gym' && activityRef.current === 'hike' ? 'hike' : 'intro'))) {
+          previous.activity !== (locationIdRef.current === 'gym' && ['hike','pioneer'].includes(activityRef.current) ? activityRef.current : 'intro'))) {
         persistNow()
       }
     }
@@ -638,6 +640,7 @@ export default function Game({
     else run()
   }
 
+  const [travelRewardPopup, setTravelRewardPopup] = useState(null)
   const [travelConfirm, setTravelConfirm] = useState(null) // { toId, minutes }
   const moveTo = (id) => {
     if (id === locationId) return
@@ -652,7 +655,9 @@ export default function Game({
     if (!t) return
     setTravelConfirm(null)
     interruptAll('새 이동을 시작해')
-    const next = { ...playerRef.current, traveling: { toId: t.toId, startedAt: Date.now(), minutes: t.minutes } }
+    const event = rollTravelEvent()
+    const next = { ...playerRef.current, traveling: { toId: t.toId, startedAt: Date.now(), minutes: t.minutes, event } }
+    addLog(event.text)
     playerRef.current = next
     setPlayer(next)
     addLog(`${LOCATIONS[t.toId].name}(으)로 이동을 시작했다. (${t.minutes}분)`)
@@ -667,7 +672,9 @@ export default function Game({
     const cost = fastTravelCost(trv.minutes)
     if (cur.mp < cost) return
     const { traveling: _t, ...rest } = cur
-    const next = { ...rest, mp: cur.mp - cost }
+    const next0 = trv.event?.reward ? { ...rest, mp: cur.mp - cost, inventory: { ...rest.inventory, [trv.event.reward]: (rest.inventory?.[trv.event.reward] || 0) + 1 } } : { ...rest, mp: cur.mp - cost }
+    const next = limitNewGains(cur, next0)
+    if (trv.event?.reward) setTravelRewardPopup(trv.event.reward)
     playerRef.current = next
     setPlayer(next)
     setActivity('intro')
@@ -1252,12 +1259,24 @@ export default function Game({
       })
       if (!ok.ok) return
       const e = item.effect
+      // 숯: 기본 육조 수치가 10 미만인 하나를 올리는 대신 체력 30 소모.
+      if (e.trainUnder10) {
+        if (!ENH_STATS.includes(target) || (cur.stats?.[target] ?? 0) >= 10) { notify('스탯이 10 미만인 육조를 골라야 한다.'); return }
+        if ((cur.hp || 0) <= 30) { notify('사용하려면 체력 30보다 더 남아 있어야 한다.'); return }
+        const inventory = {...cur.inventory, [id]: cur.inventory[id] - 1}
+        if (inventory[id] <= 0) delete inventory[id]
+        const next = {...cur, inventory, hp: cur.hp - 30, stats: {...cur.stats, [target]: (cur.stats[target] ?? 0) + 1}}
+        playerRef.current = next; setPlayer(next); setItemsUsed(n=>n+1)
+        addLog(`숯을 사용했다. ${STAT_META[target].label} +1 / 체력 -30.`)
+        return
+      }
       const now0 = Date.now()
       const buffs = e.buff
         ? [...(cur.buffs ?? []).filter((b) => b.until > now0 && !(b.src === id)), { src: id, stat: e.buff.stat, amount: e.buff.amount, until: now0 + e.buff.hours * 3600 * 1000 }]
         : cur.buffs
       const giveHp = e.giveHp ? e.giveHp.self : 0 // 쌍쌍바 등: 혼자 쓸 때는 self 쪽 회복량
-      const weakUntilNext = e.cureWeak ? 0 : e.weakCap != null ? Math.min(cur.weakUntil || 0, now0 + e.weakCap) : cur.weakUntil
+      const weakUntilNext = Math.max(cur.curseUntil > now0 ? cur.curseUntil : 0,
+        e.cureWeak ? 0 : e.weakCap != null ? Math.min(cur.weakUntil || 0, now0 + e.weakCap) : cur.weakUntil || 0)
       const next = {
         ...cur,
         ...(buffs ? { buffs } : {}),
@@ -1334,27 +1353,26 @@ export default function Game({
     [interruptAll, addLog],
   )
 
-  /** 채집하기: 20분을 기다리면 확률표에 따라 무언가를 얻는다. */
-  const startGatherAction = useCallback(
-    (spotId) => {
-      guardTraining(() => {
-        interruptAll('채집을 시작해')
-        const cur = playerRef.current
-        const r = startGather(cur, spotId)
-        if (r.error) return addLog(r.error)
-        playerRef.current = r.player
-        setPlayer(r.player)
-        addLog(`채집을 시작했다. (${GATHER_MINUTES}분)`)
-      })
-    },
-    [interruptAll, addLog],
-  )
+  // v79: 새 텃밭은 대기형 채집을 사용하지 않는다. 재배 시각은 캐릭터 저장 데이터에 기록한다.
+  const gardenAction = (action) => {
+    const cur = playerRef.current
+    const r = action.type === 'buy' ? buyGardenSeed(cur, action.seedId, 1)
+      : action.type === 'plant' ? plantGardenSeed(cur, action.slot, action.seedId, Date.now())
+      : action.type === 'harvest' ? harvestGardenPlot(cur, action.slot, Date.now())
+      : { error: '알 수 없는 텃밭 행동입니다.' }
+    if (r.error) { addLog(r.error); return { error: r.error } }
+    const next = syncCodex(r.player)
+    playerRef.current = next
+    setPlayer(next)
+    if (r.log) addLog(r.log)
+    return { message: r.log }
+  }
 
   /** 수렵 시도: 20분을 기다리면 1d10으로 조우한 상대가 정해지고, 승리(또는 간파) 보상을 받는다. */
   const startHuntAction = useCallback(
     (pathId) => {
       guardTraining(() => {
-        interruptAll('수렵을 시작해')
+        interruptAll('개척을 시작해')
         const cur = playerRef.current
         const r = startHunt(cur, pathId)
         if (r.error) return addLog(r.error)
@@ -1366,11 +1384,11 @@ export default function Game({
     [interruptAll, addLog],
   )
 
-  // v78 타일 수렵: 기존 v77 대기형 채집·수렵 로직은 유지하고, 새 수렵은 독립적으로 관리한다.
+  // v79 개척: 기존 v77 대기형 채집·수렵 로직은 유지하고, 새 수렵은 독립적으로 관리한다.
   const huntAction = (action) => {
     const run = () => {
       try {
-        if (action.type === 'enter') interruptAll('수렵을 시작해')
+        if (action.type === 'enter') interruptAll('개척을 시작해')
         const current = playerRef.current
         const now = Date.now()
         const stats = effectiveStats(current, now)
@@ -1393,7 +1411,7 @@ export default function Game({
         setPlayer(next)
         if (result.logs?.length) addLogs(result.logs)
         if (action.type === 'attempt' && next.huntExpedition?.status === 'finished') {
-          addLog('수렵 행동 횟수를 모두 사용하여 탐색을 마쳤다. 획득한 자원은 유지된다.')
+          addLog('개척 행동 횟수를 모두 사용하여 탐색을 마쳤다. 획득한 자원은 유지된다.')
         }
       } catch (error) {
         console.error('[초록동색] 수렵 명령 처리 오류:', action, error)
@@ -1460,7 +1478,7 @@ export default function Game({
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
   const mbSnapshot = () => {
     const cur = playerRef.current
-    return { stats: effectiveStats(cur), fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
   const mbLive = !!online.mb && !online.mb.view.over
@@ -1506,6 +1524,12 @@ export default function Game({
     }
     changeHp(Math.max(1, me.php))
     setMpAbs(me.mp)
+    if ((me.curseUntil || 0) > (playerRef.current.curseUntil || 0)) {
+      const cur = playerRef.current
+      const next = {...cur, curseUntil: me.curseUntil, weakUntil: Math.max(cur.weakUntil || 0, me.curseUntil)}
+      playerRef.current = next
+      setPlayer(next)
+    }
     if (me.reviveUsed && reviveRef.current) {
       reviveRef.current = false
       setReviveOn(false)
@@ -1770,7 +1794,7 @@ export default function Game({
                 )}
                 {isWeak(player) && (
                   <p data-weak-chip className="mb-3 rounded-lg bg-crimson/20 px-3 py-1.5 text-xs text-crimson">
-                    [쇠약] 모든 육조 스탯이 5할 · 남은 시간 {weakLeftText(player)} (기숙사에서 6시간 취침하면 바로 회복)
+                    {player.curseUntil > Date.now() ? '[저주] 모든 육조 스탯이 5할 · 10% 확률 자해 · 3일 지속 (아이템과 취침으로 해제 불가)' : '[쇠약] 모든 육조 스탯이 5할 · 기숙사에서 6시간 취침 시 회복'} · 남은 시간 {weakLeftText(player)}
                   </p>
                 )}
                 {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} admin={admin} onCraft={craftItem} onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))} onVisit={visitSpot} />}
@@ -1837,7 +1861,7 @@ export default function Game({
                     onEnhance={enhance}
                     onSpecialEnhance={specialEnhance} onRemoveSpecial={removeSpecial}
                     onAdminGive={adminGive}
-                    onGather={startGatherAction}
+                    onGardenAction={gardenAction}
                     onHuntAction={huntAction}
                     onVisit={visitSpot}
                     onGiveNpc={giveNpc}
@@ -1870,6 +1894,8 @@ export default function Game({
                       setReviveOn(false)
                     }}
                     psychics={player.psychics ?? []}
+                    baseAggression={player.stats?.aggression}
+                    curseUntil={player.curseUntil || 0}
                     boostOn={boostOn}
                     onBoostUsed={() => {
                       boostRef.current = false
@@ -1928,6 +1954,12 @@ export default function Game({
           onOpenItems={() => setInvOpen(true)} onGiveItem={giveItem}
         />
       )}
+      {travelRewardPopup && <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="이동 아이템 획득">
+        <div className="ink-panel max-w-sm rounded-xl border border-gold/40 p-6 text-center shadow-xl">
+          <p className="text-lg text-gold">{itemOf(travelRewardPopup)?.name ?? '아이템'}을(를) 획득했다!</p>
+          <button type="button" className="flat-btn mt-5" onClick={() => setTravelRewardPopup(null)}>확인</button>
+        </div>
+      </div>}
       <GameModal
         course={course}
         onClose={closeCourse}

@@ -147,7 +147,7 @@ export const PSYCHICS = [
     id: 'survival',
     label: '생존본능',
     note: '불리한 전투라고 판단이 될 때 적을 교란하고 전투에서 도망친다. 후일을 도모하는 것도 결국 살아있는 자들의 특권이 아닌가.',
-    detail: '자신의 턴에 사용. (50+1d(신속)*2-상대의 영력)% 확률로 전투에서 도주한다.',
+    detail: '자신의 턴에 사용. (50+(신속*2)-상대의 영력)% 확률로 전투에서 도주한다.',
     cond: '전투 중 최초로 전투불능이 되어본다.',
     use: true,
   },
@@ -155,7 +155,7 @@ export const PSYCHICS = [
   {
     id: 'cotton-mist',
     label: '솜구름 안개',
-    note: '적의 다음 턴 행동을 강제로 다시 결정하게 한다.',
+    note: '마치 구름처럼 희게 퍼지는 안개. 손끝으로부터 피어오른 안개는 적의 눈을 가리고 감정과 상태를 주무른다.',
     detail: '의지력 20 소모. 적의 다음 턴이 이미 정해져 있었다면(강공·영능력 등) 그걸 무르고 1d10을 다시 굴려 새로 정한다. 다시 굴린 결과가 똑같이 나왔을 경우에는 그냥 그대로 행한다.',
     cond: '(취득 경로 미정)',
     mp: 20,
@@ -164,15 +164,15 @@ export const PSYCHICS = [
   {
     id: 'echo-form',
     label: '형상 기억',
-    note: '가장 안전하고 평화로웠던 기억을 떠올려 구현화시킨다.',
-    detail: '의지력을 (50-인내-절제+호전)만큼 소모한다 (최소 20, 최대 99). 자신 또는 일행 중 한 명의 체력을 무조건 100으로 회복시킨다.',
+    note: '가장 안전하고 평화로웠던 기억을 떠올려 구현화시킨다. 돌아가고 싶어도 돌아갈 수 없다면 지금을 지켜!',
+    detail: '의지력을 50만큼 소모한다. 자신 또는 일행 중 한 명의 체력을 무조건 100으로 회복시킨다.',
     cond: '(취득 경로 미정)',
     use: true,
   },
   {
     id: 'falling-light',
     label: '내려쬐는 빛',
-    note: '다음에 적이 하는 공격을 무조건 자신이 맞아내는 탱킹용 영능력. 단일 대상이든 단체 대상(영능력 포함)이든 가리지 않는다.',
+    note: '스스로가 내뿜은 빛에 앞이 보이지 않는다. 이제 할 수 있는 것은 웅크리는 것뿐이다. 그러나 그것만으로도 충분하다.',
     detail:
       '쓸 때마다 의지력 10을 소모한다. 턴 제한 없이 아무 때나, 몇 번이든 다시 걸 수 있다. 단체 공격을 대신 맞으면 원래 맞았을 인원 수만큼 피해가 곱해진다. 사용한 직후 들어오는 그 공격은 무조건 \'막기\'로 처리된다(피해 감소 및 반격 포함).',
     cond: '(취득 경로 미정)',
@@ -183,7 +183,7 @@ export const PSYCHICS = [
     id: 'monkey-paw',
     label: '원숭이 손',
     note: '얻는 만큼 잃는다. 영구적이게 얻고자 한다면 영구적이게 잃는다.',
-    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력만큼 소모한다. (석장 등 의지력 소비 감소 효과는 적용된다.)',
+    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력에 10을 더한 만큼 소모한다. (석장 등 의지력 소비 감소 효과는 적용된다.)',
     cond: '(취득 경로 미정 · 박신아가 가지고 있다)',
     owner: 'shinah',
     use: true,
@@ -191,7 +191,7 @@ export const PSYCHICS = [
   {
     id: 'dokkaebi-fire',
     label: '도깨비불',
-    note: '3턴 동안 아무 행동도 하지 않고 기를 모으는 대신, 일반 공격의 4배 피해를 때린다. 방어 태세에는 절반으로 줄어든다.',
+    note: '어딘가에 홀연히 나타나는, 혼을 먹고 자라난다는 푸른 빛의 불꽃.',
     detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 전투·단체전투 모두에서 쓸 수 있다.',
     cond: '(취득 경로 미정)',
     mp: 20,
@@ -208,6 +208,11 @@ export const PSYCHICS = [
     mp: 10,
     use: true,
   },
+  { id: 'earth-step', label: '지신밟기', mp: '인내+50 (최대 99)', use: true, note: '이곳은 절대적으로 안전하다. 거대한 무언가가 모두를 지켜주고 있다.', detail: '의지력 (인내+50, 최대 99) 소모. 첫 턴에만 사용할 수 있다. 전투가 끝날 때까지 아군 전원의 받는 피해가 인내/2% 감소한다.', cond: '(취득 경로 미정)' },
+  { id: 'warding-scripture', label: '벽사진경', mp: '선택한 의지력', use: true, note: '사악한 것은 쫓아내고 복된 것은 맞이한다. 전투를 축제처럼 벌여 보자.', detail: '원하는 만큼 의지력을 사용해 지정한 일행 한 사람의 의지력을 그만큼 회복한다.', cond: '(취득 경로 미정)' },
+  { id: 'spirit-barrier', label: '영력결계', mp: 0, use: false, note: '볼 수 없다는 것은 축복이요, 볼 수 있다는 것은 저주라. 앎은 영혼을 얽매고 무지는 목을 조른다.', detail: '습득 시 항상 적용. 적의 영능력을 받지 않는 대신 적을 대상으로 하는 영능력·효험을 사용할 수 없다. 아군이나 자신을 대상으로 하는 영능력은 가능하다.', cond: '(취득 경로 미정)' },
+  { id: 'seven-stars', label: '칠성낙인', mp: 99, use: true, note: '북두칠성의 기운을 새겨낸다. 그것은 마치 은하수처럼 흐르고, 폭포수처럼 쏟아진다.', detail: '의지력 99를 소모한다. 첫 턴에 사용하면 전투 종료까지 장비 보정을 제외한 원래 호전 수치가 두 배가 된다.', cond: '(취득 경로 미정)' },
+  { id: 'language-barrier', label: '언어장벽', mp: 20, use: true, note: '인간도 짐승도 혼도 결국 태어나기 전 살았던 세계는 하나. 뜻이 통한다면 읽을 수 있으리.', detail: '의지력 20을 소모해 적의 앞으로 20턴을 간파하고, 선택한 세 턴을 다시 굴려 다른 행동으로 바꾼다.', cond: '(취득 경로 미정)' },
 ]
 
 /** 효험 등 default 인 영능력을 포함해, 지금 쓸 수 있는 영능력 목록. psychics = player.psychics (익힌 id 배열). */
@@ -233,6 +238,32 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     const need = mpCostOf(stats, amount)
     return need > mpNow0 ? need : 0
   }
+  if (id === 'earth-step' || id === 'seven-stars' || id === 'warding-scripture' || id === 'language-barrier') {
+    if (['earth-step', 'seven-stars'].includes(id) && state.myTurns > 0)
+      return { state, events: [{ kind: 'warn', text: '첫 번째 턴에만 사용할 수 있다.' }], mpCost: 0, invalid: true }
+    const rawCost = id === 'earth-step' ? Math.min(99, 50 + stats.endurance) : id === 'seven-stars' ? 99 : id === 'language-barrier' ? 20 : Math.max(1, Math.floor(ctx.amount ?? 10))
+    const mpCost = mpCostOf(stats, rawCost)
+    if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 부족하다. (${mpCost} 필요)` }], mpCost: 0, invalid: true }
+    if (id === 'earth-step') {
+      s.earthReduction = Math.min(1, Math.max(0, stats.endurance / 200))
+      return { state: s, mpCost, earthReduction: s.earthReduction, events: [{ kind: 'player', text: `✦ 지신밟기! 아군이 받는 피해 ${Math.round(s.earthReduction * 100)}% 감소.` }] }
+    }
+    if (id === 'seven-stars') {
+      s.starBonus = Math.max(1, ctx.baseAggression ?? stats.aggression)
+      return { state: s, mpCost, starBonus: s.starBonus, events: [{ kind: 'player', text: `✦ 칠성낙인! 이번 전투에서 본래 호전 ${s.starBonus}만큼 추가.` }] }
+    }
+    if (id === 'warding-scripture') {
+      return { state: s, mpCost, healMpTarget: ctx.target ?? ctx.selfId, healMpAmount: rawCost, events: [{ kind: 'player', text: `✦ 벽사진경! 의지력 ${rawCost}을 회복시켰다.` }] }
+    }
+    const expanded = [...(s.queue ?? [])]
+    while (expanded.length < 20) expanded.push(rollIntent(null, rng, s.party, !!s.enemy.boss))
+    const indices = Array.isArray(ctx.rerolls) ? [...new Set(ctx.rerolls.map(Number).filter(x=>Number.isInteger(x)&&x>=0&&x<20))].slice(0,3) : [0,1,2]
+    for(const i of indices) expanded[i] = rollIntent(expanded[i], rng, s.party, !!s.enemy.boss)
+    s.queue = expanded
+    s.known = Math.max(s.known || 0, 20)
+    return { state:s, mpCost, events:[{kind:'player',text:`✦ 언어장벽! 적의 행동 20턴을 간파하고 ${indices.length}턴을 재결정했다.`}] }
+  }
+  if (id === 'spirit-barrier') return { state, events: [{kind:'warn',text:'영력결계는 자동으로 발동하는 영능력이다.'}], mpCost: 0, invalid: true }
   if (id === 'dokkaebi-fire') {
     // 효험은 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면 효험 없이 도깨비불만 쓴다. (v70)
     const buffed = !!ctx.buff && mpNow0 >= mpCostOf(stats, BUFF_COST)
@@ -273,7 +304,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     // 효험은 의지력 10을 정확히 다 낼 수 있어야만 발동한다 — 모자라면 효험 없이 쓴다. (v70)
     const buffed = !!ctx.buff && mpNow0 >= mpCostOf(stats, BUFF_COST)
     const buffCost = buffed ? mpCostOf(stats, BUFF_COST) : 0
-    const mpCost = mpCostOf(stats, amt) + buffCost
+    const mpCost = mpCostOf(stats, amt + 10) + buffCost
     if (mpCost > mpNow0) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${mpCost}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     s.php = curPhp - amt
     const aura = ctx.aura ?? auraSelfOf(stats)
@@ -320,7 +351,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   }
   if (id === 'echo-form') {
     // 의지력 소모 = 50 - 인내 - 절제 + 호전 (최소 20, 최대 99, 지팡이 할인 등 기존 보정은 그대로 적용). (v71)
-    const rawCost = Math.max(20, Math.min(99, 50 - stats.endurance - stats.control + stats.aggression))
+    const rawCost = 50
     const shortfall = needMp(rawCost)
     if (shortfall) return { state, events: [{ kind: 'warn', text: `의지력이 모자라 쓸 수 없다! (필요 ${shortfall}, 지금 ${mpNow0})` }], mpCost: 0, invalid: true }
     const cost = mpCostOf(stats, rawCost)
@@ -366,12 +397,12 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   const buffCost = buffed ? mpCostOf(stats, BUFF_COST) : 0
   let roll, buffNote = ''
   if (buffed) {
-    const roll1 = die(stats.agility, rng)
-    const roll2 = die(stats.agility, rng)
+    const roll1 = stats.agility
+    const roll2 = stats.agility
     roll = Math.max(roll1, roll2)
     buffNote = ` [효험: 두 번 굴림 — ${roll1}, ${roll2} 중 더 나은 ${roll}]`
   } else {
-    roll = die(stats.agility, rng)
+    roll = stats.agility
   }
   const chance = fleeChance(roll, s.enemy)
   const d = Math.floor(rng() * 100) + 1

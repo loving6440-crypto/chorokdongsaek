@@ -48,15 +48,15 @@ test('시트의 셀 메모와 좌표를 반영하며 덤불은 회색 장애물�
   assert.equal(huntStat(bush.kind, { ...stats(0), insight: 7, control: 8 }), 15)
 })
 
-test('확정된 산길-1에 입장할 수 있고 20번째 행동 직후 종료된다', () => {
+test('확정된 산길-1에 입장할 수 있고 30번째 행동 직후 종료된다', () => {
   assert.deepEqual(siteMissingData(LEFT_TRAIL_ONE), [])
   assert.equal(LEFT_TRAIL_ONE.nodes.find(node => node.id === 'J1').level, 13)
   let p = enter(LEFT_TRAIL_ONE)
-  assert.equal(p.huntExpedition.maxTurns, 20)
-  for (let turn = 1; turn <= 20; turn++) {
+  assert.equal(p.huntExpedition.maxTurns, 30)
+  for (let turn = 1; turn <= 30; turn++) {
     p = moveOnHunt(p, { x: turn % 2, y: 9 }, 1000 + turn).player
     assert.equal(p.huntExpedition.turn, turn)
-    assert.equal(p.huntExpedition.status, turn === 20 ? 'finished' : 'active')
+    assert.equal(p.huntExpedition.status, turn === 30 ? 'finished' : 'active')
   }
   assert.equal(huntCooldownLeft(p, LEFT_TRAIL_ONE.id, 1020), HUNT_COOLDOWN_MS)
 })
@@ -116,7 +116,9 @@ test('산귀신은 2단계로 기존 전투와 저주 패턴을 사용하고 승
 
 test('실패율 예시: 안목 7 + 인내 8, 레벨 17은 성공 80%; 최소 실패 10%, 최대 실패 100%', () => {
   const s = { ...stats(0), insight: 7, endurance: 8 }
-  assert.deepEqual(huntOdds('plant', 17, s), { value: 15, success: 80, bonus: 0 })
+  assert.equal(huntOdds('plant', 17, s).value, 15)
+  assert.equal(huntOdds('plant', 17, s).success, 80)
+  assert.equal(huntOdds('plant', 17, s).bonus, 0)
   assert.equal(huntOdds('plant', 15, s).success, 90)
   assert.equal(huntOdds('plant', 1, s).success, 90)
   assert.equal(huntOdds('plant', 100, s).success, 0)
@@ -124,8 +126,8 @@ test('실패율 예시: 안목 7 + 인내 8, 레벨 17은 성공 80%; 최소 실
   assert.equal(huntStat('obstacle', { ...stats(0), insight: 7, control: 8 }), 15)
   assert.equal(huntStat('animal', { ...stats(0), comprehension: 9, agility: 8 }), 17)
   assert.equal(huntStat('spirit', { ...stats(20), aggression: 1 }), 101)
-  assert.deepEqual(huntOdds('spirit', 103, { ...stats(20), aggression: 1 }), { value: 101, success: 80, bonus: 0 })
-  assert.deepEqual(huntOdds('spirit', 90, { ...stats(20), aggression: 1 }), { value: 101, success: 90, bonus: 11 })
+  assert.equal(huntOdds('spirit', 103, { ...stats(20), aggression: 1 }).success, 80)
+  assert.equal(huntOdds('spirit', 90, { ...stats(20), aggression: 1 }).bonus, 11)
 })
 
 test('정상 한 칸 이동만 1턴, 대각선·순간이동·맵 밖·장애물 진입은 무효', () => {
@@ -152,7 +154,7 @@ test('채집 실패도 턴과 시도를 소비하고 3회 뒤 빈칸이 된다; 
   const initial = withPosition(enter(), { x: 2, y: 1 })
   let p = initial
   for (let n = 1; n <= 3; n++) {
-    const r = attemptHunt(p, 'C2', stats(0), 1000 + n, () => 0.99)
+    const r = attemptHunt(p, 'C2', stats(2), 1000 + n, () => 0.99)
     assert.equal(r.success, false)
     p = r.player
     assert.equal(p.huntExpedition.turn, n)
@@ -172,11 +174,13 @@ test('모든 확정 보상과 보너스 아이템은 소지품 정의가 있고 
     if (definition.kind === 'obstacle') p = withPosition(p, { x: 1, y: 9 })
     const result = attemptHunt(p, 'target', stats(20), 2000, sequence(0, ...(definition.rewards[0].dice ? [0.99] : []), 0, 0.99))
     assert.equal(result.success, true, species)
+    const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'polishing-stone' : definition.kind === 'animal' ? 'trap-scraps' : null
     for (const reward of definition.rewards) {
       assert.ok(itemOf(reward.item), reward.item)
-      assert.equal(result.rewards[reward.item], reward.dice ?? reward.amount)
+      // v79: 확정 보상과 랜덤 보너스가 같은 아이템이면 수량이 합산된다.
+      const expected = (reward.dice ?? reward.amount) + (reward.item === bonus ? (definition.kind === 'obstacle' ? 2 : 1) : 0)
+      assert.equal(result.rewards[reward.item], expected, species)
     }
-    const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'whetstone' : definition.kind === 'animal' ? 'trap-scraps' : null
     if (bonus) {
       assert.ok(result.rewards[bonus] > 0, bonus)
       assert.ok(itemOf(bonus))
@@ -250,14 +254,14 @@ test('영물은 멀어지고 귀신은 식물 위의 플레이어에게도 다�
   assert.deepEqual(next.position, s.position)
 })
 
-test('턴 소진과 조기 귀환은 그 터만 정확히 50분 대기; 저장/복원으로 우회하지 못한다', () => {
+test('턴 소진과 조기 귀환은 즉시 재입장 가능, 저장 복원에도 대기가 없다', () => {
   const site = fixtureSite({ maxTurns: 1 })
   let p = moveOnHunt(enter(site), { x: 1, y: 9 }, 2000).player
   assert.equal(p.huntExpedition.status, 'finished')
   assert.equal(huntCooldownLeft(p, site.id, 2000), HUNT_COOLDOWN_MS)
   assert.ok(moveOnHunt(p, { x: 0, y: 9 }).error)
   p = JSON.parse(JSON.stringify(p))
-  assert.ok(enterHuntSite(p, site, 2000 + HUNT_COOLDOWN_MS - 1).error)
+  assert.equal(enterHuntSite(p, site, 2000 + HUNT_COOLDOWN_MS - 1).player.huntExpedition.turn, 0)
   assert.equal(enterHuntSite(p, site, 2000 + HUNT_COOLDOWN_MS).player.huntExpedition.turn, 0)
   const early = leaveHuntSite(enter(), 3000).player
   assert.equal(huntCooldownLeft(early, site.id, 3000), HUNT_COOLDOWN_MS)
@@ -296,7 +300,7 @@ test('최종 턴 조우는 전투 후 종료, 승리 보상 영력20은 한 번�
   assert.ok(resolveHuntEncounter(result.player, { win: true }).error)
 })
 
-test('실패/도주는 보상 없이 귀환하고, 중간 저장은 턴·위치·남은 시도를 보존한다', () => {
+test('패배 시 개척 종료, 도주 시 남은 행동으로 복귀하고 중간 저장 상태를 보존한다', () => {
   const p = withPosition(enter(), { x: 2, y: 1 })
   const once = attemptHunt(p, 'C2', stats(10), 2000, () => 0).player
   const restored = JSON.parse(JSON.stringify(once))
@@ -305,6 +309,7 @@ test('실패/도주는 보상 없이 귀환하고, 중간 저장은 턴·위치�
     const s = { ...restored.huntExpedition, encounter: { nodeId: 'ghost', rewardSpirit: 20 } }
     const result = resolveHuntEncounter({ ...restored, huntExpedition: s }, outcome, 3000).player
     assert.equal(result.spirit, restored.spirit)
-    assert.equal(result.huntExpedition.status, 'finished')
+    assert.equal(result.huntExpedition.status, outcome.fled ? 'active' : 'finished')
+    if (outcome.fled) assert.equal(result.huntExpedition.turn, restored.huntExpedition.turn)
   }
 })

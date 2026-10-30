@@ -11,7 +11,7 @@ test('덫 찌꺼기가 올바른 제작 재료로 등록되어 있다', () => {
   assert.equal(item.kind, 'material')
   assert.equal(item.price, null)
   assert.equal(item.desc, '가엾은 짐승에게 걸려 있었다. 그것을 풀어준 대가로 얻은 것이 적지 않다.')
-  assert.equal(item.effectText, '제작 재료로 쓰인다.')
+  assert.equal(item.effectText, '제작용 재료')
   assert.deepEqual(item.effect, {})
   assert.ok(item.tags.includes('재료'))
   assert.equal(maxStack(item.id), 99)

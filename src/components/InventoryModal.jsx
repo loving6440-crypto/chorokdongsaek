@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
 import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
@@ -14,6 +15,9 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   const [discardQty, setDiscardQty] = useState(1)
   const [selectedStack, setSelectedStack] = useState(null)
   const [discardConfirm, setDiscardConfirm] = useState(false)
+  const [hover, setHover] = useState(null)
+  const [charcoalStat, setCharcoalStat] = useState(null)
+  const tipFor = (item, e) => setHover({ item, x: e.clientX, y: e.clientY })
   const closeAll = () => {
     setSel(null)
     setSlotSel(null)
@@ -22,6 +26,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
     setDiscardQty(1)
     setSelectedStack(null)
     setDiscardConfirm(false)
+    setCharcoalStat(null)
   }
   const popupOpen = !!(sel || slotSel)
   useEffect(() => {
@@ -58,6 +63,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   }
 
   return (
+    <>
     <div className="modal-scrim fixed inset-0 z-[70] grid place-items-center p-4" onClick={onClose}>
       <div
         role="dialog"
@@ -112,6 +118,9 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                   <button
                     type="button"
                     data-item={item.id}
+                    onMouseEnter={(event) => tipFor(item, event)}
+                    onMouseMove={(event) => tipFor(item, event)}
+                    onMouseLeave={() => setHover(null)}
                     onClick={() => {
                       setErr('')
                       setTargeting(false)
@@ -180,6 +189,21 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
             {err && <p className="mt-1 text-[11px] text-crimson" role="alert">{err}</p>}
 
             {discardConfirm && picked && <div className="mt-3 rounded-lg border border-crimson/40 p-3 text-xs"><p>정말 {displayName(picked)} {discardQty}개를 버리겠습니까? 되돌릴 수 없습니다.</p><div className="mt-2 flex gap-2"><button type="button" className="flat-btn-ghost text-xs" onClick={() => setDiscardConfirm(false)}>취소</button><button type="button" className="flat-btn text-xs" onClick={() => { const r = onDiscard?.(picked.id, discardQty); if (r?.error) setErr(r.error); else closeAll() }}>버리기 확정</button></div></div>}
+            {picked?.effect?.trainUnder10 && (
+              <div className="mt-3" data-charcoal-choose>
+                <p className="text-xs text-paper/70">육조 중 하나를 선택해. 기본 수치 10 미만만 가능하며 체력 30이 소모돼.</p>
+                <div className="mt-2 grid grid-cols-3 gap-1">
+                  {ENH_STATS.map(stat => (
+                    <button type="button" key={stat} onClick={()=>setCharcoalStat(stat)}
+                      disabled={(player.stats?.[stat] ?? 0) >= 10 || player.hp <= 30}
+                      aria-pressed={charcoalStat === stat}
+                      className={`rounded-md border p-1.5 text-xs disabled:opacity-35 ${charcoalStat === stat ? 'border-gold text-gold' : 'border-edge/30 text-paper'}`}>
+                        {STAT_META[stat].label} {player.stats?.[stat] ?? 0}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {targeting && chewyTarget ? (
               <div className="mt-3" data-chewy-targets>
                 <p className="text-xs text-paper/80">누구에게 줄까?</p>
@@ -219,8 +243,8 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                 {picked && !isMaterial(picked) && !isGear(picked) && (
                   <button
                     type="button"
-                    disabled={!pu.ok}
-                    onClick={() => (chewyTarget ? setTargeting(true) : onUse(picked.id))}
+                    disabled={!pu.ok || (picked.effect?.trainUnder10 && !charcoalStat)}
+                    onClick={() => (chewyTarget ? setTargeting(true) : onUse(picked.id, charcoalStat))}
                     className="flat-btn !py-1 text-xs disabled:opacity-40"
                   >
                     {chewyTarget ? '건네기' : '사용'}
@@ -248,5 +272,15 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
       )}
       </div>
     </div>
+    {hover && !popupOpen && createPortal(
+      <div role="tooltip" className="pointer-events-none fixed z-[110] w-64 max-w-[85vw] rounded-lg border border-edge/30 bg-shade px-3 py-2 text-[12px] leading-relaxed text-paper shadow-xl"
+        style={{ left: Math.max(8, Math.min(window.innerWidth - 272, hover.x - 90)), top: Math.max(8, hover.y - 12), transform: 'translateY(-100%)' }}>
+        <p className="font-semibold text-gold">{hover.item.name}</p>
+        <p className="mt-2 font-semibold text-paper">효과</p><p>{hover.item.effectText || '별도 사용 효과 없음'}</p>
+        <p className="mt-2 font-semibold text-paper">설명</p><p>{hover.item.desc || '설명 없음'}</p>
+        <p className="mt-2 font-semibold text-paper">취득</p><p>{hover.item.obtain || '취득 경로 미정'}</p>
+      </div>, document.body
+    )}
+    </>
   )
 }

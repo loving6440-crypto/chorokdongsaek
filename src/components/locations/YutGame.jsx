@@ -245,7 +245,7 @@ function YutBoard({ game, me }) {
 
       <div className="mt-3 flex gap-2">
         {!winner && (
-          <button type="button" onClick={() => resignYut()} className="flat-btn-ghost !py-1 text-xs">
+          <button type="button" onClick={() => resignYut()} className="flat-btn-ghost !border-rose-500/70 !bg-rose-950/40 !text-rose-200 hover:!bg-rose-900/60 !py-1 text-xs">
             <Flag size={12} aria-hidden />
             포기하기
           </button>

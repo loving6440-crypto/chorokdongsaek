@@ -455,8 +455,8 @@ function leaveParty(id, reason = 'leave') {
   p.members = p.members.filter((m) => m !== id)
   partyStats.delete(id)
   sendTo(id, { t: 'party', party: null, log: [] })
-  if (p.members.length <= 1) {
-    // 혼자 남으면 일행은 해산한다.
+  if (p.members.length === 0) {
+    // 마지막 구성원이 직접 탈퇴하여 빈 파티가 된 경우만 정리한다.
     p.members.forEach((m) => {
       partyOf.delete(m)
       partyStats.delete(m)
@@ -609,6 +609,9 @@ const mbInfo = (c, me) => ({
   bring: me?.bring === undefined ? undefined : cleanBring(me.bring),
   psychicBring: me?.psychicBring === undefined ? undefined : cleanPsychicBring(me.psychicBring),
   stats: me?.stats,
+  psychics: Array.isArray(me?.psychics) ? me.psychics.filter(x=>PSYCHICS.some(p=>p.id===x)) : [],
+  curseUntil: Number.isFinite(me?.curseUntil) ? Math.max(0, Math.floor(me.curseUntil)) : 0,
+  baseAggression: Number.isFinite(me?.baseAggression) ? Math.max(1,Math.min(999,Math.floor(me.baseAggression))) : undefined,
   fx: me?.fx,
   special: typeof me?.special === 'string' ? me.special : null,
   hp: me?.hp,
@@ -1356,10 +1359,17 @@ async function handleApi(req, res, url) {
         yutDisconnect(id)
         rummiDisconnect(id)
         yachtDisconnect(id)
-        // 잠깐의 재연결은 일행을 유지하고, 오래 안 돌아오면 일행에서 뺀다.
-        setTimeout(() => {
-          if (!clients.has(id)) leaveParty(id, 'drop')
-        }, 30_000)
+        // v79: 접속이 끊어져도 파티 소속은 계속 유지한다. 파티장이 끊긴 경우에만 온라인 멤버에게 파티장을 넘긴다.
+        const p = parties.get(partyOf.get(id))
+        if (p && p.members[0] === id) {
+          const nextLeader = p.members.find(m => m !== id && clients.has(m))
+          if (nextLeader) {
+            p.members = [nextLeader, ...p.members.filter(m => m !== nextLeader)]
+            pushPartyMsg(p, makeMsg(null, '파티장이 접속을 종료하여 온라인 멤버에게 파티장 권한이 넘어갔다.', { system: true }))
+            pushParty(p)
+            scheduleSave()
+          }
+        }
         pushPresence({ remove: [id] })
       }
     })
@@ -2470,7 +2480,8 @@ async function handleApi(req, res, url) {
     const item = ITEMS.find((i) => i.id === body.item)
     const r = MB.useItemMB(g.mb, me.id, item, cleanId(body.to) || me.id)
     if (r.error) return json(res, 409, r)
-    if (MB.ready(g.mb)) mbStep(g)
+    if (g.mb.over) mbAfter(g)
+    else if (MB.ready(g.mb)) mbStep(g)
     else mbPush(g)
     return json(res, 200, { ok: true })
   }

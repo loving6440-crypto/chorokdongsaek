@@ -157,7 +157,7 @@ export const LOCATIONS = {
     accentLabel: '적',
     navNote: '남쪽, 붉은 천이 걸린 실습터이자 산.',
     subtitle: 'TRPG 다이스 전투 실습',
-    facilities: ['퇴마 실습', '산 탐색', '무구보관소', '도깨비 농장'],
+    facilities: ['퇴마 실습', '산 탐색', '개척', '무구보관소', '도깨비 농장'],
     npcs: ['bari', 'shinah'],
   },
   shrine: {
