@@ -1,4 +1,5 @@
 import { HUNT_ATTEMPTS, HUNT_BONUSES, HUNT_COOLDOWN_MS, HUNT_SIZE, HUNT_SPECIES, HUNT_STAT_KEYS, siteMissingData } from './huntSites.js'
+import { itemOf } from './items.js'
 
 const same = (a, b) => a.x === b.x && a.y === b.y
 const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
@@ -113,7 +114,7 @@ export function moveHuntCreatures(session) {
     }
   }
   const ghost = nodes.find(node => node.kind === 'ghost' && active(node) && same(node, session.position))
-  return { ...session, nodes, encounter: ghost ? { nodeId: ghost.id, enemy: ghost.enemy, rewardSpirit: ghost.rewardSpirit } : null }
+  return { ...session, nodes, encounter: ghost ? { nodeId: ghost.id, enemy: ghost.enemy, rewardSpirit: ghost.rewardSpirit, rewardItems: ghost.rewardItems ?? [] } : null }
 }
 
 function endTurn(player, session, now) {
@@ -153,7 +154,10 @@ export function attemptHunt(player, nodeId, stats, now = Date.now(), rng = Math.
   const success = rng() * 100 < odds.success
   const rewards = {}
   if (success) {
-    for (const reward of node.rewards ?? []) rewards[reward.item] = (rewards[reward.item] ?? 0) + (reward.dice ? die(reward.dice, rng) : reward.amount)
+    for (const reward of node.rewards ?? []) {
+      if (reward.chance != null && rng() >= reward.chance) continue
+      rewards[reward.item] = (rewards[reward.item] ?? 0) + (reward.dice ? die(reward.dice, rng) : reward.amount)
+    }
     const bonus = HUNT_BONUSES[node.kind]
     if (bonus && rng() * 100 < odds.bonus) rewards[bonus.item] = (rewards[bonus.item] ?? 0) + (bonus.dice ? die(bonus.dice, rng) : bonus.amount)
   }
@@ -169,13 +173,22 @@ export function attemptHunt(player, nodeId, stats, now = Date.now(), rng = Math.
 }
 
 /** 결과는 한 번만 정산한다. 전투 보상은 퇴마 실습의 일일 한도/돈 보상과 무관하다. */
-export function resolveHuntEncounter(player, { win, fled }, now = Date.now()) {
+export function resolveHuntEncounter(player, { win, fled }, now = Date.now(), rng = Math.random) {
   const s = player.huntExpedition
   if (s?.status !== 'active' || !s.encounter) return { error: '진행 중인 조우가 없다.' }
   const gain = win ? Math.max(0, Math.min(s.encounter.rewardSpirit ?? 20, 200 - player.spirit)) : 0
-  const text = win ? `산귀신을 물리쳤다. 영력 +${gain}` : fled ? '산귀신에게서 도망쳤다.' : '산귀신에게 패했다.'
+  const collected = {}
+  if (win) for (const reward of s.encounter.rewardItems ?? []) {
+    if (reward.chance != null && rng() >= reward.chance) continue
+    collected[reward.item] = (collected[reward.item] || 0) + (reward.dice ? die(reward.dice, rng) : reward.amount)
+  }
+  const itemList = Object.entries(collected).map(([id, n]) => `${itemOf(id)?.name || id} ${n}개`).join(', ')
+  const enemyName = s.encounter.enemy?.name || '요괴'
+  const text = win ? `${enemyName}를 물리쳤다. 영력 +${gain}${itemList ? `, 추가 보상 ${itemList}` : ''}` : fled ? `${enemyName}에게서 도망쳤다.` : `${enemyName}에게 패했다.`
   const session = addLog({ ...s, encounter: null, spiritGained: s.spiritGained + gain, nodes: s.nodes.filter(node => node.id !== s.encounter.nodeId) }, text)
-  let next = { ...player, spirit: player.spirit + gain, huntExpedition: session }
+  let next = { ...player, spirit: player.spirit + gain,
+    inventory: { ...(player.inventory ?? {}), ...Object.fromEntries(Object.entries(collected).map(([id, n]) => [id, (player.inventory?.[id] || 0) + n])) },
+    huntExpedition: session }
   if ((!win && !fled) || s.turn >= s.maxTurns) next = finish(next, now, '개척을 종료했다.')
   return { player: next, logs: [`개척: ${text}`] }
 }

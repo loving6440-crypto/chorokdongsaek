@@ -60,10 +60,11 @@ const EXTRA_SPECIES = {
   mossRock: { name: '이끼바위', kind: 'obstacle', rewards: [{ item: 'water-moss', dice: 2 }] },
   spring: { name: '물', kind: 'obstacle', rewards: [{ item: 'lake-water', dice: 2 }] },
   pond: { name: '웅덩이', kind: 'obstacle', rewards: [{ item: 'loofah-fruit', dice: 2 }] },
-  graveRock: { name: '혼유석', kind: 'obstacle', rewards: [{ item: 'stone', dice: 5 }] },
-  sarcophagus: { name: '봉인된 석관', kind: 'obstacle', rewards: [{ item: 'gogok', dice: 2 }] },
-  scentRock: { name: '향로석', kind: 'obstacle', rewards: [{ item: 'whetstone', amount: 1 }] },
-  monument: { name: '망주석', kind: 'obstacle', rewards: [{ item: 'polishing-stone', amount: 1 }] },
+  graveRock: { name: '혼유석', kind: 'obstacle', rewards: [{ item: 'stone', dice: 5 }, { item: 'sealing-stone', chance: 0.10, amount: 1 }] },
+  sarcophagus: { name: '봉인된 석관', kind: 'obstacle', rewards: [{ item: 'gold-crown', chance: 0.05, amount: 1 }, { item: 'gogok', chance: 0.10, dice: 2 }] },
+  scentRock: { name: '향로석', kind: 'obstacle', rewards: [{ item: 'whetstone', amount: 1 }, { item: 'sealing-stone', chance: 0.10, amount: 1 }] },
+  monument: { name: '망주석', kind: 'obstacle', rewards: [{ item: 'polishing-stone', amount: 1 }, { item: 'sealing-stone', chance: 0.10, amount: 1 }] },
+  soulButterfly: { name: '혼백나비', kind: 'spirit', rewards: [{ item: 'spirit-orb', amount: 1 }] },
   animalBones: { name: '동물 유해', kind: 'obstacle', rewards: [{ item: 'bone-fragment', dice: 3 }] },
   bat: { name: '박쥐', kind: 'animal', rewards: [{ item: 'bat-wing', dice: 2 }] },
   starAltar: { name: '제단', kind: 'obstacle', rewards: [{ item: 'starlight', dice: 2 }] },
@@ -164,8 +165,19 @@ const CEMETERY=site('left-cemetery','묘소',[
   tile('G3','stoneTower',7),tile('C4','stoneTower',7),tile('H4','stoneTower',7),
   tile('C5','lantern',28),tile('E5','graveRock',35),tile('F5','sarcophagus',40),tile('H5','lantern',28),
   tile('C6','lantern',28),tile('E6','scentRock',35),tile('F6','monument',35),tile('H6','lantern',28),
-  tile('D8','stoneTower',7),tile('G8','stoneTower',7),
+  tile('C7','stoneTower',7),tile('H7','stoneTower',7),
+  tile('D8','stoneTower',7),tile('E8','lantern',28),tile('F8','lantern',28),tile('G8','stoneTower',7),
 ], '앙괭이', 50)
+// 묘소 셀 메모: 혼백나비 100레벨, 혼백구슬 1개. 앙괭이는 5레벨, 영력 50 + 은입사 장식 50%.
+CEMETERY.spirit = { ...HUNT_SPECIES.soulButterfly, species: 'soulButterfly', chance: 0.15, level: 100 }
+CEMETERY.ghost = {
+  ...CEMETERY.ghost, level: 5,
+  enemy: { ...CEMETERY.ghost.enemy, id: 'ang-gwaengi', name: '앙괭이', tier: 5,
+    hp: 220, atk: 21, act: 21, spirit: 21,
+    special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' } },
+  rewardSpirit: 50,
+  rewardItems: [{ item: 'silver-inlay', chance: 0.5, amount: 1 }],
+}
 const LAKE=site('left-lake','호수',[
   tile('B1','carp',15,4,2),tile('J1','altar',20),tile('E2','lakeshore',16),
   tile('F4','carp',15,4,2),tile('I4','pondRock',14),tile('B6','lakeshore',16),

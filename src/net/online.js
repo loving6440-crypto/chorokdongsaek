@@ -210,7 +210,11 @@ function handle(ev) {
     case 'mail':
       set({ mailUnread: state.mailUnread + 1, mailTick: state.mailTick + 1 })
       if (ev.mail?.kind === 'note') pushNotice(`${ev.mail.from.name}님의 쪽지가 사물함에 도착했다.`)
-      if (ev.mail?.kind === 'friend') pushNotice(`${ev.mail.from.name}님이 친구로 추가했어. 사물함에서 확인할 수 있어.`)
+      if (ev.mail?.kind === 'friend-request') pushNotice(`${ev.mail.from.name} 님이 친구 신청을 보냈습니다. 사물함에서 수락하거나 거절할 수 있다.`)
+      break
+    case 'friendsChanged':
+      set({ mailTick: state.mailTick + 1 })
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('chorok:friends-changed'))
       break
     case 'adminEdit':
       if (ev.ev === 'request') set({ editReq: { rid: ev.rid, adminName: ev.adminName, changes: ev.changes, expires: ev.expires } })
@@ -284,6 +288,11 @@ async function post(path, body) {
 
 export const sendChat = (channel, text) => post('/api/chat', { channel, text })
 export const fetchFriends = () => post('/api/friends/list', {})
+export const respondFriendRequest = async (requestId, accept) => {
+  const result = await post('/api/friends/respond', { requestId, accept })
+  if (result.ok && typeof window !== 'undefined') window.dispatchEvent(new Event('chorok:friends-changed'))
+  return result
+}
 export const changeFriend = async (to, action) => {
   const result = await post('/api/friends/change', { to, action })
   if (result.ok && typeof window !== 'undefined') window.dispatchEvent(new Event('chorok:friends-changed'))

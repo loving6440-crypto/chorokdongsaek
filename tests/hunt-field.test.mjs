@@ -172,7 +172,9 @@ test('모든 확정 보상과 보너스 아이템은 소지품 정의가 있고 
       ...(definition.kind === 'animal' ? { route: clockwiseRoute(0, 6, 4) } : {}) }] })
     let p = enter(site)
     if (definition.kind === 'obstacle') p = withPosition(p, { x: 1, y: 9 })
-    const result = attemptHunt(p, 'target', stats(20), 2000, sequence(0, ...(definition.rewards[0].dice ? [0.99] : []), 0, 0.99))
+    // 확률 보상은 rng()를 추가로 소비한다. 이 테스트는 모든 보상 판정이 성공하는 주사위를 준다.
+    const rewardRolls = definition.rewards.flatMap(reward => [...(reward.chance != null ? [0] : []), ...(reward.dice ? [0.99] : [])])
+    const result = attemptHunt(p, 'target', stats(20), 2000, sequence(0, ...rewardRolls, 0, 0.99))
     assert.equal(result.success, true, species)
     const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'polishing-stone' : definition.kind === 'animal' ? 'trap-scraps' : null
     for (const reward of definition.rewards) {
