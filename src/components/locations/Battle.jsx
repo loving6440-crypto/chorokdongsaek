@@ -69,6 +69,8 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
   const [psyOpen, setPsyOpen] = useState(false) // 영능력 탭
   const [scanOpen, setScanOpen] = useState(false) // 간파: 의지력을 얼마나 쓸지 고르는 칸
   const [scanN, setScanN] = useState(1)
+  const [mpGift, setMpGift] = useState(10)
+  const [rerollTurns, setRerollTurns] = useState([1,2,3])
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
   const beginRef = useRef(null)
@@ -169,7 +171,15 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
     (state, delay = ENEMY_DELAY) => {
       setBusy(true)
       timer.current = setTimeout(() => {
-        const r = enemyTurn(state, { stats, mp: mpRef.current })
+        // 영력결계는 자신을 향한 적 영능력을 약공으로 바꾼다.
+        const barrier = psychics.includes('spirit-barrier') && state.queue?.[0] === 'special'
+        const state0 = barrier ? {...state, queue: ['jab', ...state.queue.slice(1)]} : state
+        const r = enemyTurn(state0, { stats, mp: mpRef.current })
+        if (barrier) r.events.unshift({kind:'warn',text:'영력결계! 적의 단일 영능력이 약공으로 바뀌었다.'})
+        if (state.earthReduction > 0 && r.state.php < state.php) {
+          r.state.php = Math.min(state.phpMax, r.state.php + Math.floor((state.php - r.state.php)*state.earthReduction))
+          if (r.state.php > 0) {r.state.pendingDeath=false;if(r.state.over==='lose')r.state.over=null}
+        }
         spend(-r.mpDrain)
         let st = r.state
         let evs = r.events
@@ -238,7 +248,7 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
   const resolve = useCallback(
     (cur, action, extra = {}) => {
       const buffed = buffArmed && (action === 'attack' || action === 'charm')
-      const r = playerTurn(cur, action, { stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
+      const r = playerTurn(cur, action, { stats: cur.starBonus ? {...stats, aggression: stats.aggression + cur.starBonus} : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
       if (action === 'scan' && !r.invalid) onScan?.()
       // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 다시 고를 수 있게 그대로 둔다.
       if (r.invalid) {
@@ -270,7 +280,7 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
       if (state.fire) {
         setBusy(true)
         timer.current = setTimeout(() => {
-          const f = fireTurn(state, { stats, mp: mpRef.current, boost: boostRef.current }, Math.random)
+          const f = fireTurn(state, { stats: state.starBonus ? {...stats, aggression: stats.aggression + state.starBonus} : stats, mp: mpRef.current, boost: boostRef.current }, Math.random)
           if (f.boostUsed) {
             boostRef.current = false
             onBoostUsed?.()
@@ -347,7 +357,10 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
     const buffed = buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
-    const r = psychicTurn(cur, id, { stats, mp: mpRef.current, boost: boostRef.current, buff: buffed, ...extra }, Math.random)
+    if (psychics.includes('spirit-barrier') && !['earth-step','seven-stars','warding-scripture'].includes(id)) {
+      push([{kind:'warn',text:'영력결계를 보유하여 적을 향한 영능력은 사용할 수 없다.'}]);return
+    }
+    const r = psychicTurn(cur, id, { stats, baseAggression: baseAggression ?? stats.aggression, mp: mpRef.current, boost: boostRef.current, buff: buffed, ...extra }, Math.random)
     if (r.invalid) {
       if (r.events?.length) push(r.events)
       return
@@ -761,6 +774,10 @@ export default function Battle({ encounter, stats, mp, hp, hpMax, seen, specials
                           사용
                         </button>
                       </>
+                    ) : s.id === 'warding-scripture' ? (
+                      <div className="mt-2 flex gap-2"><input type="number" aria-label="전할 의지력" min="1" max={mp} value={mpGift} onChange={e=>setMpGift(Math.max(1,Math.floor(Number(e.target.value)||1)))} className="w-20 rounded bg-shade px-2 text-paper"/><button type="button" className="flat-btn" onClick={()=>usePsychic(s.id,{amount:mpGift})}>사용</button></div>
+                    ) : s.id === 'language-barrier' ? (
+                      <div className="mt-2"><div className="flex gap-2">{rerollTurns.map((n,i)=><input type="number" key={i} aria-label={`재굴림 ${i+1}번째 턴`} min="1" max="20" value={n} onChange={e=>setRerollTurns(a=>a.map((v,j)=>j===i?Math.max(1,Math.min(20,Math.floor(Number(e.target.value)||1))):v))} className="w-16 rounded bg-shade px-2 text-paper"/>)}</div><button type="button" className="flat-btn mt-2" onClick={()=>usePsychic(s.id,{rerolls:rerollTurns.map(n=>n-1)})}>사용</button></div>
                     ) : (
                       s.use && (
                         <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">

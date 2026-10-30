@@ -22,6 +22,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const [psyOpen, setPsyOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
+  const [mpGift, setMpGift] = useState(10)
+  const [mpTarget, setMpTarget] = useState(meId)
+  const [rerollTurns, setRerollTurns] = useState([1,2,3])
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [echoTarget, setEchoTarget] = useState(meId) // 형상 기억: 체력을 회복시킬 대상(기본값은 자기 자신)
@@ -49,7 +52,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     }
     const sp = [...fresh].reverse().find((e) => e.kind === 'special')
     if (sp) {
-      setSpBanner({ label: sp.label, note: sp.note, chance: sp.chance, effects: sp.effects, result: sp.result, k: Math.random() })
+      setSpBanner({ label: sp.label, note: sp.note, detail: sp.detail ?? sp.effects?.join(' · '), chance: sp.chance, effects: sp.effects, result: sp.result, k: Math.random() })
       if (!seenSp.current[sp.enemyId]) {
         seenSp.current = { ...seenSp.current, [sp.enemyId]: true }
         onSpecialSeen?.(sp.enemyId)
@@ -61,7 +64,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
     const psy = [...fresh].reverse().find((e) => e.popup?.type === 'psychic')
     if (psy) {
       const def = PSYCHICS.find((p) => p.id === psy.popup.psychic)
-      setAllyBanner({ name: psy.popup.name, label: def?.label ?? psy.popup.psychic, note: def?.note, k: Math.random() })
+      setAllyBanner({ name: psy.popup.name, label: def?.label ?? psy.popup.psychic, note: def?.note, detail: def?.detail, k: Math.random() })
     }
     // 아이템 사용 · 전투불능 · 부활: 짧은 토스트로
     const toastEvs = fresh.filter((e) => e.popup && e.popup.type !== 'psychic')
@@ -449,6 +452,18 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                           사용
                         </button>
                       </>
+                    ) : s.id === 'warding-scripture' ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        <label className="text-xs">전할 의지력 <input aria-label="전할 의지력" type="number" min="1" max={Math.max(1, have)} value={mpGift} onChange={e=>setMpGift(Math.max(1,Math.floor(Number(e.target.value)||1)))} className="ml-2 w-20 rounded bg-shade px-2 py-1 text-paper" /></label>
+                        <select aria-label="벽사진경 대상" value={mpTarget} onChange={e=>setMpTarget(e.target.value)} className="rounded bg-shade px-2 py-2 text-paper">{aliveMates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                        <button type="button" className="flat-btn" disabled={!canAct || have<mpGift} onClick={()=>send({action:'psychic',psychic:s.id,target:mpTarget,amount:mpGift})}>사용</button>
+                      </div>
+                    ) : s.id === 'language-barrier' ? (
+                      <div className="mt-2">
+                        <p className="text-xs text-paper/65">재굴림할 적 행동의 순서 3개 (1~20)</p>
+                        <div className="flex gap-2">{rerollTurns.map((n,i)=><input key={i} aria-label={`재굴림 ${i+1}번째 턴`} type="number" min="1" max="20" value={n} onChange={e=>setRerollTurns(a=>a.map((v,j)=>i===j?Math.max(1,Math.min(20,Math.floor(Number(e.target.value)||1))):v))} className="mt-1 w-16 rounded bg-shade px-2 py-1 text-paper" />)}</div>
+                        <button type="button" className="flat-btn mt-2" disabled={!canAct} onClick={()=>send({action:'psychic',psychic:s.id,rerolls:rerollTurns.map(n=>n-1)})}>간파 및 재굴림</button>
+                      </div>
                     ) : s.id === 'karmic-recompense' ? (
                       <>
                         <select

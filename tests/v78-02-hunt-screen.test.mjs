@@ -22,12 +22,12 @@ for (const success of [true, false]) {
   })
 }
 
-test('사용 가능한 행동이 마지막 20회째에 소진됐을 때만 자동 종료한다', () => {
+test('사용 가능한 행동이 마지막 30회째에 소진됐을 때만 자동 종료한다', () => {
   let p = enterHuntSite(player(), HUNT_SITES['left-trail-1'], 1000, () => 0.99).player
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 1; i <= 30; i++) {
     const position = { x: i % 2, y: 9 }
     p = moveOnHunt(p, position, 1000 + i).player
-    assert.equal(p.huntExpedition.status, i === 20 ? 'finished' : 'active')
+    assert.equal(p.huntExpedition.status, i === 30 ? 'finished' : 'active')
   }
 })
 
@@ -36,7 +36,7 @@ test('서버 동기화 재마운트에서 active 수렵일 때 산 탐색 화면
   assert.match(game, /restored\?\.huntExpedition\?\.status === 'active'/)
   assert.match(game, /activity: locationIdRef\.current === 'gym'/)
   assert.match(game, /prev\.activity !== selectedActivity/)
-  assert.match(game, /activityRef\.current === 'hike'/)
+  assert.match(game, /\['hike','pioneer'\]\.includes\(activityRef\.current\)/)
 })
 
 test('서버 충돌 안내와 수렵 예외 알림으로 원인 식별이 가능하다', () => {

@@ -6,7 +6,7 @@ import { enterHuntSite, leaveHuntSite, moveHuntCreatures, moveOnHunt, huntCooldo
 import { itemOf } from '../src/game/items.js'
 
 const source = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
-const player = () => ({ hp: 100, hpMax: 100, spirit: 40, inventory: {} })
+const player = () => ({ hp: 100, hpMax: 100, mp: 100, mpMax: 100, spirit: 40, inventory: {} })
 const site = HUNT_SITES['left-trail-1']
 
 test('뱀은 A3 기준 2×2, 여우는 I3가 포함된 3×3을 실제로 돈다', () => {
@@ -28,7 +28,7 @@ test('뱀은 A3 기준 2×2, 여우는 I3가 포함된 3×3을 실제로 돈다'
   }
 })
 
-test('수렵 완료 뒤 저장 자원 유지, 50분 대기, 재입장 A10부터 턴 0', () => {
+test('개척 완료 뒤 저장 자원 유지, 대기 없이 재입장 A10부터 턴 0', () => {
   const first=enterHuntSite(player(),site,1000,()=>0.9)
   assert.deepEqual(first.player.huntExpedition.position,{x:0,y:9})
   const p={...first.player, inventory:{'snake-skin':5}}
@@ -65,7 +65,7 @@ test('빈 수렵 칸의 title/정보 표시를 막고 수렵 종료 시 메뉴�
   assert.match(source('src/components/locations/HuntField.jsx'), /hasInformation &&/)
   assert.match(source('src/components/locations/Hike.jsx'), /previousHuntStatus\.current === 'active' && status === 'finished'/)
   assert.match(source('src/components/locations/Hike.jsx'), /setHuntOn\(false\)/)
-  assert.match(source('src/components/locations/Hike.jsx'), /<GatherSpot/)
+  assert.match(source('src/components/locations/Hike.jsx'), /<Garden player=\{player\}/)
   assert.match(source('src/Game.jsx'), /onHuntAction=\{huntAction\}/)
   assert.match(source('src/Game.jsx'), /<HuntBattleModal/)
 })

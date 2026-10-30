@@ -4,7 +4,7 @@ import { STAT_KEYS, STAT_META } from '../game/constants'
 import { PSYCHICS } from '../game/battle'
 import { SKINS } from '../game/skins2048'
 import { SKINS_RUNNER } from '../game/skinsRunner'
-import { adminSetBgmPlaylist, clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
+import { adminSetBgmPlaylist, adminSetChatTitle, clearEditResult, fetchAllMail, fetchMembers, fetchPendingStories, publishStory, rejectStory, requestEdit } from '../net/online'
 import { adminDeleteAccount, adminResetPassword } from '../game/auth'
 import { itemsText } from './MailboxPanel'
 
@@ -23,7 +23,7 @@ const fmtAt = (t) => {
 const COURSE_LABEL = { 'talisman-2048': '부적', 'spell-typing': '주문', 'ward-tetris': '결계', 'folklore-spot': '민속', 'exorcism-space': '퇴마' }
 
 /** 회원 목록: 서버에 데이터가 남은 모든 계정 */
-function MemberList({ userId, adminKey }) {
+function MemberList({ userId, adminKey, onEditTitle }) {
   const [st, setSt] = useState({ loading: true })
   const [q, setQ] = useState('')
   const load = () => {
@@ -49,6 +49,8 @@ function MemberList({ userId, adminKey }) {
               <span className="text-paper/55">@{m.id}</span>
               {m.online && <span className="rounded-full bg-gold-fill/80 px-1.5 text-[10px] text-ink">접속 중</span>}
               {m.admin && <span className="rounded-full bg-crimson/80 px-1.5 text-[10px] text-[#fbf6e9]">관리자</span>}
+              {m.chatTitle && <span className="rounded-full bg-gold/20 px-1.5 text-[10px] text-gold">[{m.chatTitle}]</span>}
+              <button type="button" onClick={() => onEditTitle?.(m.id)} className="ml-auto rounded border border-gold/30 px-2 py-0.5 text-[10px] text-gold hover:bg-gold/10">칭호 설정</button>
             </p>
             <p className="mt-0.5 text-paper/60">
               {m.grade ? `${m.grade}학년` : '학년 ?'} · {m.age ? `${m.age}세` : '나이 ?'} · 접속 {m.visits}회
@@ -63,6 +65,52 @@ function MemberList({ userId, adminKey }) {
       </ul>
       {!st.loading && !st.error && list.length === 0 && <p className="text-xs text-paper/55">표시할 회원이 없다.</p>}
       <p className="mt-2 text-[10px] leading-relaxed text-paper/45">계정은 각자의 브라우저에 저장되므로, 서버에 한 번이라도 접속한 계정만 보인다. 이 기능이 생기기 전에 가입했더라도 다음에 접속하면 명부에 오른다.</p>
+    </section>
+  )
+}
+
+/** 서버에 영구 저장되는 사용자 채팅 칭호. 접속 여부와 관계없이 아이디로 부여/해제한다. */
+function ChatTitleManager({ userId, adminKey, targetId, onTargetId }) {
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState(null)
+  const handle = async (value) => {
+    if (busy || !targetId.trim()) return setResult({ error: '대상 계정 아이디를 입력해 줘.' })
+    setBusy(true)
+    setResult(null)
+    const r = await adminSetChatTitle(userId, adminKey, targetId.trim(), value)
+    setBusy(false)
+    if (r.ok) {
+      setResult({ text: r.title ? `@${r.target} 계정에 [${r.title}] 칭호를 부여했어.` : `@${r.target} 계정의 칭호를 해제했어.` })
+      if (!value) setTitle('')
+    } else {
+      const messages = {
+        'bad-key': '관리자 키가 올바르지 않아.',
+        'admin-disabled': '서버에서 관리자 기능이 비활성화되어 있어.',
+        'bad-target': '대상 계정 아이디 형식이 올바르지 않아.',
+        'no-account': '해당 계정이 존재하지 않아.',
+        'bad-title': '칭호는 1~12글자의 한글·영문·숫자·공백·_·-··만 사용할 수 있어. 관리자·파티장 등의 예약 칭호는 사용할 수 없어.',
+        'slow-down': '잠시 후 다시 시도해 줘.',
+      }
+      setResult({ error: messages[r.error] ?? '변경에 실패했어. 서버 연결을 확인해 줘.' })
+    }
+  }
+  return (
+    <section data-admin-chat-titles className="rounded-lg border border-gold/20 bg-shade/20 p-3">
+      <p className="mb-1.5 text-xs tracking-widest text-paper/70">채팅 칭호 관리</p>
+      <p className="mb-3 text-[11px] leading-relaxed text-paper/55">특정 계정의 채팅 이름 앞에 [활자]처럼 칭호를 붙인다. 오프라인 계정도 가능하며 서버에 저장되어 재접속해도 유지된다. [관리자] 표시는 별도야.</p>
+      <div className="space-y-2">
+        <label className="block text-xs text-paper/80" htmlFor="admin-chat-title-target">대상 계정 아이디</label>
+        <input id="admin-chat-title-target" data-chat-title-target value={targetId} onChange={(e) => { onTargetId(e.target.value); setResult(null) }} placeholder="예: player123" autoComplete="off" className="w-full rounded border border-edge/25 bg-ink-muted/60 px-3 py-1.5 text-sm text-paper outline-none focus:border-gold/50" />
+        <label className="block text-xs text-paper/80" htmlFor="admin-chat-title-value">부여할 칭호 (최대 12자, 대괄호 제외)</label>
+        <input id="admin-chat-title-value" data-chat-title-value value={title} onChange={(e) => { setTitle(e.target.value); setResult(null) }} maxLength={24} placeholder="예: 활자" autoComplete="off" className="w-full rounded border border-edge/25 bg-ink-muted/60 px-3 py-1.5 text-sm text-paper outline-none focus:border-gold/50" />
+        <div className="flex flex-wrap gap-2">
+          <button type="button" data-chat-title-save disabled={busy || !targetId.trim() || !title.trim()} onClick={() => handle(title)} className="rounded border border-gold/50 px-3 py-1.5 text-xs text-gold hover:bg-gold/10 disabled:opacity-40">{busy ? '처리 중…' : '칭호 부여 / 변경'}</button>
+          <button type="button" data-chat-title-remove disabled={busy || !targetId.trim()} onClick={() => handle('')} className="rounded border border-crimson/50 px-3 py-1.5 text-xs text-crimson hover:bg-crimson/10 disabled:opacity-40">칭호 삭제</button>
+        </div>
+        {result?.error && <p className="text-xs text-crimson" role="alert">{result.error}</p>}
+        {result?.text && <p className="text-xs text-gold" role="status">{result.text}</p>}
+      </div>
     </section>
   )
 }
@@ -482,6 +530,11 @@ function Field({ id, label, value, onChange, min = 0, max = 9999 }) {
 
 /** 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 마음대로 고친다. (소지금은 늘 무한) */
 export default function AdminPanel({ player, userId, adminKey, online, onApply, onClose }) {
+  const [titleTarget, setTitleTarget] = useState('')
+  const chooseTitleTarget = (id) => {
+    setTitleTarget(id)
+    document.getElementById('admin-chat-title-target')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
   const [v, setV] = useState(() => ({
     ...Object.fromEntries(STAT_KEYS.map((k) => [k, player.stats[k]])),
     hp: Math.floor(player.hp),
@@ -567,13 +620,14 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
             </label>
             <p className="mt-1 text-[11px] text-paper/50">[적용]을 눌러야 들어온다. 이미 가진 영능력은 목록에서 빠진다. 다른 사람에게 선물하려면 아래 '다른 사람 상태 고치기'를 쓴다.</p>
           </section>
+          <ChatTitleManager userId={userId} adminKey={adminKey} targetId={titleTarget} onTargetId={setTitleTarget} />
           <PasswordReset userId={userId} adminKey={adminKey} />
           <AccountDelete userId={userId} adminKey={adminKey} />
           <EditOther userId={userId} adminKey={adminKey} online={online} />
           <BgmManager userId={userId} adminKey={adminKey} playlist={online.bgmPlaylist} />
           <MailAudit userId={userId} adminKey={adminKey} />
           <StoryReview userId={userId} adminKey={adminKey} />
-          <MemberList userId={userId} adminKey={adminKey} />
+          <MemberList userId={userId} adminKey={adminKey} onEditTitle={chooseTitleTarget} />
         </div>
         <div className="flex justify-end gap-2 border-t border-edge/15 px-4 py-3">
           <button type="button" onClick={onClose} className="flat-btn-ghost">

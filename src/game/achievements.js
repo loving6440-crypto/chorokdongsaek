@@ -13,6 +13,14 @@ const DAY = 24 * 60 * 60 * 1000
 
 export const ACHIEVEMENTS = [
   {
+    id: 'student-exercise',
+    name: '직업은 학생, 취미는 운동',
+    desc: '학생은 튼튼하게 사는 것이 미덕이다. 그런 의미에서 우리 모두 운동을 하자. 천 꽂힌 램프로 무슨 운동을 하냐고? 지금 서로 말하는 운동이 다른 거 아냐?',
+    hint: '무언가멋진천이꽂힌알코올램프를 제작한다.',
+    reward: { spirit: 20 },
+    at: (p) => p.cleared?.['exercise-lamp'] ?? null,
+  },
+  {
     id: 'gods-gaze',
     name: '신의 주시',
     desc: '오늘은 국립 창록고등학교에 전학을 온 기념비적인 날이다. 이제부터 평범한 나날은 안녕이라고 봐도 좋겠지.',

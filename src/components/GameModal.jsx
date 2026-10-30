@@ -77,14 +77,7 @@ export default function GameModal({
     setTab('game')
   }, [courseId])
 
-  useEffect(() => {
-    if (!course) return
-    const onKey = (e) => {
-      if (e.key === 'Escape') closeRef.current?.()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [course])
+  // ESC·외부 클릭으로 닫지 않는다. X 버튼으로만 닫는다. 채팅 입력은 계속 사용 가능.
 
   const waiting = !!(lesson?.waitUntil && lesson.waitUntil > now)
   useEffect(() => {
@@ -163,16 +156,14 @@ export default function GameModal({
 
   return (
     <div
-      className="absolute inset-0 z-40 flex items-center justify-center bg-shade/95 p-2 sm:p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+      className="pointer-events-none fixed inset-0 z-[65] flex items-start justify-center p-2 pt-14 sm:p-4 sm:pt-16"
+
     >
       <div
         role="dialog"
         aria-modal="false"
         aria-label={`${course.title} · ${course.game}`}
-        className={`ink-panel max-h-full w-full overflow-y-auto rounded-lg p-5 ${
+        className={`pointer-events-auto ink-panel max-h-[75vh] w-full overflow-y-auto rounded-lg border border-edge/40 bg-shade/95 p-5 shadow-2xl ${
           entry ? entry.width : 'max-w-md'
         }`}
       >

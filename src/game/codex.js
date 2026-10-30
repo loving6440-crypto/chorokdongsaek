@@ -25,6 +25,7 @@ export const CODEX_CHAPTERS = [
 export const NPC_ENTRIES = [
   { id: 'bari', name: '바리', portrait: '/bari.png', where: '뒷산 · 교외', desc: '' },
   { id: 'yumin', name: '강유민', portrait: '/yumin-smile.webp', where: '기숙사 · 매점', desc: '' },
+  { id: 'shinyoung', name: '강신영', portrait: '/shinyoung.svg', where: '뒷산 · 텃밭 씨앗 상점', desc: '뒷산 깊숙한 텃밭에서 씨앗을 판매한다.' },
   { id: 'shinah', name: SHINAH.name, portrait: SHINAH.portrait, where: SHINAH.where, desc: SHINAH.codex },
   { id: 'ishi', name: ISHI.name, portrait: ISHI.portrait, where: '사당 · 문지기', desc: ISHI.codex },
   { id: 'danae', name: DANAE.name, portrait: DANAE.faces.plain, where: '별관 2층 · 조리실', desc: '' },

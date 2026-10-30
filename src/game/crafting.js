@@ -11,14 +11,21 @@ export const WORKSHOP = {
 
 // inputs: [아이템 id, 개수]. result: 만들어지는 아이템 id (qty 기본 1)
 export const RECIPES = [
-  { id: 'r-feather-deco', result: 'feather-deco', inputs: [['dove-feather', 2], ['five-color-thread', 3]] },
-  { id: 'r-jangseung-keyring', result: 'jangseung-keyring', inputs: [['carving-knife', 1], ['jangseung-piece', 2]] },
-  { id: 'r-green-charm', result: 'green-charm', inputs: [['charm-scrap', 1], ['mugwort', 3]] },
-  { id: 'r-clover-bookmark', result: 'clover-bookmark', inputs: [['hanji', 1], ['pouch', 1], ['clover', 1]] },
-  { id: 'r-jaeaek-charm', result: 'jaeaek-charm', inputs: [['deer-tooth', 1], ['hanji', 1], ['brush', 1], ['inkstick', 1]] },
-  { id: 'r-exorcism-gate', result: 'exorcism-gate', inputs: [['snake-skin', 1], ['mugwort', 3]] },
-  { id: 'r-red-fox-charm', result: 'red-fox-charm', inputs: [['fox-fur', 2], ['hanji', 2], ['five-color-thread', 2]] },
-  { id: 'r-spirit-disposable', result: 'spirit-disposable', inputs: [['raccoon-claw', 2], ['jangseung-piece', 1]] },
+  { id: 'r-exercise-lamp', result: 'exercise-lamp', inputs: [['cloth-scrap', 2], ['alcohol-lamp', 1]] },
+  { id: 'r-beginner-godok', result: 'beginner-godok', inputs: [['sewer-rat', 2], ['centipede', 2], ['small-pot', 1]] },
+  { id: 'r-godok', result: 'godok', inputs: [['sewer-rat', 5], ['centipede', 5], ['small-pot', 1]] },
+  { id: 'r-curse-doll', result: 'curse-doll', inputs: [['fine-woodchip', 5]] },
+  { id: 'r-whetstone', result: 'whetstone', inputs: [['stone', 9]] },
+  { id: 'r-five-knot', result: 'five-knot', inputs: [['five-color-thread', 3]] },
+
+  { id: 'r-feather-deco', result: 'feather-deco', inputs: [['dove-feather', 3], ['five-color-thread', 1]] },
+  { id: 'r-jangseung-keyring', result: 'jangseung-keyring', inputs: [['carving-knife', 1], ['jangseung-piece', 5]] },
+  { id: 'r-green-charm', result: 'green-charm', inputs: [['charm-scrap', 2], ['mugwort', 3]] },
+  { id: 'r-clover-bookmark', result: 'clover-bookmark', inputs: [['hanji', 3], ['pouch', 1], ['clover', 1]] },
+  { id: 'r-jaeaek-charm', result: 'jaeaek-charm', inputs: [['deer-tooth', 2], ['hanji', 2], ['brush', 1], ['inkstick', 1]] },
+  { id: 'r-exorcism-gate', result: 'exorcism-gate', inputs: [['snake-skin', 2], ['mugwort', 3]] },
+  { id: 'r-red-fox-charm', result: 'red-fox-charm', inputs: [['charm-scrap', 2], ['fox-fur', 3], ['hanji', 3], ['five-color-thread', 1], ['jangseung-piece', 1], ['inkstick', 1], ['pouch', 1]] },
+  { id: 'r-spirit-disposable', result: 'spirit-disposable', inputs: [['raccoon-claw', 3], ['jangseung-piece', 3]] },
   { id: 'r-hanji', result: 'hanji', inputs: [['crumpled-hanji', 2]], note: '구김살이 난 종이를 부드러운 종이로 재활용하자.', price: 30 },
   { id: 'r-brush', result: 'brush', inputs: [['split-brush', 2]], note: '다 쓴 붓을 모아오면 새 붓으로 교환해준다.', price: 40 },
 ]
@@ -92,7 +99,7 @@ export function finishCraft(player) {
   const r = recipeOf(c.recipeId)
   const inv = { ...(player.inventory ?? {}) }
   inv[r.result] = (inv[r.result] || 0) + c.qty
-  return { player: { ...player, inventory: inv, crafting: null }, item: itemOf(r.result), qty: c.qty }
+  return { player: { ...player, inventory: inv, crafting: null, ...(r.result === 'exercise-lamp' ? { cleared: { ...player.cleared, 'exercise-lamp': Date.now() } } : {}) }, item: itemOf(r.result), qty: c.qty }
 }
 
 /** (옛 1회성 즉석 제작. 지금은 쓰지 않지만 혹시 참조하는 곳이 있을까봐 남겨둔다.) */
@@ -109,5 +116,5 @@ export function craft(player, recipeId, admin = false) {
     }
   }
   inv[r.result] = (inv[r.result] || 0) + 1
-  return { player: { ...player, inventory: inv }, item: itemOf(r.result) }
+  return { player: { ...player, inventory: inv, ...(r.result === 'exercise-lamp' ? { cleared: { ...player.cleared, 'exercise-lamp': Date.now() } } : {}) }, item: itemOf(r.result) }
 }

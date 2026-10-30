@@ -14,6 +14,7 @@ export function AllyPsychicBanner({ sp, className = 'top-10', onEnd }) {
       <p className="text-xs tracking-[0.3em] text-gold">✦ 아군 영능력 발동 ✦</p>
       <p className="mt-1 font-serif text-3xl text-gold">{sp.name}의 《{sp.label}》</p>
       {sp.note && <p className="mt-1 text-sm text-paper/90">{sp.note}</p>}
+      {sp.detail && <p className="mt-2 text-xs leading-relaxed text-paper/75">{sp.detail}</p>}
     </div>
   )
 }

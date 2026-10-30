@@ -14,6 +14,7 @@ export default function SpBanner({ sp, className = 'top-10', onEnd }) {
       <p className="text-xs tracking-[0.3em] text-crimson">✦ 영능력 발동 ✦</p>
       <p className="mt-1 font-serif text-3xl text-gold">《{sp.label}》</p>
       <p className="mt-1 text-sm text-paper/90">{sp.note}</p>
+      {sp.detail && <p className="mt-2 text-xs leading-relaxed text-paper/75">{sp.detail}</p>}
       <div className="mt-2 space-y-1 rounded-lg bg-shade/40 px-3 py-2 text-left text-xs leading-relaxed text-paper/85">
         <p data-sp-chance>
           <b className="text-gold">발동 확률 {sp.chance ?? SPECIAL_PERCENT}%</b> · 상대 턴마다 d10 을 굴려 10 이 나오면 (기 모은 직후 턴 제외)

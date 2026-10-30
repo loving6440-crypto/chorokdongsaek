@@ -6,6 +6,8 @@ export const UI_FONTS = [
   { id: 'stardust', label: 'PF스타더스트', detail: '일반 · 굵게 · 아주 굵게', family: 'PF Stardust' },
   { id: 'galmuri9', label: '갈무리9', detail: 'v2.40.4', family: 'Galmuri9' },
   { id: 'silver', label: 'Silver', detail: '', family: 'Silver' },
+  { id: 'kopub-dotum', label: 'KoPub 돋움', detail: '웹폰트', family: 'KoPub Dotum' },
+  { id: 'kopub-batang', label: 'KoPub 바탕', detail: '웹폰트', family: 'KoPub Batang' },
   { id: 'ramche', label: '램체', detail: '', family: 'Ramche' },
 ]
 const VALID = new Set(UI_FONTS.map((font) => font.id))

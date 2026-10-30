@@ -2,7 +2,7 @@
 // 레시피는 아직 없다(곧 채워 넣을 예정) — COOK_RECIPES 를 채우기만 하면 조리실 화면에 그대로 나타난다.
 //  - player.cookRecipes = { [recipeId]: true }  (익힌 요리법)
 //  - 관리자는 모든 요리법을 아는 것으로 친다.
-import { countOf, itemOf } from './items'
+import { countOf, itemOf } from './items.js'
 
 export const KITCHEN = {
   id: 'kitchen',
@@ -11,10 +11,20 @@ export const KITCHEN = {
 }
 
 // inputs: [아이템 id, 개수]. result: 만들어지는 아이템 id (qty 기본 1)
-export const COOK_RECIPES = []
+export const COOK_RECIPES = [
+  { id: 'cook-soybean-oil', result: 'soybean-oil', inputs: [['soybean', 5]] },
+  { id: 'cook-rice-cake', result: 'rice-cake', inputs: [['mugwort', 3], ['rice', 2]] },
+  { id: 'cook-carp-soup', result: 'carp-soup', inputs: [['carp', 3], ['lake-water', 3]] },
+  { id: 'cook-snakeberry-jam', result: 'snakeberry-jam', inputs: [['snake-berry', 4], ['sugar', 3]] },
+  { id: 'cook-mushroom-stew', result: 'mushroom-stew', inputs: [['mushroom', 5]] },
+  { id: 'cook-king-mushroom-stew', result: 'king-mushroom-stew', inputs: [['mushroom', 3], ['king-mushroom', 2]] },
+  { id: 'cook-poison-mushroom-stew', result: 'poison-mushroom-stew', inputs: [['poison-mushroom', 5]] },
+  { id: 'cook-bibimbap', result: 'bibimbap', inputs: [['chwinamul', 2], ['lettuce', 2], ['fern', 2], ['rice', 2]] },
+  { id: 'cook-flower-pancake', result: 'flower-pancake', inputs: [['azalea', 1], ['dandelion', 1], ['rice', 2]] },
+]
 
 export const cookRecipeOf = (id) => COOK_RECIPES.find((r) => r.id === id)
-export const knowsCookRecipe = (player, id, admin = false) => admin || !!player.cookRecipes?.[id]
+export const knowsCookRecipe = (player, id, admin = false) => admin || !!player.cookRecipes?.[id] || COOK_RECIPES.some(r => r.id === id)
 
 /** 요리법 익히기 (이미 알면 같은 player) */
 export function learnCookRecipe(player, id) {

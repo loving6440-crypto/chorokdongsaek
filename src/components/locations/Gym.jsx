@@ -1,9 +1,11 @@
 import LocationIntro from '../LocationIntro'
 import Battle from './Battle'
 import Hike from './Hike'
+import Pioneer from './Pioneer'
 
 export default function Gym({ view, ...rest }) {
   if (view === 'intro') return <LocationIntro id="gym" />
+  if (view === 'pioneer') return <Pioneer player={rest.player} stats={rest.stats} onHuntAction={rest.onHuntAction} />
   if (view === 'hike')
     return (
       <Hike
@@ -14,7 +16,7 @@ export default function Gym({ view, ...rest }) {
         onMeet={rest.onMeet}
         admin={rest.admin}
         onAdminGive={rest.onAdminGive}
-        onGather={rest.onGather}
+        onGardenAction={rest.onGardenAction}
         onHuntAction={rest.onHuntAction}
         stats={rest.stats}
         onVisit={rest.onVisit}

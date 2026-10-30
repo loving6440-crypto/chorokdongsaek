@@ -32,10 +32,14 @@ export function huntStat(kind, stats) {
 
 export function huntOdds(kind, level, stats) {
   const value = huntStat(kind, stats)
-  return { value, success: 100 - clamp(Math.max(1, level - value) * 10, 10, 100), bonus: clamp(value - level, 0, 100) }
+  const difference = level - value
+  const raw = 100 - Math.max(1, difference) * 10
+  const blocked = difference >= 15
+  const fixed = !blocked && raw <= 0
+  return { value, success: blocked ? 0 : fixed ? 10 : clamp(raw, 10, 100), bonus: clamp(value - level, 0, 100), blocked, fixed, difference }
 }
 
-export const huntCooldownLeft = (player, siteId, now = Date.now()) => Math.max(0, (player.huntCooldowns?.[siteId] ?? 0) - now)
+export const huntCooldownLeft = () => 0 // v79: 이전 데이터의 대기시간도 무시한다.
 export const huntNodeAt = (session, position) => session?.nodes.find(node => active(node) && same(node, position))
 
 function addLog(session, text) {
@@ -48,7 +52,7 @@ function finish(player, now, reason) {
   return {
     ...player,
     huntExpedition: addLog({ ...session, status: 'finished', endedAt: now, encounter: null }, reason),
-    huntCooldowns: { ...player.huntCooldowns, [session.siteId]: now + HUNT_COOLDOWN_MS },
+    huntCooldowns: { ...player.huntCooldowns }, // 사용 중단된 기존 대기 데이터는 유지만 하고 강제하지 않는다.
   }
 }
 
@@ -62,10 +66,11 @@ function randomEmpty(session, rng) {
 }
 
 export function enterHuntSite(player, site, now = Date.now(), rng = Math.random) {
-  if (player.huntExpedition?.status === 'active') return { error: '진행 중인 수렵을 먼저 마쳐야 한다.' }
-  if (huntCooldownLeft(player, site?.id, now)) return { error: '아직 이 터에 다시 갈 수 없다.' }
+  if (player.huntExpedition?.status === 'active') return { error: '진행 중인 개척을 먼저 마쳐야 한다.' }
+  // v79: 재입장 대기시간을 폐지하고 입장할 때 의지력 10을 소모한다.
   if (siteMissingData(site).length) return { error: '이 터는 아직 개방되지 않았다.' }
-  if (player.hp <= 0) return { error: '몸을 회복한 뒤 수렵할 수 있다.' }
+  if (player.hp <= 0) return { error: '몸을 회복한 뒤 개척할 수 있다.' }
+  if ((player.mp || 0) < 10) return { error: '개척에는 의지력 10이 필요하다.' }
   let session = {
     siteId: site.id, name: site.name, status: 'active', enteredAt: now, maxTurns: site.maxTurns, turn: 0,
     position: { ...site.start }, encounter: null, rewards: {}, spiritGained: 0,
@@ -78,13 +83,13 @@ export function enterHuntSite(player, site, now = Date.now(), rng = Math.random)
     const position = randomEmpty(session, rng)
     if (position) session.nodes.push({ ...site[kind], ...position, id: `roaming-${kind}`, attemptsLeft: HUNT_ATTEMPTS })
   }
-  return { player: { ...player, huntExpedition: session }, logs: [`수렵: ${site.name}에 들어섰다.`] }
+  return { player: { ...player, mp: player.mp - 10, huntExpedition: session }, logs: [`개척: ${site.name}에 들어섰다. (의지력 -10)`] }
 }
 
 export function leaveHuntSite(player, now = Date.now()) {
-  if (player.huntExpedition?.status !== 'active') return { error: '진행 중인 수렵이 없다.' }
-  if (player.huntExpedition?.encounter) return { error: '귀신과의 전투를 먼저 마쳐야 한다.' }
-  return { player: finish(player, now, '터에서 돌아왔다. 50분 뒤에 다시 올 수 있다.'), logs: ['수렵을 마치고 돌아왔다.'] }
+  if (player.huntExpedition?.status !== 'active') return { error: '진행 중인 개척이 없다.' }
+  if (player.huntExpedition?.encounter) return { error: '요괴와의 전투를 먼저 마쳐야 한다.' }
+  return { player: finish(player, now, '개척을 종료했다.'), logs: ['개척을 종료했다.'] }
 }
 
 /** 동물은 고정 테두리를 매 턴 한 칸씩 돈다. 풀/장애물과 겹쳐도 경로를 벗어나지 않는다. */
@@ -114,14 +119,14 @@ export function moveHuntCreatures(session) {
 function endTurn(player, session, now) {
   let next = { ...player, huntExpedition: moveHuntCreatures({ ...session, turn: session.turn + 1 }) }
   // 마지막 턴에 귀신과 조우했으면 전투를 먼저 마무리하고 종료한다.
-  if (next.huntExpedition.turn >= session.maxTurns && !next.huntExpedition.encounter) next = finish(next, now, '행동 가능한 턴을 모두 썼다. 수렵을 마친다.')
+  if (next.huntExpedition.turn >= session.maxTurns && !next.huntExpedition.encounter) next = finish(next, now, '행동 가능한 턴을 소진했습니다. 개척을 종료합니다.')
   return next
 }
 
 function playable(player) {
   const s = player.huntExpedition
-  if (!s || s.status !== 'active') return '진행 중인 수렵이 없다.'
-  if (s.encounter) return '귀신과의 전투를 먼저 마쳐야 한다.'
+  if (!s || s.status !== 'active') return '진행 중인 개척이 없다.'
+  if (s.encounter) return '요괴와의 전투를 먼저 마쳐야 한다.'
   if (s.turn >= s.maxTurns) return '행동 가능한 턴을 모두 썼다.'
   return null
 }
@@ -144,6 +149,7 @@ export function attemptHunt(player, nodeId, stats, now = Date.now(), rng = Math.
   if (!node || node.kind === 'ghost') return { error: '채집·수렵할 대상이 없다.' }
   if (node.kind === 'obstacle' ? distance(s.position, node) !== 1 : !same(s.position, node)) return { error: node.kind === 'obstacle' ? '장애물 옆 칸으로 이동해야 한다.' : '대상이 있는 칸으로 이동해야 한다.' }
   const odds = huntOdds(node.kind, node.level, stats)
+  if (odds.blocked) return { error: '수렵 불가: 수렵 레벨이 15 이상 차이납니다.' }
   const success = rng() * 100 < odds.success
   const rewards = {}
   if (success) {
@@ -157,9 +163,9 @@ export function attemptHunt(player, nodeId, stats, now = Date.now(), rng = Math.
     inventory[item] = (inventory[item] ?? 0) + qty
     totals[item] = (totals[item] ?? 0) + qty
   }
-  const text = `${node.name}: ${success ? '성공' : '실패'} (성공률 ${odds.success}%, 남은 시도 ${node.attemptsLeft - 1}회)`
+  const text = `${odds.fixed ? '수렵 레벨이 많이 차이납니다. ' : ''}${node.name}: ${success ? '성공' : '실패'} (성공률 ${odds.success}%, 남은 시도 ${node.attemptsLeft - 1}회)`
   const session = addLog({ ...s, rewards: totals, nodes: s.nodes.map(point => point.id === nodeId ? { ...point, attemptsLeft: point.attemptsLeft - 1 } : point) }, text)
-  return { player: endTurn({ ...player, inventory }, session, now), logs: [`수렵: ${text}`], success, rewards }
+  return { player: endTurn({ ...player, inventory }, session, now), logs: [`개척: ${text}`], success, rewards }
 }
 
 /** 결과는 한 번만 정산한다. 전투 보상은 퇴마 실습의 일일 한도/돈 보상과 무관하다. */
@@ -170,6 +176,6 @@ export function resolveHuntEncounter(player, { win, fled }, now = Date.now()) {
   const text = win ? `산귀신을 물리쳤다. 영력 +${gain}` : fled ? '산귀신에게서 도망쳤다.' : '산귀신에게 패했다.'
   const session = addLog({ ...s, encounter: null, spiritGained: s.spiritGained + gain, nodes: s.nodes.filter(node => node.id !== s.encounter.nodeId) }, text)
   let next = { ...player, spirit: player.spirit + gain, huntExpedition: session }
-  if (!win || s.turn >= s.maxTurns) next = finish(next, now, '수렵을 마치고 터에서 돌아왔다.')
-  return { player: next, logs: [`수렵: ${text}`] }
+  if ((!win && !fled) || s.turn >= s.maxTurns) next = finish(next, now, '개척을 종료했다.')
+  return { player: next, logs: [`개척: ${text}`] }
 }

@@ -25,6 +25,7 @@ export const ACTIVITIES = {
     { id: 'intro', label: '둘러보기', icon: BookOpen },
     { id: 'battle', label: '퇴마 실습', icon: Swords },
     { id: 'hike', label: '산 탐색', icon: Mountain },
+    { id: 'pioneer', label: '개척', icon: Compass },
   ],
   infirmary: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },

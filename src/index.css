@@ -798,3 +798,7 @@ body { font-size: calc(1rem * var(--ui-font-scale)); }
 .hunt-tile { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; min-width: 0; padding: 0; border: 0; border-right: 1px solid #b9b9b9; border-bottom: 1px solid #b9b9b9; border-radius: 0; font-family: Georgia, serif; font-size: clamp(13px, 3vw, 22px); line-height: 1; cursor: pointer; touch-action: manipulation; }
 .hunt-tile:focus-visible, .hunt-tile[aria-pressed="true"] { outline: 3px solid #d69e00; outline-offset: -3px; z-index: 1; }
 .hunt-tile-under { position: absolute; right: 2px; bottom: 2px; font-size: 10px; line-height: 1; }
+
+/* v79 KoPub 웹폰트 */
+[data-ui-font="kopub-dotum"] { --ui-font-family: "KoPub Dotum", sans-serif; }
+[data-ui-font="kopub-batang"] { --ui-font-family: "KoPub Batang", serif; }

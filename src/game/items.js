@@ -1,3 +1,5 @@
+import { V79_SHEET_DATA } from './v79SheetData.js'
+import { V79_ITEMS } from './v79Items.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -919,6 +921,7 @@ const RAW_ITEMS = [
     effect: {},
     battle: false,
   },
+  ...V79_ITEMS,
   ...[
     ['pine', '소나무 패', '1월 소나무', '전투불능이 되지 않고 승리하면 전투 직전의 체력과 의지력으로 복구된다.'],
     ['plum', '매화 패', '2월 매화', '전투 중 사용할 수 있는 의지력이 150이 된다.'],
@@ -942,8 +945,32 @@ const RAW_ITEMS = [
 export const CAT_ITEM = '완성품'
 export const CAT_MATERIAL = '재료'
 export const MATERIAL_TEXT = '제작 재료로 쓰인다.'
-export const ITEMS = RAW_ITEMS.map((it) => {
-  const tags = it.tags ?? []
+const V79_OVERRIDES = {
+  'ramen': { battle: false, tags: ['완성품'], effectText: '체력 +20' },
+  'dumpling': { battle: false },
+  'lost-love-letter': { effect: { mp: 30 }, effectText: '사용 시 의지력 +30.' },
+  'sewer-rat': { name: '들쥐', desc: '졸지에 그대로 잡아버렸다. 이걸 어쩌면 좋지?' },
+  'mugwort': { kind: 'material', tags: ['재료'], effect: {}, effectText: '제작용 재료.' },
+  'snake-berry': { kind: 'material', tags: ['재료'], effect: {}, effectText: '제작용 재료.' },
+  'mushroom': { kind: 'material', tags: ['재료'], effect: {}, effectText: '제작용 재료.' },
+  'wild-raspberry': { kind: 'material', tags: ['재료'], effect: {}, effectText: '제작용 재료.' },
+  'feather-deco': { effect: {}, battle: false, effectText: '' },
+  'jangseung-keyring': { effect: {}, battle: false, effectText: '' },
+  'green-charm': { effect: {}, battle: false, effectText: '' },
+  'clover-bookmark': { effect: {}, battle: false, effectText: '' },
+  'jaeaek-charm': { effect: {}, battle: false, effectText: '' },
+  'exorcism-gate': { effect: {}, battle: false, party: false, effectText: '' },
+  'red-fox-charm': { effect: {}, battle: false, effectText: '' },
+  'spirit-disposable': { effect: {}, battle: false, effectText: '' },
+}
+export const ITEMS = RAW_ITEMS.map((original) => {
+  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}) }
+
+  const tags = [...(it.tags ?? [])]
+  if (it.battle || it.party || it.effect?.partyHp || it.effect?.partyMp || it.effect?.partyBoost || it.effect?.giveHp) {
+    if (!tags.includes('일행')) tags.push('일행')
+  }
+  it.tags = tags
   if (tags.includes(CAT_ITEM) || tags.includes(CAT_MATERIAL)) {
     // [재료] 태그가 붙은 아이템은 효과 문구를 '제작 재료로 쓰인다.'로 통일한다.
     return tags.includes(CAT_MATERIAL) && !it.effectText ? { ...it, effectText: MATERIAL_TEXT } : it
@@ -974,7 +1001,7 @@ export function itemOf(id) {
 }
 const newTail = () => Math.random().toString(36).slice(2, 8).padEnd(6, '0')
 /** 매점에서 파는 아이템 (price 가 있는 것) */
-export const STORE_ITEMS = ITEMS.filter((i) => i.price != null)
+export const STORE_ITEMS = ITEMS.filter((i) => i.price != null && i.storeOnly !== 'garden')
 export const isMaterial = (item) => item.kind === 'material'
 export const isGear = (item) => item.kind === 'gear'
 
@@ -1249,9 +1276,11 @@ export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostO
   if (!countNow) return { ok: false, why: '갖고 있지 않다' }
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
   if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
-  if (item.kind === 'craft' && !Object.keys(item.effect ?? {}).length && !item.giftNpc) return { ok: false, why: '아직 쓸 수 있는 효과가 없다' }
+  if (!Object.keys(item.effect ?? {}).length && !item.giftNpc && !['material','gear','tool'].includes(item.kind)) return { ok: false, why: '아직 사용할 수 있는 효과가 없는 아이템이다.' }
   if (item.kind === 'tool') return { ok: false, why: '무구보관소에서 무구를 강화할 때 쓴다' }
   if (item.giftNpc && !inBattle) return { ok: false, why: '전투 중이 아닐 땐 NPC에게 건네면 호감도가 오른다. (NPC와 대화하는 곳에서)' }
+  if ((item.effect?.enemyVulnerability || item.effect?.instantKill) && !isParty) return {ok:false, why:'현재 단체 전투에서만 사용할 수 있다'}
+  if (item.effect?.trainUnder10 && inBattle) return {ok:false, why:'전투 중에는 사용할 수 없다'}
   if (item.party && !isParty) return { ok: false, why: '일행(파티) 상태에서만 쓸 수 있다' }
   if (inBattle && !item.battle) return { ok: false, why: '전투 중에는 쓸 수 없다' }
   if (item.only === 'battle' && !inBattle) return { ok: false, why: '전투 중에만 쓸 수 있다' }

@@ -171,7 +171,7 @@ export function syncCodex(player) {
 
 /** 영능력(스킬)을 새로 익힌다. 전투의 '영능력' 탭에 자동으로 들어간다. 이미 있으면 같은 player 를 돌려준다. */
 export const WEAK_MS = 24 * 3600 * 1000 // [쇠약] 지속 시간: 리얼타임 24시간
-export const isWeak = (player, now = Date.now()) => !!player.weakUntil && now < player.weakUntil
+export const isWeak = (player, now = Date.now()) => Math.max(player.weakUntil || 0, player.curseUntil || 0) > now
 /** [쇠약] 중이면 모든 육조 스탯이 현재 스탯의 5할(내림, 최소 1). 아니면 그대로. */
 /** 아이템으로 받은 시간제 보정(예: 쑥 → 인내 +1, 24시간). 만료된 건 무시한다. */
 export function tempBonus(player, now = Date.now()) {
@@ -195,7 +195,7 @@ export function effectiveStats(player, now = Date.now()) {
   return out
 }
 export const weakLeftText = (player, now = Date.now()) => {
-  const m = Math.max(0, Math.ceil(((player.weakUntil || 0) - now) / 60000))
+  const m = Math.max(0, Math.ceil(((Math.max(player.weakUntil || 0, player.curseUntil || 0)) - now) / 60000))
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`
 }
 
@@ -253,7 +253,12 @@ export function tickPlayer(player, now, dtSec) {
   if (p.weakUntil && now >= p.weakUntil) {
     const { weakUntil: _w, ...rest } = p
     p = rest
-    logs.push('[쇠약]이 풀렸다. 몸에 힘이 돌아온다.')
+    if (!(p.curseUntil > now)) logs.push('[쇠약]이 풀렸다. 몸에 힘이 돌아온다.')
+  }
+  if (p.curseUntil && now >= p.curseUntil) {
+    const { curseUntil: _c, ...rest } = p
+    p = rest
+    logs.push('[저주]의 기운이 사라졌다.')
   }
   // 대기(수련·취침·휴식·수업 대기·제작) 중에는 끝날 때까지 어떤 스탯도 들어오지 않는다. 끝나는 순간 한꺼번에 받는다.
   const lessonWaiting = Object.values(p.lessons ?? {}).some((l) => l.waitUntil && now < l.waitUntil)
@@ -306,10 +311,10 @@ export function tickPlayer(player, now, dtSec) {
   const sl = p.sleeping
   if (sl && now >= sl.startedAt + sl.minutes * 60000) {
     const gain = sleepSpiritGain(p.spirit)
-    const wasWeak = !!p.weakUntil
+    const wasWeak = !!p.weakUntil && !(p.curseUntil > now)
     const { weakUntil: _wk, ...awake } = p
     p = { ...(wasWeak ? awake : p), sleeping: null, hp: p.hpMax, mp: p.mpMax, spirit: p.spirit + gain }
-    logs.push(`푹 자고 일어났다. 체력과 의지력이 가득 찼다.${gain ? ` (영력 +${Math.round(gain * 10) / 10})` : ' (영력은 이미 가득 차 있었다)'}${wasWeak ? ' [쇠약]도 함께 회복되었다.' : ''}`)
+    logs.push(`푹 자고 일어났다. 체력과 의지력이 가득 찼다.${gain ? ` (영력 +${Math.round(gain * 10) / 10})` : ' (영력은 이미 가득 차 있었다)'}${wasWeak ? ' [쇠약]도 함께 회복되었다.' : p.curseUntil > now ? ' [저주] 때문에 쇠약은 풀리지 않았다.' : ''}`)
   }
 
   // 양호실 휴식: 끝까지 쉬어야 분당 1씩(누워서 쉬기: 체력 / 상담: 의지력) 한꺼번에 들어온다.
