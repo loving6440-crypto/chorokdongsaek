@@ -131,7 +131,7 @@ export default function HuntField({ player, stats, onAction }) {
           <ol className="mt-2 max-h-36 space-y-1 overflow-auto text-xs text-paper/70" aria-label="개척 기록" aria-live="polite">{current.log.map((text, i) => <li key={i}>{text}</li>)}</ol>
         </>}
       </div>}
-      {confirmLeave && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/65 p-4" role="alertdialog" aria-modal="true"><div className="ink-panel w-full max-w-sm rounded-xl p-5 text-center"><p>개척을 종료하시겠습니까?</p><div className="mt-4 flex justify-center gap-3"><button type="button" className="flat-btn" onClick={()=>setConfirmLeave(false)}>취소</button><button type="button" className="flat-btn" onClick={()=>{setConfirmLeave(false);act({type:'leave'})}}>종료</button></div></div></div>}
+      {confirmLeave && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/65 p-4" role="alertdialog" aria-modal="true"><div className="ink-panel w-full max-w-sm rounded-xl p-5 text-center"><p>개척을 종료하시겠습니까?</p><div className="mt-4 flex justify-center gap-3"><button type="button" className="flat-btn" onClick={()=>{setConfirmLeave(false);act({type:'leave'})}}>종료</button><button type="button" className="flat-btn" onClick={()=>setConfirmLeave(false)}>취소</button></div></div></div>}
       {!site && <p className="mt-4 text-sm text-paper/65">아직 접근할 수 없습니다.</p>}
     </section>
   )
