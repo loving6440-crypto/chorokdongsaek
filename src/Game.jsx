@@ -54,7 +54,7 @@ import { LESSON_WAIT_MINUTES } from './game/courseInfo'
 import { ENEMIES } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
-import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
+import { bumpWeekly, bumpDaily, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
 import { buyGardenSeed, plantGardenSeed, harvestGardenPlot } from './game/garden'
 import { HUNT_MINUTES } from './game/hunt'
 import { HUNT_SITES } from './game/huntSites'
@@ -1010,7 +1010,7 @@ export default function Game({
     [addLog],
   )
 
-  // 제작 (비품실 › 공작소): 몇 개 만들지 고르면 그만큼 비례한 시간(소모 재료 총개수×10분×개수)을 기다려야 완성품이 나온다.
+  // 제작 (공작소): 제작법과 재료가 있으면 즉시 완성한다.
   const craftItem = useCallback(
     (recipeId, qty = 1) => {
       if (battleRef.current) return { error: '전투 중이다.' }
@@ -1018,11 +1018,12 @@ export default function Game({
       if (cur.crafting) return { error: '이미 제작 중이다.' }
       const r = startCraft(cur, recipeId, qty, admin)
       if (r.error) return r
-      playerRef.current = r.player
-      setPlayer(r.player)
-      const m = r.minutes
-      addLog(`공작소에서 ${recipeOf(recipeId)?.id ? itemOf(recipeOf(recipeId).result).name : ''}을(를) 만들기 시작했다. (${qty}개 · ${m}분 대기)`)
-      return r
+      // 이전 버전에서는 제작 대기 완료 시 정산되던 동아리 퀘스트를 즉시 제작 시점에 정산한다.
+      const completed = bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      playerRef.current = completed
+      setPlayer(completed)
+      addLog(`공작소에서 ${r.item?.name ?? itemOf(recipeOf(recipeId)?.result)?.name ?? ''} ${r.qty}개를 제작했다.`)
+      return { ...r, player: completed }
     },
     [addLog, admin],
   )
@@ -1939,7 +1940,7 @@ export default function Game({
       {player.huntExpedition?.status === 'active' && player.huntExpedition.encounter && (
         <HuntBattleModal
           encounter={player.huntExpedition.encounter.enemy}
-          stats={effStats} mp={player.mp} hp={player.hp} hpMax={player.hpMax}
+          stats={effStats} baseAggression={player.stats?.aggression} mp={player.mp} hp={player.hp} hpMax={player.hpMax}
           seen={player.seen} specials={player.specials} psychics={player.psychics ?? []}
           onStart={startBattle} onHp={changeHp} onMp={changeMp}
           onFinish={finishHuntBattle} onLog={addLogs} onDown={downed} onSpecialSeen={seeSpecial}

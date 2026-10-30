@@ -46,8 +46,8 @@ export default function HuntField({ player, stats, onAction }) {
   const actionNodes = nodes.filter(node => liveNode(node) && node.kind !== 'ghost' &&
     (node.kind === 'obstacle' ? same(node, selected) && distance(node, position) === 1 : same(node, position)))
   const chooseCell = p => {
+    // 타일 클릭은 정보 선택만 처리한다. 플레이어 이동은 반드시 방향 버튼에서만 발생한다.
     setSelected(p)
-    if (active && !current.encounter && distance(position, p) === 1 && !nodes.some(node => liveNode(node) && node.kind === 'obstacle' && same(node, p))) act({ type: 'move', position: p })
   }
   const move = (dx, dy) => {
     if (!active || current.encounter) return
@@ -56,13 +56,7 @@ export default function HuntField({ player, stats, onAction }) {
     setSelected(p)
     act({ type: 'move', position: p })
   }
-  const onKey = event => {
-    const delta = { ArrowUp: [0, -1], w: [0, -1], ArrowDown: [0, 1], s: [0, 1], ArrowLeft: [-1, 0], a: [-1, 0], ArrowRight: [1, 0], d: [1, 0] }[event.key]
-    if (delta && !event.altKey && !event.metaKey && !event.ctrlKey) {
-      event.preventDefault()
-      if (!event.repeat) move(...delta)
-    }
-  }
+
 
   return (
     <section className="mt-4" aria-label="타일 수렵">
@@ -91,7 +85,7 @@ export default function HuntField({ player, stats, onAction }) {
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_13rem]">
           <div className="min-w-0">
-            <div className="hunt-grid mx-auto w-full max-w-lg" role="group" aria-label="10 곱하기 10 개척 지도" onKeyDown={onKey}>
+            <div className="hunt-grid mx-auto w-full max-w-lg" role="group" aria-label="10 곱하기 10 개척 지도">
               {Array.from({ length: HUNT_SIZE * HUNT_SIZE }, (_, index) => {
                 const p = { x: index % HUNT_SIZE, y: Math.floor(index / HUNT_SIZE) }
                 const occupants = nodes.filter(node => liveNode(node) && same(node, p)).sort((a, b) => ['ghost', 'spirit', 'animal', 'obstacle', 'plant'].indexOf(a.kind) - ['ghost', 'spirit', 'animal', 'obstacle', 'plant'].indexOf(b.kind))
@@ -106,24 +100,25 @@ export default function HuntField({ player, stats, onAction }) {
                 </button>
               })}
             </div>
-            <p className="mt-2 text-[11px] text-paper/60">인접한 칸 클릭 · 방향키 또는 WASD · 타일에 마우스를 올리거나 선택하면 상세 표시</p>
+            <p className="mt-2 text-[11px] text-paper/60">이동은 오른쪽 방향 버튼으로만 가능 · 타일 클릭/마우스오버는 정보 확인</p>
           </div>
           <div>
-            <div className="min-h-28 rounded border border-edge/15 p-3 text-xs leading-relaxed text-paper/80" aria-live="polite" aria-label="타일 정보">
+
+            {active && <>
+              <div className="mx-auto grid w-36 grid-cols-3 gap-1" role="group" aria-label="개척 방향 버튼">
+                {[[0, -1, '↑', '위', 2], [-1, 0, '←', '왼쪽', 1], [0, 1, '↓', '아래', 2], [1, 0, '→', '오른쪽', 3]].map(([dx, dy, symbol, name, col], i) => <button key={name} type="button" className="flat-btn justify-center" style={{ gridColumn: col, gridRow: i === 0 ? 1 : 2 }} aria-label={`${name}로 한 칸 이동`} disabled={!!current.encounter} onClick={() => move(dx, dy)}>{symbol}</button>)}
+              </div>
+              <div className="mt-3 h-[5.5rem] overflow-y-auto flex flex-col justify-start gap-1" aria-label="개척 채집 버튼">{actionNodes.length ? actionNodes.map(node => <button key={node.id} type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled={!!current.encounter || huntOdds(node.kind,node.level,stats).blocked} onClick={() => act({ type: 'attempt', nodeId: node.id })}>{nameOf(node)} {node.kind === 'animal' || node.kind === 'spirit' ? '수렵' : '채집'} (1턴)</button>) : <button type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled>채집·수렵 대상 없음</button>}
+              </div><button type="button" className="flat-btn mt-2 w-full justify-center text-xs" disabled={!!current.encounter} onClick={() => setConfirmLeave(true)}>개척 그만두기</button>
+            </>}
+            {!active && <button type="button" className="flat-btn w-full justify-center text-sm disabled:opacity-40" disabled={missing.length > 0 || running || player.mp < 10} onClick={() => act({ type: 'enter', siteId })}>{missing.length ? '개방 준비 중' : player.mp < 10 ? '의지력 10이 필요합니다' : '개척 시작하기 (의지력 10)'}</button>}
+            <div className="mt-4 border-t border-edge/15 pt-3"><div className="min-h-28 rounded border border-edge/15 p-3 text-xs leading-relaxed text-paper/80" aria-live="polite" aria-label="타일 정보">
               {hasInformation && <p className="font-bold text-paper">{focusCell ? cellName(focusCell) : '타일 정보'}</p>}
               {hasInformation && (points.length ? points.map(node => {
                 const odds = Number.isFinite(node.level) && node.kind !== 'ghost' ? huntOdds(node.kind, node.level, stats) : null
                 return <div key={node.id} className="mt-2"><p>{nameOf(node)} · {HUNT_KINDS[node.kind].label}</p><p>적정 레벨 {node.level ?? '미정'}</p>{node.kind === 'ghost' ? <p>만나면 별도 전투가 시작됩니다.</p> : <><p>남은 시도 {node.attemptsLeft ?? 3}회</p>{odds && <p>내 산출값 {odds.value}<br />{odds.blocked ? '수렵 불가 (레벨 차이 15 이상)' : `성공 ${odds.success}%`}{odds.fixed && <><br />수렵 레벨이 많이 차이납니다.</>}{node.kind !== 'spirit' && <> · 보너스 {odds.bonus}%</>}</p>}</>}</div>
               }) : <p className="mt-2">현재 내 위치입니다.</p>)}
-            </div>
-            {active && <>
-              <div className="mx-auto mt-3 grid w-36 grid-cols-3 gap-1" role="group" aria-label="수렵 이동">
-                {[[0, -1, '↑', '위', 2], [-1, 0, '←', '왼쪽', 1], [0, 1, '↓', '아래', 2], [1, 0, '→', '오른쪽', 3]].map(([dx, dy, symbol, name, col], i) => <button key={name} type="button" className="flat-btn justify-center" style={{ gridColumn: col, gridRow: i === 0 ? 1 : 2 }} aria-label={`${name}로 한 칸 이동`} disabled={!!current.encounter} onClick={() => move(dx, dy)}>{symbol}</button>)}
-              </div>
-              <div className="mt-3 min-h-[5rem] flex flex-col justify-start gap-1">{actionNodes.length ? actionNodes.map(node => <button key={node.id} type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled={!!current.encounter || huntOdds(node.kind,node.level,stats).blocked} onClick={() => act({ type: 'attempt', nodeId: node.id })}>{nameOf(node)} {node.kind === 'animal' || node.kind === 'spirit' ? '수렵' : '채집'} (1턴)</button>) : <button type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled>대상 칸으로 이동 (1턴)</button>}
-              </div><button type="button" className="flat-btn mt-2 w-full justify-center text-xs" disabled={!!current.encounter} onClick={() => setConfirmLeave(true)}>개척 그만두기</button>
-            </>}
-            {!active && <button type="button" className="flat-btn mt-3 w-full justify-center text-sm disabled:opacity-40" disabled={missing.length > 0 || running || player.mp < 10} onClick={() => act({ type: 'enter', siteId })}>{missing.length ? '개방 준비 중' : player.mp < 10 ? '의지력 10이 필요합니다' : '개척 시작하기 (의지력 10)'}</button>}
+            </div></div>
           </div>
         </div>
         {current && <>

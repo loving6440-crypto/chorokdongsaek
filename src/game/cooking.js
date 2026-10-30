@@ -1,8 +1,7 @@
 // 조리실의 요리법과 요리. 공작소(crafting.js)와 완전히 같은 구조이지만 별도의 재료·결과물 체계를 쓴다.
-// 레시피는 아직 없다(곧 채워 넣을 예정) — COOK_RECIPES 를 채우기만 하면 조리실 화면에 그대로 나타난다.
-//  - player.cookRecipes = { [recipeId]: true }  (익힌 요리법)
-//  - 관리자는 모든 요리법을 아는 것으로 친다.
+// 등록된 조리실 요리법은 별도로 익히지 않아도 재료만 있으면 즉시 조리 가능하다.
 import { countOf, itemOf } from './items.js'
+import { canAddInventory } from './inventoryCapacity.js'
 
 export const KITCHEN = {
   id: 'kitchen',
@@ -24,7 +23,7 @@ export const COOK_RECIPES = [
 ]
 
 export const cookRecipeOf = (id) => COOK_RECIPES.find((r) => r.id === id)
-export const knowsCookRecipe = (player, id, admin = false) => admin || !!player.cookRecipes?.[id] || COOK_RECIPES.some(r => r.id === id)
+export const knowsCookRecipe = (player, id, admin = false) => !!cookRecipeOf(id)
 
 /** 요리법 익히기 (이미 알면 같은 player) */
 export function learnCookRecipe(player, id) {
@@ -37,7 +36,6 @@ export const canCook = (player, r) => r.inputs.every(([id, n]) => countOf(player
 export function cook(player, recipeId, admin = false) {
   const r = cookRecipeOf(recipeId)
   if (!r) return { error: '그런 요리법은 없다.' }
-  if (!knowsCookRecipe(player, recipeId, admin)) return { error: '요리법을 모른다. 요리법이 없으면 아무것도 만들 수 없다.' }
   if (!admin && !canCook(player, r)) return { error: '재료가 모자란다.' }
   const inv = { ...(player.inventory ?? {}) }
   if (!admin) {
@@ -46,6 +44,7 @@ export function cook(player, recipeId, admin = false) {
       if (inv[id] <= 0) delete inv[id]
     }
   }
+  if (!canAddInventory(inv, { [r.result]: 1 })) return { error: '소지품이 가득 차 조리할 수 없다.' }
   inv[r.result] = (inv[r.result] || 0) + 1
   return { player: { ...player, inventory: inv }, item: itemOf(r.result) }
 }

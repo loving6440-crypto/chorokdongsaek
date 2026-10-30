@@ -329,6 +329,17 @@ const RAW_ITEMS = [
     battle: false,
   },
   {
+    id: 'dye',
+    kind: 'material',
+    tags: ['재료'],
+    name: '염색약',
+    price: null,
+    desc: '오색실 제작에 사용하는 염료. 획득처는 아직 정해지지 않았다.',
+    effectText: '제작용 재료',
+    effect: {},
+    battle: false,
+  },
+  {
     id: 'five-color-thread',
     kind: 'material',
     tags: ['재료'],

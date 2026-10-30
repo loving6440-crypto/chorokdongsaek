@@ -3,6 +3,7 @@ import { itemOf } from './items.js'
 
 const same = (a, b) => a.x === b.x && a.y === b.y
 const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+const isCorner = p => (p.x === 0 || p.x === HUNT_SIZE - 1) && (p.y === 0 || p.y === HUNT_SIZE - 1)
 const inside = p => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < HUNT_SIZE && p.y >= 0 && p.y < HUNT_SIZE
 const active = node => node.kind === 'ghost' || node.attemptsLeft > 0
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
@@ -108,9 +109,12 @@ export function moveHuntCreatures(session) {
     } else if (node.kind === 'ghost') {
       Object.assign(node, chaseStep(node, session.position, occupied))
     } else {
+      // 영물은 플레이어를 피해 도망가지만, 네 모서리의 마지막 1칸에 몰리면 더 움직이지 않는다.
+      // 이전에 논의된 '2×2칸을 맴돌기' 규칙은 사용하지 않는다.
+      if (isCorner(node)) continue
       const options = [node, ...neighbors(node)].filter(p => !occupied(p) && !same(p, session.position))
       options.sort((a, b) => distance(b, session.position) - distance(a, session.position))
-      Object.assign(node, { x: options[0].x, y: options[0].y })
+      if (options.length) Object.assign(node, { x: options[0].x, y: options[0].y })
     }
   }
   const ghost = nodes.find(node => node.kind === 'ghost' && active(node) && same(node, session.position))
