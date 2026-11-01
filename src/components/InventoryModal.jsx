@@ -4,6 +4,8 @@ import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
 import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
 import ItemIcon from './ItemIcon'
+import ItemSearchBox from './ItemSearchBox'
+import { itemMatches } from '../game/itemSearch'
 import { INVENTORY_SLOTS, countSlots, inventoryStacks, maxStack, capacityFor } from '../game/inventoryCapacity'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
@@ -17,6 +19,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const [hover, setHover] = useState(null)
   const [charcoalStat, setCharcoalStat] = useState(null)
+  const [query, setQuery] = useState('') // v79.0.7: 소지품 검색
   const tipFor = (item, e) => setHover({ item, x: e.clientX, y: e.clientY })
   const closeAll = () => {
     setSel(null)
@@ -39,7 +42,9 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, popupOpen])
   const owned = ownedItems(player)
-  const stacks = owned.flatMap(item => inventoryStacks({ [item.id]: countOf(player, item.id) }).map(stack => ({ item, ...stack })))
+  const allStacks = owned.flatMap(item => inventoryStacks({ [item.id]: countOf(player, item.id) }).map(stack => ({ item, ...stack })))
+  const searching = query.trim().length > 0
+  const stacks = searching ? allStacks.filter(({ item }) => itemMatches(item, query) || itemMatches({ name: `${specialTitleOf(player, item.id)}${item.name}` }, query)) : allStacks
   const eq = equipOf(player)
   const picked = sel ? owned.find((i) => i.id === sel) : null
   const ownedCount = picked ? countOf(player, picked.id) : 0
@@ -111,7 +116,9 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
           </ul>
 
           <p className="mt-4 text-[11px] tracking-widest text-paper/55">가진 물건</p>
+          {owned.length > 0 && <ItemSearchBox className="mt-2" label="소지품 검색" value={query} onChange={setQuery} count={stacks.length} total={allStacks.length} />}
           {owned.length === 0 && <p className="mt-2 text-xs text-paper/50">가진 물건이 없다. 기숙사 매점에서 살 수 있다.</p>}
+          {searching && owned.length > 0 && stacks.length === 0 && <p className="mt-2 text-xs text-paper/50">검색 결과가 없다.</p>}
           <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="가진 물건">
               {stacks.map(({ item, ...stack }) => (
                 <li key={`${item.id}:${stack.index}`}>
@@ -137,7 +144,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
                   </button>
                 </li>
               ))}
-              {Array.from({ length: Math.max(0, INVENTORY_SLOTS - stacks.length) }, (_, i) => (
+              {!searching && Array.from({ length: Math.max(0, INVENTORY_SLOTS - stacks.length) }, (_, i) => (
                 <li key={`empty:${i}`} aria-hidden="true" className="flex min-h-24 flex-col items-center justify-center rounded-xl border border-dashed border-edge/15 bg-shade/10 text-xs text-paper/20">—</li>
               ))}
           </ul>

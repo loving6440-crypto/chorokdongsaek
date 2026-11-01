@@ -7,6 +7,7 @@ import { Bar, enemyHpTone, vague } from './battleUi'
 import SpBanner from '../SpBanner'
 import { AllyPsychicBanner, AllyToastStack } from '../AllyPopup'
 import PsychicDetails from '../PsychicDetails'
+import LanguageBarrierPicker from '../LanguageBarrierPicker'
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
@@ -20,13 +21,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const enemy = ENEMIES.find((e) => e.id === view.enemyId)
   const me = view.members.find((m) => m.id === meId)
   // 보스전의 상시 영능력은 '가져가기'로 골랐을 때만 발동한다.
-  const barrierActive = psychics.includes('spirit-barrier') && (!view.boss || me?.psychicBring?.includes('spirit-barrier'))
+  const barrierActive = psychics.includes('spirit-barrier') && !me?.passiveOff?.includes('spirit-barrier') && (!view.boss || me?.psychicBring?.includes('spirit-barrier'))
   const [psyOpen, setPsyOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
   const [mpGift, setMpGift] = useState(10)
   const [mpTarget, setMpTarget] = useState(meId)
-  const [rerollTurns, setRerollTurns] = useState([1,2,3])
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [echoTarget, setEchoTarget] = useState(meId) // 형상 기억: 체력을 회복시킬 대상(기본값은 자기 자신)
@@ -386,6 +386,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </div>
       )}
 
+      {me?.lbPick && !view.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="언어장벽">
+          <p className="font-serif text-base text-gold">언어장벽</p>
+          <LanguageBarrierPicker picking queue={view.queue} cost={mpCostOf(stats, 20)} disabled={!canAct} onConfirm={(picked) => send({ action: 'psychic', psychic: 'language-barrier', rerolls: picked })} />
+        </div>
+      )}
       {psyOpen && !view.over && (
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
           <p className="font-serif text-base text-gold">영능력</p>
@@ -462,11 +468,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                         <button type="button" className="flat-btn" disabled={!canAct || have<mpGift} onClick={()=>send({action:'psychic',psychic:s.id,target:mpTarget,amount:mpGift})}>사용</button>
                       </div>
                     ) : s.id === 'language-barrier' ? (
-                      <div className="mt-2">
-                        <p className="text-xs text-paper/65">재굴림할 적 행동의 순서 3개 (1~20)</p>
-                        <div className="flex gap-2">{rerollTurns.map((n,i)=><input key={i} aria-label={`재굴림 ${i+1}번째 턴`} type="number" min="1" max="20" value={n} onChange={e=>setRerollTurns(a=>a.map((v,j)=>i===j?Math.max(1,Math.min(20,Math.floor(Number(e.target.value)||1))):v))} className="mt-1 w-16 rounded bg-shade px-2 py-1 text-paper" />)}</div>
-                        <button type="button" className="flat-btn mt-2" disabled={!canAct || barrierActive} onClick={()=>send({action:'psychic',psychic:s.id,rerolls:rerollTurns.map(n=>n-1)})}>간파 및 재굴림</button>
-                      </div>
+                      me?.lbPick
+                        ? <p className="mt-2 text-xs text-gold">간파 완료 — 위의 언어장벽 창에서 바꿀 턴을 고르세요.</p>
+                        : <LanguageBarrierPicker picking={false} cost={mpCostOf(stats, 20)} disabled={!canAct || barrierActive || have < mpCostOf(stats, 20)} onReveal={() => send({ action: 'psychic', psychic: s.id })} />
                     ) : s.id === 'karmic-recompense' ? (
                       <>
                         <select

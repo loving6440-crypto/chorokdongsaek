@@ -1,7 +1,7 @@
 import { mpCostOf } from '../game/battle'
 
 const AFFECTS = {
-  buff: ['안목', '호전'], survival: ['인내', '절제'], 'monkey-paw': ['체력', '호전', '안목'], 'dokkaebi-fire': ['호전', '안목'],
+  buff: ['안목', '호전'], survival: ['인내', '절제'], 'monkey-paw': ['체력', '호전', '안목', '인내', '절제'], 'dokkaebi-fire': ['호전', '안목'],
   'echo-form': ['인내', '절제', '호전', '체력'], 'karmic-recompense': ['공격 대상'], 'falling-light': ['방어 태세'], 'cotton-mist': ['상대 행동'],
 }
 const costBase = (s, stats, opts) => {

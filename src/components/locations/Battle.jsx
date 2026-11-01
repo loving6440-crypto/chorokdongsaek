@@ -1,4 +1,6 @@
 import PsychicDetails from '../PsychicDetails'
+import LanguageBarrierPicker from '../LanguageBarrierPicker'
+import PassivePicker from '../PassivePicker'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpenText, Dices, Eye, Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react'
 import BattleTutorialHub from '../BattleTutorial2'
@@ -19,6 +21,7 @@ import {
   rashPercent,
   resolveSurvive,
   psychicTurn,
+  ownedPassives,
   revealOf,
   rollInitiative,
   scanTurns,
@@ -70,8 +73,13 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   const [scanOpen, setScanOpen] = useState(false) // 간파: 의지력을 얼마나 쓸지 고르는 칸
   const [scanN, setScanN] = useState(1)
   const [mpGift, setMpGift] = useState(10)
-  const [rerollTurns, setRerollTurns] = useState([1,2,3])
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
+  // v79.0.7: 전투 전 패시브 영능력(영력결계) 사용 여부. 끈 패시브 id 목록.
+  const [passiveOff, setPassiveOff] = useState([])
+  const passiveOffRef = useRef([])
+  const [pendingStart, setPendingStart] = useState(null) // 패시브 선택창을 띄운 상태에서 시작할 적
+  /** 이번 전투에서 영력결계가 실제로 켜져 있는가 (단독 보스전에서는 적용하지 않는다) */
+  const barrierOn = (enemy) => psychics.includes('spirit-barrier') && !passiveOffRef.current.includes('spirit-barrier') && !enemy?.boss
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
   const beginRef = useRef(null)
   const timer = useRef(null)
@@ -172,7 +180,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       setBusy(true)
       timer.current = setTimeout(() => {
         // 영력결계는 자신을 향한 적 영능력을 약공으로 바꾼다.
-        const barrier = psychics.includes('spirit-barrier') && !state.enemy?.boss && state.queue?.[0] === 'special'
+        const barrier = barrierOn(state.enemy) && state.queue?.[0] === 'special'
         const state0 = barrier ? {...state, queue: ['jab', ...state.queue.slice(1)]} : state
         const r = enemyTurn(state0, { stats, mp: mpRef.current })
         if (barrier) r.events.unshift({kind:'warn',text:'영력결계! 적의 단일 영능력이 약공으로 바뀌었다.'})
@@ -201,6 +209,24 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     [stats, push, finish, spend, onReviveUsed, onDown],
   )
 
+  // v79.0.7: 패시브 영능력이 있으면 전투 전에 켤지 끌지 먼저 묻는다.
+  const requestStart = (enemyId) => {
+    const enemy = typeof enemyId === 'object' ? enemyId : ENEMIES.find((e) => e.id === enemyId)
+    if (ownedPassives(psychics).length && !enemy?.boss) {
+      setPendingStart({ enemyId })
+      return
+    }
+    passiveOffRef.current = []
+    setPassiveOff([])
+    start(enemyId)
+  }
+  const confirmPassives = () => {
+    const pick = pendingStart
+    setPendingStart(null)
+    passiveOffRef.current = passiveOff
+    if (pick) start(pick.enemyId)
+  }
+
   const start = (enemyId) => {
     const enemyKey = typeof enemyId === 'object' ? enemyId.id : enemyId
     onStart?.(enemyKey)
@@ -214,6 +240,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     setFights(n)
     const init = rollInitiative(s.enemy, stats)
     const lines = [{ kind: 'info', text: `${s.enemy.name}이(가) 나타났다.` }]
+    if (psychics.includes('spirit-barrier') && !s.enemy?.boss) lines.push({ kind: 'info', text: passiveOffRef.current.includes('spirit-barrier') ? '영력결계를 끄고 싸운다.' : '영력결계가 상시 발동한다.' })
     if (init.auto) {
       lines.push({ kind: 'info', text: `선공 판정: 신속 ${stats.agility} ≥ 행동력이라 내가 먼저 움직인다.` })
     } else {
@@ -247,7 +274,12 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
   const resolve = useCallback(
     (cur, action, extra = {}) => {
-      const buffed = !(psychics.includes('spirit-barrier') && !cur.enemy?.boss) && buffArmed && (action === 'attack' || action === 'charm')
+      if (cur.lbPick) {
+        push([{ kind: 'warn', text: '언어장벽: 먼저 바꿀 턴을 골라 확정해야 한다.' }])
+        setPsyOpen(true)
+        return
+      }
+      const buffed = !barrierOn(cur.enemy) && buffArmed && (action === 'attack' || action === 'charm')
       const r = playerTurn(cur, action, { stats: cur.starBonus ? {...stats, aggression: stats.aggression + cur.starBonus} : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
       if (action === 'scan' && !r.invalid) onScan?.()
       // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 다시 고를 수 있게 그대로 둔다.
@@ -276,6 +308,14 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   // 내 턴이 돌아오는 시작 시점마다 돌발 판정(1d100)을 항상 굴린다. 터지면 이번 턴은 무조건 일반 공격.
   const beginTurn = useCallback(
     (state) => {
+      // 원숭이 손의 대가 등으로 행동불능이면 이번 내 턴은 아무것도 하지 못하고 넘어간다. (v79.0.7)
+      if (state.pstun > 0) {
+        const next = { ...state, pstun: state.pstun - 1, bound: false }
+        setB(next)
+        push([{ kind: 'warn', text: `행동불능 상태라 움직이지 못했다. (남은 ${next.pstun}턴)` }])
+        runEnemy(next)
+        return
+      }
       // 도깨비불을 쓴 상태라면 내 턴은 자동으로 기를 모으거나(마지막엔) 터뜨린다 — 돌발 판정도 건너뛴다.
       if (state.fire) {
         setBusy(true)
@@ -341,7 +381,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   const toggleBuff = () => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight' || !myTurn) return
-    if (psychics.includes('spirit-barrier') && !cur.enemy?.boss) return
+    if (barrierOn(cur.enemy)) return
     setBuffArmed((v) => (!v && Math.floor(mpRef.current) < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
 
@@ -357,8 +397,12 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   const usePsychic = (id, extra = {}) => {
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight') return
-    const buffed = !(psychics.includes('spirit-barrier') && !cur.enemy?.boss) && buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
-    if (psychics.includes('spirit-barrier') && !cur.enemy?.boss && !['survival','echo-form','falling-light','karmic-recompense','earth-step','seven-stars','warding-scripture'].includes(id)) {
+    if (cur.lbPick && id !== 'language-barrier') {
+      push([{ kind: 'warn', text: '언어장벽: 먼저 바꿀 턴을 골라 확정해야 한다.' }])
+      return
+    }
+    const buffed = !barrierOn(cur.enemy) && buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
+    if (barrierOn(cur.enemy) && !['survival','echo-form','falling-light','karmic-recompense','earth-step','seven-stars','warding-scripture'].includes(id)) {
       push([{kind:'warn',text:'영력결계를 보유하여 적을 향한 영능력은 사용할 수 없다.'}]);return
     }
     let r
@@ -379,6 +423,13 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     }
     if (r.invalid) {
       if (r.events?.length) push(r.events)
+      return
+    }
+    // 언어장벽 1단계(간파): 턴을 쓰지 않고, 드러난 20턴을 보며 바꿀 턴을 고르게 한다.
+    if (r.keepTurn) {
+      spend(-r.mpCost)
+      setB(r.state)
+      push(r.events)
       return
     }
     setPsyOpen(false)
@@ -419,12 +470,16 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
 
   const rash = rashPercent(stats)
 
+  const passiveDialog = pendingStart && (
+    <PassivePicker owned={psychics} off={passiveOff} onChange={setPassiveOff} onConfirm={confirmPassives} onCancel={() => setPendingStart(null)} />
+  )
+
   if (phase === 'pick' && encounter) {
-    return <section aria-label="수렵 중 조우">
+    return <section aria-label="수렵 중 조우">{passiveDialog}
       <h3 className="font-serif text-xl text-gold">{encounter.name}과 마주쳤다</h3>
       {encounter.tier && <p className="mt-2 text-xs text-paper/70">{encounter.tier}단계 · {recLabel(encounter)} · {partyLabel(encounter)}</p>}
       <p className="mt-2 text-sm text-paper/80">수렵은 잠시 멈춥니다. 승리하면 영력 20을 얻습니다.</p>
-      <button type="button" className="flat-btn mt-4" onClick={() => start(encounter)}>전투 시작</button>
+      <button type="button" className="flat-btn mt-4" onClick={() => requestStart(encounter)}>전투 시작</button>
     </section>
   }
 
@@ -468,6 +523,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   if (phase === 'pick') {
     return (
       <section>
+        {passiveDialog}
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm leading-relaxed text-paper/75">
             붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
@@ -545,7 +601,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
                     <p className="mt-1 text-[10px] text-paper/50">{multi?.canParty ? `‘${MULTI_TAG}’ — 일행에게 초대가 가고, 수락한 사람들이 함께 싸운다.` : multi?.isLeader === false && multi?.hasParty ? `‘${MULTI_TAG}’ — 파티장만 신청할 수 있다. 파티장의 초대를 받으면 참여한다.` : `‘${MULTI_TAG}’ — 일행(파티) 상태로만 참여할 수 있다.`}</p>
                   </>
                 ) : (
-                  <button type="button" disabled={!!slowFight} onClick={() => start(e.id)} className="flat-btn flat-btn-fight mt-3 justify-center">
+                  <button type="button" disabled={!!slowFight} onClick={() => requestStart(e.id)} className="flat-btn flat-btn-fight mt-3 justify-center">
                     <Swords size={15} aria-hidden />
                     겨루기
                   </button>
@@ -766,11 +822,11 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
                         type="button"
                         data-psychic-toggle={s.id}
                         aria-pressed={buffArmed}
-                        disabled={(psychics.includes('spirit-barrier') && !b?.enemy?.boss) || !myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
+                        disabled={barrierOn(b?.enemy) || !myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
-                        {psychics.includes('spirit-barrier') && !b?.enemy?.boss ? '영력결계로 사용 불가' : buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
+                        {barrierOn(b?.enemy) ? '영력결계로 사용 불가' : buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
                       </button>
                     ) : s.id === 'monkey-paw' ? (
                       <>
@@ -793,7 +849,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
                     ) : s.id === 'warding-scripture' ? (
                       <div className="mt-2 flex gap-2"><input type="number" aria-label="전할 의지력" min="1" max={mp} value={mpGift} onChange={e=>setMpGift(Math.max(1,Math.floor(Number(e.target.value)||1)))} className="w-20 rounded bg-shade px-2 text-paper"/><button type="button" className="flat-btn" onClick={()=>usePsychic(s.id,{amount:mpGift})}>사용</button></div>
                     ) : s.id === 'language-barrier' ? (
-                      <div className="mt-2"><div className="flex gap-2">{rerollTurns.map((n,i)=><input type="number" key={i} aria-label={`재굴림 ${i+1}번째 턴`} min="1" max="20" value={n} onChange={e=>setRerollTurns(a=>a.map((v,j)=>j===i?Math.max(1,Math.min(20,Math.floor(Number(e.target.value)||1))):v))} className="w-16 rounded bg-shade px-2 text-paper"/>)}</div><button type="button" className="flat-btn mt-2" onClick={()=>usePsychic(s.id,{rerolls:rerollTurns.map(n=>n-1)})}>사용</button></div>
+                      <LanguageBarrierPicker picking={!!b.lbPick} queue={b.queue} cost={mpCostOf(stats, 20)} disabled={!myTurn} onReveal={() => usePsychic(s.id)} onConfirm={(picked) => usePsychic(s.id, { rerolls: picked })} />
                     ) : (
                       s.use && (
                         <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">

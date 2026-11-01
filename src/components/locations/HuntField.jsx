@@ -116,7 +116,7 @@ export default function HuntField({ player, stats, onAction }) {
               {hasInformation && <p className="font-bold text-paper">{focusCell ? cellName(focusCell) : '타일 정보'}</p>}
               {hasInformation && (points.length ? points.map(node => {
                 const odds = Number.isFinite(node.level) && node.kind !== 'ghost' ? huntOdds(node.kind, node.level, stats) : null
-                return <div key={node.id} className="mt-2"><p>{nameOf(node)} · {HUNT_KINDS[node.kind].label}</p><p>적정 레벨 {node.level ?? '미정'}</p>{node.kind === 'ghost' ? <p>만나면 별도 전투가 시작됩니다.</p> : <><p>남은 시도 {node.attemptsLeft ?? 3}회</p>{odds && <p>내 산출값 {odds.value}<br />{odds.blocked ? '수렵 불가 (레벨 차이 15 이상)' : `성공 ${odds.success}%`}{odds.fixed && <><br />수렵 레벨이 많이 차이납니다.</>}{node.kind !== 'spirit' && <> · 보너스 {odds.bonus}%</>}</p>}</>}</div>
+                return <div key={node.id} className="mt-2"><p>{nameOf(node)} · {HUNT_KINDS[node.kind].label}</p><p>적정 레벨 {node.level ?? '미정'}</p>{node.kind === 'ghost' ? <p>만나면 별도 전투가 시작됩니다.</p> : <><p>남은 시도 {node.attemptsLeft ?? 3}회</p>{odds && <p>내 산출값 {odds.value} <span className="text-paper/60">({odds.formula})</span><br />{odds.blocked ? '수렵 불가 (레벨 차이 15 이상)' : `성공 ${odds.success}%`}{odds.fixed && <><br />수렵 레벨이 많이 차이납니다.</>}{node.kind !== 'spirit' && <> · 보너스 {odds.bonus}%</>}</p>}</>}</div>
               }) : <p className="mt-2">현재 내 위치입니다.</p>)}
             </div></div>
           </div>

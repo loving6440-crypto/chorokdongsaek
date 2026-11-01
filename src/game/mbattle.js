@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent } from './battle.js'
+import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal } from './battle.js'
 import { itemTurnFree } from './items.js'
 
 /** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
@@ -24,6 +24,8 @@ const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? 
 /** 영력결계: 일반 다인 전투는 습득만 하면 상시 적용. 보스전에서는 가져간 경우에만 적용한다. */
 export const hasActiveSpiritBarrier = (member, enemy) =>
   !!member?.psychics?.includes('spirit-barrier') &&
+  !member?.passiveOff?.includes('spirit-barrier') && // v79.0.7: 전투 전에 효과를 끄기로 고른 경우
+
   (!enemy?.boss || (Array.isArray(member.psychicBring) && member.psychicBring.includes('spirit-barrier')))
 
 /** 영력결계 상태에서도 스스로 또는 아군을 대상으로 쓰는 영능력은 사용할 수 있다. */
@@ -39,7 +41,7 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0 }) {
+export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0, passiveOff = [] }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
@@ -78,6 +80,8 @@ export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax,
     boost: !!boost,
     bring: bring ?? null, // 보스 전투: 가져온 아이템 { id: 개수 } (null 이면 제한 없음)
     psychicBring: psychicBring ?? null, // 보스 전투: 가져온 영능력 id 목록(최대 2개, null 이면 제한 없음) (v71)
+    passiveOff: Array.isArray(passiveOff) ? passiveOff.filter((x) => x === 'spirit-barrier') : [], // 이번 전투에서 끈 패시브 영능력 (v79.0.7)
+    lbPick: false, // 언어장벽으로 20턴을 간파한 뒤, 바꿀 턴을 고르는 중 (v79.0.7)
     act: null, // 이번 라운드에 고른 행동 { action, scanAmount?, psychic?, forced? }
   }
 }
@@ -128,6 +132,7 @@ const viewOfMember = (mb, m) => ({
   round: mb.round,
   queue: mb.queue,
   known: mb.known,
+  lbPick: !!m.lbPick,
   guard: m.guard,
   charms: m.charms,
   bound: m.bound,
@@ -233,6 +238,19 @@ export function submit(mb, id, act) {
   if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
   // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
   if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
+  // 언어장벽 (v79.0.7): 1단계 간파는 턴을 쓰지 않는다. 20턴을 드러낸 뒤 같은 턴에 바꿀 턴을 골라 다시 제출한다.
+  if (m.lbPick && !(a === 'psychic' && act.psychic === 'language-barrier')) return { error: '언어장벽: 먼저 바꿀 턴을 골라 확정해야 한다.' }
+  if (a === 'psychic' && act.psychic === 'language-barrier' && !m.lbPick) {
+    const cost = mpCostOf(m.stats, 20)
+    if (m.mp < cost) return { error: 'no-mp' }
+    const r = languageReveal({ queue: mb.queue, known: mb.known, party: true, enemy: mb.enemy }, cost)
+    mb.queue = r.state.queue
+    mb.known = r.state.known
+    m.mp = Math.max(0, m.mp - cost)
+    m.lbPick = true
+    addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id)
+    return { ok: true, reveal: true }
+  }
   m.act = {
     action: a,
     scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined,
@@ -240,7 +258,7 @@ export function submit(mb, id, act) {
     buff,
     // 원숭이 손: 깎을 체력. 업인과보·형상 기억: 지정한 대상(형상 기억은 자신 또는 치유할 일행).
     amount: a === 'psychic' && act.psychic === 'warding-scripture' ? Math.max(1, Math.floor(act.amount ?? 10)) : undefined,
-    rerolls: a === 'psychic' && act.psychic === 'language-barrier' && Array.isArray(act.rerolls) ? act.rerolls.slice(0,3) : undefined,
+    rerolls: a === 'psychic' && act.psychic === 'language-barrier' ? (Array.isArray(act.rerolls) ? act.rerolls.slice(0,3) : []) : undefined,
     sacrifice: a === 'psychic' && act.psychic === 'monkey-paw' ? Math.max(0, Math.floor(act.sacrifice ?? 0)) : undefined,
     target: a === 'psychic' && ['karmic-recompense', 'echo-form', 'warding-scripture'].includes(act.psychic) && typeof act.target === 'string' ? act.target : undefined,
   }
@@ -524,6 +542,8 @@ export function resolveTurn(mb, rng = Math.random) {
   m.fireBuffed = !!r.state.fireBuffed // 도깨비불을 효험과 함께 썼다면, 터지는 순간까지 들고 있는다
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
+  m.lbPick = false // 언어장벽 고르기는 이 턴의 행동으로 끝난다(시간 초과로 다른 행동이 들어가도 해제)
+  if (r.selfStun) m.stun = Math.max(m.stun || 0, r.selfStun) // 원숭이 손의 대가: 즉시 행동불능 (v79.0.7)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
   // 아군이 영능력을 썼을 때는 팝업으로 바로 보여 줄 수 있도록 표시를 달아 둔다(적 영능력과 같은 꾸며진 팝업). (v71)
   evs.push(
@@ -881,6 +901,8 @@ export function viewOf(mb, extra = {}) {
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
       psychicBring: m.psychicBring,
+      passiveOff: m.passiveOff || [],
+      lbPick: !!m.lbPick,
       curseUntil: m.curseUntil || 0,
       fire: m.fire || 0,
   specialSaved: !!m.specialSaved,

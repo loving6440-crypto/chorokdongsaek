@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Shield, X } from 'lucide-react'
-import { STAT_KEYS, STAT_META } from '../game/constants'
+import { SPIRIT_MAX, STAT_KEYS, STAT_META } from '../game/constants'
 import { PSYCHICS } from '../game/battle'
 import { SKINS } from '../game/skins2048'
 import { SKINS_RUNNER } from '../game/skinsRunner'
@@ -562,7 +562,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
       mpMax,
       hp: num(v.hp, 0, hpMax),
       mp: num(v.mp, 0, mpMax),
-      spirit: num(v.spirit, 0, 9999999),
+      spirit: num(v.spirit, 0, SPIRIT_MAX), // v79.0.8: 영력은 관리자도 500을 넘길 수 없다
       clearWeak: !!v.clearWeak,
       acquirePsychic: v.acquirePsychic || null,
     })
@@ -599,7 +599,7 @@ export default function AdminPanel({ player, userId, adminKey, online, onApply, 
               <Field id="adm-hpMax" label="체력 최대" value={v.hpMax} onChange={set('hpMax')} min={1} />
               <Field id="adm-mp" label="의지력" value={v.mp} onChange={set('mp')} />
               <Field id="adm-mpMax" label="의지력 최대" value={v.mpMax} onChange={set('mpMax')} min={1} />
-              <Field id="adm-spirit" label="영력" value={v.spirit} onChange={set('spirit')} max={9999999} />
+              <Field id="adm-spirit" label={`영력 (최대 ${SPIRIT_MAX})`} value={v.spirit} onChange={set('spirit')} max={SPIRIT_MAX} />
             </div>
             <button type="button" onClick={fill} className="mt-2 rounded border border-edge/25 px-3 py-1 text-xs text-paper/80 hover:bg-edge/10">
               체력·의지력 가득 채우기

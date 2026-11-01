@@ -99,7 +99,7 @@ const exploreAllDone = (w) =>
 
 /** 퀘스트 목록. auto === true 인 항목은 그 시스템(채집 · 동아리별 납품 · 토벌)이 아직 없어 누구나 바로 채운 것으로 친다(보상도 없다). */
 export const CLUB_QUESTS = [
-  { id: 'craft5', label: '제작 5회 하기', reward: { money: 10 }, done: (w) => w.craft >= 5, progress: (w) => [Math.min(w.craft || 0, 5), 5] },
+  { id: 'craft5', label: '제작 5회 하기 (공작소·조리실)', reward: { money: 10 }, done: (w) => w.craft >= 5, progress: (w) => [Math.min(w.craft || 0, 5), 5] },
   // 채집 시스템이 없어 실제로는 달성 조건을 확인할 수 없다 (사용자 지시: 구현 생략 OK) — 보상 없이 '달성'으로만 쳐서
   // '15개 전부'를 이룰 수 있게 한다.
   { id: 'gather5', label: '채집 5회 하기', reward: null, auto: true, done: () => true },
@@ -188,7 +188,7 @@ export function claimMetaQuest(player, questId, now = Date.now()) {
 
 // ───────── 오늘의 동아리 활동(일일 퀘스트) — 매일 00시(KST)에 초기화된다 ─────────
 export const DAILY_QUESTS = [
-  { id: 'd_craft1', label: '제작 1회 하기', reward: { money: 5 }, done: (d) => (d.craft || 0) >= 1 },
+  { id: 'd_craft1', label: '제작 1회 하기 (공작소·조리실)', reward: { money: 5 }, done: (d) => (d.craft || 0) >= 1 },
   { id: 'd_gather1', label: '채집 1회 하기', reward: { money: 5 }, done: (d) => (d.gather || 0) >= 1 },
   { id: 'd_battle2', label: '전투 보상 2번 이상 얻기', reward: { money: 5 }, done: (d) => (d.battleReward || 0) >= 2, progress: (d) => [Math.min(d.battleReward || 0, 2), 2] },
   { id: 'd_lesson3', label: '수업 3회 이상 완료하기', reward: { money: 5 }, done: (d) => (d.lesson || 0) >= 3, progress: (d) => [Math.min(d.lesson || 0, 3), 3] },

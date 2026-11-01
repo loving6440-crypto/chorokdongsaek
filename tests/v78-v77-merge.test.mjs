@@ -9,8 +9,8 @@ const source = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf
 const player = () => ({ hp: 100, hpMax: 100, mp: 100, mpMax: 100, spirit: 40, inventory: {} })
 const site = HUNT_SITES['left-trail-1']
 
-test('뱀은 A3 기준 2×2, 여우는 I3가 포함된 3×3을 실제로 돈다', () => {
-  for (const [id, size] of [['A3', 2], ['I3', 3]]) {
+test('뱀은 A3 기준 2×2, 너구리는 J3가 포함된 3×3을 실제로 돈다 (v79.0.7 시트 기준)', () => {
+  for (const [id, size] of [['A3', 2], ['J3', 3]]) {
     const node = site.nodes.find(n => n.id === id)
     assert.ok(node)
     assert.equal(node.route.length, 4 * (size - 1))

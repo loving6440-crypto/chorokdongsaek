@@ -24,6 +24,7 @@ import GiftModal from './components/GiftModal'
 import CodexModal from './components/CodexModal'
 import CodexEntryModal from './components/CodexEntryModal'
 import BringPicker from './components/BringPicker'
+import PassivePicker from './components/PassivePicker'
 import { ACHIEVEMENTS, rewardText } from './game/achievements'
 import { cancelCraft, recipeOf, startCraft, buyRecipe as buyRecipeAt } from './game/crafting'
 import { cook } from './game/cooking'
@@ -51,7 +52,7 @@ import {
   COURSES,
 } from './game/constants'
 import { LESSON_WAIT_MINUTES } from './game/courseInfo'
-import { ENEMIES } from './game/battle'
+import { ENEMIES, ownedPassives } from './game/battle'
 import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, bumpDaily, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
@@ -75,6 +76,7 @@ import {
   lessonOf,
   pickFortuneStat,
   sanitizeRestored,
+  clampSpirit,
   spendAttempt,
   startTraining,
   startWait,
@@ -158,7 +160,8 @@ export default function Game({
       const candidate = typeof value === 'function' ? value(previous) : value
       // 구매·선물·퀘스트·제작·관리자 지급 등 모든 획득 경로의 마지막 안전망.
       // 기존 30칸 초과 계정의 소지품은 보존하고 새로 얻은 초과분만 수령 대기로 보낸다.
-      const safe = limitNewGains(previous, candidate)
+      // 영력 상한(500)도 여기서 마지막으로 막는다 — 관리자 지급 포함, 어떤 경로든 넘지 않는다. (v79.0.8)
+      const safe = clampSpirit(limitNewGains(previous, candidate))
       playerRef.current = safe
       return safe
     })
@@ -337,7 +340,7 @@ export default function Game({
         setLocationId(trv.toId)
         addLog(`${LOCATIONS[trv.toId].name}에 도착했다.`)
       }
-      nextPlayer = limitNewGains(previousPlayer, nextPlayer)
+      nextPlayer = clampSpirit(limitNewGains(previousPlayer, nextPlayer))
       const pendingGained = Object.entries(nextPlayer.pendingInventory ?? {}).some(([id, n]) => n > (previousPlayer.pendingInventory?.[id] ?? 0))
       if (pendingGained) addLog('소지품이 30칸을 초과해 일부 보상을 수령 대기 물품으로 보관했다. 소지품을 정리한 뒤 수령할 수 있다.')
       playerRef.current = nextPlayer
@@ -400,7 +403,7 @@ export default function Game({
     if (!onSave) return
     const snapshot = {
       character: charOutRef.current,
-      player: playerRef.current,
+      player: clampSpirit(playerRef.current), // 저장되는 값도 상한을 넘지 않게 한 번 더 막는다
       locationId: locationIdRef.current,
       // 수렵 화면은 새로고침/서버 저장 충돌 뒤에도 같은 탭을 복원한다.
       activity: locationIdRef.current === 'gym' && ['hike','pioneer'].includes(activityRef.current) ? activityRef.current : 'intro',
@@ -1034,10 +1037,12 @@ export default function Game({
       if (battleRef.current) return { error: '전투 중이다.' }
       const r = cook(playerRef.current, recipeId, admin)
       if (r.error) return r
-      playerRef.current = r.player
-      setPlayer(r.player)
+      // v79.0.7: 조리도 동아리 퀘스트의 '제작' 1회로 친다.
+      const completed = bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      playerRef.current = completed
+      setPlayer(completed)
       addLog(`조리실에서 ${r.item.name}을(를) 만들었다.`)
-      return r
+      return { ...r, player: completed }
     },
     [addLog, admin],
   )
@@ -1477,11 +1482,15 @@ export default function Game({
 
   // ───────── 다인 전투 ─────────
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
-  const mbSnapshot = () => {
+  const mbSnapshot = (passiveOff = []) => {
     const cur = playerRef.current
-    return { stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { passiveOff, stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
+  // v79.0.7: 일반 다인 전투 전 패시브 영능력(영력결계) 사용 여부 고르기 { enemyId } 또는 { invite: true }
+  const [passivePick, setPassivePick] = useState(null)
+  const [passiveOffPick, setPassiveOffPick] = useState([])
+  const needsPassivePick = () => ownedPassives(playerRef.current.psychics ?? []).length > 0
   const mbLive = !!online.mb && !online.mb.view.over
   const mbLiveRef = useRef(false)
   mbLiveRef.current = mbLive
@@ -1597,7 +1606,7 @@ export default function Game({
     isLeader: !!online.party?.members?.length && online.party.members[0].id === online.me?.id,
     canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online) && online.party.members[0].id === online.me?.id,
     lobby: online.mbLobby,
-    onStart: (enemyId) => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot()) },
+    onStart: (enemyId) => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : needsPassivePick() ? (setPassiveOffPick([]), setPassivePick({ enemyId })) : mbStart(enemyId, mbSnapshot()) },
     onCancel: mbCancel,
   }
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
@@ -2124,7 +2133,7 @@ export default function Game({
               <InviteCountdown expires={online.mbInvite.expires} />
             </p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" onClick={() => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : mbRespond(true, mbSnapshot()) }} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
+              <button type="button" onClick={() => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return online.mbInvite.enemy.boss ? setBringPick({ invite: true }) : needsPassivePick() ? (setPassiveOffPick([]), setPassivePick({ invite: true })) : mbRespond(true, mbSnapshot()) }} className="rounded border border-gold bg-gold px-6 py-1.5 text-sm font-medium text-ink hover:brightness-110">
                 참여
               </button>
               <button type="button" onClick={() => mbRespond(false)} className="rounded border border-gold/40 px-6 py-1.5 text-sm text-gold hover:bg-gold/10">
@@ -2133,6 +2142,20 @@ export default function Game({
             </div>
           </div>
         </div>
+      )}
+      {passivePick && (
+        <PassivePicker
+          owned={player.psychics ?? []}
+          off={passiveOffPick}
+          onChange={setPassiveOffPick}
+          onCancel={() => { const pick = passivePick; setPassivePick(null); if (pick.invite) mbRespond(false) }}
+          onConfirm={() => {
+            const pick = passivePick
+            setPassivePick(null)
+            if (pick.invite) mbRespond(true, mbSnapshot(passiveOffPick))
+            else mbStart(pick.enemyId, mbSnapshot(passiveOffPick))
+          }}
+        />
       )}
       {bringPick && (
         <BringPicker

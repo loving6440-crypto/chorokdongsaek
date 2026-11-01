@@ -608,6 +608,7 @@ const mbInfo = (c, me) => ({
   name: c.name,
   bring: me?.bring === undefined ? undefined : cleanBring(me.bring),
   psychicBring: me?.psychicBring === undefined ? undefined : cleanPsychicBring(me.psychicBring),
+  passiveOff: Array.isArray(me?.passiveOff) ? me.passiveOff.filter((x) => x === 'spirit-barrier') : [], // v79.0.7: 전투 전에 끈 패시브
   stats: me?.stats,
   psychics: Array.isArray(me?.psychics) ? me.psychics.filter(x=>PSYCHICS.some(p=>p.id===x)) : [],
   curseUntil: Number.isFinite(me?.curseUntil) ? Math.max(0, Math.floor(me.curseUntil)) : 0,
@@ -2506,6 +2507,7 @@ async function handleApi(req, res, url) {
     if (!g || g.phase !== 'fight') return json(res, 410, { error: 'expired' })
     const r = MB.submit(g.mb, me.id, body.act)
     if (r.error) return json(res, 409, r)
+    if (r.reveal) { mbPush(g); return json(res, 200, { ok: true }) } // 언어장벽 간파: 턴은 그대로, 화면만 갱신
     if (MB.ready(g.mb)) mbStep(g)
     else mbPush(g)
     return json(res, 200, { ok: true })

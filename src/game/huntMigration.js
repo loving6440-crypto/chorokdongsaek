@@ -1,6 +1,6 @@
 // v78 시범판 저장 데이터 호환: 이전 판에 없던 보상 ID / 잘못된 순찰 경로를 복구한다.
 // 다른 v77 진행 상태는 변경하지 않는다.
-import { HUNT_SITES, HUNT_SPECIES } from './huntSites.js'
+import { HUNT_SITES, HUNT_SPECIES, clockwiseRoute } from './huntSites.js'
 
 const OLD_IDS = { rock: 'stone', raspberry: 'wild-raspberry', 'trap-scrap': 'trap-scraps' }
 
@@ -22,6 +22,10 @@ function fixRewards(rewards) {
   return rewards.map(x => OLD_IDS[x.item] ? { ...x, item: OLD_IDS[x.item] } : x)
 }
 
+const LEGACY_ANIMALS = {
+  'left-trail-1:I3': { id: 'I3', kind: 'animal', x: 8, y: 2, route: clockwiseRoute(7, 2, 3) },
+}
+
 function sameRoute(a, b) {
   return Array.isArray(a) && a.length === b?.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y)
 }
@@ -32,7 +36,8 @@ function fixSession(session) {
   let changed = false
   const nodes = session.nodes.map(node => {
     let next = node
-    const definition = site?.nodes.find(point => point.id === node.id && point.kind === 'animal')
+    // v79.0.7: 산길-1의 I3 여우는 시트 기준 J3 너구리로 바뀌었다. 진행 중이던 옛 저장분의 I3 여우는 원래 3×3 경로로 계속 돈다.
+    const definition = site?.nodes.find(point => point.id === node.id && point.kind === 'animal') ?? LEGACY_ANIMALS[`${session.siteId}:${node.id}`]
     if (definition?.route && !sameRoute(node.route, definition.route)) {
       // 잘못된 기존 9×9 순찰 경로 때문에 여우가 멈춰 있었던 저장분도 복구한다.
       const onPath = definition.route.some(p => p.x === node.x && p.y === node.y)
