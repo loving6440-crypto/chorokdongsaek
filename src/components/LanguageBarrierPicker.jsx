@@ -3,7 +3,7 @@ import { INTENTS } from '../game/battle'
 
 /**
  * 언어장벽 (v79.0.7): 1) 먼저 [간파하기]로 적의 행동 20턴을 드러내고
- * 2) 드러난 20턴의 내용을 보고 바꿀 턴을 최대 3개 골라 [확정]한다.
+ * 2) 드러난 20턴의 내용을 보고 바꿀 턴을 최대 3개 골라 [확정]한다. (확정하면 내 턴이 끝난다)
  * 단독·다인 전투가 함께 쓴다.
  */
 export default function LanguageBarrierPicker({ picking, queue = [], cost, disabled, onReveal, onConfirm }) {

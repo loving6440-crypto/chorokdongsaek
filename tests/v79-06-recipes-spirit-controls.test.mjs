@@ -60,14 +60,24 @@ test('공작소/조리실 즉석 제작은 소지품 30칸 제한도 지킨다',
   assert.equal(cook({},'bad-recipe').error,'그런 요리법은 없다.')
 })
 
-test('영물은 모서리의 정확한 마지막 1칸에서 정지한다 (2×2 순찰 없음)', () => {
-  for(const [x,y] of [[0,0],[0,9],[9,0],[9,9]]) {
-    let current={ position:{x:5,y:5}, nodes:[{id:'spirit',kind:'spirit',attemptsLeft:3,x,y}] }
-    for(let i=0;i<12;i++) current=moveHuntCreatures(current)
-    assert.deepEqual([current.nodes[0].x,current.nodes[0].y],[x,y])
+test('영물은 네 모서리의 2×2 사각형 안에 닿으면 즉시 멈춘다 (v-B.03)', () => {
+  // 2×2 구역 16칸: 어느 칸이든 그 자리에서 멈춘다
+  const zone = [0, 1, 8, 9].flatMap((x) => [0, 1, 8, 9].map((y) => [x, y]))
+  for (const [x, y] of zone) {
+    let current = { position: { x: 5, y: 5 }, nodes: [{ id: 'spirit', kind: 'spirit', attemptsLeft: 3, x, y }] }
+    for (let i = 0; i < 12; i++) current = moveHuntCreatures(current)
+    assert.deepEqual([current.nodes[0].x, current.nodes[0].y], [x, y], `${x},${y}`)
   }
-  const moving=moveHuntCreatures({position:{x:5,y:5},nodes:[{id:'spirit',kind:'spirit',attemptsLeft:3,x:1,y:1}]})
-  assert.notDeepEqual([moving.nodes[0].x,moving.nodes[0].y],[1,1], '모서리 아닌 칸에서 도망')
+  // 구역 밖(C3 등)에서는 도망치고, 구역에 닿는 순간 멈춘다
+  for (const [x, y] of [[2, 2], [2, 0], [0, 2], [7, 7]]) {
+    const moving = moveHuntCreatures({ position: { x: 5, y: 5 }, nodes: [{ id: 'spirit', kind: 'spirit', attemptsLeft: 3, x, y }] })
+    assert.notDeepEqual([moving.nodes[0].x, moving.nodes[0].y], [x, y], `${x},${y}에서는 도망`)
+  }
+  let run = { position: { x: 5, y: 5 }, nodes: [{ id: 'spirit', kind: 'spirit', attemptsLeft: 3, x: 3, y: 3 }] }
+  for (let i = 0; i < 10; i++) run = moveHuntCreatures(run)
+  const end = run.nodes[0]
+  assert.ok((end.x <= 1 || end.x >= 8) && (end.y <= 1 || end.y >= 8), '결국 2×2 구역에서 멈춘다')
+  assert.ok(end.x === 1 || end.y === 1 || end.x === 8 || end.y === 8, '모서리 끝까지 가지 않고 구역에 닿자마자 멈춘다')
 })
 
 test('플레이어는 방향 이동 버튼으로만 움직이며 타일·키보드는 정보 선택만 한다',()=>{

@@ -242,7 +242,8 @@ export function submit(mb, id, act) {
   if ((m.psySeal || 0) > 0 && (a === 'psychic' || act?.buff)) return { error: `영능력이 봉인되어 있다. (남은 ${m.psySeal}라운드)` }
   // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
   if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
-  // 언어장벽 (v79.0.7): 1단계 간파는 턴을 쓰지 않는다. 20턴을 드러낸 뒤 같은 턴에 바꿀 턴을 골라 다시 제출한다.
+  // 언어장벽 (v79.0.7): 1단계 간파는 턴을 쓰지 않는다. 20턴을 드러낸 뒤 같은 턴에 바꿀 턴을 골라 다시 제출한다(이때 턴이 끝난다).
+  // 몇 번째 라운드든, 일행 중 몇 번째 순서든 자기 차례면 언제든 쓸 수 있다.
   if (m.lbPick && !(a === 'psychic' && act.psychic === 'language-barrier')) return { error: '언어장벽: 먼저 바꿀 턴을 골라 확정해야 한다.' }
   if (a === 'psychic' && act.psychic === 'language-barrier' && !m.lbPick) {
     const cost = mpCostOf(m.stats, 20)
