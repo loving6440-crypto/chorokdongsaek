@@ -10,6 +10,10 @@
 
 /** 전투 보상 = 상대 영력의 2배 */
 export const REWARD_MULT = 2
+/** 그슨대 [내리누르기]의 영능력 봉인 라운드 수 (v-B.02) */
+export const PSY_SEAL_ROUNDS = 3
+/** 그슨대 [어둠 드리우기]의 의지력 흡수 주사위 면 수: 영력의 3/4 */
+export const darkDrainDie = (enemy) => Math.max(1, Math.floor(enemy.spirit * 0.75))
 
 export const ENEMIES = [
   {
@@ -92,10 +96,42 @@ export const ENEMIES = [
       '평소에도 단체 공격이 자주 나온다.',
     ],
   },
+  {
+    id: 'geuseundae',
+    name: '그슨대',
+    blurb: '어둠 속에서 사람 앞을 가로막는 그림자 거인. 올려다볼수록 끝없이 커진다고 한다. 셋은 모여야 맞설 수 있다.',
+    tier: 5,
+    partySize: 3,
+    boss: true,
+    tags: ['다인 전투', '보스'],
+    // 밸런스(v-B.02 몬테카를로 3000판, 3인·전원 스탯 18~20, 아이템 없이):
+    //   숙련 플레이(도깨비불·효험·간파·막기 사용) 승률 약 23~24%, 평균 16라운드 — 불가살이(적정 스탯 8~10, 같은 방식 28%)보다 조금 어렵게 의도.
+    //   단순 공격 위주 약 27%. 스탯 15~17이면 약 5%, 21~23이면 약 44%.
+    hp: 1400,
+    atk: 23,
+    act: 18,
+    spirit: 24,
+    // 간파로 올려다볼 때마다(그리고 체력 25% 미만이면 매 라운드) 커진다: 1단계마다 공격력 +2, 최대 5단계. (mbattle.js growBoss)
+    grows: { atkPerStage: 2, max: 5 },
+    rage: {
+      stage1: '그슨대의 그림자가 짙어진다! (3라운드마다 반드시 영능력을 쓴다)',
+      stage2: '그슨대가 끝없이 솟아오른다! (이제 매 라운드 끝마다 더 커진다)',
+      jabToGroup: false,
+      growEachRound: true,
+    },
+    special: { label: '내리누르기', note: '한 사람을 거대한 손바닥으로 내리누른다. 막을 수 없는 피해를 주고, 다음 3라운드 동안 영능력을 봉인한다.' },
+    special2: { label: '어둠 드리우기', note: '일행 전원 위로 그림자를 드리운다. 막을 수 있는 피해를 주는 대신 의지력을 더 많이 빨아들인다.' },
+    gimmicks: [
+      '간파로 그슨대를 올려다볼 때마다 그슨대가 커진다. (1단계마다 공격력 +2, 최대 5단계)',
+      '체력 50% 미만: 3라운드마다 반드시 영능력을 쓴다.',
+      '체력 25% 미만: 매 라운드 끝마다 스스로 한 단계씩 커진다.',
+      '평소에도 단체 공격이 자주 나온다.',
+    ],
+  },
 ].map((e, i) => ({ ...e, tier: e.tier ?? i + 1, partySize: e.partySize ?? 1, reward: e.spirit * REWARD_MULT }))
 
 /** 단계별 적정 레벨(모든 스탯이 대략 이 정도일 때) */
-export const REC_STATS = { 1: '2~3', 2: '5~6', 3: '8~10' }
+export const REC_STATS = { 1: '2~3', 2: '5~6', 3: '8~10', 4: '15~17', 5: '18~20' }
 export const recLabel = (e) => `모든 스탯 ${REC_STATS[e.tier] ?? '?'} 기준`
 export const partyLabel = (e) => (e.partySize > 1 ? `적정 ${e.partySize}명` : '적정 1명')
 
@@ -577,6 +613,13 @@ export function specialEffects(enemy) {
         '영능력을 쓸 때 두 가지 중 하나가 나온다.',
         spiritNote,
       ]
+    case 'geuseundae':
+      return [
+        `《${enemy.special.label}》 한 사람: 막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}), 다음 ${PSY_SEAL_ROUNDS}라운드 동안 영능력(효험 포함) 봉인.`,
+        `《${enemy.special2.label}》 일행 전원: 막을 수 있는 피해 1d${atk} + ${Math.floor(spirit / 3)} (${1 + Math.floor(spirit / 3)}~${atk + Math.floor(spirit / 3)}, 막기·방어로 줄어든다), 의지력 1d${darkDrainDie(enemy)} 흡수 (남은 의지력이 한도).`,
+        '영능력을 쓸 때 두 가지 중 하나가 나온다. 커질수록 공격력(위 피해의 d값)이 오른다.',
+        spiritNote,
+      ]
     case 'snake':
       return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.', spiritNote]
     case 'wonhon':
@@ -999,6 +1042,24 @@ export function enemyTurn(state, ctx, rng = Math.random) {
         mpDrain = Math.min(mp, rr * 2)
         spEv.result = `${a + enemy.spirit} 피해 (막기 불가), 의지력 ${mpDrain} 흡수`
         ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다!` })
+      }
+    } else if (enemy.id === 'geuseundae') {
+      if (sp2) {
+        // 어둠 드리우기: 막을 수 있는 피해(약공처럼 막기로 줄어든다) + 의지력을 더 많이 흡수.
+        const a = die(enemy.atk, rng)
+        const add = Math.floor(enemy.spirit / 3)
+        hurt(a + add, `${enemy.name}의 어둠 드리우기`, { kind: 'jab' })
+        const rr = die(darkDrainDie(enemy), rng)
+        mpDrain = Math.min(mp, rr)
+        spEv.result = `${a + add} 피해 (막을 수 있음), 의지력 ${mpDrain} 흡수`
+        ev.push({ kind: 'warn', text: `그림자에 덮였다! 의지력이 ${mpDrain} 빨려 나갔다.` })
+      } else {
+        // 내리누르기: 막을 수 없는 피해 + 다음 3라운드 동안 영능력 봉인.
+        const a = die(enemy.atk, rng)
+        hurt(a + enemy.spirit, `${enemy.name}의 내리누르기`, { blockable: false })
+        spEv.result = `${a + enemy.spirit} 피해 (막기 불가), ${PSY_SEAL_ROUNDS}라운드 동안 영능력 봉인`
+        s.psySeal = PSY_SEAL_ROUNDS
+        ev.push({ kind: 'warn', text: `거대한 손에 짓눌렸다! 다음 ${PSY_SEAL_ROUNDS}라운드 동안 영능력을 쓸 수 없다.` })
       }
     } else if (enemy.id === 'scarecrow') {
       const rr = die(enemy.spirit, rng)

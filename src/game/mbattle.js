@@ -94,7 +94,9 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
   const members = rawMembers.map(makeMember)
   const base = newBattle(enemy, members[0].stats, rng, undefined, undefined, { party: true }) // 상대의 행동 큐(여럿이 함께 본다) — 일행을 상대하는 판
   const mb = {
-    enemy,
+    // 보스가 전투 중 커지는 등 능력치가 바뀔 수 있어, 원본(ENEMIES)을 건드리지 않도록 복사해 둔다.
+    enemy: { ...enemy },
+    grow: 0, // 커지는 보스(그슨대)의 현재 단계
     ehp: enemy.hp,
     espirit: enemy.spirit, // 영능력 전용 영력 자원(다인 전투는 일행 수와 무관하게 한 번 쓸 때마다 한 번만 깎인다)
     party: true,
@@ -236,6 +238,8 @@ export function submit(mb, id, act) {
   if (barrierActive && act?.buff) return { error: '영력결계가 발동 중이면 효험을 사용할 수 없다.' }
   if (a === 'psychic' && barrierActive && !BARRIER_ALLY_SKILLS.includes(act.psychic)) return { error: '영력결계가 발동 중이면 적 대상 영능력을 사용할 수 없다.' }
   if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
+  // 그슨대 [내리누르기]: 봉인된 동안은 영능력(효험 포함)을 쓸 수 없다.
+  if ((m.psySeal || 0) > 0 && (a === 'psychic' || act?.buff)) return { error: `영능력이 봉인되어 있다. (남은 ${m.psySeal}라운드)` }
   // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
   if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
   // 언어장벽 (v79.0.7): 1단계 간파는 턴을 쓰지 않는다. 20턴을 드러낸 뒤 같은 턴에 바꿀 턴을 골라 다시 제출한다.
@@ -543,6 +547,8 @@ export function resolveTurn(mb, rng = Math.random) {
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
   m.lbPick = false // 언어장벽 고르기는 이 턴의 행동으로 끝난다(시간 초과로 다른 행동이 들어가도 해제)
+  // 그슨대: 간파로 올려다보면 커진다.
+  if (act.action === 'scan' && mb.enemy.grows) evs.push(...growBoss(mb, 1, `${m.name}이(가) ${mb.enemy.name}을(를) 올려다보았다.`))
   if (r.selfStun) m.stun = Math.max(m.stun || 0, r.selfStun) // 원숭이 손의 대가: 즉시 행동불능 (v79.0.7)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
   // 아군이 영능력을 썼을 때는 팝업으로 바로 보여 줄 수 있도록 표시를 달아 둔다(적 영능력과 같은 꾸며진 팝업). (v71)
@@ -602,12 +608,16 @@ export function bossGimmick(mb, intent) {
   if (!mb.enemy.boss) return { intent, notes }
   const ratio = mb.ehp / mb.enemy.hp
   const stage = ratio < 0.25 ? 2 : ratio < 0.5 ? 1 : 0
+  // 보스마다 광분 단계 문구·효과가 다를 수 있다(없으면 불가살이 방식).
+  const rage = mb.enemy.rage ?? {}
   if (stage > (mb.rage || 0)) {
     mb.rage = stage
-    notes.push(stage === 1 ? `${mb.enemy.name}이(가) 사납게 몸을 뒤튼다! (3라운드마다 반드시 영능력을 쓴다)` : `${mb.enemy.name}이(가) 광분한다! (약공이 모두 단체 공격으로 바뀐다)`)
+    notes.push(stage === 1
+      ? rage.stage1 ?? `${mb.enemy.name}이(가) 사납게 몸을 뒤튼다! (3라운드마다 반드시 영능력을 쓴다)`
+      : rage.stage2 ?? `${mb.enemy.name}이(가) 광분한다! (약공이 모두 단체 공격으로 바뀐다)`)
   }
   let out = intent
-  if (stage >= 2 && out === 'jab') out = 'group'
+  if (stage >= 2 && rage.jabToGroup !== false && out === 'jab') out = 'group'
   if (stage >= 1 && mb.round % 3 === 0 && ['jab', 'group', 'guard'].includes(out)) out = 'special'
   return { intent: out, notes }
 }
@@ -759,6 +769,7 @@ function enemyPhase(mb, rng) {
     t.specialSeen = !!r.state.specialSeen
     t.curse = r.state.curse
     t.bound = r.state.bound || t.bound
+    if ((r.state.psySeal || 0) > 0) { t.psySeal = r.state.psySeal; t.psySealFresh = true } // 이번 라운드에 걸린 봉인은 다음 라운드부터 센다
     t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
     // 대상 면역일 때 생긴 내부 '행동이 무효화' 안내는 적 전체가 공격을 취소한 것으로 오해될 수 있으므로 숨긴다.
     let tevs = (blocksGroupSpecial ? r.events.filter(e => !/행동이 무효화/.test(e.text || '')) : r.events)
@@ -790,7 +801,32 @@ function enemyPhase(mb, rng) {
     evs.push(...addLog(mb, [{ kind: 'end', text: `${mb.enemy.name}이(가) 쓰러졌다.` }]))
     return evs
   }
+  // 영능력 봉인: 걸린 라운드 다음부터 한 라운드가 끝날 때마다 1씩 줄어든다(= 다음 3라운드 동안 봉인).
+  for (const m of mb.members) {
+    if (m.psySealFresh) m.psySealFresh = false
+    else if ((m.psySeal || 0) > 0) {
+      m.psySeal -= 1
+      if (!m.psySeal) evs.push(...addLog(mb, [{ kind: 'info', text: `[${m.name}] 영능력 봉인이 풀렸다.` }], m.id))
+    }
+  }
+  // 그슨대: 체력 25% 미만이면 매 라운드 끝마다 스스로 커진다.
+  if (mb.enemy.rage?.growEachRound && (mb.rage || 0) >= 2) evs.push(...growBoss(mb, 1, '그림자가 하늘까지 솟는다.'))
   return evs.concat(afterEnemy(mb, rng))
+}
+
+/**
+ * 커지는 보스(그슨대): 단계를 올리고 공격력을 다시 계산한다. 최대 단계면 그대로.
+ * 반환: 로그 이벤트 목록
+ */
+export function growBoss(mb, amount, reason) {
+  const g = mb.enemy.grows
+  if (!g || amount <= 0) return []
+  const base = ENEMIES.find((e) => e.id === mb.enemy.id)?.atk ?? mb.enemy.atk
+  const before = mb.grow || 0
+  mb.grow = Math.min(g.max, before + amount)
+  mb.enemy.atk = base + g.atkPerStage * mb.grow
+  if (mb.grow === before) return addLog(mb, [{ kind: 'info', text: `${reason} 그러나 ${mb.enemy.name}은(는) 이미 끝까지 커졌다. (${mb.grow}/${g.max}단계)` }], 'enemy')
+  return addLog(mb, [{ kind: 'warn', text: `${reason} ${mb.enemy.name}이(가) 더 커졌다! (${mb.grow}/${g.max}단계 · 공격력 ${mb.enemy.atk})` }], 'enemy')
 }
 
 /** 버티기 대기자가 있으면 그 단계로, 없으면 다음 라운드로 */
@@ -874,6 +910,8 @@ export function viewOf(mb, extra = {}) {
     enemyId: mb.enemy.id,
     boss: !!mb.enemy.boss,
     rage: mb.rage || 0,
+    grow: mb.grow || 0, // 커지는 보스(그슨대)의 현재 단계
+    enemyAtk: mb.enemy.atk, // 전투 중 바뀐 현재 공격력
     ehp: mb.ehp,
     queue: mb.queue.slice(0, mb.over ? 0 : mb.known),
     known: mb.over ? 0 : mb.known,
@@ -903,6 +941,7 @@ export function viewOf(mb, extra = {}) {
       psychicBring: m.psychicBring,
       passiveOff: m.passiveOff || [],
       lbPick: !!m.lbPick,
+      psySeal: m.psySeal || 0, // 영능력 봉인 남은 라운드 (그슨대)
       curseUntil: m.curseUntil || 0,
       fire: m.fire || 0,
   specialSaved: !!m.specialSaved,

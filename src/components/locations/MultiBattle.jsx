@@ -119,7 +119,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const send = async (act) => {
     if (!canAct) return
     const buffed =
-      !barrierActive && buffArmed &&
+      !barrierActive && !((me?.psySeal || 0) > 0) && buffArmed &&
       (act.action === 'attack' ||
         act.action === 'charm' ||
         (act.action === 'psychic' && (act.psychic === 'survival' || act.psychic === 'monkey-paw' || act.psychic === 'dokkaebi-fire')))
@@ -150,7 +150,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   // 의지력 10을 정확히 다 낼 수 있어야만 켤 수 있다(모자라면 토글 자체가 막힌다). (v70)
   const toggleBuff = () => {
     if (!canAct) return
-    if (barrierActive) return
+    if (barrierActive || (me?.psySeal || 0) > 0) return
     setBuffArmed((v) => (!v && have < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
   useEffect(() => {
@@ -211,7 +211,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       {view.boss && (
         <p className="mt-2 rounded-lg bg-crimson/15 px-3 py-1.5 text-[11px] text-paper/80" data-boss-note>
           보스 전투 — 가져온 아이템만 쓸 수 있다{me?.bring ? ` (남은 ${Object.values(me.bring).reduce((a, b) => a + b, 0)}개)` : ''}.
-          {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{view.rage >= 2 ? '광분 — 약공이 모두 단체 공격!' : '분노 — 3라운드마다 반드시 영능력!'}</b> : null}
+          {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{view.rage >= 2 ? (enemy?.rage?.growEachRound ? '솟아오름 — 매 라운드 끝마다 커진다!' : '광분 — 약공이 모두 단체 공격!') : '분노 — 3라운드마다 반드시 영능력!'}</b> : null}
+          {enemy?.grows ? <b className="ml-1 text-gold" data-boss-grow={view.grow || 0}>커짐 {view.grow || 0}/{enemy.grows.max}단계 (간파로 올려다보면 커진다)</b> : null}
         </p>
       )}
       {!view.over && (
@@ -290,6 +291,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                   <span>의지력 {Math.floor(m.mp)}</span>
                   <span>· 부적 {m.charms}장</span>
                   {m.bound && <span className="text-crimson">· 막기 불가</span>}
+                  {m.psySeal > 0 && <span className="text-crimson" data-psy-seal={m.psySeal}>· 영능력 봉인 {m.psySeal}라운드</span>}
                   {m.boost && <span className="text-gold">· 아이템 대기</span>}
                   {m.revive && <span className="text-gold">· 부활 대기</span>}
                 </p>
@@ -334,7 +336,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               !canAct && id !== 'psychic'
                 ? true
                 : id === 'psychic'
-                  ? !canAct
+                  ? !canAct || (me?.psySeal || 0) > 0
                   : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
             return (
               <button
