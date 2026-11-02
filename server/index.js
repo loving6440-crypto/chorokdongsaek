@@ -492,7 +492,10 @@ function disbandParty(p) {
 // ───────── 다인 전투 ─────────
 // 일행(파티) 중 한 명이 '다인 전투' 상대에게 도전하면 나머지 일행에게 초대가 가고, 수락한 사람들이 한 판에서 함께 싸운다.
 // 판은 서버가 진행한다. (src/game/mbattle.js)
-const MB_LOBBY_MS = 30_000
+// v-B.01: 파티 전투 수락 대기 30초 → 1분, 보스 전투는 영능력·아이템을 고를 시간까지 2분.
+const MB_LOBBY_MS = 60_000
+const MB_BOSS_LOBBY_MS = 120_000
+const mbLobbyMs = (enemy) => (enemy?.boss ? MB_BOSS_LOBBY_MS : MB_LOBBY_MS)
 const mbs = new Map() // bid → { id, host, enemyId, phase: 'lobby'|'fight'|'over', invited: {id: 'wait'|'yes'|'no'}, joins: {id: info}, mb, timer, deadline }
 const mbOf = new Map() // playerId → bid (로비이거나 전투 중)
 let mbSeq = 1
@@ -2467,12 +2470,12 @@ async function handleApi(req, res, url) {
     mbOf.set(me.id, g.id)
     for (const m of free) {
       mbOf.set(m, g.id)
-      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name, boss: !!enemy.boss }, expires: Date.now() + MB_LOBBY_MS })
+      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name, boss: !!enemy.boss }, expires: Date.now() + mbLobbyMs(enemy) })
     }
     g.timer = setTimeout(() => {
       for (const id of Object.keys(g.invited)) if (g.invited[id] === 'wait') g.invited[id] = 'no'
       mbLobbyCheck(g)
-    }, MB_LOBBY_MS)
+    }, mbLobbyMs(enemy))
     mbLobbyCheck(g)
     return json(res, 200, { ok: true, bid: g.id, invited: free.length })
   }

@@ -25,6 +25,7 @@ import CodexModal from './components/CodexModal'
 import CodexEntryModal from './components/CodexEntryModal'
 import BringPicker from './components/BringPicker'
 import PassivePicker from './components/PassivePicker'
+import { saveBossSlot } from './game/bossSlots'
 import { ACHIEVEMENTS, rewardText } from './game/achievements'
 import { cancelCraft, recipeOf, startCraft, buyRecipe as buyRecipeAt } from './game/crafting'
 import { cook } from './game/cooking'
@@ -1412,7 +1413,9 @@ export default function Game({
           result.player.huntExpedition.turn < result.player.huntExpedition.maxTurns) {
           throw new Error('수렵 턴이 남아 있는데 채집으로 종료되었습니다.')
         }
-        const next = syncCodex(result.player)
+        // v-B.01: 개척 터에 들어갈 때마다 동아리 '개척' 1회 (주간 개척 10회 · 오늘 개척 2회)
+        const counted = action.type === 'enter' ? bumpDaily(bumpWeekly(result.player, 'pioneer', 1, now), 'pioneer', 1, now) : result.player
+        const next = syncCodex(counted)
         playerRef.current = next
         setPlayer(next)
         if (result.logs?.length) addLogs(result.logs)
@@ -2163,6 +2166,7 @@ export default function Game({
           psychics={player.psychics ?? []}
           enemyName={bringPick.invite ? online.mbInvite?.enemy?.name : ENEMIES.find((e) => e.id === bringPick.enemyId)?.name}
           onCancel={() => setBringPick(null)}
+          onSaveSlot={(index, items, psychics) => setPlayer((p) => saveBossSlot(p, index, items, psychics))}
           onConfirm={(bring, psychicBring) => {
             const pick = bringPick
             setBringPick(null)

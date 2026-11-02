@@ -42,15 +42,14 @@ test('무구보관소에 랜덤 대사, 재대화, NPC 선물 이벤트가 실�
 })
 
 test('행동 횟수 소진 시 수렵은 종료되나 확인 팝업으로 명시 안내하고 확인 시 닫는다', () => {
-  const hike = source('src/components/locations/Hike.jsx')
-  assert.match(hike, /previousHuntStatus\.current === 'active' && status === 'finished'/)
-  assert.match(hike, /session\?\.turn >= session\?\.maxTurns/)
-  assert.match(hike, /setTurnExhausted\(true\)/)
-  assert.match(hike, /role="alertdialog" aria-modal="true"/)
-  assert.match(hike, /행동 가능한 턴을 소진했습니다\. 채집을 종료합니다\./)
-  assert.match(hike, /data-hunt-end-confirm/)
-  assert.match(hike, /onClick=\{acknowledgeTurnExhausted\}/)
-  assert.match(hike, /const acknowledgeTurnExhausted = \(\) => \{[\s\S]*?setTurnExhausted\(false\)[\s\S]*?setHuntOn\(false\)/)
+  // v-B.01: 산 탐색 안의 개척 입구를 없앴으므로, 턴 소진 안내는 [개척] 화면(Pioneer)이 맡는다.
+  const pioneer = source('src/components/locations/Pioneer.jsx')
+  assert.match(pioneer, /previous\.current === 'active' && session\?\.status === 'finished' && session\.turn >= session\.maxTurns/)
+  assert.match(pioneer, /setShowEnd\(true\)/)
+  assert.match(pioneer, /role="alertdialog" aria-modal="true"/)
+  assert.match(pioneer, /행동 가능한 턴을 소진했습니다\. 채집을 종료합니다\./)
+  assert.match(pioneer, /onClick=\{\(\)=>setShowEnd\(false\)\}/)
+  assert.doesNotMatch(source('src/components/locations/Hike.jsx'), /HuntField/)
   const site = HUNT_SITES['left-trail-1']
   let session = enterHuntSite(player(), site, 1000, () => 0.99).player
   for (let i = 0; i < site.maxTurns; i++) {
