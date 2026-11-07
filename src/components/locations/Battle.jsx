@@ -10,6 +10,7 @@ import {
   BUFF_COST,
   ACTIONS,
   ENEMIES,
+  enemyById,
   INTENTS,
   bellTick,
   enemyTurn,
@@ -27,6 +28,16 @@ import {
   scanTurns,
   recLabel,
   partyLabel,
+  afterPlayer,
+  beforePlayer,
+  playerTurnStart,
+  statusChips,
+  enemyChips,
+  shownQueue,
+  effectPierces,
+  healBlocked,
+  itemSealed,
+  blockedActions,
 } from '../../game/battle'
 import { slowFightMinutes, SLOW_FIGHT_COST_PER_SPIRIT } from '../../game/progress'
 
@@ -46,7 +57,9 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive }) {
+export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive, roster, rosterIntro, onAfflict }) {
+  // v-B.05: 둘레길 [추가전투]는 같은 화면에 다른 상대 목록(roster)을 넘긴다. 없으면 체육관 상대들.
+  const list = roster ?? ENEMIES
   const [phase, setPhase] = useState('pick') // pick | fight | result
   const [tutorialOpen, setTutorialOpen] = useState(false) // 바리의 전투 안내(v72: 자동으로 뜨지 않고, 이 화면에서 직접 열 때만 보여 준다)
   // 튜토리얼이 열려 있는 동안엔 사이드바(ProfileSidebar)의 체력·의지력 표시도 100으로 보여 달라는
@@ -79,7 +92,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   const passiveOffRef = useRef([])
   const [pendingStart, setPendingStart] = useState(null) // 패시브 선택창을 띄운 상태에서 시작할 적
   /** 이번 전투에서 영력결계가 실제로 켜져 있는가 (단독 보스전에서는 적용하지 않는다) */
-  const barrierOn = (enemy) => psychics.includes('spirit-barrier') && !passiveOffRef.current.includes('spirit-barrier') && !enemy?.boss
+  const barrierOn = (enemy, st = bRef.current) => psychics.includes('spirit-barrier') && !passiveOffRef.current.includes('spirit-barrier') && !enemy?.boss && !st?.barrierBroken // v-B.05: 결계째 삼키기
   const [spBanner, setSpBanner] = useState(null) // 상대가 영능력을 쓴 순간의 큰 알림
   const beginRef = useRef(null)
   const timer = useRef(null)
@@ -114,10 +127,18 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     if (!fightingRef.current) return
     setB((cur) => {
       if (!cur || cur.over || cur.pendingDeath || cur.php <= 0) return cur
+      if (healBlocked(cur)) return cur // v-B.05 돌림병: 회복이 듣지 않는다
       const h = Math.floor(hp)
       return h > cur.php ? { ...cur, php: Math.min(cur.phpMax, h) } : cur
     })
   }, [hp])
+
+  // v-B.05: 아이템 봉인·돌림병을 바깥(소지품 창)에 알린다.
+  const afflictKey = b && phase === 'fight' && !b.over ? `${itemSealed(b) ? 1 : 0}${healBlocked(b) ? 1 : 0}` : '00'
+  useEffect(() => {
+    onAfflict?.({ itemSeal: afflictKey[0] === '1', healBlock: afflictKey[1] === '1' })
+  }, [afflictKey, onAfflict])
+  useEffect(() => () => onAfflict?.({ itemSeal: false, healBlock: false }), [onAfflict])
 
   // 체력은 전투 후에도 이어진다: 바뀔 때마다 몸 상태(비율)를 바깥에 알린다.
   const lastHp = useRef(null)
@@ -180,17 +201,20 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       setBusy(true)
       timer.current = setTimeout(() => {
         // 영력결계는 자신을 향한 적 영능력을 약공으로 바꾼다.
-        const barrier = barrierOn(state.enemy) && state.queue?.[0] === 'special'
+        const barrier = barrierOn(state.enemy, state) && state.queue?.[0] === 'special' && !effectPierces(state.enemy?.special) // v-B.05: 결계째 삼키는 영능력은 그대로 들어온다
         const state0 = barrier ? {...state, queue: ['jab', ...state.queue.slice(1)]} : state
-        const r = enemyTurn(state0, { stats, mp: mpRef.current })
+        // 지신밟기는 enemyTurn 안에서 받는 피해에 바로 적용한다(reduction). (v-B.04)
+        const r = enemyTurn(state0, { stats, mp: mpRef.current, reduction: state.earthReduction || 0 })
         if (barrier) r.events.unshift({kind:'warn',text:'영력결계! 적의 단일 영능력이 약공으로 바뀌었다.'})
-        if (state.earthReduction > 0 && r.state.php < state.php) {
-          r.state.php = Math.min(state.phpMax, r.state.php + Math.floor((state.php - r.state.php)*state.earthReduction))
-          if (r.state.php > 0) {r.state.pendingDeath=false;if(r.state.over==='lose')r.state.over=null}
-        }
         spend(-r.mpDrain)
         let st = r.state
         let evs = r.events
+        // v-B.04: 영능력 봉인(단독). 새로 걸린 턴은 세지 않고, 그 뒤 상대 턴이 끝날 때마다 1씩 줄어든다(= 다음 N번의 내 턴 동안 봉인).
+        if (r.sealed) setBuffArmed(false)
+        else if ((state.psySeal || 0) > 0) {
+          st = { ...st, psySeal: state.psySeal - 1 }
+          if (!st.psySeal) evs = [...evs, { kind: 'info', text: '영능력 봉인이 풀렸다.' }]
+        }
         if (st.pendingDeath || st.over === 'lose') onDown?.()
         // 에너지드링크: 전투불능이 되는 순간 1회 체력 1로 부활, 전투는 계속된다.
         if ((st.pendingDeath || st.over === 'lose') && reviveRef.current) {
@@ -211,7 +235,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
 
   // v79.0.7: 패시브 영능력이 있으면 전투 전에 켤지 끌지 먼저 묻는다.
   const requestStart = (enemyId) => {
-    const enemy = typeof enemyId === 'object' ? enemyId : ENEMIES.find((e) => e.id === enemyId)
+    const enemy = typeof enemyId === 'object' ? enemyId : enemyById(enemyId)
     if (ownedPassives(psychics).length && !enemy?.boss) {
       setPendingStart({ enemyId })
       return
@@ -262,6 +286,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
 
   // 무당방울: 유효한 행동을 했을 때마다(매 턴) 확률적으로 체력을 회복시킨다. (1인 전투라 "파티원 전원"은 자기 자신뿐이다)
   const applyBell = (state) => {
+    if (healBlocked(state)) return { state, events: [] } // 돌림병
     const t = bellTick(stats, Math.random)
     if (!t) return { state, events: [] }
     const healed = Math.min(state.phpMax, state.php + t.heal)
@@ -279,8 +304,24 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         setPsyOpen(true)
         return
       }
-      const buffed = !barrierOn(cur.enemy) && buffArmed && (action === 'attack' || action === 'charm')
-      const r = playerTurn(cur, action, { stats: cur.starBonus ? {...stats, aggression: stats.aggression + cur.starBonus} : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
+      // v-B.05: 상태 이상이 고른 행동을 바꾸거나(홀린 귀·연모·공포) 실패시킨다(저림).
+      const pre = extra.preDone ? { state: cur, action, events: [], failed: false } : beforePlayer(cur, action, { mp: mpRef.current })
+      if (pre.failed) {
+        setBuffArmed(false)
+        setB(pre.state)
+        push(pre.events)
+        runEnemy(pre.state)
+        return
+      }
+      if (pre.action !== action) {
+        action = pre.action
+        extra = action === 'scan' ? { scanAmount: 1 } : {}
+      }
+      cur = pre.state
+      const buffed = !barrierOn(cur.enemy) && !((cur.psySeal || 0) > 0) && buffArmed && (action === 'attack' || action === 'charm')
+      let r = playerTurn(cur, action, { stats: cur.starBonus ? {...stats, aggression: stats.aggression + cur.starBonus} : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
+      if (!r.invalid) r = afterPlayer(cur, r, { action, mp: mpRef.current })
+      if (pre.events.length) r = { ...r, events: [...pre.events, ...(r.events || [])] }
       if (action === 'scan' && !r.invalid) onScan?.()
       // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 다시 고를 수 있게 그대로 둔다.
       if (r.invalid) {
@@ -296,7 +337,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       const bell = applyBell(r.state)
       let finalState = bell.state
       let extraEvents = [...r.events, ...bell.events]
-      if (stats.special === 'cherry' && finalState.php < finalState.phpMax * 0.3) { const heal = Math.floor(stats.comprehension / 3); if (heal > 0) { const hp = Math.min(finalState.phpMax, finalState.php + heal); extraEvents.push({ kind: 'warn', text: `벚꽃의 효과! 체력 +${hp - finalState.php}.` }); finalState = { ...finalState, php: hp } } }
+      if (stats.special === 'cherry' && !healBlocked(finalState) && !((finalState.ps?.weaponSeal || 0) > 0) && finalState.php < finalState.phpMax * 0.3) { const heal = Math.floor(stats.comprehension / 3); if (heal > 0) { const hp = Math.min(finalState.phpMax, finalState.php + heal); extraEvents.push({ kind: 'warn', text: `벚꽃의 효과! 체력 +${hp - finalState.php}.` }); finalState = { ...finalState, php: hp } } }
       setB(finalState)
       push(extraEvents)
       if (finalState.over) finish(finalState)
@@ -309,10 +350,19 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   const beginTurn = useCallback(
     (state) => {
       // 원숭이 손의 대가 등으로 행동불능이면 이번 내 턴은 아무것도 하지 못하고 넘어간다. (v79.0.7)
+      // v-B.05: 내 턴이 시작될 때의 상태 이상(화상)
+      const ts = playerTurnStart(state)
+      if (ts.events.length) {
+        state = ts.state
+        setB(state)
+        push(ts.events)
+      }
       if (state.pstun > 0) {
+        const asleep = !!state.ps?.sleep
         const next = { ...state, pstun: state.pstun - 1, bound: false }
+        if (!next.pstun && next.ps?.sleep) { next.ps = { ...next.ps }; delete next.ps.sleep }
         setB(next)
-        push([{ kind: 'warn', text: `행동불능 상태라 움직이지 못했다. (남은 ${next.pstun}턴)` }])
+        push([{ kind: 'warn', text: asleep ? `가위에 눌려 잠들어 있다… (남은 ${next.pstun}턴)` : `행동불능 상태라 움직이지 못했다. (남은 ${next.pstun}턴)` }])
         runEnemy(next)
         return
       }
@@ -320,7 +370,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       if (state.fire) {
         setBusy(true)
         timer.current = setTimeout(() => {
-          const f = fireTurn(state, { stats: state.starBonus ? {...stats, aggression: stats.aggression + state.starBonus} : stats, mp: mpRef.current, boost: boostRef.current }, Math.random)
+          const f = afterPlayer(state, fireTurn(state, { stats: state.starBonus ? {...stats, aggression: stats.aggression + state.starBonus} : stats, mp: mpRef.current, boost: boostRef.current }, Math.random), { action: 'fire', mp: mpRef.current })
           if (f.boostUsed) {
             boostRef.current = false
             onBoostUsed?.()
@@ -331,6 +381,16 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
           setBusy(false)
           if (bell.state.over) finish(bell.state)
           else runEnemy(bell.state)
+        }, 800)
+        return
+      }
+      // v-B.05 연모의 불길: 이번 턴은 무조건 일반 공격
+      if ((state.ps?.forceRash || 0) > 0) {
+        setBusy(true)
+        push([{ kind: 'rash', text: '연모의 불길에 사로잡혀 몸이 먼저 튀어 나간다! 이번 턴엔 일반 공격만 한다.' }])
+        timer.current = setTimeout(() => {
+          setBusy(false)
+          resolve(state, 'attack')
         }, 800)
         return
       }
@@ -382,6 +442,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     const cur = bRef.current
     if (!cur || cur.over || cur.pendingDeath || busy || phase !== 'fight' || !myTurn) return
     if (barrierOn(cur.enemy)) return
+    if ((cur.psySeal || 0) > 0) return // v-B.04: 봉인 중엔 효험도 켤 수 없다
     setBuffArmed((v) => (!v && Math.floor(mpRef.current) < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
 
@@ -401,9 +462,28 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       push([{ kind: 'warn', text: '언어장벽: 먼저 바꿀 턴을 골라 확정해야 한다.' }])
       return
     }
+    if ((cur.psySeal || 0) > 0) {
+      push([{ kind: 'warn', text: `영능력이 봉인되어 있다. (남은 ${cur.psySeal}턴)` }])
+      return
+    }
     const buffed = !barrierOn(cur.enemy) && buffArmed && (id === 'survival' || id === 'monkey-paw' || id === 'dokkaebi-fire')
     if (barrierOn(cur.enemy) && !['survival','echo-form','falling-light','karmic-recompense','earth-step','seven-stars','warding-scripture'].includes(id)) {
       push([{kind:'warn',text:'영력결계를 보유하여 적을 향한 영능력은 사용할 수 없다.'}]);return
+    }
+    // v-B.05: 상태 이상(홀린 귀·연모·저림)
+    const pre = beforePlayer(cur, 'psychic', { mp: mpRef.current })
+    if (pre.failed) {
+      setPsyOpen(false)
+      setB(pre.state)
+      push(pre.events)
+      runEnemy(pre.state)
+      return
+    }
+    if (pre.action !== 'psychic') {
+      setPsyOpen(false)
+      push(pre.events)
+      resolve({ ...pre.state, ps: { ...pre.state.ps } }, pre.action, { ...(pre.action === 'scan' ? { scanAmount: 1 } : {}), preDone: true })
+      return
     }
     let r
     try {
@@ -425,6 +505,8 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       if (r.events?.length) push(r.events)
       return
     }
+    if (healBlocked(cur) && r.state.php > cur.php) r = { ...r, state: { ...r.state, php: cur.php }, events: [...r.events, { kind: 'warn', text: '돌림병 탓에 회복이 듣지 않았다.' }] }
+    r = afterPlayer(cur, r, { action: 'psychic', mp: mpRef.current })
     // 언어장벽 1단계(간파): 턴을 쓰지 않고, 드러난 20턴을 보며 바꿀 턴을 고르게 한다.
     if (r.keepTurn) {
       spend(-r.mpCost)
@@ -526,25 +608,28 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         {passiveDialog}
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm leading-relaxed text-paper/75">
-            붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다. 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
+            {roster ? '둘레길 바깥 숲에서 진짜 요괴와 겨룬다.' : '붉은 빛과 색이 떠도는 산을 뛰어다니며 실전을 흉내낸다.'} 상대의 정체는 가려져 있다. 안목이 높거나 몇 번 겨뤄 볼수록 더 많이 보인다.
             오늘 영력을 얻는 승리는 <b className="text-gold">{rewardLeft}회</b> 남았다. 지면 영력을 조금 잃는다. 체력과 의지력은 전투가 끝나도 그대로 이어지고, 양호실에서만 찬다.
           </p>
-          <button
-            type="button"
-            onClick={() => setTutorialOpen(true)}
-            className="flat-btn shrink-0 !gap-1.5 text-xs whitespace-nowrap"
-          >
-            <BookOpenText size={13} aria-hidden />
-            전투 안내
-          </button>
+          {!roster && (
+            <button
+              type="button"
+              onClick={() => setTutorialOpen(true)}
+              className="flat-btn shrink-0 !gap-1.5 text-xs whitespace-nowrap"
+            >
+              <BookOpenText size={13} aria-hidden />
+              전투 안내
+            </button>
+          )}
         </div>
+        {rosterIntro}
         {slowFight && (
           <div className="ink-panel mt-4 w-full rounded-xl p-5" data-slow-fight={slowFight.enemyId}>
             <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700">
               <Hourglass size={12} aria-hidden />
               느린 싸움 중
             </p>
-            <p className="mt-2 font-serif text-base text-paper">{ENEMIES.find((x) => x.id === slowFight.enemyId)?.name}을(를) 상대로 느린 싸움을 벌이고 있다.</p>
+            <p className="mt-2 font-serif text-base text-paper">{enemyById(slowFight.enemyId)?.name}을(를) 상대로 느린 싸움을 벌이고 있다.</p>
             <p className="mt-1 text-xs text-paper/60">끝까지 기다리면 무조건 승리 판정을 받는다. 중간에 나가면 보상 없이 취소된다.</p>
             <p className="mt-2 text-sm text-gold" data-slow-fight-left>
               남은 시간: {(() => { const left = slowFight.startedAt + slowFight.minutes * 60000 - Date.now(); return left > 0 ? leftTimeText(left) : '거의 다 됐다' })()}
@@ -554,7 +639,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         )}
         {multi?.lobby && (
           <div className="ink-panel mt-4 rounded-xl p-4" role="status" data-mb-lobby>
-            <p className="font-serif text-base text-gold">{ENEMIES.find((x) => x.id === multi.lobby.enemyId)?.name} 전투 초대를 보냈다</p>
+            <p className="font-serif text-base text-gold">{enemyById(multi.lobby.enemyId)?.name} 전투 초대를 보냈다</p>
             <p className="mt-1 text-xs text-paper/70">
               응답을 기다리는 중: {multi.lobby.waiting.length ? multi.lobby.waiting.join(', ') : '없음'}
               {multi.lobby.joined?.length > 0 && <> · 참여: {multi.lobby.joined.join(', ')}</>}
@@ -563,7 +648,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
           </div>
         )}
         <ul className="mt-4 grid gap-3 md:grid-cols-3">
-          {ENEMIES.map((e) => {
+          {list.map((e) => {
             const rv = revealOf(e, stats, seen?.[e.id] || 0)
             const q = (ok, v) => (ok ? v : '???')
             return (
@@ -678,7 +763,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
               <p className="text-[11px] text-paper/55">상대의 다음 행동</p>
               {shown > 0 ? (
                 <ol className="mt-1 flex flex-wrap gap-1.5">
-                  {b.queue.slice(0, Math.min(shown, SHOW_MAX)).map((k, i) => (
+                  {shownQueue(b.queue, b.lies).slice(0, Math.min(shown, SHOW_MAX)).map((k, i) => (
                     <li key={i} className={`rounded-full px-2.5 py-0.5 text-xs ${k === 'smash' ? 'bg-crimson/25 text-crimson' : k === 'special' ? 'bg-gold/20 text-gold' : 'bg-edge/10'}`}>
                       {i + 1}. {INTENTS[k].label}
                     </li>
@@ -688,7 +773,15 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
               ) : (
                 <p className="mt-1 text-xs text-paper/60">알 수 없다. 간파로 읽을 수 있다.</p>
               )}
-              {b.queue[0] === 'guard' && b.known > 0 && <p className="mt-1 text-[11px] text-gold">방어 태세 중엔 일반 공격이 절반이다. 부적은 막지 못한다.</p>}
+              {shownQueue(b.queue, b.lies)[0] === 'guard' && b.known > 0 && <p className="mt-1 text-[11px] text-gold">방어 태세 중엔 일반 공격이 절반이다. 부적은 막지 못한다.</p>}
+              {b.lies && b.known > 0 && <p className="mt-1 text-[11px] text-crimson" data-lies>헛것이 섞여 있다 — 앞쪽 몇 개는 거짓일 수 있다.</p>}
+            </div>
+          )}
+          {enemyChips(b.es).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]" data-enemy-status>
+              {enemyChips(b.es).map((c) => (
+                <span key={c.key} title={c.desc} className="flat-chip text-gold">{c.label}</span>
+              ))}
             </div>
           )}
         </div>
@@ -708,6 +801,12 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
             <span className="flat-chip">부적 {b.charms}장</span>
             {b.bound && <span className="flat-chip">휘감김: 막기 불가</span>}
             {b.curse > 0 && <span className="flat-chip">저주 {b.curse}턴</span>}
+            {b.psySeal > 0 && <span className="flat-chip text-crimson" data-psy-seal={b.psySeal}>영능력 봉인 {b.psySeal}턴</span>}
+            {b.pstun > 0 && <span className="flat-chip">{b.ps?.sleep ? '가위눌림' : '행동불능'} {b.pstun}턴</span>}
+            {statusChips(b.ps).filter((c) => c.key !== 'sleep').map((c) => (
+              <span key={c.key} title={c.desc} className="flat-chip text-crimson" data-status={c.key}>{c.label} {c.n}{c.unit}</span>
+            ))}
+            {b.barrierBroken && <span className="flat-chip text-crimson">영력결계 깨짐</span>}
             {rash > 0 && <span className="flat-chip">돌발 {rash}%</span>}
           </div>
           <div className="mt-3 flex items-center gap-3">
@@ -726,7 +825,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
 
       {!b.over && (
         <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-paper/55">
-          <span>아이템은 턴과 상관없이 쓸 수 있고, 써도 내 턴이 끝나지 않는다. (전투 중 사용 가능한 것만)</span>
+          <span>{itemSealed(b) ? '신과 함께 주머니를 빼앗겨 지금은 아이템을 쓸 수 없다.' : '아이템은 턴과 상관없이 쓸 수 있고, 써도 내 턴이 끝나지 않는다. (전투 중 사용 가능한 것만)'}</span>
           <button type="button" onClick={onOpenItems} className="flat-chip tilt shrink-0">
             소지품
           </button>
@@ -742,7 +841,8 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
               (id === 'psychic' && (!!b.over || b.pendingDeath)) ||
               (id === 'charm' && (b.charms <= 0 || have < 1)) ||
               (id === 'scan' && have < mpCostOf(stats, 1)) ||
-              (id === 'guard' && b.bound) || (id === 'attack' && stats.special === 'red-wisteria')
+              (id === 'guard' && b.bound) || (id === 'attack' && stats.special === 'red-wisteria') ||
+              blockedActions(b).includes(id) // v-B.05 공포·연모
             return (
               <button
                 key={id}
@@ -807,6 +907,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       {psyOpen && !b.over && (
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
           <p className="font-serif text-base text-gold">영능력</p>
+          {b.psySeal > 0 && <p className="mt-1 text-xs text-crimson" data-psy-seal-note>영능력이 봉인되어 있다. 앞으로 {b.psySeal}턴 동안 영능력·효험을 쓸 수 없다.</p>}
           {(() => {
             const mine = ownedPsychics(psychics)
             if (!mine.length) return <p className="mt-2 text-sm text-paper/65" data-psychic-empty>획득한 영능력이 없습니다.</p>
@@ -822,7 +923,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
                         type="button"
                         data-psychic-toggle={s.id}
                         aria-pressed={buffArmed}
-                        disabled={barrierOn(b?.enemy) || !myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
+                        disabled={barrierOn(b?.enemy) || b.psySeal > 0 || !myTurn || (!buffArmed && Math.floor(mp) < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
@@ -842,17 +943,17 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
                           <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
                           <span className="text-[11px] text-paper/60">의지력 {mpCostOf(stats, Math.min(pawMax, pawAmt))} 소모</span>
                         </div>
-                        <button type="button" data-psychic-use="monkey-paw" disabled={!myTurn} onClick={() => usePsychic('monkey-paw', { sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use="monkey-paw" disabled={!myTurn || b.psySeal > 0} onClick={() => usePsychic('monkey-paw', { sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       </>
                     ) : s.id === 'warding-scripture' ? (
                       <div className="mt-2 flex gap-2"><input type="number" aria-label="전할 의지력" min="1" max={mp} value={mpGift} onChange={e=>setMpGift(Math.max(1,Math.floor(Number(e.target.value)||1)))} className="w-20 rounded bg-shade px-2 text-paper"/><button type="button" className="flat-btn" onClick={()=>usePsychic(s.id,{amount:mpGift})}>사용</button></div>
                     ) : s.id === 'language-barrier' ? (
-                      <LanguageBarrierPicker picking={!!b.lbPick} queue={b.queue} cost={mpCostOf(stats, 20)} disabled={!myTurn} onReveal={() => usePsychic(s.id)} onConfirm={(picked) => usePsychic(s.id, { rerolls: picked })} />
+                      <LanguageBarrierPicker picking={!!b.lbPick} queue={b.queue} cost={mpCostOf(stats, 20)} disabled={!myTurn || b.psySeal > 0} onReveal={() => usePsychic(s.id)} onConfirm={(picked) => usePsychic(s.id, { rerolls: picked })} />
                     ) : (
                       s.use && (
-                        <button type="button" data-psychic-use={s.id} disabled={!myTurn} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use={s.id} disabled={!myTurn || b.psySeal > 0} onClick={() => usePsychic(s.id)} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       )

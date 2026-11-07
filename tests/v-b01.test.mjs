@@ -130,7 +130,8 @@ test('그슨대는 뒷산 · 전투 실습 목록의 맨 아래(마지막)에 �
   const { ENEMIES } = await import('../src/game/battle.js')
   assert.equal(ENEMIES.at(-1).id, 'geuseundae')
   assert.match(read('../src/components/locations/Gym.jsx'), /return <Battle \{\.\.\.rest\} \/>/)
-  assert.match(read('../src/components/locations/Battle.jsx'), /\{ENEMIES\.map\(\(e\) => \{/)
+  assert.match(read('../src/components/locations/Battle.jsx'), /const list = roster \?\? ENEMIES/) // v-B.05: 추가전투는 다른 목록(roster)을 넘긴다
+  assert.match(read('../src/components/locations/Battle.jsx'), /\{list\.map\(\(e\) => \{/)
 })
 
 test('그슨대: 간파할 때마다 커지고(최대 5단계, 단계당 공격력 +2), 원본 적 데이터는 바뀌지 않는다', async () => {

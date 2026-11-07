@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dices, Eye, Flame, Shield, Sparkles, Swords, Users, Zap } from 'lucide-react'
-import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, ENEMIES, INTENTS, ownedPsychics, partyLabel, PSYCHICS, rashPercent, recLabel, revealOf, scanTurns } from '../../game/battle'
+import { specialSummary, BUFF_COST, mpCostOf, ACTIONS, enemyById, INTENTS, ownedPsychics, partyLabel, PSYCHICS, rashPercent, recLabel, revealOf, scanTurns, statusChips, enemyChips, blockedActions } from '../../game/battle'
 import { MULTI_TAG } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 import { Bar, enemyHpTone, vague } from './battleUi'
@@ -17,8 +17,15 @@ const STATUS_LABEL = { alive: '', down: '전투불능', fled: '이탈' }
  * 다인 전투 화면. 판은 서버가 진행하고, 여기서는 상태를 보여 주고 내 행동을 보낸다.
  * view: 서버가 보낸 판 상태. 라운드마다 살아 있는 모두가 행동을 고르면 한꺼번에 해결된다.
  */
+/** 보스 광분 단계 안내 (v-B.04: 보스마다 rage.short1 · short2 · specialEvery 로 바꿀 수 있다) */
+function bossRageText(enemy, stage) {
+  const rage = enemy?.rage ?? {}
+  if (stage >= 2) return rage.short2 ?? (rage.growEachRound ? '솟아오름 — 매 라운드 끝마다 커진다!' : rage.jabToGroup === false ? '광분!' : '광분 — 약공이 모두 단체 공격!')
+  return rage.short1 ?? `분노 — ${rage.specialEvery ?? 3}라운드마다 반드시 영능력!`
+}
+
 export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
-  const enemy = ENEMIES.find((e) => e.id === view.enemyId)
+  const enemy = enemyById(view.enemyId)
   const me = view.members.find((m) => m.id === meId)
   // 보스전의 상시 영능력은 '가져가기'로 골랐을 때만 발동한다.
   const barrierActive = psychics.includes('spirit-barrier') && !me?.passiveOff?.includes('spirit-barrier') && (!view.boss || me?.psychicBring?.includes('spirit-barrier'))
@@ -211,8 +218,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       {view.boss && (
         <p className="mt-2 rounded-lg bg-crimson/15 px-3 py-1.5 text-[11px] text-paper/80" data-boss-note>
           보스 전투 — 가져온 아이템만 쓸 수 있다{me?.bring ? ` (남은 ${Object.values(me.bring).reduce((a, b) => a + b, 0)}개)` : ''}.
-          {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{view.rage >= 2 ? (enemy?.rage?.growEachRound ? '솟아오름 — 매 라운드 끝마다 커진다!' : '광분 — 약공이 모두 단체 공격!') : '분노 — 3라운드마다 반드시 영능력!'}</b> : null}
-          {enemy?.grows ? <b className="ml-1 text-gold" data-boss-grow={view.grow || 0}>커짐 {view.grow || 0}/{enemy.grows.max}단계 (간파로 올려다보면 커진다)</b> : null}
+          {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{bossRageText(enemy, view.rage)}</b> : null}
+          {enemy?.grows ? <b className="ml-1 text-gold" data-boss-grow={view.grow || 0}>{enemy.grows.label ?? '커짐'} {view.grow || 0}/{enemy.grows.max}단계 ({enemy.grows.hint ?? '간파로 올려다보면 커진다'})</b> : null}
+          {enemy?.regen && (view.rage || 0) >= (enemy.regen.from ?? 0) ? <b className="ml-1 text-gold" data-boss-regen>재생 — 라운드 끝마다 체력 +{Math.round(enemy.regen.pct * 100)}%</b> : null}
         </p>
       )}
       {!view.over && (
@@ -265,6 +273,21 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               <p className="mt-1 text-[11px] text-paper/50">상대는 일행 중 체력이 가장 많은 사람을 노린다. (단체 공격이면 일행 전원)</p>
             </div>
           )}
+          {enemyChips(view.es).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]" data-enemy-status>
+              {enemyChips(view.es).map((c) => (
+                <span key={c.key} title={c.desc} className="flat-chip text-gold">{c.label}</span>
+              ))}
+              {view.es?.mark && <span className="flat-chip text-crimson">흰 털 냄새: {view.members.find((m) => m.id === view.es.mark.id)?.name ?? '?'} ({view.es.mark.rounds}라운드)</span>}
+              {view.es?.link && <span className="flat-chip text-crimson">이어짐: {view.es.link.ids.map((id) => view.members.find((m) => m.id === id)?.name ?? '?').join(' · ')} ({view.es.link.rounds}라운드)</span>}
+            </div>
+          )}
+          {!enemyChips(view.es).length && (view.es?.mark || view.es?.link) && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]" data-enemy-status>
+              {view.es?.mark && <span className="flat-chip text-crimson">흰 털 냄새: {view.members.find((m) => m.id === view.es.mark.id)?.name ?? '?'} ({view.es.mark.rounds}라운드)</span>}
+              {view.es?.link && <span className="flat-chip text-crimson">이어짐: {view.es.link.ids.map((id) => view.members.find((m) => m.id === id)?.name ?? '?').join(' · ')} ({view.es.link.rounds}라운드)</span>}
+            </div>
+          )}
         </div>
 
         <div className={`ink-panel rounded-xl p-4 ${danger ? 'ring-2 ring-crimson/70' : ''}`}>
@@ -292,6 +315,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                   <span>· 부적 {m.charms}장</span>
                   {m.bound && <span className="text-crimson">· 막기 불가</span>}
                   {m.psySeal > 0 && <span className="text-crimson" data-psy-seal={m.psySeal}>· 영능력 봉인 {m.psySeal}라운드</span>}
+                  {m.stun > 0 && <span className="text-crimson">· {m.ps?.sleep ? '가위눌림' : '행동불능'} {m.stun}턴</span>}
+                  {m.banished > 0 && <span className="text-crimson" data-banished>· 행렬에 끌려감 {m.banished}라운드</span>}
+                  {m.barrierBroken && <span className="text-crimson">· 영력결계 깨짐</span>}
+                  {statusChips(m.ps).filter((c) => c.key !== 'sleep').map((c) => (
+                    <span key={c.key} title={c.desc} className="text-crimson" data-status={c.key}>· {c.label} {c.n}{c.unit === '턴' ? '라운드' : c.unit}</span>
+                  ))}
                   {m.boost && <span className="text-gold">· 아이템 대기</span>}
                   {m.revive && <span className="text-gold">· 부활 대기</span>}
                 </p>
@@ -336,8 +365,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               !canAct && id !== 'psychic'
                 ? true
                 : id === 'psychic'
-                  ? !canAct || (me?.psySeal || 0) > 0
-                  : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
+                  ? !canAct || (me?.psySeal || 0) > 0 || blockedActions(me).includes('psychic')
+                  : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound) || blockedActions(me).includes(id) // v-B.05 공포·연모
             return (
               <button
                 key={id}

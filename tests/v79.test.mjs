@@ -20,7 +20,7 @@ test('v79: 컵라면·만두 전투 불가, 일행 태그',()=>{
 })
 test('v79: 뒷산 7개 개척 터와 미개방 보관소',()=>{
   assert.equal(HUNT_SIZE,10)
-  assert.equal(Object.keys(HUNT_SITES).length,7)
+  assert.equal(Object.keys(HUNT_SITES).length,23) // v-B.05: 산길 5~20 이 더해졌다 (7 → 23)
   assert.ok(HUNT_PATHS[0].sites.find(x=>x.name==='?? 보관소'))
   for(const site of Object.values(HUNT_SITES))assert.deepEqual(siteMissingData(site),[],site.name)
 })

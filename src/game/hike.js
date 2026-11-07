@@ -28,7 +28,8 @@ export const HIKE_PATHS = [
       {
         id: 'loop',
         name: '둘레길',
-        spots: [{ id: 'outside', name: '교외' }],
+        // v-B.05: 교외 옆 [추가전투] — 전투 데이터 50종(bestiary.js)과 겨루는 곳
+        spots: [{ id: 'outside', name: '교외' }, { id: 'extraBattle', name: '추가전투' }],
       },
     ],
   },

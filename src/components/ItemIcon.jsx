@@ -5,6 +5,7 @@ import { V79_EXTRA_ICONS } from './icons79extra'
 import HwatuFace from './minigames/HwatuFace'
 import { GARDEN_ITEM_ICONS } from './icons79garden'
 import { V79B_ICONS } from './icons79b'
+import { B05_ICONS } from './iconsB05'
 
 /**
  * 아이템 아이콘: 플랫 디자인의 원형 배지.
@@ -550,4 +551,5 @@ export default function ItemIcon({ item, id, size = 40, locked = false, classNam
 
 Object.assign(BG, EXTRA_BG)
 Object.assign(CUSTOM_ICONS, EXTRA_ICONS, V79_EXTRA_ICONS, V79_ICONS, GARDEN_ITEM_ICONS, V79B_ICONS)
+Object.assign(CUSTOM_ICONS, B05_ICONS) // v-B.05 개척 재료 33종
 export const CUSTOM_ICON_IDS = Object.keys(CUSTOM_ICONS)

@@ -5,7 +5,7 @@ import { clampSpirit, MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from '.
 import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx, specialEnhOf } from './items'
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
-import { ENEMIES } from './battle'
+import { enemyById } from './battle'
 import { bumpWeekly, bumpDaily, markWeeklySet, ensureDaily, checkClubQuests } from './clubQuests'
 import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
 import { finishHunt, startHunt as startHuntAt, cancelHunt as cancelHuntAt } from './hunt'
@@ -409,7 +409,7 @@ export const slowFightMinutes = (enemy) => Math.max(1, Math.round(enemy.spirit *
 
 export function startSlowFight(player, enemyId, now = Date.now()) {
   if (player.slowFight) return { error: '이미 느린 싸움을 진행하는 중이다.' }
-  const enemy = ENEMIES.find((e) => e.id === enemyId)
+  const enemy = enemyById(enemyId)
   if (!enemy) return { error: '그런 상대가 없다.' }
   if (enemy.boss) return { error: '보스 전투는 느린 싸움으로 할 수 없다. 직접 싸워야 한다.' }
   return { player: { ...player, slowFight: { enemyId, startedAt: now, minutes: slowFightMinutes(enemy) } } }
@@ -426,7 +426,7 @@ export function finishSlowFight(player, now = Date.now()) {
   const sf = player.slowFight
   const { slowFight: _s, ...rest } = player
   if (!sf) return { player: rest, logs: [] }
-  const enemy = ENEMIES.find((e) => e.id === sf.enemyId)
+  const enemy = enemyById(sf.enemyId)
   if (!enemy) return { player: rest, logs: [] }
   const cost = enemy.spirit * SLOW_FIGHT_COST_PER_SPIRIT
   const curHp = Math.floor(rest.hp)

@@ -4,11 +4,11 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal } from './battle.js'
+import { enemyById, effectHitsAll, effectPierces, effectTargeting, effectExpr, afflictStats, tickStatus, tickEnemyStatus, playerTurnStart, beforePlayer, afterPlayer, reviveCheck, strikeOf, shownQueue, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal } from './battle.js'
 import { itemTurnFree } from './items.js'
 
 /** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
-const auraFor = (mb, attackerId) => aliveOf(mb).reduce((sum, x) => sum + (x.id === attackerId ? auraSelfOf(x.stats) : auraOf(x.stats)), 0)
+const auraFor = (mb, attackerId) => aliveOf(mb).reduce((sum, x) => { const st = afflictStats(x.stats, x.ps); return sum + (x.id === attackerId ? auraSelfOf(st) : auraOf(st)) }, 0) // 무구 봉인(v-B.05)이면 악기도 꺼진다
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
@@ -25,6 +25,7 @@ const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? 
 export const hasActiveSpiritBarrier = (member, enemy) =>
   !!member?.psychics?.includes('spirit-barrier') &&
   !member?.passiveOff?.includes('spirit-barrier') && // v79.0.7: 전투 전에 효과를 끄기로 고른 경우
+  !member?.barrierBroken && // v-B.05: 도철의 결계째 삼키기로 이번 전투 동안 없어졌다
 
   (!enemy?.boss || (Array.isArray(member.psychicBring) && member.psychicBring.includes('spirit-barrier')))
 
@@ -83,6 +84,9 @@ export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax,
     passiveOff: Array.isArray(passiveOff) ? passiveOff.filter((x) => x === 'spirit-barrier') : [], // 이번 전투에서 끈 패시브 영능력 (v79.0.7)
     lbPick: false, // 언어장벽으로 20턴을 간파한 뒤, 바꿀 턴을 고르는 중 (v79.0.7)
     act: null, // 이번 라운드에 고른 행동 { action, scanAmount?, psychic?, forced? }
+    ps: {}, // v-B.05 상태 이상(battle.js PS_INFO): 남은 턴 수
+    banished: 0, // 백귀행렬에 끌려가 빠져 있는 남은 라운드
+    barrierBroken: false,
   }
 }
 
@@ -90,11 +94,11 @@ let logSeq = 1
 const tag = (events, by) => events.map((e) => ({ ...e, by, id: logSeq++ }))
 
 export function createMB(enemyId, rawMembers, rng = Math.random) {
-  const enemy = ENEMIES.find((e) => e.id === enemyId)
+  const enemy = enemyById(enemyId)
   const members = rawMembers.map(makeMember)
   const base = newBattle(enemy, members[0].stats, rng, undefined, undefined, { party: true }) // 상대의 행동 큐(여럿이 함께 본다) — 일행을 상대하는 판
   const mb = {
-    // 보스가 전투 중 커지는 등 능력치가 바뀔 수 있어, 원본(ENEMIES)을 건드리지 않도록 복사해 둔다.
+    // 보스가 전투 중 커지는 등 능력치가 바뀔 수 있어, 원본(적 데이터)을 건드리지 않도록 복사해 둔다.
     enemy: { ...enemy },
     grow: 0, // 커지는 보스(그슨대)의 현재 단계
     ehp: enemy.hp,
@@ -113,6 +117,8 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
     fallingLight: null, // 내려쬐는 빛을 쓴 일행의 id. 다음 적의 공격(단일·단체 모두)이 그 사람에게 쏠리고, 쓰일 때마다 소모된다(또 쓰면 다시 걸 수 있다).
     karmicTarget: null, // 업인과보로 지정한 대상의 id(쓰면 단체 공격·다중 타겟 영능력이 모두 이 사람에게, 인원수만큼 곱해져서 쏠린다).
     enemyVulnerabilityRounds: 0,
+    es: {}, // v-B.05 적에게 걸린 상태(껍질·둔갑·쥐 떼·냄새·이음·땡볕 …)
+    lies: null, // 헛것 보이기: 화면에 보일 가짜 행동
   }
   addLog(mb, [{ kind: 'info', text: `${enemy.name}이(가) 나타났다. (${members.length}인 전투: ${members.map((m) => m.name).join(', ')})` }])
   return mb
@@ -150,6 +156,12 @@ const viewOfMember = (mb, m) => ({
   specialSaved: !!m.specialSaved,
   specialSeen: !!m.specialSeen,
   fireBuffed: !!m.fireBuffed,
+  ps: m.ps || {},
+  es: mb.es || {},
+  lies: mb.lies,
+  starBonus: m.starBonus || 0,
+  pstun: m.stun || 0,
+  barrierBroken: !!m.barrierBroken,
 })
 
 /** 시작 선공 판정: 일행에서 가장 신속한 사람의 굴림. 상대가 먼저면 첫 라운드 앞에 상대가 한 번 움직인다. */
@@ -172,7 +184,9 @@ export function beginRound(mb, rng = Math.random) {
   mb.phase = 'input'
   const evs = []
   for (const m of mb.members) m.act = null
-  mb.order = [...aliveOf(mb)].sort((a, b) => b.stats.agility - a.stats.agility || (a.id < b.id ? -1 : 1)).map((m) => m.id)
+  if (aliveOf(mb).length && aliveOf(mb).every((m) => m.banished > 0)) for (const m of aliveOf(mb)) m.banished = 0 // 남은 사람이 모두 끌려갔으면 행렬이 흩어진다
+  mb.order = [...aliveOf(mb)].filter((m) => !(m.banished > 0)).sort((a, b) => b.stats.agility - a.stats.agility || (a.id < b.id ? -1 : 1)).map((m) => m.id)
+  for (const m of aliveOf(mb)) if (m.banished > 0) evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] 백귀행렬에 끌려가 이번 라운드엔 싸울 수 없다. (남은 ${m.banished}라운드)` }], m.id))
   mb.turnIdx = -1
   mb.turn = null
   evs.push(...addLog(mb, [{ kind: 'info', text: `── 라운드 ${mb.round} · 일행 차례: ${mb.order.map((id) => mb.members.find((m) => m.id === id).name).join(' → ')} (신속 순) ──` }]))
@@ -193,6 +207,18 @@ function nextActor(mb, rng = Math.random) {
     if (!m || m.status !== 'alive') continue
     mb.turn = m.id
     m.act = null
+    // v-B.05: 내 턴이 시작될 때의 상태 이상(화상)
+    const ts = playerTurnStart(viewOfMember(mb, m), rng)
+    if (ts.events.length) {
+      m.php = ts.state.php
+      m.ps = ts.state.ps
+      evs.push(...addLog(mb, ts.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
+    }
+    if ((m.ps?.forceRash || 0) > 0 && !(m.stun > 0) && !(m.fire > 0)) {
+      evs.push(...addLog(mb, [{ kind: 'rash', text: `[${m.name}] 연모의 불길에 사로잡혀 이번 턴엔 일반 공격만 한다.` }], m.id))
+      m.act = { action: 'attack', forced: true }
+      return evs
+    }
     const rr = rollRash(m.stats, rng)
     if (rr.percent > 0) {
       evs.push(...addLog(mb, [{ kind: rr.hit ? 'rash' : 'info', text: `[${m.name}] 돌발 판정 d100 = ${rr.roll} (확률 ${rr.percent}%) → ${rr.hit ? '돌발 행동 발생! 이번 턴엔 무조건 일반 공격.' : '이상 없음'}` }], m.id))
@@ -298,7 +324,10 @@ function useItemCore(mb, id, item, targetId) {
   if (!itemTurnFree(item) && mb.turn !== id) return { error: 'not-your-turn' } // #턴소모無는 다른 사람 턴에도 사용 가능.
   if (!itemTurnFree(item) && m.act) return { error: 'already' }
   if (m.stun > 0 || m.fire > 0) return { error: 'busy' } // 행동불능·도깨비불 충전 중엔 아이템도 쓸 수 없다.
+  if ((m.ps?.itemSeal || 0) > 0) return { error: 'item-seal' } // v-B.05: 야광귀의 신 훔치기
   const e = item?.effect ?? {}
+  // v-B.05: 돌림병 — 회복 아이템이 듣지 않는다(받는 사람 기준)
+  if ((e.hp || e.giveHp) && (t.ps?.healBlock || 0) > 0) return { error: 'heal-block' }
   if (!item?.battle) return { error: 'not-battle-item' }
   if (mb.enemy.boss) {
     if ((m.bring?.[item.id] || 0) < 1) return { error: 'not-brought' } // 가져오지 않은 아이템은 쓸 수 없다
@@ -332,7 +361,7 @@ function useItemCore(mb, id, item, targetId) {
   if (e.partyHp || e.partyMp) {
     const alive = mb.members.filter((x) => x.status === 'alive')
     for (const x of alive) {
-      if (e.partyHp) x.php = Math.min(x.phpMax, x.php + e.partyHp)
+      if (e.partyHp && !((x.ps?.healBlock || 0) > 0)) x.php = Math.min(x.phpMax, x.php + e.partyHp)
       if (e.partyMp) x.mp = Math.min(x.mpMax, x.mp + e.partyMp)
     }
     addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.`, popup: { type: 'item', name: m.name, item: item.name, target: '일행 전원' } }], m.id)
@@ -407,7 +436,10 @@ export function resolveTurn(mb, rng = Math.random) {
     const v0 = viewOfMember(mb, m)
     // 악기(무구 버프): 일행 전원의 공격·반격에 붙는 보정이라, 터지는 순간에도 똑같이 더해 줘야 한다.
     const fireAura = auraFor(mb, m.id)
-    const f = fireTurn(v0, { stats: m.stats, mp: m.mp, boost: m.boost, aura: fireAura }, rng)
+    const f = afterPlayer(v0, fireTurn(v0, { stats: m.stats, mp: m.mp, boost: m.boost, aura: fireAura }, rng), { action: 'fire', mp: m.mp }, rng)
+    m.ps = f.state.ps || {}
+    mb.es = f.state.es || {}
+    banishCheck(mb, m, Math.max(0, mb.ehp - f.state.ehp))
     m.fire = f.state.fire || 0
     m.fireBuffed = !!f.state.fireBuffed
     if (f.boostUsed) m.boost = false // 터지는 순간 공격력 버프(마이쮸·폭죽)를 다 썼으니 끈다 — 이후 행동에 또 적용되지 않게.
@@ -424,10 +456,11 @@ export function resolveTurn(mb, rng = Math.random) {
       return evs
     }
     // 무당방울: 유효한 행동을 한 소지자는 매 턴 확률적으로 일행 전원의 체력을 회복시킨다. (기 모으는 턴도 '유효한 행동'으로 친다)
-    const bell = bellTick(m.stats, rng)
+    const bell = bellTick(afflictStats(m.stats, m.ps), rng)
     if (bell) {
       const healedNames = []
       for (const x of aliveOf(mb)) {
+        if ((x.ps?.healBlock || 0) > 0) continue // 돌림병
         const before = x.php
         x.php = Math.min(x.phpMax, x.php + bell.heal)
         if (x.php > before) healedNames.push(x.name)
@@ -461,6 +494,7 @@ export function resolveTurn(mb, rng = Math.random) {
   // 폭죽 등으로 행동불능인 턴: 아무것도 하지 못하고 그대로 넘어간다.
   if (m.stun > 0) {
     m.stun -= 1
+    if (!m.stun && m.ps?.sleep) { m.ps = { ...m.ps }; delete m.ps.sleep }
     m.act = null
     m.bound = false // 행동불능으로 지나간 내 턴에도 막기 불가가 영구 유지되지 않는다.
     evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] 행동불능 상태라 움직이지 못했다. (남은 ${m.stun}턴)` }], m.id))
@@ -473,7 +507,7 @@ export function resolveTurn(mb, rng = Math.random) {
     evs.push(...enemyPhase(mb, rng))
     return evs
   }
-  const act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
+  let act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
   // 고독의 저주: 실제 시간 3일 동안 10% 확률로 내 턴을 자해 행동으로 대체한다.
   if (m.curseUntil > Date.now() && rng() < 0.1) {
     const selfDamage = Math.max(1, Math.ceil(rng() * Math.max(1, m.stats.aggression)))
@@ -485,7 +519,28 @@ export function resolveTurn(mb, rng = Math.random) {
     if (!mb.turn) { if (!finishIfOver(mb)) evs.push(...enemyPhase(mb,rng)) }
     return evs
   }
-  const v = viewOfMember(mb, m)
+  let v = viewOfMember(mb, m)
+  // v-B.05: 상태 이상이 고른 행동을 바꾸거나(홀린 귀·연모·공포) 실패시킨다(저림).
+  const pre = beforePlayer(v, act.action, { mp: m.mp }, rng)
+  if (pre.events.length) evs.push(...addLog(mb, pre.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
+  m.ps = pre.state.ps || {}
+  if (pre.failed) {
+    m.act = null
+    m.guard = false
+    m.bound = false
+    m.myTurns = (m.myTurns || 0) + 1
+    m.lbPick = false
+    evs.push(...nextActor(mb, rng))
+    if (mb.turn) return evs
+    if (!aliveOf(mb).length) {
+      finishIfOver(mb)
+      return evs
+    }
+    evs.push(...enemyPhase(mb, rng))
+    return evs
+  }
+  if (pre.action !== act.action) act = { action: pre.action, scanAmount: 1, forced: act.forced }
+  v = pre.state
   const aura = auraFor(mb, m.id) // 악기: 일행 모두의 공격·반격에 붙는 보정(자기 자신에게는 75%만)
   let r
   let targetId = null
@@ -500,7 +555,7 @@ export function resolveTurn(mb, rng = Math.random) {
     )
   } else {
     // 활: 일행 중 누구 하나라도 활을 들고 있으면, 활을 들지 않은 사람도 모든 공격이 반드시 명중하고 (호전)% 확률로 방어 태세를 무시한다.
-    const archerBow = aliveOf(mb).some((x) => x.fx === 'bow')
+    const archerBow = aliveOf(mb).some((x) => x.fx === 'bow' && !((x.ps?.weaponSeal || 0) > 0))
     r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff, archerBow }, rng)
   }
   if (r.invalid) {
@@ -510,6 +565,20 @@ export function resolveTurn(mb, rng = Math.random) {
     evs.push(...addLog(mb, (r.events?.length ? r.events : [{ kind: 'warn', text: fallback }]).map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
     return evs
   }
+  // v-B.05: 돌림병이면 형상 기억 등의 회복이 듣지 않는다.
+  if ((m.ps?.healBlock || 0) > 0 && r.state.php > v.php) {
+    r.state = { ...r.state, php: v.php }
+    r.events = [...r.events, { kind: 'warn', text: '돌림병 탓에 회복이 듣지 않았다.' }]
+  }
+  if ((m.ps?.healBlock || 0) > 0 || r.healTarget) {
+    const ht = mb.members.find((x) => x.id === r.healTarget)
+    if (ht && (ht.ps?.healBlock || 0) > 0) r.healTarget = null
+  }
+  // v-B.05: 의지력 비용·자기 피해·적의 껍질/둔갑/방패 진형 등
+  r = afterPlayer(v, r, { action: act.action, mp: m.mp }, rng)
+  m.ps = r.state.ps || {}
+  mb.es = r.state.es || {}
+  banishCheck(mb, m, Math.max(0, mb.ehp - r.state.ehp))
   if (act.action === 'psychic') {
     // r.state.fallingLight 는 '일행 중 누군가 내려쬐는 빛을 걸어 뒀다'를 가리키는 공유 신호라(viewOfMember 가 매번
     // 그렇게 내려준다), 실제로 지금 쓴 영능력이 falling-light 일 때만 표적을 갱신한다(과거 버그 재발 방지).
@@ -549,7 +618,8 @@ export function resolveTurn(mb, rng = Math.random) {
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
   m.lbPick = false // 언어장벽 고르기는 이 턴의 행동으로 끝난다(시간 초과로 다른 행동이 들어가도 해제)
   // 그슨대: 간파로 올려다보면 커진다.
-  if (act.action === 'scan' && mb.enemy.grows) evs.push(...growBoss(mb, 1, `${m.name}이(가) ${mb.enemy.name}을(를) 올려다보았다.`))
+  // v-B.04: 커지는 계기를 보스마다 고를 수 있다(grows.trigger: 'scan' 기본 · 'charm' · 'psychic' · 'guard' · 'attack', 여럿이면 배열).
+  if (mb.enemy.grows && growTriggers(mb.enemy).includes(act.action)) evs.push(...growBoss(mb, 1, growReason(mb, m, act.action)))
   if (r.selfStun) m.stun = Math.max(m.stun || 0, r.selfStun) // 원숭이 손의 대가: 즉시 행동불능 (v79.0.7)
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
   // 아군이 영능력을 썼을 때는 팝업으로 바로 보여 줄 수 있도록 표시를 달아 둔다(적 영능력과 같은 꾸며진 팝업). (v71)
@@ -566,10 +636,10 @@ export function resolveTurn(mb, rng = Math.random) {
   )
   m.act = null
   if (r.state.over === 'fled') m.status = 'fled'
-  const cherryBearer = aliveOf(mb).find(x => x.stats.special === 'cherry')
+  const cherryBearer = aliveOf(mb).find(x => x.stats.special === 'cherry' && !((x.ps?.weaponSeal || 0) > 0))
   if (cherryBearer) {
     const heal = Math.max(0, Math.floor(cherryBearer.stats.comprehension / 3))
-    if (heal) for (const ally of aliveOf(mb)) if (ally.php < ally.phpMax * 0.3) ally.php = Math.min(ally.phpMax, ally.php + heal)
+    if (heal) for (const ally of aliveOf(mb)) if (ally.php < ally.phpMax * 0.3 && !((ally.ps?.healBlock || 0) > 0)) ally.php = Math.min(ally.phpMax, ally.php + heal)
   }
   if (mb.ehp <= 0) {
     mb.over = 'win'
@@ -578,10 +648,11 @@ export function resolveTurn(mb, rng = Math.random) {
     return evs
   }
   // 무당방울: 유효한 행동을 한 소지자는 매 턴 확률적으로 일행 전원의 체력을 회복시킨다.
-  const bell = bellTick(m.stats, rng)
+  const bell = bellTick(afflictStats(m.stats, m.ps), rng)
   if (bell) {
     const healedNames = []
     for (const x of aliveOf(mb)) {
+      if ((x.ps?.healBlock || 0) > 0) continue // 돌림병
       const before = x.php
       x.php = Math.min(x.phpMax, x.php + bell.heal)
       if (x.php > before) healedNames.push(x.name)
@@ -619,29 +690,99 @@ export function bossGimmick(mb, intent) {
   }
   let out = intent
   if (stage >= 2 && rage.jabToGroup !== false && out === 'jab') out = 'group'
-  if (stage >= 1 && mb.round % 3 === 0 && ['jab', 'group', 'guard'].includes(out)) out = 'special'
+  const every = Math.max(1, rage.specialEvery ?? 3) // v-B.04: 보스마다 '몇 라운드마다 반드시 영능력'을 정할 수 있다(기본 3)
+  if (stage >= 1 && mb.round % every === 0 && ['jab', 'group', 'guard'].includes(out)) out = 'special'
   return { intent: out, notes }
 }
 
+/** v-B.05 백귀행렬: 끌려간 사람이 있는 동안 남은 일행이 준 피해를 모은다. 충분하면 바로 돌아온다. */
+function banishCheck(mb, by, dealt) {
+  if (!(dealt > 0)) return
+  for (const x of mb.members) {
+    if (!(x.banished > 0) || x.id === by.id) continue
+    x.banishDealt = (x.banishDealt || 0) + dealt
+    if (x.banishDealt >= (x.banishNeed || 0)) {
+      x.banished = 0
+      x.banishDealt = 0
+      addLog(mb, [{ kind: 'warn', text: `[${x.name}] 일행의 기세에 행렬이 흐트러졌다! 끌려갔던 ${x.name}이(가) 돌아왔다.` }], x.id)
+    }
+  }
+}
+
+/** 쓰러질 때의 처리(에너지드링크 → 버티기 대기 → 전투불능). lines 에 로그를 덧붙인다. */
+function downOrPending(mb, m, lines) {
+  if (m.revive) {
+    m.revive = false
+    m.php = 1
+    m.reviveUsed = true
+    lines.push({ kind: 'warn', text: `[${m.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!`, popup: { type: 'revived', name: m.name } })
+  } else if ((m.survived | 0) < maxSurvives(m.stats) && m.mp >= 2) {
+    m.pendingDeath = true
+    m.php = 0
+    lines.push({ kind: 'warn', text: `[${m.name}] 전투불능 상태가 되었다.`, popup: { type: 'downed', name: m.name } })
+  } else {
+    m.status = 'down'
+    m.php = 0
+    lines.push({ kind: 'warn', text: `[${m.name}] 전투불능 상태가 되었다.`, popup: { type: 'downed', name: m.name } })
+  }
+}
+
+/** 라운드 끝 상태 이상 피해(독·쥐 떼·땡볕·역병·이음): 막을 수 없고 인내도 듣지 않는다. 병·지신밟기는 반영. */
+function roundHurt(mb, m, raw, text, evs, blockHalf = false) {
+  if (!m || m.status !== 'alive' || m.php <= 0 || m.pendingDeath) return 0
+  let d = Math.max(0, Math.floor(raw))
+  if (blockHalf && m.guard) d = Math.ceil(d / 2)
+  if ((m.ps?.vulnerable || 0) > 0) d = Math.ceil(d * 1.25)
+  if (mb.earthReduction > 0 && d > 0) d -= Math.floor(d * Math.min(1, mb.earthReduction))
+  m.php = Math.max(0, m.php - d)
+  const lines = [{ kind: 'enemy', dmg: d, text: `[${m.name}] ${text} ${d} 피해!` }]
+  if (d > 0 && m.ps?.sleep && m.stun > 0) {
+    m.stun = 0
+    m.ps = { ...m.ps }
+    delete m.ps.sleep
+    lines.push({ kind: 'warn', text: `[${m.name}] 아픔에 번쩍 정신이 들었다! 가위눌림에서 깨어났다.` })
+  }
+  if (m.php <= 0) downOrPending(mb, m, lines)
+  evs.push(...addLog(mb, lines, 'enemy'))
+  return d
+}
+
+const rngPick = (arr, rng) => arr[Math.floor(rng() * arr.length)]
+const freshOf = (before, after) => Object.keys(after || {}).filter((k) => JSON.stringify(before?.[k]) !== JSON.stringify(after[k]))
+
 function enemyPhase(mb, rng) {
   const evs = []
-  const alive = aliveOf(mb).filter((m) => m.php > 0)
+  // v-B.05: 상대 차례가 시작될 때 상태를 센다(내 상태는 매 라운드 1씩, 적의 쥐 떼도).
+  for (const m of aliveOf(mb)) {
+    const t = tickStatus(m.ps, 'start')
+    m.ps = t.ps || {}
+    if (t.events.length) evs.push(...addLog(mb, t.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
+  }
+  const te = tickEnemyStatus(mb.es, 'start')
+  mb.es = te.es || {}
+  if (te.events.length) evs.push(...addLog(mb, te.events, 'enemy'))
+  const psSnap = Object.fromEntries(mb.members.map((m) => [m.id, { ...(m.ps || {}) }]))
+  const esSnap = { ...mb.es }
+  // 백귀행렬에 끌려간 사람은 공격받지 않는다.
+  const alive = aliveOf(mb).filter((m) => m.php > 0 && !(m.banished > 0))
   if (!alive.length) {
-    finishIfOver(mb)
-    return evs
+    if (!aliveOf(mb).length) {
+      finishIfOver(mb)
+      return evs
+    }
   }
   mb.turn = null
   const gim = bossGimmick(mb, mb.queue[0])
   let intent = gim.intent
   for (const n of gim.notes) evs.push(...addLog(mb, [{ kind: 'warn', text: n }], 'enemy'))
-  const willowBearer = aliveOf(mb).find(m => m.stats.special === 'willow')
+  const willowBearer = aliveOf(mb).find(m => m.stats.special === 'willow' && !((m.ps?.weaponSeal || 0) > 0))
   if (intent === 'special' && willowBearer && Math.floor(willowBearer.stats.comprehension / 2) >= Math.ceil(rng() * 100)) {
     const rerolled = rollIntent(mb.queue[0], rng, true, !!mb.enemy.boss)
     intent = rerolled
     evs.push(...addLog(mb, [{ kind: 'warn', text: `[${willowBearer.name}] 버드나무의 효과! 적의 아군 대상 영능력 행동을 재굴림했다.` }], willowBearer.id))
   }
   if (intent === 'special') {
-    const orchidBearer = aliveOf(mb).find(m => m.stats.special === 'orchid' && !m.specialSeen)
+    const orchidBearer = aliveOf(mb).find(m => m.stats.special === 'orchid' && !m.specialSeen && !((m.ps?.weaponSeal || 0) > 0))
     if (orchidBearer) {
       orchidBearer.specialSeen = true
       intent = 'none'
@@ -657,15 +798,34 @@ function enemyPhase(mb, rng) {
     mb.espirit = Math.max(0, (mb.espirit ?? mb.enemy.spirit) - spCost)
     evs.push(...addLog(mb, [{ kind: 'info', text: `(영능력에 영력 ${spCost} 소모, 남은 영력 ${mb.espirit}/${mb.enemy.spirit})` }], 'enemy'))
   }
+  // 모두 끌려가고 아무도 남지 않았다(혼자 남은 사람이 끌려가는 일은 없지만, 대비): 상대는 그냥 숨을 고른다.
+  if (!alive.length) intent = 'none'
   if (intent !== mb.queue[0]) mb.queue = [intent, ...mb.queue.slice(1)]
   const sp = intent === 'special' && mb.enemy.special2 ? (rng() < 0.5 ? 2 : 1) : 1
-  const group = intent === 'group' || (intent === 'special' && sp === 2)
+  const spDef = sp === 2 ? mb.enemy.special2 : mb.enemy.special
+  // special2 는 일행 전원(기본), special 은 한 사람(기본). 데이터형 영능력은 effect.target 으로 바꿀 수 있다. (v-B.04)
+  // v-B.05: 사람을 고르는 방식이 영능력마다 다르다(effectTargeting).
+  const tg = intent === 'special' ? effectTargeting(spDef, sp === 2) : intent === 'group' ? 'all' : 'one'
+  const eff = intent === 'special' ? spDef?.effect ?? {} : {}
+  const group = tg === 'all'
   const hits = intent === 'jab' || intent === 'smash' || intent === 'special'
   let targets
   let karmicMult = 1
+  const ctxOf = {} // 대상별 추가 ctx (차례로 줄어드는 피해, 싸움 붙이기 등)
+  let partyNote = null
   // 내려쬐는 빛: 다음 적의 공격(단일·단체 모두, 영능력 포함)을 무조건 자신에게 맞게 한다 — 실제로 공격이 들어오는 턴에만 소모된다.
-  const flTarget = mb.fallingLight && mb.members.find((x) => x.id === mb.fallingLight && x.status === 'alive' && x.php > 0)
-  if (group) {
+  const flTarget = mb.fallingLight && mb.members.find((x) => x.id === mb.fallingLight && x.status === 'alive' && x.php > 0 && !(x.banished > 0))
+  const markT = mb.es?.mark && alive.find((x) => x.id === mb.es.mark.id)
+  const unshielded = alive.filter((x) => !hasActiveSpiritBarrier(x, mb.enemy))
+  const pickOne = () => {
+    if (flTarget) return flTarget
+    if (markT) return markT
+    const pick = pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
+    return mb.members.find((m) => m.id === pick.id)
+  }
+  if (!alive.length) {
+    targets = []
+  } else if (group) {
     if (flTarget) {
       targets = [flTarget]
       karmicMult = alive.length
@@ -673,30 +833,96 @@ function enemyPhase(mb, rng) {
       evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 내려쬐는 빛! ${mb.enemy.name}의 단체 공격이 ${flTarget.name}에게 쏠린다. (인원 ${karmicMult}명치)` }], 'enemy'))
     } else {
       // 업인과보: 단체 공격·다중 타겟 영능력을 지정한 한 사람에게만, 인원수만큼 곱해서 쏠리게 한다.
-      const krTarget = mb.karmicTarget && mb.members.find((x) => x.id === mb.karmicTarget && x.status === 'alive' && x.php > 0)
+      const krTarget = mb.karmicTarget && mb.members.find((x) => x.id === mb.karmicTarget && x.status === 'alive' && x.php > 0 && !(x.banished > 0))
       if (krTarget) {
         targets = [krTarget]
         karmicMult = alive.length
         evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 업인과보! ${mb.enemy.name}의 단체 공격이 ${krTarget.name}에게 단일로 쏠린다. (인원 ${karmicMult}명치)` }], 'enemy'))
       } else {
         targets = alive
-        evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${mb.enemy.special2.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+        evs.push(...addLog(mb, [{ kind: 'info', text: intent === 'special' ? `▶ ${mb.enemy.name}이(가) 일행 전원을 향해 《${spDef.label}》!` : `▶ ${mb.enemy.name}의 단체 공격! 일행 전원에게 약공이 들어온다!` }], 'enemy'))
+      }
+    }
+    if (eff.release) {
+      const pool = (mb.es.takenNow || 0) + (mb.es.takenLog || []).slice(-(Math.max(1, eff.release.rounds) - 1)).reduce((a, b) => a + b, 0)
+      const share = Math.ceil((pool * eff.release.pct) / Math.max(1, targets.length)) * (karmicMult > 1 ? 1 : 1)
+      for (const t of targets) ctxOf[t.id] = { releaseShare: share }
+    }
+  } else if (tg === 'lowest') {
+    const t = flTarget || [...alive].sort((a, b) => a.php - b.php)[0]
+    targets = [t]
+    if (flTarget) mb.fallingLight = null
+    evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ ${mb.enemy.name}이(가) 가장 약한 ${t.name}에게 몰려든다!` }], 'enemy'))
+  } else if (tg === 'chain') {
+    const first = pickOne()
+    if (flTarget) mb.fallingLight = null
+    const rest = alive.filter((x) => x.id !== first.id).sort(() => rng() - 0.5)
+    targets = [first, ...rest]
+    targets.forEach((t, i) => { ctxOf[t.id] = { dmgScale: 0.5 ** i } })
+    evs.push(...addLog(mb, [{ kind: 'info', text: `▶ ${mb.enemy.name}이(가) ${targets.map((t) => t.name).join(' → ')} 차례로 문다!` }], 'enemy'))
+  } else if (tg === 'ff') {
+    const pool = unshielded.length ? unshielded : alive
+    if (pool.length >= 2) {
+      const a = rngPick(pool, rng)
+      const b = rngPick(pool.filter((x) => x.id !== a.id), rng)
+      targets = [b, a]
+      ctxOf[b.id] = { ffRaw: strikeOf(afflictStats(a.stats, a.ps), rng), ffFrom: a.name }
+      ctxOf[a.id] = { ffRaw: strikeOf(afflictStats(b.stats, b.ps), rng), ffFrom: b.name }
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ ${mb.enemy.name}이(가) ${a.name}와(과) ${b.name} 사이에 싸움을 붙인다!` }], 'enemy'))
+    } else targets = [pool[0]]
+  } else if (tg === 'swap') {
+    const pool = unshielded.length ? unshielded : alive
+    const byRatio = [...pool].sort((a, b) => b.php / b.phpMax - a.php / a.phpMax)
+    const hi = byRatio[0]
+    const lo = byRatio[byRatio.length - 1]
+    targets = [hi]
+    const hr = hi.php / hi.phpMax
+    const lr = lo.php / lo.phpMax
+    if (pool.length >= 2 && hi.id !== lo.id && Math.abs(hr - lr) < 0.01) partyNote = '넋을 뒤바꿨지만 모두 몸 상태가 같아 달라진 게 없다'
+    else if (pool.length >= 2 && hi.id !== lo.id && !hasActiveSpiritBarrier(hi, mb.enemy)) {
+      hi.php = Math.max(1, Math.round(lr * hi.phpMax))
+      lo.php = Math.max(1, Math.round(hr * lo.phpMax))
+      partyNote = `${hi.name}(${Math.round(hr * 100)}%)와 ${lo.name}(${Math.round(lr * 100)}%)의 넋이 뒤바뀌었다`
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 넋이 뒤바뀐다! ${hi.name}의 체력은 ${Math.round(lr * 100)}%, ${lo.name}의 체력은 ${Math.round(hr * 100)}%가 되었다.` }], 'enemy'))
+    }
+  } else if (tg === 'mark' || tg === 'link' || tg === 'banish') {
+    const pool = unshielded.length ? unshielded : alive
+    const t = tg === 'banish' ? (() => { const p = pickTarget(pool.map((m) => ({ id: m.id, hp: m.php })), rng); return mb.members.find((m) => m.id === p.id) })() : rngPick(pool, rng)
+    targets = [t]
+    if (!hasActiveSpiritBarrier(t, mb.enemy)) {
+      if (tg === 'mark') {
+        mb.es = { ...mb.es, mark: { id: t.id, rounds: eff.mark } }
+        partyNote = `${t.name}에게 흰 털 냄새가 묻었다 (${eff.mark}라운드)`
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ ${t.name}에게 흰 털 냄새가 묻었다! ${eff.mark}라운드 동안 한 사람을 노리는 공격은 모두 ${t.name}에게 간다.` }], 'enemy'))
+      } else if (tg === 'link' && pool.length >= 2) {
+        const u = rngPick(pool.filter((x) => x.id !== t.id), rng)
+        mb.es = { ...mb.es, link: { ids: [t.id, u.id], rounds: eff.link } }
+        partyNote = `${t.name}와(과) ${u.name}이(가) 이어졌다 (${eff.link}라운드)`
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 산과 물이 ${t.name}와(과) ${u.name}을(를) 잇는다! ${eff.link}라운드 동안 한쪽이 다치면 다른 쪽도 절반만큼 다친다.` }], 'enemy'))
+      } else if (tg === 'banish' && pool.length >= 2) {
+        t.banished = eff.banish.rounds
+        t.banishNeed = Math.max(1, effectExpr(eff.banish.need, mb.enemy))
+        t.banishDealt = 0
+        t.banishFresh = true
+        partyNote = `${t.name}이(가) 행렬에 끌려갔다 (${eff.banish.rounds}라운드)`
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `▶ 백귀행렬이 ${t.name}을(를) 끌고 간다! ${eff.banish.rounds}라운드 동안 싸움에서 빠진다. (남은 일행이 ${t.banishNeed} 이상 때리면 돌아온다)` }], 'enemy'))
       }
     }
   } else {
-    // 내려쬐는 빛: 단일 대상 공격도 무조건 그걸 쓴 사람에게 향한다.
-    const pick = flTarget ? { id: flTarget.id } : pickTarget(alive.map((m) => ({ id: m.id, hp: m.php })), rng)
-    targets = [mb.members.find((m) => m.id === pick.id)]
+    // 내려쬐는 빛: 단일 대상 공격도 무조건 그걸 쓴 사람에게 향한다. 흰 털 냄새가 묻은 사람이 있으면 그쪽으로.
+    targets = [pickOne()]
     if (hits) {
       if (flTarget) mb.fallingLight = null
       evs.push(
         ...addLog(
           mb,
           [{
-            kind: flTarget ? 'warn' : 'info',
+            kind: flTarget || markT ? 'warn' : 'info',
             text: flTarget
               ? `▶ 내려쬐는 빛! ${mb.enemy.name}이(가) ${targets[0].name}을(를) 향한다.`
-              : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)`,
+              : markT
+                ? `▶ 흰 털 냄새를 따라 ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다!`
+                : `▶ ${mb.enemy.name}이(가) ${targets[0].name}을(를) 노린다! (체력이 가장 많은 사람)`,
           }],
           'enemy',
         ),
@@ -705,20 +931,34 @@ function enemyPhase(mb, rng) {
   }
   // 대상 전원이 결계로 보호되더라도 적의 영능력 시전은 사라지지 않는다.
   // 영력 소모, 시전 팝업, 후속 행동은 그대로 유지한다. (단일 시전은 약공으로 대체.)
-  if (intent === 'special' && targets.every(t => hasActiveSpiritBarrier(t, mb.enemy))) {
-    const psychic = group && mb.enemy.special2 ? mb.enemy.special2 : mb.enemy.special
+  const pierce = intent === 'special' && effectPierces(spDef) // 영력결계를 꿰뚫는 영능력(결계째 삼키기)
+  if (intent === 'special' && !pierce && targets.length && targets.every(t => hasActiveSpiritBarrier(t, mb.enemy))) {
+    const psychic = spDef
     evs.push(...addLog(mb, [{
       kind: 'special', label: psychic?.label, note: psychic?.note,
-      enemyId: group && mb.enemy.special2 ? `${mb.enemy.id}-2` : mb.enemy.id,
+      enemyId: sp === 2 ? `${mb.enemy.id}-2` : mb.enemy.id,
       chance: SPECIAL_PERCENT, effects: specialEffects(mb.enemy),
       result: group
         ? '정상 시전되었으나 모든 대상이 영력결계로 효과를 받지 않았다.'
         : '단일 대상이 영력결계를 지녀 약공으로 대체되었다.',
     }], 'enemy'))
   }
+  const linkOf = (t) => {
+    const l = mb.es?.link
+    if (!l || !l.ids.includes(t.id)) return null
+    return mb.members.find((x) => x.id === l.ids.find((id) => id !== t.id) && x.status === 'alive' && !(x.banished > 0)) ?? null
+  }
+  const linkHits = []
+  if (!targets.length) {
+    // 아무도 칠 수 없다: 라운드만 넘긴다.
+    mb.queue = [...mb.queue.slice(1), rollIntent(mb.queue[mb.queue.length - 1], rng, true, !!mb.enemy.boss)]
+    mb.known = Math.max(0, mb.known - 1)
+    mb.round += 1
+    evs.push(...addLog(mb, [{ kind: 'info', text: `${mb.enemy.name}이(가) 숨을 고른다.` }], 'enemy'))
+  }
   targets.forEach((t, i) => {
     if (mb.ehp <= 0) return
-    const barrierActive = hasActiveSpiritBarrier(t, mb.enemy)
+    const barrierActive = hasActiveSpiritBarrier(t, mb.enemy) && !pierce
     const blocksGroupSpecial = intent === 'special' && group && barrierActive
     const downgradesSingleSpecial = intent === 'special' && !group && barrierActive
     if (blocksGroupSpecial) {
@@ -735,11 +975,8 @@ function enemyPhase(mb, rng) {
     // 내려쬐는 빛으로 대신 맞는 공격은 무조건 '막기'로 처리된다. (v71)
     const v = { ...viewOfMember(mb, t), guard: flTarget && t.id === flTarget.id ? true : t.guard, queue: q }
     const prevPhp = t.php
-    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: auraFor(mb, t.id), willowHandled: true }, rng) // 악기: 반격자 본인이면 75%만
-    if (mb.earthReduction > 0 && r.state.php < prevPhp) {
-      r.state.php = Math.min(t.phpMax, r.state.php + Math.floor((prevPhp - r.state.php) * mb.earthReduction))
-      if (r.state.php > 0) {r.state.pendingDeath = false; if(r.state.over === 'lose') r.state.over = null}
-    }
+    const r = enemyTurn(v, { stats: t.stats, mp: t.mp, sp, noSpiritGate: true, aura: auraFor(mb, t.id), willowHandled: true, firstTarget: i === 0, reduction: mb.earthReduction || 0, partyN: alive.length, partyNote, ...(ctxOf[t.id] || {}) }, rng) // 악기: 반격자 본인이면 75%만 · 적 체력 회복은 첫 대상에서 한 번만
+    // 지신밟기는 enemyTurn 안에서 받는 피해에 바로 적용된다(reduction). (v-B.04)
     if (karmicMult > 1) {
       const dealt = Math.max(0, prevPhp - r.state.php)
       const extra = dealt * (karmicMult - 1)
@@ -763,18 +1000,28 @@ function enemyPhase(mb, rng) {
       mb.queue = r.state.queue
       mb.known = r.state.known
       mb.round = r.state.round
+      mb.lies = r.state.lies ?? null
     }
     mb.ehp = r.state.ehp // 막기 반격으로 쓰러질 수도 있다
+    mb.es = r.state.es || {}
     t.php = r.state.php
+    t.phpMax = r.state.phpMax ?? t.phpMax // 할퀸 상처
+    t.charms = r.state.charms ?? t.charms // 끝없는 허기
+    t.survived = r.state.survived ?? t.survived // 명부 쇠사슬
+    t.ps = r.state.ps || {}
+    if (r.state.barrierBroken) t.barrierBroken = true
+    if ((t.starBonus || 0) > 0 && !(r.state.starBonus > 0)) { t.stats.aggression -= t.starBonus; t.starBonus = 0 } // 여우구슬
+    if ((t.fire || 0) > 0 && !(r.state.fire > 0)) { t.fire = 0; t.fireBuffed = false }
     t.specialSaved = !!r.state.specialSaved
     t.specialSeen = !!r.state.specialSeen
     t.curse = r.state.curse
     t.bound = r.state.bound || t.bound
-    if ((r.state.psySeal || 0) > 0) { t.psySeal = r.state.psySeal; t.psySealFresh = true } // 이번 라운드에 걸린 봉인은 다음 라운드부터 센다
+    if (r.sealed || (r.state.psySeal || 0) > (t.psySeal || 0)) { t.psySeal = Math.max(t.psySeal || 0, r.state.psySeal || 0); t.psySealFresh = true } // 이번 라운드에 걸린 봉인은 다음 라운드부터 센다
+    t.stun = r.state.pstun || 0 // 데이터형 영능력의 행동불능·가위눌림(깨어나면 0) (v-B.04 · v-B.05)
     t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
     // 대상 면역일 때 생긴 내부 '행동이 무효화' 안내는 적 전체가 공격을 취소한 것으로 오해될 수 있으므로 숨긴다.
     let tevs = (blocksGroupSpecial ? r.events.filter(e => !/행동이 무효화/.test(e.text || '')) : r.events)
-      .map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : group && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
+      .map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : (group || targets.length > 1) && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
     const downed = r.state.pendingDeath || r.state.over === 'lose'
     if (downed && t.revive) {
       t.revive = false
@@ -794,14 +1041,66 @@ function enemyPhase(mb, rng) {
       tevs = [...tevs, { kind: 'warn', text: `[${t.name}] 전투불능 상태가 되었다.`, popup: { type: 'downed', name: t.name } }]
     }
     evs.push(...addLog(mb, tevs, 'enemy'))
+    // 산과 물 잇기: 이어진 사람도 절반만큼 다친다(라운드 끝에 한꺼번에).
+    const hurtNow = Math.max(0, prevPhp - (t.pendingDeath || t.status === 'down' ? 0 : t.php))
+    const other = hurtNow > 0 ? linkOf(t) : null
+    if (other) linkHits.push([other, Math.floor(hurtNow / 2), t.name])
   })
+  for (const [o, d, from] of linkHits) if (d > 0) roundHurt(mb, o, d, `${from}와(과) 이어진 기운으로 아픔이 번진다.`, evs)
+  // v-B.05: 라운드 끝 상태 이상 피해 — 쥐 떼·땡볕·독·역병 (막기 상태가 풀리기 전에)
+  if (mb.ehp > 0) {
+    const live = () => aliveOf(mb).filter((x) => x.php > 0 && !x.pendingDeath && !(x.banished > 0))
+    if (mb.es.summon > 0 && live().length) {
+      const v = rngPick(live(), rng)
+      roundHurt(mb, v, 1 + Math.floor(rng() * Math.max(1, mb.es.summonDie || 1)), `쥐 떼가 발목을 문다${v.guard ? ' (막기로 절반)' : ''}.`, evs, true)
+    }
+    if (mb.es.field) for (const x of live()) roundHurt(mb, x, 1 + Math.floor(rng() * Math.max(1, mb.es.field.die)), '땡볕이 내리쬔다.', evs)
+    for (const x of live()) if ((x.ps?.poison || 0) > 0) roundHurt(mb, x, x.ps.poison * (1 + Math.floor(rng() * Math.max(1, x.ps.poisonDie || 1))), `독이 퍼진다 (${x.ps.poison}겹).`, evs)
+    const sick = live().filter((x) => (x.ps?.plague || 0) > 0)
+    for (const x of sick) roundHurt(mb, x, 1 + Math.floor(rng() * Math.max(1, x.ps.plagueDie || 1)), '역병이 몸을 갉는다.', evs)
+    if (sick.length) {
+      const clean = live().filter((x) => !((x.ps?.plague || 0) > 0) && !hasActiveSpiritBarrier(x, mb.enemy))
+      if (clean.length) {
+        const n = rngPick(clean, rng)
+        n.ps = { ...(n.ps || {}), plague: 3, plagueDie: sick[0].ps.plagueDie }
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `[${n.name}] 역병이 옮아왔다! (3라운드)` }], n.id))
+      }
+    }
+  }
   for (const m of mb.members) m.guard = false
+  // 뼈 맞추기: 쓰러져도 한 번은 일어선다.
+  if (mb.ehp <= 0) {
+    const sv = { ehp: mb.ehp, enemy: mb.enemy, es: mb.es }
+    const rl = []
+    if (reviveCheck(sv, rl)) {
+      mb.ehp = sv.ehp
+      mb.es = sv.es
+      evs.push(...addLog(mb, rl, 'enemy'))
+    }
+  }
   if (mb.ehp <= 0) {
     mb.over = 'win'
     mb.phase = 'over'
     evs.push(...addLog(mb, [{ kind: 'end', text: `${mb.enemy.name}이(가) 쓰러졌다.` }]))
     return evs
   }
+  // v-B.05: 라운드 끝 기록(되감기·원한)과 상태 세기
+  mb.es = { ...mb.es, ehpHist: [...(mb.es.ehpHist || []), mb.ehp].slice(-4), takenLog: [...(mb.es.takenLog || []), mb.es.takenNow || 0].slice(-4), takenNow: 0 }
+  for (const m of aliveOf(mb)) {
+    const t = tickStatus(m.ps, 'end', freshOf(psSnap[m.id], m.ps))
+    m.ps = t.ps || {}
+    if (t.events.length) evs.push(...addLog(mb, t.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id))
+    if (m.banished > 0) {
+      if (m.banishFresh) m.banishFresh = false
+      else {
+        m.banished -= 1
+        if (!m.banished) evs.push(...addLog(mb, [{ kind: 'info', text: `[${m.name}] 행렬에서 빠져나와 일행에게 돌아왔다.` }], m.id))
+      }
+    }
+  }
+  const et = tickEnemyStatus(mb.es, 'end', freshOf(esSnap, mb.es))
+  mb.es = et.es || {}
+  if (et.events.length) evs.push(...addLog(mb, et.events, 'enemy'))
   // 영능력 봉인: 걸린 라운드 다음부터 한 라운드가 끝날 때마다 1씩 줄어든다(= 다음 3라운드 동안 봉인).
   for (const m of mb.members) {
     if (m.psySealFresh) m.psySealFresh = false
@@ -810,19 +1109,42 @@ function enemyPhase(mb, rng) {
       if (!m.psySeal) evs.push(...addLog(mb, [{ kind: 'info', text: `[${m.name}] 영능력 봉인이 풀렸다.` }], m.id))
     }
   }
-  // 그슨대: 체력 25% 미만이면 매 라운드 끝마다 스스로 커진다.
-  if (mb.enemy.rage?.growEachRound && (mb.rage || 0) >= 2) evs.push(...growBoss(mb, 1, '그림자가 하늘까지 솟는다.'))
+  // 그슨대: 체력 25% 미만이면 매 라운드 끝마다 스스로 커진다. (문구는 rage.growText 로 바꿀 수 있다)
+  if (mb.enemy.rage?.growEachRound && (mb.rage || 0) >= 2) evs.push(...growBoss(mb, 1, mb.enemy.rage.growText ?? '그림자가 하늘까지 솟는다.'))
+  // v-B.04: 저주에 걸린 사람이 있으면 라운드 끝마다 커진다(grows.onCursed). v-B.05: 역병도 친다.
+  if (mb.enemy.grows?.onCursed && aliveOf(mb).some((x) => (x.curse || 0) > 0 || (x.ps?.plague || 0) > 0)) evs.push(...growBoss(mb, 1, mb.enemy.grows.cursedText ?? `저주가 번진다.`))
+  // v-B.04: 재생(regen: { pct, from }) — 광분 단계가 from 이상이면 라운드 끝마다 체력 최대치의 pct 만큼 회복한다.
+  const regen = mb.enemy.regen
+  if (regen && mb.ehp > 0 && mb.ehp < mb.enemy.hp && (mb.rage || 0) >= (regen.from ?? 0)) {
+    const before = mb.ehp
+    mb.ehp = Math.min(mb.enemy.hp, mb.ehp + Math.ceil(mb.enemy.hp * regen.pct))
+    evs.push(...addLog(mb, [{ kind: 'warn', text: `${regen.text ?? `${mb.enemy.name}이(가) 숨을 고른다.`} (체력 +${mb.ehp - before})` }], 'enemy'))
+  }
   return evs.concat(afterEnemy(mb, rng))
 }
 
+/** 보스가 커지는 계기 목록 (grows.trigger, 기본 'scan'. 빈 배열이면 행동으로는 커지지 않는다) */
+export const growTriggers = (enemy) => (enemy?.grows ? [].concat(enemy.grows.trigger ?? 'scan') : [])
+const GROW_TEXT = {
+  scan: '{who}이(가) {boss}을(를) 올려다보았다.',
+  charm: '{who}의 부적이 {boss}을(를) 자극했다.',
+  psychic: '{who}의 영능력을 {boss}이(가) 받아먹었다.',
+  guard: '{who}이(가) 웅크리자 {boss}의 기세가 올랐다.',
+  attack: '{who}의 공격에 {boss}이(가) 더 사나워졌다.',
+}
+function growReason(mb, m, action) {
+  const t = (typeof mb.enemy.grows?.msg === 'object' ? mb.enemy.grows.msg[action] : mb.enemy.grows?.msg) ?? GROW_TEXT[action] ?? GROW_TEXT.scan
+  return t.replaceAll('{who}', m.name).replaceAll('{boss}', mb.enemy.name)
+}
+
 /**
- * 커지는 보스(그슨대): 단계를 올리고 공격력을 다시 계산한다. 최대 단계면 그대로.
+ * 커지는 보스(그슨대 등): 단계를 올리고 공격력을 다시 계산한다. 최대 단계면 그대로.
  * 반환: 로그 이벤트 목록
  */
 export function growBoss(mb, amount, reason) {
   const g = mb.enemy.grows
   if (!g || amount <= 0) return []
-  const base = ENEMIES.find((e) => e.id === mb.enemy.id)?.atk ?? mb.enemy.atk
+  const base = enemyById(mb.enemy.id)?.atk ?? mb.enemy.atk
   const before = mb.grow || 0
   mb.grow = Math.min(g.max, before + amount)
   mb.enemy.atk = base + g.atkPerStage * mb.grow
@@ -914,7 +1236,8 @@ export function viewOf(mb, extra = {}) {
     grow: mb.grow || 0, // 커지는 보스(그슨대)의 현재 단계
     enemyAtk: mb.enemy.atk, // 전투 중 바뀐 현재 공격력
     ehp: mb.ehp,
-    queue: mb.queue.slice(0, mb.over ? 0 : mb.known),
+    queue: shownQueue(mb.queue, mb.lies).slice(0, mb.over ? 0 : mb.known), // 헛것 보이기(v-B.05)면 몇 개는 거짓으로 보인다
+    es: Object.fromEntries(Object.entries(mb.es || {}).filter(([k]) => !['ehpHist', 'takenLog', 'takenNow'].includes(k))),
     known: mb.over ? 0 : mb.known,
     round: mb.round,
     turn: mb.turn,
@@ -943,6 +1266,11 @@ export function viewOf(mb, extra = {}) {
       passiveOff: m.passiveOff || [],
       lbPick: !!m.lbPick,
       psySeal: m.psySeal || 0, // 영능력 봉인 남은 라운드 (그슨대)
+      ps: m.ps || {}, // v-B.05 상태 이상
+      stun: m.stun || 0,
+      banished: m.banished || 0,
+      barrierBroken: !!m.barrierBroken,
+      starBonus: m.starBonus || 0,
       curseUntil: m.curseUntil || 0,
       fire: m.fire || 0,
   specialSaved: !!m.specialSaved,
