@@ -816,3 +816,15 @@ p.scene-jitter { display: block; }
 .scene-caret { animation: scene-caret 0.9s steps(1, end) infinite; color: var(--color-gold, #c9a85b); }
 @keyframes scene-caret { 50% { opacity: 0 } }
 @media (prefers-reduced-motion: reduce) { .scene-jitter { animation-duration: 1.2s; } }
+
+/* v-B.07 탐사 글의 굵게 · 기울임 글자만: 화면 글꼴 설정과 상관없이 늘 명조체. (나머지 글은 화면 글꼴 그대로)
+   1순위 조선일보명조(ChosunNm, 웹폰트 / 설치돼 있으면 ChosunilboNM), 없으면 본명조 계열(Noto Serif KR, 이미 불러옴) · 나눔명조 · 바탕. */
+@font-face {
+  font-family: 'ChosunNm';
+  src: local('ChosunilboNM'), local('조선일보명조'), url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/ChosunNm.woff') format('woff');
+  font-weight: normal; font-style: normal; font-display: swap;
+}
+.script-myeongjo, .script-myeongjo * {
+  font-family: 'ChosunNm', 'ChosunilboNM', 'Noto Serif KR', 'Noto Serif CJK KR', 'Nanum Myeongjo', 'KoPub Batang', 'AppleMyungjo', 'Batang', serif !important;
+  letter-spacing: 0;
+}

@@ -99,7 +99,7 @@ test('v-B.07 본관: 양호실의 해님 — 인사 1 · 다시 말 걸기 3 · 
   assert.equal(nurse.widget, 'gotoInfirmary')
   assert.deepEqual(HAENIM_CHOICES.map((c) => c.lines.length), [1, 3, 12])
   assert.equal(nurse.choices, HAENIM_CHOICES)
-  assert.match(HAENIM_CHOICES[0].lines[0], /OO 학생/)
+  assert.match(HAENIM_CHOICES[0].lines[0].text, /OO 학생/)
   assert.equal(HAENIM_CHOICES[0].npc.name, '해님')
   assert.match(read('../src/components/locations/Infirmary.jsx'), /view === 'haenim'/)
   assert.match(read('../src/game/activities.js'), /\{ id: 'haenim', label: '해님과 대화', icon: MessageCircle \}/)
@@ -240,4 +240,52 @@ test('v-B.07 장면 화면: 흔들림 · 타이핑 · 순서대로 · 대기 상
   assert.match(scene, /scene-jitter/); assert.match(scene, /data-typewriter/); assert.match(scene, /data-scene-seq/); assert.match(scene, /data-cost-box/)
   assert.match(read('../src/index.css'), /@keyframes scene-jitter/)
   assert.match(read('../src/Game.jsx'), /const exploreAct = \(kind, payload = \{\}\) =>/)
+})
+
+// ───────── 해님 초상화 · 글자 연출 · 명조체 ─────────
+test('v-B.07 해님 초상화: 기본 · 웃음 · 놀람, 대사마다 표정이 붙는다', async () => {
+  const { HAENIM, HAENIM_AGAIN, HAENIM_ADVICE, HAENIM_GREETING } = await import('../src/game/explore.js')
+  const { existsSync } = await import('node:fs')
+  assert.deepEqual(Object.keys(HAENIM.faces), ['plain', 'smile', 'surprise'])
+  for (const src of Object.values(HAENIM.faces)) assert.ok(existsSync(new URL(`../public${src}`, import.meta.url)), src)
+  assert.equal(HAENIM_GREETING.face, 'smile')
+  for (const l of [...HAENIM_AGAIN, ...HAENIM_ADVICE]) assert.ok(['plain', 'smile', 'surprise'].includes(l.face))
+  assert.equal(HAENIM_AGAIN[2].face, 'surprise', '바리를 만났냐는 말은 놀란 얼굴')
+  const scene = read('../src/components/Scene.jsx')
+  assert.match(scene, /src=\{faceSrc\(node\.npc, paras\.face\)\}/)
+})
+
+test('v-B.07 글자 연출: 시트의 굵게·기울임 + 예전에 넣어 둔 단서 표시', () => {
+  const all = JSON.stringify([FLOORS, ANNEX_FLOORS, HIKE_PATHS, SHRINE_AREAS])
+  // 시트에서 굵은 곳
+  assert.match(floor('f1').intro[0], /\*\*로비\*\*.*\*\*긴장이 풀리는 기분\*\*/)
+  assert.match(area('f1', 'lobby').text[0], /\*\*나무문\*\*.*\*\*사당\*\*.*\*\*교장실, 상장 거치대, 문헌보관소\*\*/)
+  assert.match(findNode(room('f3', 'archive'), 'rules').text[0], /8항\. \*\*검은 안개\*\*와/)
+  // 시트에서 굵은+기울임 / 기울임인 곳
+  const ch4 = findNode(room('f3', 'archive'), 'fogCh4')
+  assert.match(ch4.name, /^\*\*\*\[검은안개/); assert.match(ch4.text[0], /^\*방울소리가[^*]+\*$/)
+  assert.match(spot('center', 'tomb', 'climb').text[0], /\*헤집어라\. [^*]+네가 \*\*\*\*너\*\*\*\*라는 사실을 망자들에게 들키지 말라\.\*/)
+  assert.match(findNode(shrineArea('backyard'), 'vesselStore').text[0], /반납 \*\*\*실패\*\*\* 시 ~~◆■~~의/)
+  const notice = findNode(area('b1', 'supply'), 'notice')
+  assert.equal(notice.typeBold, true); assert.equal(notice.typeItalic, true)
+  // 예전에 넣어 둔 굵게·기울임(단서 표시)도 그대로 둔다
+  assert.match(floor('b1').intro[0], /\*\*문헌보관소\*\*, \*\*비품실\*\*.*\*\*거대한 문\*\*/)
+  assert.match(area('b1', 'archiveB').text[0], /\*\*금줄과 흰 천\*\*.*\*\*안내 수칙\*\*/)
+  assert.match(floor('roof').intro[0], /\*검은 안개\*/)
+  assert.match(findNode(area('f1', 'lobby'), 'shrine').text.at(-1).text, /\*아직은 어리구나 아해야\. 더 자라나 돌아오도록 하렴….\*/)
+  assert.ok(all.includes('**목조 조각상**'))
+  const scene = read('../src/components/Scene.jsx')
+  assert.match(scene, /\*\*승리 :\*\* \$\{win\}/)
+})
+
+test('v-B.07 굵게·기울임 글자만 명조체(조선일보명조), 나머지 글은 화면 글꼴 그대로', () => {
+  const css = read('../src/index.css')
+  assert.match(css, /font-family: 'ChosunNm'/)
+  assert.match(css, /\.script-myeongjo, \.script-myeongjo \* \{\n  font-family: 'ChosunNm', 'ChosunilboNM', 'Noto Serif KR'[^;]+!important;/)
+  const scene = read('../src/components/Scene.jsx')
+  assert.match(scene, /className=\{`\$\{SCRIPT_FONT\} font-bold italic`\} data-rich="bi"/)
+  assert.match(scene, /className=\{`\$\{SCRIPT_FONT\} font-bold`\} data-rich="b"/)
+  assert.match(scene, /className=\{`\$\{SCRIPT_FONT\} italic`\} data-rich="i"/)
+  assert.doesNotMatch(scene, /\$\{SCRIPT_FONT\} whitespace-pre-line/, '문단 전체는 명조로 바꾸지 않는다')
+  assert.doesNotMatch(read('../src/components/LocationIntro.jsx'), /script-myeongjo/)
 })
