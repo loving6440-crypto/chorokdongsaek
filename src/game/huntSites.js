@@ -1,6 +1,9 @@
 // 좌표는 사진 기준 0부터 센다. x=열(A~J), y=행(1~10).
 // 출처: Google 시트 '채집 터' (gid=1845354668)의 셀 메모.
 // 쑥 13레벨, 최대 20턴, 영물·산귀신 설정은 사용자가 추가로 지정한 값이다.
+import { TRAIL_SPECIES, TRAILS } from './huntTrails.js'
+import { enemyById } from './battle.js'
+
 export const HUNT_SIZE = 10
 export const HUNT_COOLDOWN_MS = 0
 export const HUNT_ATTEMPTS = 3
@@ -73,6 +76,8 @@ const EXTRA_SPECIES = {
   stoneGate: { name: '봉인된 석문', kind: 'obstacle', rewards: [{ item: 'web', dice: 2 }] },
 }
 Object.assign(HUNT_SPECIES, EXTRA_SPECIES)
+// v-B.05: 산길 5~20 의 식물·장애물·동물·영물 47종 (huntTrails.js)
+for (const [k, v] of Object.entries(TRAIL_SPECIES)) if (!HUNT_SPECIES[k]) HUNT_SPECIES[k] = v
 
 export const HUNT_BONUSES = {
   plant: { item: 'fine-woodchip', amount: 1 },
@@ -180,9 +185,38 @@ const CAVE=site('left-cave','동굴',[
   tile('B9','stoneGate',20),tile('B10','stoneGate',20),tile('J10','stalactite',23),
 ], '동굴귀', 40)
 
+// v-B.05: 산길 5~20 — huntTrails.js 의 데이터로 터를 만든다. 영물이 둘(귀한 15% · 흔한 20%)이라 spirits 배열을 쓴다.
+const routeOf = (cell, [type, a, b]) => {
+  const x = cell.charCodeAt(0) - 65, y = Number(cell.slice(1)) - 1
+  if (type === 'rect' || type === 'ccw') {
+    const sx = Math.min(x, 10 - b), sy = Math.min(y, 10 - a)
+    return type === 'rect' ? clockwiseRoute(sx, sy, b, a) : counterClockwiseRoute(sx, sy, b, a)
+  }
+  if (type === 'snake') return snakeRoute(x, y, a)
+  if (type === 'line') return b === 'v' ? clockwiseRoute(x, Math.min(y, 10 - a), 1, a) : clockwiseRoute(Math.min(x, 10 - a), y, a, 1)
+  throw new Error(`알 수 없는 이동 경로: ${type}`)
+}
+const bestiaryGhost = ({ id, items }) => {
+  const enemy = enemyById(id)
+  return { chance: 0.15, kind: 'ghost', name: enemy.name, level: enemy.tier ?? 3, enemy, rewardSpirit: Math.min(500, enemy.spirit * 2), rewardItems: items }
+}
+const trailSite = (t) => {
+  const spirits = t.spirits.map(([species, level, chance]) => ({ ...spiritOf(species, level), chance }))
+  return {
+    id: `left-trail-${t.n}`, path: 'left', name: `산길 ${t.n}`, theme: t.theme, note: t.note, targetStat: t.S,
+    start: { x: 0, y: 9 }, maxTurns: 30,
+    nodes: t.nodes.map(([cell, species, level, route]) => (route ? { ...point(cell, species, level), route: routeOf(cell, route) } : point(cell, species, level))),
+    spirits,
+    spirit: spirits[0], // 예전 코드(한 마리만 보는 곳)를 위한 대표 영물
+    ghost: bestiaryGhost(t.ghost),
+  }
+}
+export const TRAIL_SITES = TRAILS.map(trailSite)
+
 export const HUNT_PATHS = [
   { id: 'left', name: '뒷산', sites: [
     ...[1,2,3,4].map(n=>({id:`left-trail-${n}`,name:`산길 ${n}`})),
+    ...TRAIL_SITES.map((t) => ({ id: t.id, name: t.name })),
     {id:'left-lake',name:'호수'}, {id:'left-cemetery',name:'묘소'},
     {id:'left-cave',name:'동굴'}, {id:'left-archive',name:'?? 보관소'},
   ]},
@@ -192,6 +226,7 @@ export const HUNT_SITES = {
   [LEFT_TRAIL_ONE.id]:LEFT_TRAIL_ONE,
   [TRAIL_TWO.id]:TRAIL_TWO,[TRAIL_THREE.id]:TRAIL_THREE,[TRAIL_FOUR.id]:TRAIL_FOUR,
   [LAKE.id]:LAKE,[CEMETERY.id]:CEMETERY,[CAVE.id]:CAVE,
+  ...Object.fromEntries(TRAIL_SITES.map((t) => [t.id, t])),
 }
 
 /* 구형 길 분할 목록은 v79부터 사용하지 않는다. 아래는 호환용 주석.
@@ -215,7 +250,7 @@ export function siteMissingData(site) {
     if (!species || species.kind !== node.kind || !Number.isFinite(node.level) || node.level < 1) missing.push(`${node.id} 이름·적정 레벨`)
     if (node.kind === 'animal' && !node.route?.length) missing.push(`${node.id} 이동 경로`)
   }
-  if (site.spirit?.chance > 0 && (!Number.isFinite(site.spirit.level) || site.spirit.level < 1 || !site.spirit.rewards?.length)) missing.push('영물 적정 레벨·보상')
+  for (const sp of site.spirits ?? (site.spirit ? [site.spirit] : [])) if (sp.chance > 0 && (!Number.isFinite(sp.level) || sp.level < 1 || !sp.rewards?.length)) missing.push('영물 적정 레벨·보상')
   return missing
 }
 

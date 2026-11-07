@@ -51,7 +51,11 @@ import {
   COURSES,
 } from './game/constants'
 import { LESSON_WAIT_MINUTES } from './game/courseInfo'
+<<<<<<< Updated upstream
 import { ENEMIES } from './game/battle'
+=======
+import { enemyById, ownedPassives } from './game/battle'
+>>>>>>> Stashed changes
 import { SKINS, isSkinOpen } from './game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from './game/skinsRunner'
 import { bumpWeekly, markWeeklySet, markDaily, claimQuest, claimMetaQuest, claimDailyQuest, claimDailyMeta, setExploreAreaSpots } from './game/clubQuests'
@@ -165,6 +169,9 @@ export default function Game({
   }, [])
   const [locationId, setLocationId] = useState(() => initialSave?.locationId || 'dorm')
   const battleRef = useRef(false)
+  // v-B.05: 단독 전투의 아이템 봉인(신 훔치기)·돌림병 — Battle 이 알려 준다.
+  const afflictRef = useRef({ itemSeal: false, healBlock: false })
+  const onAfflict = useCallback((a) => { afflictRef.current = a || { itemSeal: false, healBlock: false } }, [])
   const reviveRef = useRef(false)
   const locRef = useRef(locationId)
   locRef.current = locationId
@@ -1237,7 +1244,11 @@ export default function Game({
                   ? '아이템은 내 차례에만 쓸 수 있다.'
                   : r.error === 'busy'
                     ? '지금은(행동불능·도깨비불 충전 중) 아이템을 쓸 수 없다.'
-                    : '지금은 쓸 수 없다.',
+                    : r.error === 'item-seal'
+                      ? '신과 함께 주머니를 빼앗겨 지금은 아이템을 쓸 수 없다.'
+                      : r.error === 'heal-block'
+                        ? '돌림병 탓에 지금은 회복 아이템이 듣지 않는다.'
+                        : '지금은 쓸 수 없다.',
           )
           return
         }
@@ -1259,6 +1270,9 @@ export default function Game({
       })
       if (!ok.ok) return
       const e = item.effect
+      // v-B.05: 단독 전투 중 신 훔치기(아이템 봉인)·돌림병(회복 봉쇄)
+      if (battleRef.current && afflictRef.current.itemSeal) { notify('신과 함께 주머니를 빼앗겨 지금은 아이템을 쓸 수 없다.'); return }
+      if (battleRef.current && afflictRef.current.healBlock && (e.hp || e.giveHp)) { notify('돌림병 탓에 지금은 회복 아이템이 듣지 않는다.'); return }
       // 숯: 기본 육조 수치가 10 미만인 하나를 올리는 대신 체력 30 소모.
       if (e.trainUnder10) {
         if (!ENH_STATS.includes(target) || (cur.stats?.[target] ?? 0) >= 10) { notify('스탯이 10 미만인 육조를 골라야 한다.'); return }
@@ -1346,7 +1360,7 @@ export default function Game({
         if (r.error) return addLog(r.error)
         playerRef.current = r.player
         setPlayer(r.player)
-        const enemy = ENEMIES.find((e) => e.id === enemyId)
+        const enemy = enemyById(enemyId)
         addLog(`퇴마 실습(느린 싸움): ${enemy?.name}을(를) 상대로 ${slowFightMinutes(enemy)}분을 기다리기 시작했다.`)
       })
     },
@@ -1436,7 +1450,7 @@ export default function Game({
     if (lost) {
       setActivity('intro')
       setLocationId('infirmary')
-      addLog('산귀신에게 쓰러져 양호실에서 눈을 떴다. [쇠약] 모든 육조 스탯이 5할로 줄었다. (24시간)')
+      addLog(`${result.enemy?.name ?? '요괴'}에게 쓰러져 양호실에서 눈을 떴다. [쇠약] 모든 육조 스탯이 5할로 줄었다. (24시간)`)
     }
   }
 
@@ -1511,7 +1525,7 @@ export default function Game({
       setLocationId('gym')
       setActivity('battle')
       setPanel('world')
-      addLog(`${ENEMIES.find((e) => e.id === mbView.enemyId)?.name} 다인 전투에 참여했다.`)
+      addLog(`${enemyById(mbView.enemyId)?.name} 다인 전투에 참여했다.`)
     }
     const me = mbView.members.find((m) => m.id === online.me.id)
     if (!me) return
@@ -1542,7 +1556,7 @@ export default function Game({
     if (mbView.over && !rec2.finished) {
       rec2.finished = true
       battleDownedRef.current = rec2.downed
-      const enemy = ENEMIES.find((e) => e.id === mbView.enemyId)
+      const enemy = enemyById(mbView.enemyId)
       reviveRef.current = false
       setReviveOn(false)
       boostRef.current = false
@@ -1596,7 +1610,11 @@ export default function Game({
     isLeader: !!online.party?.members?.length && online.party.members[0].id === online.me?.id,
     canParty: online.status === 'online' && !!online.party?.members?.some((m) => m.id !== online.me?.id && m.online) && online.party.members[0].id === online.me?.id,
     lobby: online.mbLobby,
+<<<<<<< Updated upstream
     onStart: (enemyId) => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return ENEMIES.find((e) => e.id === enemyId)?.boss ? setBringPick({ enemyId }) : mbStart(enemyId, mbSnapshot()) },
+=======
+    onStart: (enemyId) => { battleVitalsRef.current = { hp: playerRef.current.hp, mp: playerRef.current.mp }; battleDownedRef.current = false; battleScannedRef.current = false; return enemyById(enemyId)?.boss ? setBringPick({ enemyId }) : needsPassivePick() ? (setPassiveOffPick([]), setPassivePick({ enemyId })) : mbStart(enemyId, mbSnapshot()) },
+>>>>>>> Stashed changes
     onCancel: mbCancel,
   }
   const mbMe = mbView?.members.find((m) => m.id === online.me?.id) ?? null
@@ -1916,6 +1934,7 @@ export default function Game({
                     onOpenItems={() => setInvOpen(true)}
                     onGiveItem={giveItem}
                     multi={multiProps}
+                    onAfflict={onAfflict}
                   />
                 )}
                 {locationId === 'shrine' && (
@@ -1951,7 +1970,7 @@ export default function Game({
             if (!on) { boostRef.current = false; setBoostOn(false); reviveRef.current = false; setReviveOn(false) }
           }}
           usedItems={battleUsedItems} onSpotItems={setSpotItems}
-          onOpenItems={() => setInvOpen(true)} onGiveItem={giveItem}
+          onOpenItems={() => setInvOpen(true)} onGiveItem={giveItem} onAfflict={onAfflict}
         />
       )}
       {travelRewardPopup && <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="이동 아이템 획득">
@@ -2137,7 +2156,7 @@ export default function Game({
         <BringPicker
           player={player}
           psychics={player.psychics ?? []}
-          enemyName={bringPick.invite ? online.mbInvite?.enemy?.name : ENEMIES.find((e) => e.id === bringPick.enemyId)?.name}
+          enemyName={bringPick.invite ? online.mbInvite?.enemy?.name : enemyById(bringPick.enemyId)?.name}
           onCancel={() => setBringPick(null)}
           onConfirm={(bring, psychicBring) => {
             const pick = bringPick

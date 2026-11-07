@@ -77,11 +77,17 @@ export function enterHuntSite(player, site, now = Date.now(), rng = Math.random)
     nodes: site.nodes.map(node => ({ ...HUNT_SPECIES[node.species], ...node, ...(node.route ? { route: node.route.map(point => ({ ...point })) } : {}), attemptsLeft: HUNT_ATTEMPTS })),
     log: [`${site.name}에 들어왔다. 이동과 채집·수렵 시도는 각각 1턴이다.`],
   }
-  // 두 출현 판정을 독립적으로 수행한다. 한쪽의 위치 추첨이 다른 쪽의 출현 판정에 영향을 주지 않는다.
-  const spawned = ['spirit', 'ghost'].filter(kind => site[kind] && rng() < site[kind].chance)
-  for (const kind of spawned) {
+  // 출현 판정을 모두 독립적으로 수행한다. 한쪽의 위치 추첨이 다른 쪽의 출현 판정에 영향을 주지 않는다.
+  // v-B.05: 영물이 둘인 터(산길 5~20: 귀한 영물 + 흔한 영물)는 하나씩 따로 굴리고 roaming-spirit-1, -2 로 구분한다.
+  const spirits = site.spirits ?? (site.spirit ? [site.spirit] : [])
+  const rolls = [
+    ...spirits.map((sp, i) => ({ def: sp, id: spirits.length > 1 ? `roaming-spirit-${i + 1}` : 'roaming-spirit' })),
+    ...(site.ghost ? [{ def: site.ghost, id: 'roaming-ghost' }] : []),
+  ]
+  const spawned = rolls.filter(r => rng() < r.def.chance)
+  for (const r of spawned) {
     const position = randomEmpty(session, rng)
-    if (position) session.nodes.push({ ...site[kind], ...position, id: `roaming-${kind}`, attemptsLeft: HUNT_ATTEMPTS })
+    if (position) session.nodes.push({ ...r.def, ...position, id: r.id, attemptsLeft: HUNT_ATTEMPTS })
   }
   return { player: { ...player, mp: player.mp - 10, huntExpedition: session }, logs: [`개척: ${site.name}에 들어섰다. (의지력 -10)`] }
 }

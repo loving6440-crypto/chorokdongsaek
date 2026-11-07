@@ -15,7 +15,7 @@ import { applySecurityHeaders } from './securityHeaders.js'
 import { cleanChatTitle, retitleMessages } from './chatTitles.js'
 import { ITEMS } from '../src/game/items.js'
 import { STAT_KEYS } from '../src/game/constants.js'
-import { ENEMIES, PSYCHICS } from '../src/game/battle.js'
+import { enemyById, PSYCHICS } from '../src/game/battle.js'
 import { SKINS } from '../src/game/skins2048.js'
 import { SKINS_RUNNER } from '../src/game/skinsRunner.js'
 import * as MB from '../src/game/mbattle.js'
@@ -559,7 +559,7 @@ function mbStart(g) {
     if (mbOf.get(id) === g.id) mbOf.delete(id)
   }
   g.phase = 'fight'
-  const isBoss = !!ENEMIES.find((e) => e.id === g.enemyId)?.boss
+  const isBoss = !!enemyById(g.enemyId)?.boss
   g.mb = MB.createMB(g.enemyId, infos.map((i) => ({ ...i, bring: isBoss ? (i.bring ?? {}) : null, psychicBring: isBoss ? (i.psychicBring ?? []) : null })))
   MB.openingInitiative(g.mb)
   if (g.mb.phase === 'input' && !g.mb.turn) MB.beginRound(g.mb)
@@ -2404,7 +2404,7 @@ async function handleApi(req, res, url) {
 
   // ───────── 다인 전투 ─────────
   if (route === '/api/mb/start') {
-    const enemy = ENEMIES.find((e) => e.id === body.enemy)
+    const enemy = enemyById(body.enemy)
     if (!enemy || !MB.isMulti(enemy)) return json(res, 400, { error: 'not-multi' })
     if (mbOf.has(me.id)) return json(res, 409, { error: 'already-in-battle' })
     const p = parties.get(partyOf.get(me.id))
@@ -2438,7 +2438,7 @@ async function handleApi(req, res, url) {
     } else {
       g.invited[me.id] = 'no'
       mbOf.delete(me.id)
-      sendTo(g.host, { t: 'notice', text: `${me.name}님이 ${ENEMIES.find((e) => e.id === g.enemyId)?.name} 전투 초대를 거절했다.` })
+      sendTo(g.host, { t: 'notice', text: `${me.name}님이 ${enemyById(g.enemyId)?.name} 전투 초대를 거절했다.` })
     }
     mbLobbyCheck(g)
     return json(res, 200, { ok: true })

@@ -1,5 +1,6 @@
 import { V79_SHEET_DATA } from './v79SheetData.js'
 import { V79_ITEMS } from './v79Items.js'
+import { B05_ITEMS } from './itemsB05.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -936,6 +937,8 @@ const RAW_ITEMS = [
     ['paulownia', '오동 패', '11월 오동', '장착자가 주고받는 모든 종류의 피해가 10%(올림) 감소한다.'],
     ['willow', '비 패', '12월 버드나무', '전투 중 적이 아군을 대상으로 영능력을 쓰려 할 때 이해/2% 확률로 행동을 다시 굴린다.'],
   ].map(([id, name, month, effectText]) => ({ id: `hwatu-${id}`, kind: 'tool', tags: ['완성품', '특수 강화 패'], name, price: null, desc: `${month}에 대응하는 무구 특수 강화용 화투패.`, effectText, effect: {}, battle: false })),
+  // v-B.05: 뒷산 산길 5~20 의 개척 재료 33종
+  ...B05_ITEMS,
 ]
 
 /**

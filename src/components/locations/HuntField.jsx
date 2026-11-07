@@ -84,6 +84,7 @@ export default function HuntField({ player, stats, onAction }) {
           <h3 className="font-serif text-lg text-gold">{HUNT_PATHS.find(path => path.id === pathId).name} · {site.name}</h3>
           {current && <p className="text-sm tabular-nums text-paper" aria-live="polite">남은 행동 <b>{Math.max(0, current.maxTurns - current.turn)}</b> / {current.maxTurns}턴{!active ? ' · 종료' : ''}</p>}
         </div>
+        {site.theme && <p className="mt-1 text-xs leading-relaxed text-paper/65" data-site-note>{site.theme} — {site.note} <span className="text-paper/45">(관련 스탯 평균 {site.targetStat} 안팎이면 수월하다. 영물: {(site.spirits ?? []).map((sp) => `${sp.name} ${Math.round(sp.chance * 100)}%`).join(' · ')} · 요괴: {site.ghost?.name})</span></p>}
         <p className="mt-2 text-xs leading-relaxed text-paper/70">상하좌우로 한 칸 이동하거나 채집·수렵을 시도할 때 1턴을 씁니다. 각 대상은 성공·실패를 합쳐 3회 시도할 수 있습니다. 장애물은 옆 칸에서 채집합니다.</p>
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-2 text-xs text-paper/80" aria-label="타일 범례">
           {Object.entries(HUNT_KINDS).map(([kind, style]) => <span className="inline-flex items-center gap-1" key={kind}><span className="inline-flex h-5 w-5 items-center justify-center border border-black/15" style={{ background: style.background, color: style.color }} aria-hidden="true">{style.symbol}</span>{style.label}</span>)}
