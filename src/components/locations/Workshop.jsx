@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
-import { RECIPES, WORKSHOP, canCraft, craftMinutes, knowsRecipe, maxCraftQty, recipeOf } from '../../game/crafting'
+import { RECIPES, WORKSHOP, canCraft, maxCraftQty, recipeOf } from '../../game/crafting'
 import { countOf, itemOf } from '../../game/items'
 
 const leftText = (ms) => {
@@ -8,13 +8,13 @@ const leftText = (ms) => {
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`
 }
 
-/** 지하 1층 비품실 › 공작소. 제작법을 아는 것만 만들 수 있다. 제작은 재료 총개수×10분×개수만큼 기다려야 끝난다. */
+/** 공작소: 등록된 제작법이 있으면 재료만으로 즉시 제작. 이전 버전 제작 대기 상태만 호환 표시. */
 export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminLearn }) {
   const [msg, setMsg] = useState('')
   const [pickId, setPickId] = useState(null) // 개수를 고르는 중인 제작법 id
   const [qty, setQty] = useState(1)
   const [, setTick] = useState(0)
-  const known = RECIPES.filter((r) => knowsRecipe(player, r.id, admin))
+  const known = RECIPES
   const cf = player.crafting
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
   const go = () => {
     const r = recipeOf(pickId)
     const res = onCraft(pickId, qty)
-    setMsg(res?.error ?? `${itemOf(r.result).name} ${qty}개 제작을 시작했다. (${res.minutes}분 대기)`)
+    setMsg(res?.error ?? `${itemOf(r.result).name} ${qty}개를 제작했다.`)
     setPickId(null)
   }
 
@@ -60,9 +60,9 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
       </div>
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
         <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><Hammer size={12} aria-hidden />제작</p>
-        <p className="mt-1 text-[11px] text-paper/50">제작은 소모하는 재료 개수×10분(개수에 비례)만큼 기다려야 끝난다.</p>
+        <p className="mt-1 text-[11px] text-paper/50">재료가 있다면 제작법을 별도로 배우지 않아도 즉시 제작할 수 있다.</p>
         {known.length === 0 ? (
-          <p className="mt-3 text-sm text-paper/70" data-workshop-empty>아는 제작법이 없다. 제작법이 없으면 재료를 섞어도 아무것도 만들 수 없다.</p>
+          <p className="mt-3 text-sm text-paper/70" data-workshop-empty>등록된 공작소 제작법이 없다.</p>
         ) : (
           <ul className="mt-3 space-y-2" aria-label="제작법 목록">
             {known.map((r) => {
@@ -100,9 +100,9 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
                           +
                         </button>
                       </div>
-                      <p className="mt-1.5 text-[11px] text-paper/60" data-craft-time>소요 시간: {leftText(craftMinutes(r, qty) * 60000)}</p>
+                      <p className="mt-1.5 text-[11px] text-paper/60" data-craft-time>재료가 충분하면 즉시 제작된다.</p>
                       <div className="mt-2 flex gap-2">
-                        <button type="button" onClick={go} className="flat-btn text-xs">제작 시작</button>
+                        <button type="button" onClick={go} className="flat-btn text-xs">바로 제작</button>
                         <button type="button" onClick={() => setPickId(null)} className="flat-btn text-xs">취소</button>
                       </div>
                     </div>
@@ -116,7 +116,7 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
       </div>
       {admin && (
         <div className="ink-panel mt-4 w-full rounded-xl p-4" data-workshop-admin>
-          <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 모든 제작법을 알고 있고, 제작에 재료가 들지 않는다</p>
+          <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 제작 시 재료가 소모되지 않는다</p>
         </div>
       )}
     </section>

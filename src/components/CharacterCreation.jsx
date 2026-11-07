@@ -17,6 +17,7 @@ import {
   AGE_MIN,
   DEFAULT_AVATAR_COLOR,
   SPIRIT_START,
+  SPIRIT_MAX,
   STAT_KEYS,
   STAT_META,
   STAT_MIN,
@@ -185,7 +186,7 @@ export default function CharacterCreation({ theme, onToggleTheme, onComplete, on
           <div className="ink-panel flex flex-wrap items-center justify-between gap-3 rounded-md px-5 py-3 md:col-span-2">
             <div className="min-w-0 text-xs text-paper/70">
               <p>
-                시작 상태 · 영력 {SPIRIT_START} (중앙값) · 체력 100% · 의지력 100%
+                시작 상태 · 영력 {SPIRIT_START} / {SPIRIT_MAX} · 체력 100% · 의지력 100%
               </p>
               <p className="mt-0.5 min-h-4 text-gold" aria-live="polite">
                 {blocker}

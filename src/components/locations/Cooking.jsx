@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { CookingPot } from 'lucide-react'
-import { COOK_RECIPES, KITCHEN, canCook, knowsCookRecipe } from '../../game/cooking'
+import { COOK_RECIPES, KITCHEN, canCook } from '../../game/cooking'
 import { countOf, itemOf } from '../../game/items'
 
-/** 별관 2층 조리실 › 조리하기. 공작소(Workshop.jsx)와 같은 모양이고, 요리법을 아는 것만 만들 수 있다. */
+/** 조리실: 등록된 조리법은 재료가 있으면 바로 조리한다. */
 export default function Cooking({ player, admin, onCook }) {
   const [msg, setMsg] = useState('')
-  const known = COOK_RECIPES.filter((r) => knowsCookRecipe(player, r.id, admin))
+  const known = COOK_RECIPES
   const go = (r) => {
     const res = onCook(r.id)
     setMsg(res?.error ?? `${itemOf(r.result).name}을(를) 만들었다.`)
@@ -20,7 +20,7 @@ export default function Cooking({ player, admin, onCook }) {
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
         <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><CookingPot size={12} aria-hidden />조리</p>
         {known.length === 0 ? (
-          <p className="mt-3 text-sm text-paper/70" data-kitchen-empty>아는 요리법이 없다. 요리법이 없으면 재료를 섞어도 아무것도 만들 수 없다. (준비 중 — 요리법이 곧 추가될 예정)</p>
+          <p className="mt-3 text-sm text-paper/70" data-kitchen-empty>등록된 조리실 제작법이 없다.</p>
         ) : (
           <ul className="mt-3 space-y-2" aria-label="요리법 목록">
             {known.map((r) => {

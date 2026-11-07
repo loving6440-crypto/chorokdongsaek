@@ -19,8 +19,8 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(null) // 사려는 매물
   const [sellId, setSellId] = useState('')
-  const [qty, setQty] = useState(1)
-  const [price, setPrice] = useState(1)
+  const [qty, setQty] = useState('1') // v79.0.7: 입력 중인 글자 그대로 둔다(매 글자마다 고치지 않는다)
+  const [price, setPrice] = useState('1')
 
   const refresh = useCallback(async () => {
     const r = await marketFetch()
@@ -43,8 +43,10 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
   const owned = ITEMS.filter((i) => countOf(player, i.id) > 0)
   const sellItem = owned.find((i) => i.id === sellId) ?? owned[0]
   const have = sellItem ? countOf(player, sellItem.id) : 0
-  const q = Math.max(1, Math.min(Math.max(1, Math.min(have, MARKET_QTY_MAX)), qty))
-  const p = Math.max(1, Math.min(MARKET_PRICE_MAX, price))
+  const qtyCap = Math.max(1, Math.min(have, MARKET_QTY_MAX))
+  const q = Math.max(1, Math.min(qtyCap, parseInt(qty, 10) || 1))
+  const setQtyNum = (n) => setQty(String(Math.max(1, Math.min(qtyCap, n))))
+  const p = Math.max(1, Math.min(MARKET_PRICE_MAX, parseInt(price, 10) || 1))
 
   const run = async (fn) => {
     if (busy) return
@@ -130,7 +132,7 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
         <div className="ink-panel mt-2 space-y-3 rounded-xl p-4">
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="mk-item" className="text-xs text-paper/70">물건</label>
-            <select id="mk-item" value={sellItem.id} onChange={(e) => setSellId(e.target.value)} className="rounded-lg bg-shade/50 px-2 py-1.5 text-sm text-paper ring-1 ring-edge/20">
+            <select id="mk-item" value={sellItem.id} onChange={(e) => { setSellId(e.target.value); setQty('1') }} className="rounded-lg bg-shade/50 px-2 py-1.5 text-sm text-paper ring-1 ring-edge/20">
               {owned.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name} (보유 {countOf(player, i.id)})
@@ -141,11 +143,15 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-1.5 text-xs text-paper/70">
               개수
-              <input aria-label="올릴 개수" inputMode="numeric" value={q} onChange={(e) => setQty(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)} className="h-8 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50" />
+              <button type="button" aria-label="올릴 개수 줄이기" onClick={() => setQtyNum(q - 1)} disabled={q <= 1} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">−</button>
+              <input aria-label="올릴 개수" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, '').slice(0, 3))} onBlur={() => setQtyNum(q)} className="h-8 w-14 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50" />
+              <button type="button" aria-label="올릴 개수 늘리기" onClick={() => setQtyNum(q + 1)} disabled={q >= qtyCap} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
+              <button type="button" onClick={() => setQtyNum(qtyCap)} disabled={q >= qtyCap} className="rounded-lg bg-edge/10 px-2 py-1.5 text-[11px] text-paper/80 disabled:opacity-35">최대</button>
+              <span className="text-[11px] text-paper/50">/ {qtyCap}</span>
             </label>
             <label className="flex items-center gap-1.5 text-xs text-paper/70">
               개당 가격
-              <input aria-label="개당 가격" inputMode="numeric" value={p} onChange={(e) => setPrice(parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)} className="h-8 w-20 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50" />
+              <input aria-label="개당 가격" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, '').slice(0, 5))} onBlur={() => setPrice(String(p))} className="h-8 w-20 rounded-lg bg-shade/50 text-center text-sm text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50" />
               냥
             </label>
           </div>

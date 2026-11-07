@@ -24,7 +24,7 @@ export const HUNT_SPECIES = {
   snakeBerry: { name: '뱀딸기', kind: 'plant', rewards: [{ item: 'snake-berry', dice: 2 }] },
   mushroom: { name: '버섯', kind: 'plant', rewards: [{ item: 'mushroom', dice: 2 }] },
   poisonMushroom: { name: '독버섯', kind: 'plant', rewards: [{ item: 'poison-mushroom', amount: 1 }] },
-  stoneTower: { name: '돌탑', kind: 'obstacle', rewards: [{ item: 'stone', dice: 3 }] },
+  stoneTower: { name: '돌탑', kind: 'obstacle', rewards: [{ item: 'stone', dice: 2, plus: 1 }] }, // 시트: 바위 1d2+1
   bush: { name: '덤불', kind: 'obstacle', rewards: [{ item: 'wild-raspberry', amount: 1 }] },
   stonePillar: { name: '바위 기둥', kind: 'obstacle', rewards: [{ item: 'stone', dice: 2 }] },
   mugwort: { name: '쑥', kind: 'plant', rewards: [{ item: 'mugwort', amount: 1 }] },
@@ -60,20 +60,26 @@ const EXTRA_SPECIES = {
   lakeshore: { name: '물가 풀숲', kind: 'plant', rewards: [{ item: 'creek-orchid', dice: 2 }] },
   lantern: { name: '장명등', kind: 'obstacle', rewards: [{ item: 'dokkaebi-flame', amount: 1 }] },
   pondRock: { name: '물길 바위', kind: 'obstacle', rewards: [{ item: 'centipede', amount: 1 }] },
-  mossRock: { name: '이끼바위', kind: 'obstacle', rewards: [{ item: 'water-moss', dice: 2 }] },
+  mossRock: { name: '이끼바위', kind: 'plant', rewards: [{ item: 'water-moss', dice: 2 }] }, // 시트 ♣
   spring: { name: '물', kind: 'obstacle', rewards: [{ item: 'lake-water', dice: 2 }] },
-  pond: { name: '웅덩이', kind: 'obstacle', rewards: [{ item: 'loofah-fruit', dice: 2 }] },
-  graveRock: { name: '혼유석', kind: 'obstacle', rewards: [{ item: 'stone', dice: 5 }] },
-  sarcophagus: { name: '봉인된 석관', kind: 'obstacle', rewards: [{ item: 'gogok', dice: 2 }] },
-  scentRock: { name: '향로석', kind: 'obstacle', rewards: [{ item: 'whetstone', amount: 1 }] },
-  monument: { name: '망주석', kind: 'obstacle', rewards: [{ item: 'polishing-stone', amount: 1 }] },
+  pond: { name: '웅덩이', kind: 'plant', rewards: [{ item: 'loofah-fruit', dice: 2 }] }, // 시트 ♣
+  graveRock: { name: '혼유석', kind: 'obstacle', rewards: [{ item: 'stone', dice: 5 }, { item: 'sealing-stone', chance: 0.10, amount: 1 }] },
+  sarcophagus: { name: '봉인된 석관', kind: 'obstacle', rewards: [{ item: 'gold-crown', chance: 0.05, amount: 1 }, { item: 'gogok', chance: 0.10, dice: 2 }] },
+  scentRock: { name: '향로석', kind: 'obstacle', rewards: [{ item: 'whetstone', amount: 1 }, { item: 'sealing-stone', chance: 0.10, amount: 1 }] },
+  monument: { name: '망주석', kind: 'obstacle', rewards: [{ item: 'polishing-stone', amount: 1 }, { item: 'sealing-stone', chance: 0.10, amount: 1 }] },
+  soulButterfly: { name: '혼백나비', kind: 'spirit', rewards: [{ item: 'spirit-orb', amount: 1 }] },
   animalBones: { name: '동물 유해', kind: 'obstacle', rewards: [{ item: 'bone-fragment', dice: 3 }] },
   bat: { name: '박쥐', kind: 'animal', rewards: [{ item: 'bat-wing', dice: 2 }] },
   starAltar: { name: '제단', kind: 'obstacle', rewards: [{ item: 'starlight', dice: 2 }] },
   crystalPillar: { name: '수정기둥', kind: 'obstacle', rewards: [{ item: 'crystal', amount: 1 }] },
-  moonFlower: { name: '달꽃터', kind: 'plant', rewards: [{ item: 'waning-flower', dice: 3 }] },
+  // 시트: 개척 시간이 오전(00~12시, KST)이면 그믐꽃 1d3, 오후(12~24시)면 초승꽃 1d3
+  moonFlower: { name: '달꽃터', kind: 'plant', rewards: [{ item: 'waning-flower', am: 'waning-flower', pm: 'crescent-flower', dice: 3 }] },
   stalactite: { name: '종유석', kind: 'obstacle', rewards: [{ item: 'cinnabar', dice: 2 }] },
   stoneGate: { name: '봉인된 석문', kind: 'obstacle', rewards: [{ item: 'web', dice: 2 }] },
+  // v79.0.7: 시트 [개척 터] 장소 메모의 영물
+  blueDeer: { name: '청록사슴', kind: 'spirit', rewards: [{ item: 'antler', dice: 3 }] },
+  imugi: { name: '이무기', kind: 'spirit', rewards: [{ item: 'imugi-scale', amount: 1 }] },
+  darkSpirit: { name: '암령', kind: 'spirit', rewards: [{ item: 'darkness', dice: 3 }] },
 }
 Object.assign(HUNT_SPECIES, EXTRA_SPECIES)
 // v-B.05: 산길 5~20 의 식물·장애물·동물·영물 47종 (huntTrails.js)
@@ -115,7 +121,8 @@ export const LEFT_TRAIL_ONE = {
     point('E8', 'stonePillar', 5),
     point('C10', 'bush', 2),
     { ...point('A3', 'snake', 10), route: clockwiseRoute(0, 2, 2) },
-    { ...point('I3', 'fox', 15), route: clockwiseRoute(7, 2, 3) },
+    // 시트 K5: 너구리 15레벨, 3×3 왼쪽(반시계)으로 돌기
+    { ...point('J3', 'raccoon', 15), route: counterClockwiseRoute(7, 2, 3) },
   ],
   // 입장 시 독립적으로 한 번씩 판정. 위치는 비어 있는 흰 타일 중 무작위.
   spirit: { ...HUNT_SPECIES.brokenJangseung, species: 'brokenJangseung', chance: 0.2, level: 30 },
@@ -124,8 +131,9 @@ export const LEFT_TRAIL_ONE = {
     // 기존 원귀의 저주 패턴, 능력치는 2단계 먹구렁이 기준(평균 스탯 5~6).
     // 일반 퇴마 실습 목록에는 추가하지 않으며 영력 20만 별도 지급한다.
     enemy: { id: 'mountain-ghost', name: '산귀신', tier: 2, partySize: 1, hp: 90, atk: 10, act: 9, spirit: 8, reward: 20,
-      special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' } },
+      curse: true, special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' } },
     rewardSpirit: 20,
+    rewardItems: [{ item: 'charm-scrap', chance: 0.5, amount: 1 }],
   },
 }
 
@@ -140,10 +148,32 @@ const tile = (cell, species, level, routeSize = 0, routeWidth = routeSize) => {
   }
   return p
 }
-const site = (id, name, nodes, ghostName = '산귀신', reward = 20) => ({
-  id, path: 'left', name, start: {x:0,y:9}, maxTurns:30, nodes,
-  spirit: { ...HUNT_SPECIES.brokenJangseung, species:'brokenJangseung',chance:0.15,level:30 },
-  ghost: { chance:0.15,kind:'ghost',name:ghostName,level:2,enemy:{...LEFT_TRAIL_ONE.ghost.enemy,name:ghostName,reward},rewardSpirit:reward },
+// 요괴 능력치: 시트의 '평균 스탯'을 기존 같은 단계 적의 능력치에 맞춘 값.
+//  5~6 → 먹구렁이(90/10/9/8), 8~10 → 묵은 원귀(130/15/14/13), 15~17 → 중간값(180/18/17/17), 20~22 → 앙괭이(220/21/21/21)
+const GHOST_STATS = {
+  2: { hp: 90, atk: 10, act: 9, spirit: 8 },
+  3: { hp: 130, atk: 15, act: 14, spirit: 13 },
+  4: { hp: 180, atk: 18, act: 17, spirit: 17 },
+  5: { hp: 220, atk: 21, act: 21, spirit: 21 },
+}
+const ghostOf = ({ id, name, level, reward, items }) => ({
+  chance: 0.15, kind: 'ghost', name, level,
+  enemy: { id, name, tier: level, partySize: 1, ...GHOST_STATS[level], reward, curse: true,
+    special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' } },
+  rewardSpirit: reward,
+  rewardItems: items,
+})
+const spiritOf = (species, level) => ({ ...HUNT_SPECIES[species], species, chance: 0.15, level })
+// 시트 [개척 터] 장소 메모 기준 랜덤 인카운터
+const ENCOUNTERS = {
+  trail: { spirit: spiritOf('brokenJangseung', 30), ghost: ghostOf({ id: 'mountain-ghost', name: '산귀신', level: 2, reward: 20, items: [{ item: 'charm-scrap', chance: 0.5, amount: 1 }] }) },
+  deepTrail: { spirit: spiritOf('blueDeer', 50), ghost: ghostOf({ id: 'tree-spirit', name: '목신', level: 3, reward: 30, items: [{ item: 'charm-scrap', chance: 0.5, dice: 3 }] }) },
+  cemetery: { spirit: spiritOf('soulButterfly', 100), ghost: ghostOf({ id: 'ang-gwaengi', name: '앙괭이', level: 5, reward: 50, items: [{ item: 'silver-inlay', chance: 0.5, amount: 1 }] }) },
+  lake: { spirit: spiritOf('imugi', 40), ghost: ghostOf({ id: 'water-ghost', name: '물귀신', level: 2, reward: 20, items: [{ item: 'charm-scrap', chance: 0.5, amount: 1 }] }) },
+  cave: { spirit: spiritOf('darkSpirit', 100), ghost: ghostOf({ id: 'eodukssini', name: '어둑시니', level: 4, reward: 40, items: [{ item: 'charm-scrap', chance: 0.5, dice: 3, plus: 1 }] }) },
+}
+const site = (id, name, nodes, encounter) => ({
+  id, path: 'left', name, start: {x:0,y:9}, maxTurns:30, nodes, ...ENCOUNTERS[encounter],
 })
 // 길 1 원래 배치를 유지하고, 메모에 추가된 두 번째 산길부터 확장.
 const TRAIL_TWO=site('left-trail-2','산길 2',[
@@ -151,39 +181,41 @@ const TRAIL_TWO=site('left-trail-2','산길 2',[
   tile('B3','dandelion',10),tile('F3','dandelion',10),tile('B5','dove',15,3),tile('I5','stonePillar',5),
   tile('F7','mushroom',5),tile('G7','poisonMushroom',10),tile('J7','cloverPlant',12),
   tile('C8','bush',2),tile('E9','deer',15,2,4),
-])
+], 'trail')
 const TRAIL_THREE=site('left-trail-3','산길 3',[
   tile('A1','rabbit',20,5),tile('J1','ginseng',22),tile('H2','gravel',16),tile('I2','fern',20),
   tile('H3','fern',20),tile('I3','well',17),tile('G4','azalea',18),tile('F5','azalea',18),
   tile('D6','well',17),tile('E6','lettuce',16),tile('D7','lettuce',16),tile('E7','gravel',16),
   tile('C8','chwinamul',13),tile('B9','chwinamul',13),tile('F6','rabbit',20,5),
-])
+], 'deepTrail')
 const TRAIL_FOUR=site('left-trail-4','산길 4',[
   tile('I1','bush',2),tile('J1','luckyClover',25),tile('A2','boar',22,4,3),tile('F2','pineTree',19),
   tile('J2','bush',2),tile('I3','herb',20),tile('D4','willowTree',24),tile('F5','sotdae',18),
-  tile('J5','fox',27,3),tile('B6','pineTree',19),tile('G7','herb',20),tile('D8','sotdae',18),
+  // 시트 V19: 여우 27레벨, 3×3을 S자로 돌고 다시 원래 자리로 돌아가기를 반복
+  { ...point('J5','fox',27), route: snakeRoute(9, 4, 3) },tile('B6','pineTree',19),tile('G7','herb',20),tile('D8','sotdae',18),
   tile('H10','willowTree',24),
-], '목신', 30)
+], 'deepTrail')
 const CEMETERY=site('left-cemetery','묘소',[
   tile('B2','rat',22,8),tile('D3','stoneTower',7),tile('E3','lantern',28),tile('F3','lantern',28),
   tile('G3','stoneTower',7),tile('C4','stoneTower',7),tile('H4','stoneTower',7),
   tile('C5','lantern',28),tile('E5','graveRock',35),tile('F5','sarcophagus',40),tile('H5','lantern',28),
   tile('C6','lantern',28),tile('E6','scentRock',35),tile('F6','monument',35),tile('H6','lantern',28),
-  tile('D8','stoneTower',7),tile('G8','stoneTower',7),
-], '앙괭이', 50)
+  tile('C7','stoneTower',7),tile('H7','stoneTower',7),
+  tile('D8','stoneTower',7),tile('E8','lantern',28),tile('F8','lantern',28),tile('G8','stoneTower',7),
+], 'cemetery')
 const LAKE=site('left-lake','호수',[
   tile('B1','carp',15,4,2),tile('J1','altar',20),tile('E2','lakeshore',16),
   tile('F4','carp',15,4,2),tile('I4','pondRock',14),tile('B6','lakeshore',16),
   tile('D7','mossRock',15),tile('I7','mossRock',15),tile('A8','spring',10),tile('F9','pond',15),
   tile('C10','spring',10),tile('J10','pondRock',14),
-], '물귀신', 20)
+], 'lake')
 const CAVE=site('left-cave','동굴',[
   tile('A1','animalBones',30),tile('E1','bat',30,10,1),tile('I1','bat',30,10,1),tile('J1','starAltar',35),
   tile('F2','crystalPillar',27),tile('H2','animalBones',30),tile('B3','moonFlower',27),
   tile('C4','stalactite',23),tile('J5','moonFlower',27),tile('D6','crystalPillar',27),
   tile('G6','stalactite',23),tile('G8','crystalPillar',27),tile('A9','stoneGate',20),
   tile('B9','stoneGate',20),tile('B10','stoneGate',20),tile('J10','stalactite',23),
-], '동굴귀', 40)
+], 'cave')
 
 // v-B.05: 산길 5~20 — huntTrails.js 의 데이터로 터를 만든다. 영물이 둘(귀한 15% · 흔한 20%)이라 spirits 배열을 쓴다.
 const routeOf = (cell, [type, a, b]) => {
@@ -262,4 +294,25 @@ export function clockwiseRoute(x, y, width, height = width) {
   for (let dx = width - 2; dx >= 0; dx--) route.push({ x: x + dx, y: y + height - 1 })
   for (let dy = height - 2; dy > 0; dy--) route.push({ x, y: y + dy })
   return route
+}
+
+/** 반시계 방향 사각 테두리(시계 방향 경로를 뒤집은 것). */
+export function counterClockwiseRoute(x, y, width, height = width) {
+  const route = clockwiseRoute(x, y, width, height)
+  return [route[0], ...route.slice(1).reverse()]
+}
+
+/**
+ * S자 왕복 경로. (sx, sy)에서 시작해 size×size 칸을 지그재그로 훑은 뒤 같은 길로 되돌아온다.
+ * 같은 칸이 두 번 나오므로 이동은 routeIndex(경로상의 순번)로 추적한다.
+ */
+export function snakeRoute(sx, sy, size) {
+  const forward = []
+  const leftward = sx + size > HUNT_SIZE // 오른쪽 끝에서 시작하면 왼쪽으로 훑는다
+  for (let row = 0; row < size; row++) {
+    const cols = Array.from({ length: size }, (_, i) => (leftward ? sx - i : sx + i))
+    if (row % 2) cols.reverse()
+    for (const x of cols) forward.push({ x, y: sy + row })
+  }
+  return [...forward, ...forward.slice(1, -1).reverse()]
 }

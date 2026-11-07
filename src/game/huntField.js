@@ -1,11 +1,24 @@
 import { HUNT_ATTEMPTS, HUNT_BONUSES, HUNT_COOLDOWN_MS, HUNT_SIZE, HUNT_SPECIES, HUNT_STAT_KEYS, siteMissingData } from './huntSites.js'
+import { itemOf } from './items.js'
+import { SPIRIT_BASELINE_MAX } from './constants.js'
 
 const same = (a, b) => a.x === b.x && a.y === b.y
 const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+/** v-B.03: 영물이 멈추는 구역 — 네 모서리의 2×2 사각형(예: A1·B1·A2·B2) 안 */
+export const SPIRIT_CORNER_SIZE = 2
+const nearEdge = v => v < SPIRIT_CORNER_SIZE || v >= HUNT_SIZE - SPIRIT_CORNER_SIZE
+export const inCornerZone = p => nearEdge(p.x) && nearEdge(p.y)
 const inside = p => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < HUNT_SIZE && p.y >= 0 && p.y < HUNT_SIZE
 const active = node => node.kind === 'ghost' || node.attemptsLeft > 0
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 const die = (n, rng) => 1 + Math.floor(rng() * n)
+const KST_MS = 9 * 3600 * 1000
+/** 한국 시간 기준 오전(00~12시)인가 */
+export const isMorningKST = (now = Date.now()) => new Date(now + KST_MS).getUTCHours() < 12
+/** 보상 한 줄의 실제 아이템: 오전/오후에 따라 달라지는 보상(달꽃터)을 고른다. */
+export const rewardItemAt = (reward, now = Date.now()) => (reward.am || reward.pm) ? (isMorningKST(now) ? reward.am : reward.pm) : reward.item
+/** 1dN(+plus) 또는 고정 개수 */
+const rollQty = (reward, rng) => (reward.dice ? die(reward.dice, rng) : (reward.amount ?? 0)) + (reward.plus ?? 0)
 const neighbors = p => [{ x: p.x, y: p.y - 1 }, { x: p.x + 1, y: p.y }, { x: p.x, y: p.y + 1 }, { x: p.x - 1, y: p.y }].filter(inside)
 
 function chaseStep(start, target, blocked) {
@@ -25,6 +38,14 @@ function chaseStep(start, target, blocked) {
   return start
 }
 
+const STAT_LABELS = { insight: '안목', comprehension: '이해', control: '절제', endurance: '인내', aggression: '호전', agility: '신속' }
+/** 산출값을 이루는 스탯 목록: [{ key, label, value }] */
+export function huntStatParts(kind, stats) {
+  return (HUNT_STAT_KEYS[kind] ?? []).map(key => ({ key, label: STAT_LABELS[key] ?? key, value: Math.max(0, Number(stats[key]) || 0) }))
+}
+/** "안목 12 + 인내 9" 같은 산출 내역 문구 */
+export const huntStatFormula = (kind, stats) => huntStatParts(kind, stats).map(p => `${p.label} ${p.value}`).join(' + ')
+
 export function huntStat(kind, stats) {
   const values = (HUNT_STAT_KEYS[kind] ?? []).map(key => Math.max(0, Number(stats[key]) || 0))
   return values.reduce((sum, value) => sum + value, 0)
@@ -36,7 +57,7 @@ export function huntOdds(kind, level, stats) {
   const raw = 100 - Math.max(1, difference) * 10
   const blocked = difference >= 15
   const fixed = !blocked && raw <= 0
-  return { value, success: blocked ? 0 : fixed ? 10 : clamp(raw, 10, 100), bonus: clamp(value - level, 0, 100), blocked, fixed, difference }
+  return { value, formula: huntStatFormula(kind, stats), success: blocked ? 0 : fixed ? 10 : clamp(raw, 10, 100), bonus: clamp(value - level, 0, 100), blocked, fixed, difference }
 }
 
 export const huntCooldownLeft = () => 0 // v79: 이전 데이터의 대기시간도 무시한다.
@@ -106,20 +127,24 @@ export function moveHuntCreatures(session) {
     const occupied = p => !same(p, session.position) && nodes.some(other => other.id !== node.id && active(other) && same(other, p) && other.kind !== 'plant')
     if (node.kind === 'animal') {
       if (!node.route?.length) continue
-      const index = node.route.findIndex(p => same(node, p))
+      // 같은 칸을 두 번 지나는 경로(박쥐의 왕복, 여우의 S자)를 위해 경로상의 순번을 따로 기억한다.
+      const known = Number.isInteger(node.routeIndex) && node.route[node.routeIndex] && same(node, node.route[node.routeIndex])
+      const index = known ? node.routeIndex : node.route.findIndex(p => same(node, p))
       if (index < 0) continue
-      const next = node.route[(index + 1) % node.route.length]
-      Object.assign(node, next)
+      const nextIndex = (index + 1) % node.route.length
+      Object.assign(node, node.route[nextIndex], { routeIndex: nextIndex })
     } else if (node.kind === 'ghost') {
       Object.assign(node, chaseStep(node, session.position, occupied))
     } else {
+      // 영물은 플레이어를 피해 도망가지만, 네 모서리의 2×2 사각형 안에 한 칸이라도 들어오면 즉시 멈춘다. (v-B.03)
+      if (inCornerZone(node)) continue
       const options = [node, ...neighbors(node)].filter(p => !occupied(p) && !same(p, session.position))
       options.sort((a, b) => distance(b, session.position) - distance(a, session.position))
-      Object.assign(node, { x: options[0].x, y: options[0].y })
+      if (options.length) Object.assign(node, { x: options[0].x, y: options[0].y })
     }
   }
   const ghost = nodes.find(node => node.kind === 'ghost' && active(node) && same(node, session.position))
-  return { ...session, nodes, encounter: ghost ? { nodeId: ghost.id, enemy: ghost.enemy, rewardSpirit: ghost.rewardSpirit } : null }
+  return { ...session, nodes, encounter: ghost ? { nodeId: ghost.id, enemy: ghost.enemy, rewardSpirit: ghost.rewardSpirit, rewardItems: ghost.rewardItems ?? [] } : null }
 }
 
 function endTurn(player, session, now) {
@@ -159,7 +184,11 @@ export function attemptHunt(player, nodeId, stats, now = Date.now(), rng = Math.
   const success = rng() * 100 < odds.success
   const rewards = {}
   if (success) {
-    for (const reward of node.rewards ?? []) rewards[reward.item] = (rewards[reward.item] ?? 0) + (reward.dice ? die(reward.dice, rng) : reward.amount)
+    for (const reward of node.rewards ?? []) {
+      if (reward.chance != null && rng() >= reward.chance) continue
+      const item = rewardItemAt(reward, now)
+      rewards[item] = (rewards[item] ?? 0) + rollQty(reward, rng)
+    }
     const bonus = HUNT_BONUSES[node.kind]
     if (bonus && rng() * 100 < odds.bonus) rewards[bonus.item] = (rewards[bonus.item] ?? 0) + (bonus.dice ? die(bonus.dice, rng) : bonus.amount)
   }
@@ -175,13 +204,23 @@ export function attemptHunt(player, nodeId, stats, now = Date.now(), rng = Math.
 }
 
 /** 결과는 한 번만 정산한다. 전투 보상은 퇴마 실습의 일일 한도/돈 보상과 무관하다. */
-export function resolveHuntEncounter(player, { win, fled }, now = Date.now()) {
+export function resolveHuntEncounter(player, { win, fled }, now = Date.now(), rng = Math.random) {
   const s = player.huntExpedition
   if (s?.status !== 'active' || !s.encounter) return { error: '진행 중인 조우가 없다.' }
-  const gain = win ? Math.max(0, Math.min(s.encounter.rewardSpirit ?? 20, 200 - player.spirit)) : 0
-  const text = win ? `산귀신을 물리쳤다. 영력 +${gain}` : fled ? '산귀신에게서 도망쳤다.' : '산귀신에게 패했다.'
+  const gain = win ? Math.max(0, Math.min(s.encounter.rewardSpirit ?? 20, SPIRIT_BASELINE_MAX - player.spirit)) : 0
+  const collected = {}
+  if (win) for (const reward of s.encounter.rewardItems ?? []) {
+    if (reward.chance != null && rng() >= reward.chance) continue
+    const item = rewardItemAt(reward, now)
+    collected[item] = (collected[item] || 0) + rollQty(reward, rng)
+  }
+  const itemList = Object.entries(collected).map(([id, n]) => `${itemOf(id)?.name || id} ${n}개`).join(', ')
+  const enemyName = s.encounter.enemy?.name || '요괴'
+  const text = win ? `${enemyName}를 물리쳤다. 영력 +${gain}${itemList ? `, 추가 보상 ${itemList}` : ''}` : fled ? `${enemyName}에게서 도망쳤다.` : `${enemyName}에게 패했다.`
   const session = addLog({ ...s, encounter: null, spiritGained: s.spiritGained + gain, nodes: s.nodes.filter(node => node.id !== s.encounter.nodeId) }, text)
-  let next = { ...player, spirit: player.spirit + gain, huntExpedition: session }
+  let next = { ...player, spirit: player.spirit + gain,
+    inventory: { ...(player.inventory ?? {}), ...Object.fromEntries(Object.entries(collected).map(([id, n]) => [id, (player.inventory?.[id] || 0) + n])) },
+    huntExpedition: session }
   if ((!win && !fled) || s.turn >= s.maxTurns) next = finish(next, now, '개척을 종료했다.')
   return { player: next, logs: [`개척: ${text}`] }
 }

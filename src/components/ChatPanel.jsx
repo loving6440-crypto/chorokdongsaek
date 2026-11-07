@@ -37,7 +37,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
     if (addingFriend || !net.me?.id || person.id === net.me.id) return
     setAddingFriend(person.id)
     const result = await changeFriend(person.id, 'add')
-    setFriendFeedback(result.ok ? (result.already ? `${person.name}님은 이미 친구야.` : `${person.name}님을 친구로 추가했어. 알림을 보냈어.`) : `친구 추가 실패: ${result.error || '연결 오류'}`)
+    setFriendFeedback(result.ok ? (result.already ? `${person.name}님은 이미 친구다.` : result.alreadyPending ? `${person.name}님에게 이미 친구 신청을 보냈다.` : `${person.name}님에게 친구 신청을 보냈다. 수락하면 친구로 추가된다.`) : `친구 신청 실패: ${result.error || '연결 오류'}`)
     setAddingFriend(null)
   }
   useEffect(() => {
@@ -301,7 +301,7 @@ function ChatPanel({ docked = false, logs = null, onGift = null, onProfile = nul
                           {mine && <span className="ml-1 text-[10px] text-gold">나</span>}
                           {mate && !mine && <span className="ml-1 text-[10px] text-gold">일행</span>}
                         </span>
-                        {!mine && <button type="button" data-online-add-friend={p.id} disabled={!!addingFriend} onClick={() => addFriend(p)} className="inline-flex shrink-0 items-center gap-1 rounded border border-gold/40 px-2 py-0.5 text-[11px] text-gold hover:bg-gold/10 disabled:opacity-40"><UserPlus size={11}/> 친구</button>}
+                        {!mine && <button type="button" data-online-add-friend={p.id} disabled={!!addingFriend} onClick={() => addFriend(p)} className="inline-flex shrink-0 items-center gap-1 rounded border border-gold/40 px-2 py-0.5 text-[11px] text-gold hover:bg-gold/10 disabled:opacity-40"><UserPlus size={11}/> 친구 신청</button>}
                         {!mine && onGift && (
                           <button
                             type="button"

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import ItemSearchBox from './ItemSearchBox'
+import { filterItems } from '../game/itemSearch'
 import { Archive } from 'lucide-react'
 import { ITEMS, countOf } from '../game/items'
 import { LOCKER_SLOTS, lockerOf, maxDeposit, slotsFor, slotsUsed, stackMax } from '../game/locker'
@@ -68,10 +70,13 @@ export default function Locker({ player, grade, onMove, onOpen }) {
   }, [grade]) // eslint-disable-line react-hooks/exhaustive-deps
   const [err, setErr] = useState('')
   const [sel, setSel] = useState(null) // { id, mode: 'in' | 'out' }
+  const [query, setQuery] = useState('') // v79.0.7: 아이템 검색
   const box = lockerOf(player, grade)
   const used = slotsUsed(box)
-  const inBox = ITEMS.filter((i) => (box[i.id] || 0) > 0)
-  const mine = ITEMS.filter((i) => countOf(player, i.id) > 0)
+  const inBoxAll = ITEMS.filter((i) => (box[i.id] || 0) > 0)
+  const mineAll = ITEMS.filter((i) => countOf(player, i.id) > 0)
+  const inBox = filterItems(inBoxAll, query)
+  const mine = filterItems(mineAll, query)
   const act = (mode) => (id, n) => {
     const r = onMove(mode, grade, id, n)
     setErr(r?.error || '')
@@ -92,6 +97,7 @@ export default function Locker({ player, grade, onMove, onOpen }) {
       <p className="mt-1 text-[11px] leading-relaxed text-paper/55">
         같은 물건은 한 종류로 치고, 한 칸엔 재료 99개 / 아이템 9개까지 담긴다. 넘치면 여러 칸을 쓴다.
       </p>
+      <ItemSearchBox className="mt-3" label="물품보관함·소지품 아이템 검색" value={query} onChange={setQuery} count={inBox.length + mine.length} total={inBoxAll.length + mineAll.length} />
       {err && (
         <p className="mt-2 rounded-lg bg-crimson/15 px-3 py-2 text-xs text-crimson" role="alert">
           {err}
@@ -99,7 +105,7 @@ export default function Locker({ player, grade, onMove, onOpen }) {
       )}
       <p className="mt-4 text-[11px] tracking-widest text-paper/55">보관함 안</p>
       {inBox.length === 0 ? (
-        <p className="mt-2 rounded-xl border-2 border-dashed border-edge/20 p-4 text-center text-sm text-paper/55">비어 있다.</p>
+        <p className="mt-2 rounded-xl border-2 border-dashed border-edge/20 p-4 text-center text-sm text-paper/55">{inBoxAll.length && query ? '검색 결과가 없다.' : '비어 있다.'}</p>
       ) : (
         <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="보관 중인 물건">
           {inBox.map((item) => (
@@ -109,7 +115,7 @@ export default function Locker({ player, grade, onMove, onOpen }) {
       )}
       <p className="mt-4 text-[11px] tracking-widest text-paper/55">내 소지품</p>
       {mine.length === 0 ? (
-        <p className="mt-2 rounded-xl border-2 border-dashed border-edge/20 p-4 text-center text-sm text-paper/55">맡길 물건이 없다.</p>
+        <p className="mt-2 rounded-xl border-2 border-dashed border-edge/20 p-4 text-center text-sm text-paper/55">{mineAll.length && query ? '검색 결과가 없다.' : '맡길 물건이 없다.'}</p>
       ) : (
         <ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="맡길 수 있는 물건">
           {mine.map((item) => (

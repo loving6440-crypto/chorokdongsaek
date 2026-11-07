@@ -99,15 +99,22 @@ export const GREETING_MAX_LENGTH = 30 // 한 줄 인사
 export const STAT_MIN = 1 // 스탯 최소값 (최대값은 없다)
 export const STAT_START_POINTS = 10 // 캐릭터 생성 시 자유롭게 투자할 수 있는 포인트
 
-// 영력의 최댓값(절대 이걸 넘지 않는다). 모든 캐릭터는 그 중앙값에서 시작한다.
-export const SPIRIT_BASELINE_MAX = 200
-export const SPIRIT_START = SPIRIT_BASELINE_MAX / 2
+// 영력의 최댓값(절대 이걸 넘지 않는다). v79.0.8: 200 → 500.
+export const SPIRIT_BASELINE_MAX = 500
+export const SPIRIT_MAX = SPIRIT_BASELINE_MAX
+// 새 캐릭터의 시작 영력. (상한을 올려도 시작값은 예전과 같은 100)
+export const SPIRIT_START = 100
 export const HP_MAX = 100
 export const MP_MAX = 100
 
-/** (v72) 영력을 늘리는 모든 경로(수업·수련·수면·전투 보상·수렵·동아리 퀘스트 등)에서 공통으로 쓰는 상한 처리.
- *  어떤 값이든 영력이 SPIRIT_BASELINE_MAX(200)를 넘으면 그 자리에서 되돌린다. */
-export const clampSpirit = (p) => (p.spirit > SPIRIT_BASELINE_MAX ? { ...p, spirit: SPIRIT_BASELINE_MAX } : p)
+/** (v72) 영력을 늘리는 모든 경로(수업·수련·수면·전투 보상·수렵·동아리 퀘스트·관리자 지급 등)에서 공통으로 쓰는 상한 처리.
+ *  어떤 값이든 영력이 SPIRIT_BASELINE_MAX(500)를 넘으면 그 자리에서 되돌린다. 숫자가 아닌 값(NaN 등)도 막는다. */
+export const clampSpirit = (p) => {
+  if (!p) return p
+  const v = Number(p.spirit)
+  if (Number.isFinite(v) && v <= SPIRIT_BASELINE_MAX) return p
+  return { ...p, spirit: Number.isFinite(v) ? SPIRIT_BASELINE_MAX : 0 }
+}
 
 export const AVATAR_SIZE = 256 // 업로드한 이미지를 이 크기의 정사각형으로 저장한다.
 export const AVATAR_MAX_FILE_MB = 8

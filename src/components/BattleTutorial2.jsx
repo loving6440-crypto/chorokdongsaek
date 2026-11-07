@@ -374,7 +374,7 @@ function ScriptedBattle({ dummy, queue, steps, stats, onLog, onDone, onClose, ti
               </li>
               <li className="rounded-lg bg-edge/[0.07] px-3 py-2">
                 <p className="text-sm text-paper">도깨비불</p>
-                <p className="text-[11px] text-paper/60">3턴 동안 기를 모은 뒤 일반 공격의 4배 피해. 무조건 명중. (의지력 20)</p>
+                <p className="text-[11px] text-paper/60">3턴 동안 기를 모은 뒤 일반 공격의 5배 피해. 무조건 명중. (의지력 20)</p>
                 <ActionBtn active={allowed('dokkaebi-fire')} disabled={!allowed('dokkaebi-fire')} onClick={() => doPsychic('dokkaebi-fire')} dataAttr={{ 'data-tutorial-fire-btn': true }}>사용</ActionBtn>
               </li>
             </ul>
@@ -558,7 +558,7 @@ function tutorialGroupSteps() {
     { face: 'bari', lines: ['한 번 더 가볼까요? 이번엔 부적을 써보세요.'], allow: 'charm', highlight: '[data-tutorial-mb-charm-btn]' },
     { face: 'bari', lines: ['보셨죠? 단체 공격은 모두에게 들어가니, 아껴둔 체력 회복 아이템이나 영능력으로 대비하는 게 좋아요.'] },
     { face: 'bari', lines: ['영능력은 단체 대상이 되기도, 한 명 대상이 되기도 해요. 기본적으로 한 명 대상인 경우 체력이 높은 사람을 노리는 게 보통이지만, 영능력에 따라 일부러 체력이 적은 사람을 점사하기도 하니, 상대의 영능력을 만난 후에는 그 영능력도 잘 분석해봐요.'] },
-    { face: 'bari', lines: ['마지막으로 제 고유 영능력인 **도깨비불**도 단체 전투에서 어떻게 보이는지 보여드릴게요. 쓰는 턴부터 3턴 동안 아무 행동도 못하고 기를 모으는 대신, 그 다음 턴에 일반 공격의 4배 피해를 터뜨려요. 의지력 20을 소모해요.'] },
+    { face: 'bari', lines: ['마지막으로 제 고유 영능력인 **도깨비불**도 단체 전투에서 어떻게 보이는지 보여드릴게요. 쓰는 턴부터 3턴 동안 아무 행동도 못하고 기를 모으는 대신, 그 다음 턴에 일반 공격의 5배 피해를 터뜨려요. 의지력 20을 소모해요.'] },
     { face: 'bari', lines: ['자, 한 번 써볼게요!'], auto: 'bari', bariAct: { action: 'psychic', psychic: 'dokkaebi-fire' } },
     { face: 'bari', lines: ['제가 영능력을 쓰면, 이렇게 화면 위쪽에 적의 비기와 똑같이 꾸며진 큰 팝업이 뜨면서 누가 어떤 영능력을 썼는지 알려줘요. 다인 전투에서는 같은 편이 뭘 했는지 놓치기 쉬우니까, 이런 식으로 크게 알려주는 거예요.'] },
     { face: 'bari', lines: ['이제 당신 차례예요 — 한 번 더 공격해 볼까요?'], allow: 'attack', highlight: '[data-tutorial-mb-attack-btn]' },
@@ -567,7 +567,7 @@ function tutorialGroupSteps() {
     { face: 'bari', lines: ['거의 다 모았어요. 한 턴만 더요!'], auto: 'bari' },
     { face: 'bari', lines: ['한 번 더 공격해 볼까요?'], allow: 'attack', highlight: '[data-tutorial-mb-attack-btn]' },
     { face: 'bari-surprise', lines: ['드디어 다 모았어요 — 터뜨려 볼게요!'], auto: 'bari' },
-    { face: 'bari-smile', lines: ['보셨죠? 일반 공격의 4배 피해가 한 번에 들어가요. 그만큼 3턴이나 아무것도 못 하게 되니, 상대가 그 틈에 단체 공격 같은 걸 쓰지 않을 때를 노려서 쓰는 게 좋아요.'] },
+    { face: 'bari-smile', lines: ['보셨죠? 일반 공격의 5배 피해가 한 번에 들어가요. 그만큼 3턴이나 아무것도 못 하게 되니, 상대가 그 틈에 단체 공격 같은 걸 쓰지 않을 때를 노려서 쓰는 게 좋아요.'] },
     { face: 'bari-smile', lines: ['이제 밖으로 나가면 무구 하나를 드릴 거예요. 앞선 3개의 튜토리얼을 모두 마쳤으면 받을 수 있어요. 아직 완료하지 않았으면 하러 가보세요! 나머지 무구들은 직접 학교 주변을 돌아다니며 얻어 보세요.'] },
     { face: 'bari-smile', lines: ['여기까지에요! 이걸로 튜토리얼은 모두 마쳤어요. 고생하셨습니다!'], end: true },
   ]

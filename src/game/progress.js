@@ -27,7 +27,7 @@ export const TRAIN_MAX = 300
 export const REST_MIN = 1
 export const REST_MAX = 120
 export const REST_UNIT_MIN = 1
-// 기숙사 휴식(취침): 무조건 6시간. 일어나면 체력·의지력이 가득 차고, 영력이 +100 (최대 200까지만) 오른다.
+// 기숙사 휴식(취침): 무조건 6시간. 일어나면 체력·의지력이 가득 차고, 영력이 +100 (최대 500까지만) 오른다.
 export const SLEEP_MIN = 360
 export const SLEEP_SPIRIT = 100
 // 영력 게이지의 최댓값. (v72) 원래는 "영력이 200 넘으면 게이지 자체가 300, 400...으로 늘어난다"로 돼 있었는데,
@@ -35,19 +35,16 @@ export const SLEEP_SPIRIT = 100
 // 버그가 됐다(수면으로 얻는 영력만 그 늘어난 값을 넘지 않게 막혀 있었다). 영력은 항상 200을 넘지 않아야 하므로,
 // 게이지 최댓값을 늘어나지 않는 고정값으로 되돌리고, 모든 영력 획득 경로에 clampSpirit(./constants 에서 가져옴) 을 적용했다.
 export const spiritGaugeMax = () => SPIRIT_BASELINE_MAX
-/** 푹 자고 일어났을 때 오르는 영력. +100, 단 상한(200)을 넘기지 않는다. */
+/** 푹 자고 일어났을 때 오르는 영력. +100, 단 상한(500)을 넘기지 않는다. */
 export const sleepSpiritGain = (spirit) => Math.max(0, Math.min(SLEEP_SPIRIT, SPIRIT_BASELINE_MAX - spirit))
 export const REST_KINDS = {
   bed: { label: '누워서 쉬기', stat: 'hp' },
   counsel: { label: '선생님과 상담하기', stat: 'mp' },
 }
 
-/** 영력 자연 회복: 0.1 을 채우는 데 걸리는 초. 절제 10 마다 5초씩 빨라지고 30초(5분에 1)가 한계. */
-export const spiritIntervalSec = (control) => Math.max(30, 60 - 5 * Math.floor(control / 10))
-/** 1분당 영력 자연 회복량 */
-export const spiritPerMin = (control) => 6 / spiritIntervalSec(control)
-/** 수련은 자연 회복의 2배. 소수점은 내린다. */
-export const trainReward = (minutes, control) => Math.floor(2 * spiritPerMin(control) * minutes + 1e-9)
+// 영력·체력 자연 회복 속도와 수련 보상 공식은 spiritRegen.js 에 있다. (v79.0.8)
+export { SPIRIT_REGEN_BASE_SEC, SPIRIT_REGEN_STEP_SEC, SPIRIT_REGEN_MIN_SEC, spiritIntervalSec, spiritPerMin, spiritMinutesPerPoint, hpPerMin, trainReward } from './spiritRegen.js'
+import { spiritPerMin, hpPerMin, trainReward } from './spiritRegen.js'
 
 export const dayKey = (now = Date.now()) => {
   const d = new Date(now)
@@ -149,8 +146,8 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
   if (!admin && STAT_KEYS.some((k) => p.stats[k] > STAT_MAX)) {
     p = { ...p, stats: Object.fromEntries(STAT_KEYS.map((k) => [k, Math.min(STAT_MAX, p.stats[k])])) }
   }
-  // (v72) 영력이 200을 넘겨 저장돼 있던 예전 기록(게이지 최댓값이 계속 늘어나던 버그 탓)을 불러오는 순간 되돌린다.
-  if (!admin) p = clampSpirit(p)
+  // 영력이 상한(500)을 넘겨 저장돼 있던 기록은 불러오는 순간 되돌린다. (v79.0.8: 관리자도 예외 없음)
+  p = clampSpirit(p)
   return syncCodex(migrateWeapons(p))
 }
 
@@ -329,13 +326,13 @@ export function tickPlayer(player, now, dtSec) {
     logs.push(`${k.label}를 마쳤다. (${rs.minutes}분 · ${k.stat === 'hp' ? '체력' : '의지력'} +${rs.minutes})`)
   }
 
-  // 대기 중이 아닐 때만 자연 회복. 영력은 절제에 따라, 체력은 그 2배 속도. 의지력은 저절로 차지 않는다.
+  // 대기 중이 아닐 때만 자연 회복. 영력·체력 모두 절제에 따른다. 의지력은 저절로 차지 않는다.
   if (!waiting) {
-    // 상한에 도달했다면 새 객체 자체를 만들지 않는다. 이전에는 매초 200을
+    // 상한에 도달했다면 새 객체 자체를 만들지 않는다. 이전에는 매초 상한을
     // 초과하도록 더한 후 clampSpirit에서 다시 잘라 불필요하게 전체 UI를 갱신했다.
     const rate = spiritPerMin(p.stats.control) * dtSec / 60
     const nextSpirit = Math.min(SPIRIT_BASELINE_MAX, p.spirit + rate)
-    const nextHp = Math.min(p.hpMax, p.hp + 2 * rate)
+    const nextHp = Math.min(p.hpMax, p.hp + hpPerMin(p.stats.control) * dtSec / 60)
     if (nextSpirit !== p.spirit || nextHp !== p.hp) p = { ...p, spirit: nextSpirit, hp: nextHp }
   }
 
@@ -365,7 +362,7 @@ export function tickPlayer(player, now, dtSec) {
   const ach = checkAchievements(p, now)
   p = ach.player
   logs.push(...ach.logs)
-  // (v72) 위 여러 경로(수련·수면·수업·채집·수렵·동아리 활동·업적) 중 어디서든 영력이 200을 넘겼다면 여기서 한 번에 되돌린다.
+  // (v72) 위 여러 경로(수련·수면·수업·채집·수렵·동아리 활동·업적) 중 어디서든 영력이 상한(500)을 넘겼다면 여기서 한 번에 되돌린다.
   p = clampSpirit(p)
   return { player: p, logs, unlocked: ach.unlocked }
 }

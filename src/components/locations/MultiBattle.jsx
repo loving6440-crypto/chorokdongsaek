@@ -7,6 +7,7 @@ import { Bar, enemyHpTone, vague } from './battleUi'
 import SpBanner from '../SpBanner'
 import { AllyPsychicBanner, AllyToastStack } from '../AllyPopup'
 import PsychicDetails from '../PsychicDetails'
+import LanguageBarrierPicker from '../LanguageBarrierPicker'
 
 const ACTION_ICONS = { attack: Swords, guard: Shield, charm: Sparkles, scan: Eye, psychic: Zap }
 const ACTION_ORDER = ['attack', 'guard', 'charm', 'scan', 'psychic']
@@ -26,12 +27,13 @@ function bossRageText(enemy, stage) {
 export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
   const enemy = enemyById(view.enemyId)
   const me = view.members.find((m) => m.id === meId)
+  // 보스전의 상시 영능력은 '가져가기'로 골랐을 때만 발동한다.
+  const barrierActive = psychics.includes('spirit-barrier') && !me?.passiveOff?.includes('spirit-barrier') && (!view.boss || me?.psychicBring?.includes('spirit-barrier'))
   const [psyOpen, setPsyOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanN, setScanN] = useState(1)
   const [mpGift, setMpGift] = useState(10)
   const [mpTarget, setMpTarget] = useState(meId)
-  const [rerollTurns, setRerollTurns] = useState([1,2,3])
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
   const [pawAmt, setPawAmt] = useState(1) // 원숭이 손: 깎을 체력
   const [echoTarget, setEchoTarget] = useState(meId) // 형상 기억: 체력을 회복시킬 대상(기본값은 자기 자신)
@@ -124,7 +126,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   const send = async (act) => {
     if (!canAct) return
     const buffed =
-      buffArmed &&
+      !barrierActive && !((me?.psySeal || 0) > 0) && buffArmed &&
       (act.action === 'attack' ||
         act.action === 'charm' ||
         (act.action === 'psychic' && (act.psychic === 'survival' || act.psychic === 'monkey-paw' || act.psychic === 'dokkaebi-fire')))
@@ -155,6 +157,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
   // 의지력 10을 정확히 다 낼 수 있어야만 켤 수 있다(모자라면 토글 자체가 막힌다). (v70)
   const toggleBuff = () => {
     if (!canAct) return
+    if (barrierActive || (me?.psySeal || 0) > 0) return
     setBuffArmed((v) => (!v && have < mpCostOf(stats, BUFF_COST) ? v : !v))
   }
   useEffect(() => {
@@ -215,13 +218,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
       {view.boss && (
         <p className="mt-2 rounded-lg bg-crimson/15 px-3 py-1.5 text-[11px] text-paper/80" data-boss-note>
           보스 전투 — 가져온 아이템만 쓸 수 있다{me?.bring ? ` (남은 ${Object.values(me.bring).reduce((a, b) => a + b, 0)}개)` : ''}.
-<<<<<<< Updated upstream
-          {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{view.rage >= 2 ? '광분 — 약공이 모두 단체 공격!' : '분노 — 3라운드마다 반드시 영능력!'}</b> : null}
-=======
           {view.rage ? <b className="ml-1 text-crimson" data-rage={view.rage}>{bossRageText(enemy, view.rage)}</b> : null}
           {enemy?.grows ? <b className="ml-1 text-gold" data-boss-grow={view.grow || 0}>{enemy.grows.label ?? '커짐'} {view.grow || 0}/{enemy.grows.max}단계 ({enemy.grows.hint ?? '간파로 올려다보면 커진다'})</b> : null}
           {enemy?.regen && (view.rage || 0) >= (enemy.regen.from ?? 0) ? <b className="ml-1 text-gold" data-boss-regen>재생 — 라운드 끝마다 체력 +{Math.round(enemy.regen.pct * 100)}%</b> : null}
->>>>>>> Stashed changes
         </p>
       )}
       {!view.over && (
@@ -315,8 +314,6 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                   <span>의지력 {Math.floor(m.mp)}</span>
                   <span>· 부적 {m.charms}장</span>
                   {m.bound && <span className="text-crimson">· 막기 불가</span>}
-<<<<<<< Updated upstream
-=======
                   {m.psySeal > 0 && <span className="text-crimson" data-psy-seal={m.psySeal}>· 영능력 봉인 {m.psySeal}라운드</span>}
                   {m.stun > 0 && <span className="text-crimson">· {m.ps?.sleep ? '가위눌림' : '행동불능'} {m.stun}턴</span>}
                   {m.banished > 0 && <span className="text-crimson" data-banished>· 행렬에 끌려감 {m.banished}라운드</span>}
@@ -324,7 +321,6 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                   {statusChips(m.ps).filter((c) => c.key !== 'sleep').map((c) => (
                     <span key={c.key} title={c.desc} className="text-crimson" data-status={c.key}>· {c.label} {c.n}{c.unit === '턴' ? '라운드' : c.unit}</span>
                   ))}
->>>>>>> Stashed changes
                   {m.boost && <span className="text-gold">· 아이템 대기</span>}
                   {m.revive && <span className="text-gold">· 부활 대기</span>}
                 </p>
@@ -369,13 +365,8 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
               !canAct && id !== 'psychic'
                 ? true
                 : id === 'psychic'
-<<<<<<< Updated upstream
-                  ? !canAct
-                  : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound)
-=======
                   ? !canAct || (me?.psySeal || 0) > 0 || blockedActions(me).includes('psychic')
                   : (id === 'charm' && (me.charms <= 0 || have < 1)) || (id === 'scan' && have < mpCostOf(stats, 1)) || (id === 'guard' && me.bound) || blockedActions(me).includes(id) // v-B.05 공포·연모
->>>>>>> Stashed changes
             return (
               <button
                 key={id}
@@ -426,6 +417,12 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </div>
       )}
 
+      {me?.lbPick && !view.over && (
+        <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="언어장벽">
+          <p className="font-serif text-base text-gold">언어장벽</p>
+          <LanguageBarrierPicker picking queue={view.queue} cost={mpCostOf(stats, 20)} disabled={!canAct} onConfirm={(picked) => send({ action: 'psychic', psychic: 'language-barrier', rerolls: picked })} />
+        </div>
+      )}
       {psyOpen && !view.over && (
         <div className="ink-panel mt-3 rounded-xl p-4" role="region" aria-label="영능력 목록">
           <p className="font-serif text-base text-gold">영능력</p>
@@ -446,11 +443,11 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       <button
                         type="button"
                         aria-pressed={buffArmed}
-                        disabled={!canAct || (!buffArmed && have < mpCostOf(stats, BUFF_COST))}
+                        disabled={barrierActive || !canAct || (!buffArmed && have < mpCostOf(stats, BUFF_COST))}
                         onClick={toggleBuff}
                         className={`flat-btn mt-2 justify-center disabled:opacity-40 ${buffArmed ? 'bg-gold-fill text-ink' : ''}`}
                       >
-                        {buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
+                        {barrierActive ? '영력결계로 사용 불가' : buffArmed ? '켜짐 (끄기)' : `켜기 (의지력 ${mpCostOf(stats, BUFF_COST)})`}
                       </button>
                     ) : s.id === 'monkey-paw' ? (
                       <>
@@ -466,7 +463,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                           <button type="button" aria-label="깎을 체력 늘리기" onClick={() => setPawAmt((n) => Math.min(pawMax, n + 1))} disabled={pawAmt >= pawMax} className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper disabled:opacity-35">+</button>
                           <span className="text-[11px] text-paper/60">의지력 {mpCostOf(stats, Math.min(pawMax, pawAmt))} 소모</span>
                         </div>
-                        <button type="button" data-psychic-use="monkey-paw" disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: 'monkey-paw', sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use="monkey-paw" disabled={!canAct || barrierActive} onClick={() => send({ action: 'psychic', psychic: 'monkey-paw', sacrifice: pawAmt })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       </>
@@ -502,11 +499,9 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                         <button type="button" className="flat-btn" disabled={!canAct || have<mpGift} onClick={()=>send({action:'psychic',psychic:s.id,target:mpTarget,amount:mpGift})}>사용</button>
                       </div>
                     ) : s.id === 'language-barrier' ? (
-                      <div className="mt-2">
-                        <p className="text-xs text-paper/65">재굴림할 적 행동의 순서 3개 (1~20)</p>
-                        <div className="flex gap-2">{rerollTurns.map((n,i)=><input key={i} aria-label={`재굴림 ${i+1}번째 턴`} type="number" min="1" max="20" value={n} onChange={e=>setRerollTurns(a=>a.map((v,j)=>i===j?Math.max(1,Math.min(20,Math.floor(Number(e.target.value)||1))):v))} className="mt-1 w-16 rounded bg-shade px-2 py-1 text-paper" />)}</div>
-                        <button type="button" className="flat-btn mt-2" disabled={!canAct} onClick={()=>send({action:'psychic',psychic:s.id,rerolls:rerollTurns.map(n=>n-1)})}>간파 및 재굴림</button>
-                      </div>
+                      me?.lbPick
+                        ? <p className="mt-2 text-xs text-gold">간파 완료 — 위의 언어장벽 창에서 바꿀 턴을 고르세요.</p>
+                        : <LanguageBarrierPicker picking={false} cost={mpCostOf(stats, 20)} disabled={!canAct || barrierActive || have < mpCostOf(stats, 20)} onReveal={() => send({ action: 'psychic', psychic: s.id })} />
                     ) : s.id === 'karmic-recompense' ? (
                       <>
                         <select
@@ -534,7 +529,7 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
                       </>
                     ) : (
                       s.use && (
-                        <button type="button" data-psychic-use={s.id} disabled={!canAct} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
+                        <button type="button" data-psychic-use={s.id} disabled={!canAct || (barrierActive && ['cotton-mist', 'dokkaebi-fire'].includes(s.id))} onClick={() => send({ action: 'psychic', psychic: s.id })} className="flat-btn mt-2 justify-center disabled:opacity-40">
                           사용
                         </button>
                       )

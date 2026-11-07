@@ -4,11 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-<<<<<<< Updated upstream
-import { ENEMIES, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, rollIntent } from './battle.js'
-=======
 import { enemyById, effectHitsAll, effectPierces, effectTargeting, effectExpr, afflictStats, tickStatus, tickEnemyStatus, playerTurnStart, beforePlayer, afterPlayer, reviveCheck, strikeOf, shownQueue, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal } from './battle.js'
->>>>>>> Stashed changes
 import { itemTurnFree } from './items.js'
 
 /** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
@@ -25,8 +21,6 @@ const STAT_KEYS = ['insight', 'aggression', 'endurance', 'control', 'agility', '
 const PSYCHIC_IDS = ['earth-step','warding-scripture','spirit-barrier','seven-stars','language-barrier','survival', 'cotton-mist', 'monkey-paw', 'echo-form', 'falling-light', 'karmic-recompense', 'dokkaebi-fire']
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(+v) ? +v : lo))
 
-<<<<<<< Updated upstream
-=======
 /** 영력결계: 일반 다인 전투는 습득만 하면 상시 적용. 보스전에서는 가져간 경우에만 적용한다. */
 export const hasActiveSpiritBarrier = (member, enemy) =>
   !!member?.psychics?.includes('spirit-barrier') &&
@@ -38,7 +32,6 @@ export const hasActiveSpiritBarrier = (member, enemy) =>
 /** 영력결계 상태에서도 스스로 또는 아군을 대상으로 쓰는 영능력은 사용할 수 있다. */
 export const BARRIER_ALLY_SKILLS = ['survival', 'echo-form', 'falling-light', 'karmic-recompense', 'warding-scripture', 'earth-step', 'seven-stars']
 
->>>>>>> Stashed changes
 /** 클라이언트가 보낸 스탯을 안전한 정수로 고친다. */
 export function cleanStats(raw = {}) {
   const out = {}
@@ -49,7 +42,7 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0 }) {
+export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0, passiveOff = [] }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
@@ -88,6 +81,8 @@ export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax,
     boost: !!boost,
     bring: bring ?? null, // 보스 전투: 가져온 아이템 { id: 개수 } (null 이면 제한 없음)
     psychicBring: psychicBring ?? null, // 보스 전투: 가져온 영능력 id 목록(최대 2개, null 이면 제한 없음) (v71)
+    passiveOff: Array.isArray(passiveOff) ? passiveOff.filter((x) => x === 'spirit-barrier') : [], // 이번 전투에서 끈 패시브 영능력 (v79.0.7)
+    lbPick: false, // 언어장벽으로 20턴을 간파한 뒤, 바꿀 턴을 고르는 중 (v79.0.7)
     act: null, // 이번 라운드에 고른 행동 { action, scanAmount?, psychic?, forced? }
     ps: {}, // v-B.05 상태 이상(battle.js PS_INFO): 남은 턴 수
     banished: 0, // 백귀행렬에 끌려가 빠져 있는 남은 라운드
@@ -103,13 +98,9 @@ export function createMB(enemyId, rawMembers, rng = Math.random) {
   const members = rawMembers.map(makeMember)
   const base = newBattle(enemy, members[0].stats, rng, undefined, undefined, { party: true }) // 상대의 행동 큐(여럿이 함께 본다) — 일행을 상대하는 판
   const mb = {
-<<<<<<< Updated upstream
-    enemy,
-=======
     // 보스가 전투 중 커지는 등 능력치가 바뀔 수 있어, 원본(적 데이터)을 건드리지 않도록 복사해 둔다.
     enemy: { ...enemy },
     grow: 0, // 커지는 보스(그슨대)의 현재 단계
->>>>>>> Stashed changes
     ehp: enemy.hp,
     espirit: enemy.spirit, // 영능력 전용 영력 자원(다인 전투는 일행 수와 무관하게 한 번 쓸 때마다 한 번만 깎인다)
     party: true,
@@ -149,6 +140,7 @@ const viewOfMember = (mb, m) => ({
   round: mb.round,
   queue: mb.queue,
   known: mb.known,
+  lbPick: !!m.lbPick,
   guard: m.guard,
   charms: m.charms,
   bound: m.bound,
@@ -268,10 +260,28 @@ export function submit(mb, id, act) {
   if (a === 'scan' && m.mp < mpCostOf(m.stats, 1)) return { error: 'no-mp' }
   if (a === 'charm' && m.charms <= 0) return { error: 'no-charm' }
   if (a === 'guard' && m.bound) return { error: 'bound' }
-  if (a === 'psychic' && m.psychics?.includes('spirit-barrier') && !['warding-scripture', 'earth-step', 'seven-stars'].includes(act.psychic)) return { error: '영력결계를 가진 사람은 적을 향해 영능력을 쓸 수 없다.' }
+  const barrierActive = hasActiveSpiritBarrier(m, mb.enemy)
+  if (barrierActive && act?.buff) return { error: '영력결계가 발동 중이면 효험을 사용할 수 없다.' }
+  if (a === 'psychic' && barrierActive && !BARRIER_ALLY_SKILLS.includes(act.psychic)) return { error: '영력결계가 발동 중이면 적 대상 영능력을 사용할 수 없다.' }
   if (a === 'psychic' && !PSYCHIC_IDS.includes(act.psychic)) return { error: 'bad-psychic' }
+  // 그슨대 [내리누르기]: 봉인된 동안은 영능력(효험 포함)을 쓸 수 없다.
+  if ((m.psySeal || 0) > 0 && (a === 'psychic' || act?.buff)) return { error: `영능력이 봉인되어 있다. (남은 ${m.psySeal}라운드)` }
   // 보스 전투: 미리 가져가기로 고른 영능력(최대 2개)만 쓸 수 있다. (v71)
   if (a === 'psychic' && mb.enemy.boss && Array.isArray(m.psychicBring) && !m.psychicBring.includes(act.psychic)) return { error: 'not-brought' }
+  // 언어장벽 (v79.0.7): 1단계 간파는 턴을 쓰지 않는다. 20턴을 드러낸 뒤 같은 턴에 바꿀 턴을 골라 다시 제출한다(이때 턴이 끝난다).
+  // 몇 번째 라운드든, 일행 중 몇 번째 순서든 자기 차례면 언제든 쓸 수 있다.
+  if (m.lbPick && !(a === 'psychic' && act.psychic === 'language-barrier')) return { error: '언어장벽: 먼저 바꿀 턴을 골라 확정해야 한다.' }
+  if (a === 'psychic' && act.psychic === 'language-barrier' && !m.lbPick) {
+    const cost = mpCostOf(m.stats, 20)
+    if (m.mp < cost) return { error: 'no-mp' }
+    const r = languageReveal({ queue: mb.queue, known: mb.known, party: true, enemy: mb.enemy }, cost)
+    mb.queue = r.state.queue
+    mb.known = r.state.known
+    m.mp = Math.max(0, m.mp - cost)
+    m.lbPick = true
+    addLog(mb, r.events.map((e) => ({ ...e, text: `[${m.name}] ${e.text}` })), m.id)
+    return { ok: true, reveal: true }
+  }
   m.act = {
     action: a,
     scanAmount: a === 'scan' ? Math.max(1, Math.min(m.mp, Math.floor(act.scanAmount ?? 1))) : undefined,
@@ -279,7 +289,7 @@ export function submit(mb, id, act) {
     buff,
     // 원숭이 손: 깎을 체력. 업인과보·형상 기억: 지정한 대상(형상 기억은 자신 또는 치유할 일행).
     amount: a === 'psychic' && act.psychic === 'warding-scripture' ? Math.max(1, Math.floor(act.amount ?? 10)) : undefined,
-    rerolls: a === 'psychic' && act.psychic === 'language-barrier' && Array.isArray(act.rerolls) ? act.rerolls.slice(0,3) : undefined,
+    rerolls: a === 'psychic' && act.psychic === 'language-barrier' ? (Array.isArray(act.rerolls) ? act.rerolls.slice(0,3) : []) : undefined,
     sacrifice: a === 'psychic' && act.psychic === 'monkey-paw' ? Math.max(0, Math.floor(act.sacrifice ?? 0)) : undefined,
     target: a === 'psychic' && ['karmic-recompense', 'echo-form', 'warding-scripture'].includes(act.psychic) && typeof act.target === 'string' ? act.target : undefined,
   }
@@ -606,14 +616,11 @@ export function resolveTurn(mb, rng = Math.random) {
   m.fireBuffed = !!r.state.fireBuffed // 도깨비불을 효험과 함께 썼다면, 터지는 순간까지 들고 있는다
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
-<<<<<<< Updated upstream
-=======
   m.lbPick = false // 언어장벽 고르기는 이 턴의 행동으로 끝난다(시간 초과로 다른 행동이 들어가도 해제)
   // 그슨대: 간파로 올려다보면 커진다.
   // v-B.04: 커지는 계기를 보스마다 고를 수 있다(grows.trigger: 'scan' 기본 · 'charm' · 'psychic' · 'guard' · 'attack', 여럿이면 배열).
   if (mb.enemy.grows && growTriggers(mb.enemy).includes(act.action)) evs.push(...growBoss(mb, 1, growReason(mb, m, act.action)))
   if (r.selfStun) m.stun = Math.max(m.stun || 0, r.selfStun) // 원숭이 손의 대가: 즉시 행동불능 (v79.0.7)
->>>>>>> Stashed changes
   const forced = act.forced ? ' (돌발)' : act.auto ? ' (시간 초과로 막기)' : ''
   // 아군이 영능력을 썼을 때는 팝업으로 바로 보여 줄 수 있도록 표시를 달아 둔다(적 영능력과 같은 꾸며진 팝업). (v71)
   evs.push(
@@ -673,19 +680,18 @@ export function bossGimmick(mb, intent) {
   if (!mb.enemy.boss) return { intent, notes }
   const ratio = mb.ehp / mb.enemy.hp
   const stage = ratio < 0.25 ? 2 : ratio < 0.5 ? 1 : 0
+  // 보스마다 광분 단계 문구·효과가 다를 수 있다(없으면 불가살이 방식).
+  const rage = mb.enemy.rage ?? {}
   if (stage > (mb.rage || 0)) {
     mb.rage = stage
-    notes.push(stage === 1 ? `${mb.enemy.name}이(가) 사납게 몸을 뒤튼다! (3라운드마다 반드시 영능력을 쓴다)` : `${mb.enemy.name}이(가) 광분한다! (약공이 모두 단체 공격으로 바뀐다)`)
+    notes.push(stage === 1
+      ? rage.stage1 ?? `${mb.enemy.name}이(가) 사납게 몸을 뒤튼다! (3라운드마다 반드시 영능력을 쓴다)`
+      : rage.stage2 ?? `${mb.enemy.name}이(가) 광분한다! (약공이 모두 단체 공격으로 바뀐다)`)
   }
   let out = intent
-<<<<<<< Updated upstream
-  if (stage >= 2 && out === 'jab') out = 'group'
-  if (stage >= 1 && mb.round % 3 === 0 && ['jab', 'group', 'guard'].includes(out)) out = 'special'
-=======
   if (stage >= 2 && rage.jabToGroup !== false && out === 'jab') out = 'group'
   const every = Math.max(1, rage.specialEvery ?? 3) // v-B.04: 보스마다 '몇 라운드마다 반드시 영능력'을 정할 수 있다(기본 3)
   if (stage >= 1 && mb.round % every === 0 && ['jab', 'group', 'guard'].includes(out)) out = 'special'
->>>>>>> Stashed changes
   return { intent: out, notes }
 }
 
@@ -923,16 +929,6 @@ function enemyPhase(mb, rng) {
       )
     }
   }
-<<<<<<< Updated upstream
-  targets.forEach((t, i) => {
-    if (mb.ehp <= 0) return
-    if (intent === 'special' && t.psychics?.includes('spirit-barrier')) {
-      if (group) {
-        evs.push(...addLog(mb, [{kind:'warn',text:`[${t.name}] 영력결계! 적의 영능력을 무효화했다.`}],t.id))
-        return
-      }
-      evs.push(...addLog(mb, [{kind:'warn',text:`[${t.name}] 영력결계! 단일 영능력이 약공으로 바뀌었다.`}],t.id))
-=======
   // 대상 전원이 결계로 보호되더라도 적의 영능력 시전은 사라지지 않는다.
   // 영력 소모, 시전 팝업, 후속 행동은 그대로 유지한다. (단일 시전은 약공으로 대체.)
   const pierce = intent === 'special' && effectPierces(spDef) // 영력결계를 꿰뚫는 영능력(결계째 삼키기)
@@ -971,11 +967,11 @@ function enemyPhase(mb, rng) {
       evs.push(...addLog(mb, [{ kind:'warn', text:`[${t.name}] 영력결계! 단체 영능력의 효과를 받지 않았다.` }], t.id))
     } else if (downgradesSingleSpecial) {
       evs.push(...addLog(mb, [{ kind:'warn', text:`[${t.name}] 영력결계! 자신을 향한 단일 영능력이 약공으로 바뀌었다.` }], t.id))
->>>>>>> Stashed changes
     }
     const last = i === targets.length - 1
     const q = [...mb.queue]
-    if (intent === 'group' || (intent === 'special' && !group && t.psychics?.includes('spirit-barrier'))) q[0] = 'jab'
+    if (blocksGroupSpecial) q[0] = 'none' // 이 대상에게만 무효: 다른 파티원에게는 원래 영능력을 적용
+    else if (intent === 'group' || downgradesSingleSpecial) q[0] = 'jab'
     // 내려쬐는 빛으로 대신 맞는 공격은 무조건 '막기'로 처리된다. (v71)
     const v = { ...viewOfMember(mb, t), guard: flTarget && t.id === flTarget.id ? true : t.guard, queue: q }
     const prevPhp = t.php
@@ -1020,17 +1016,12 @@ function enemyPhase(mb, rng) {
     t.specialSeen = !!r.state.specialSeen
     t.curse = r.state.curse
     t.bound = r.state.bound || t.bound
-<<<<<<< Updated upstream
-    t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
-    let tevs = r.events.map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : group && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
-=======
     if (r.sealed || (r.state.psySeal || 0) > (t.psySeal || 0)) { t.psySeal = Math.max(t.psySeal || 0, r.state.psySeal || 0); t.psySealFresh = true } // 이번 라운드에 걸린 봉인은 다음 라운드부터 센다
     t.stun = r.state.pstun || 0 // 데이터형 영능력의 행동불능·가위눌림(깨어나면 0) (v-B.04 · v-B.05)
     t.mp = Math.max(0, t.mp - (r.mpDrain || 0))
     // 대상 면역일 때 생긴 내부 '행동이 무효화' 안내는 적 전체가 공격을 취소한 것으로 오해될 수 있으므로 숨긴다.
     let tevs = (blocksGroupSpecial ? r.events.filter(e => !/행동이 무효화/.test(e.text || '')) : r.events)
       .map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : (group || targets.length > 1) && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
->>>>>>> Stashed changes
     const downed = r.state.pendingDeath || r.state.over === 'lose'
     if (downed && t.revive) {
       t.revive = false
@@ -1093,11 +1084,6 @@ function enemyPhase(mb, rng) {
     evs.push(...addLog(mb, [{ kind: 'end', text: `${mb.enemy.name}이(가) 쓰러졌다.` }]))
     return evs
   }
-<<<<<<< Updated upstream
-  return evs.concat(afterEnemy(mb, rng))
-}
-
-=======
   // v-B.05: 라운드 끝 기록(되감기·원한)과 상태 세기
   mb.es = { ...mb.es, ehpHist: [...(mb.es.ehpHist || []), mb.ehp].slice(-4), takenLog: [...(mb.es.takenLog || []), mb.es.takenNow || 0].slice(-4), takenNow: 0 }
   for (const m of aliveOf(mb)) {
@@ -1166,7 +1152,6 @@ export function growBoss(mb, amount, reason) {
   return addLog(mb, [{ kind: 'warn', text: `${reason} ${mb.enemy.name}이(가) 더 커졌다! (${mb.grow}/${g.max}단계 · 공격력 ${mb.enemy.atk})` }], 'enemy')
 }
 
->>>>>>> Stashed changes
 /** 버티기 대기자가 있으면 그 단계로, 없으면 다음 라운드로 */
 export function afterEnemy(mb, rng = Math.random) {
   if (mb.enemyVulnerabilityRounds > 0) mb.enemyVulnerabilityRounds -= 1
@@ -1248,6 +1233,8 @@ export function viewOf(mb, extra = {}) {
     enemyId: mb.enemy.id,
     boss: !!mb.enemy.boss,
     rage: mb.rage || 0,
+    grow: mb.grow || 0, // 커지는 보스(그슨대)의 현재 단계
+    enemyAtk: mb.enemy.atk, // 전투 중 바뀐 현재 공격력
     ehp: mb.ehp,
     queue: shownQueue(mb.queue, mb.lies).slice(0, mb.over ? 0 : mb.known), // 헛것 보이기(v-B.05)면 몇 개는 거짓으로 보인다
     es: Object.fromEntries(Object.entries(mb.es || {}).filter(([k]) => !['ehpHist', 'takenLog', 'takenNow'].includes(k))),
@@ -1276,8 +1263,6 @@ export function viewOf(mb, extra = {}) {
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
       psychicBring: m.psychicBring,
-<<<<<<< Updated upstream
-=======
       passiveOff: m.passiveOff || [],
       lbPick: !!m.lbPick,
       psySeal: m.psySeal || 0, // 영능력 봉인 남은 라운드 (그슨대)
@@ -1286,7 +1271,6 @@ export function viewOf(mb, extra = {}) {
       banished: m.banished || 0,
       barrierBroken: !!m.barrierBroken,
       starBonus: m.starBonus || 0,
->>>>>>> Stashed changes
       curseUntil: m.curseUntil || 0,
       fire: m.fire || 0,
   specialSaved: !!m.specialSaved,

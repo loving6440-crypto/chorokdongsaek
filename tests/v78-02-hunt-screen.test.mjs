@@ -42,10 +42,11 @@ test('서버 동기화 재마운트에서 active 수렵일 때 산 탐색 화면
 test('서버 충돌 안내와 수렵 예외 알림으로 원인 식별이 가능하다', () => {
   const app = source('src/App.jsx')
   const game = source('src/Game.jsx')
-  const hike = source('src/components/locations/Hike.jsx')
+  const pioneer = source('src/components/locations/Pioneer.jsx')
   assert.match(app, /reason === 'conflict'/)
   assert.match(app, /role="alert"/)
   assert.match(game, /console\.error\('\[초록동색\] 수렵 명령 처리 오류:'/)
   assert.match(game, /'attempt' && next\.huntExpedition\?\.status === 'finished'/)
-  assert.match(hike, /previousHuntStatus\.current === 'active' && status === 'finished'/)
+  // v-B.01: 개척은 [개척] 화면에서만 진행하므로 종료 감지도 그쪽에 있다.
+  assert.match(pioneer, /previous\.current === 'active' && session\?\.status === 'finished'/)
 })

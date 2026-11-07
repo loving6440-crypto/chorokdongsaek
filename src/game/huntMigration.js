@@ -1,6 +1,6 @@
 // v78 시범판 저장 데이터 호환: 이전 판에 없던 보상 ID / 잘못된 순찰 경로를 복구한다.
 // 다른 v77 진행 상태는 변경하지 않는다.
-import { HUNT_SITES } from './huntSites.js'
+import { HUNT_SITES, HUNT_SPECIES, clockwiseRoute } from './huntSites.js'
 
 const OLD_IDS = { rock: 'stone', raspberry: 'wild-raspberry', 'trap-scrap': 'trap-scraps' }
 
@@ -22,6 +22,10 @@ function fixRewards(rewards) {
   return rewards.map(x => OLD_IDS[x.item] ? { ...x, item: OLD_IDS[x.item] } : x)
 }
 
+const LEGACY_ANIMALS = {
+  'left-trail-1:I3': { id: 'I3', kind: 'animal', x: 8, y: 2, route: clockwiseRoute(7, 2, 3) },
+}
+
 function sameRoute(a, b) {
   return Array.isArray(a) && a.length === b?.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y)
 }
@@ -32,7 +36,8 @@ function fixSession(session) {
   let changed = false
   const nodes = session.nodes.map(node => {
     let next = node
-    const definition = site?.nodes.find(point => point.id === node.id && point.kind === 'animal')
+    // v79.0.7: 산길-1의 I3 여우는 시트 기준 J3 너구리로 바뀌었다. 진행 중이던 옛 저장분의 I3 여우는 원래 3×3 경로로 계속 돈다.
+    const definition = site?.nodes.find(point => point.id === node.id && point.kind === 'animal') ?? LEGACY_ANIMALS[`${session.siteId}:${node.id}`]
     if (definition?.route && !sameRoute(node.route, definition.route)) {
       // 잘못된 기존 9×9 순찰 경로 때문에 여우가 멈춰 있었던 저장분도 복구한다.
       const onPath = definition.route.some(p => p.x === node.x && p.y === node.y)
@@ -46,11 +51,41 @@ function fixSession(session) {
     }
     const rewards = fixRewards(next.rewards)
     if (rewards !== next.rewards) { next = { ...next, rewards }; changed = true }
+    if (session.siteId === 'left-cemetery' && site) {
+      const fixed = site.nodes.find(point => point.id === node.id)
+      // 이미 소모한 횟수·동물의 현 위치는 유지하고, 잘못 저장된 보상/레벨만 최신 시트 정의로 교체한다.
+      if (fixed) {
+        const species = HUNT_SPECIES[fixed.species]
+        if (next.level !== fixed.level || next.name !== species.name || JSON.stringify(next.rewards) !== JSON.stringify(species.rewards)) {
+          next = { ...next, name: species.name, level: fixed.level, rewards: species.rewards.map(reward => ({ ...reward })) }
+          changed = true
+        }
+      }
+      const roaming = node.id === 'roaming-spirit' ? site.spirit : node.id === 'roaming-ghost' ? site.ghost : null
+      if (roaming && (next.name !== roaming.name || next.level !== roaming.level || JSON.stringify(next.rewardItems) !== JSON.stringify(roaming.rewardItems))) {
+        next = { ...next, ...roaming, x: node.x, y: node.y, attemptsLeft: node.attemptsLeft }
+        changed = true
+      }
+    }
     return next
   })
+  // 묘소의 누락됐던 돌탑 두 칸과 장명등 두 칸은 진행 중인 구형 탐사에서도 복구한다.
+  if (session.siteId === 'left-cemetery' && site) {
+    for (const point of site.nodes) if (['C7', 'H7', 'E8', 'F8'].includes(point.id) && !nodes.some(n => n.id === point.id)) {
+      nodes.push({ ...HUNT_SPECIES[point.species], ...point, attemptsLeft: 3 })
+      changed = true
+    }
+  }
   const rewards = fixItems(session.rewards)
   if (rewards !== session.rewards) changed = true
-  return changed ? { ...session, nodes, rewards } : session
+  let encounter = session.encounter
+  if (session.siteId === 'left-cemetery' && encounter?.nodeId === 'roaming-ghost' && site?.ghost) {
+    if (encounter.enemy?.id !== site.ghost.enemy.id || JSON.stringify(encounter.rewardItems) !== JSON.stringify(site.ghost.rewardItems)) {
+      encounter = { ...encounter, enemy: site.ghost.enemy, rewardSpirit: site.ghost.rewardSpirit, rewardItems: site.ghost.rewardItems }
+      changed = true
+    }
+  }
+  return changed ? { ...session, nodes, rewards, encounter } : session
 }
 
 export function migrateHuntSave(player) {

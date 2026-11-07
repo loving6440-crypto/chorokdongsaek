@@ -9,8 +9,8 @@ const source = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf
 const player = () => ({ hp: 100, hpMax: 100, mp: 100, mpMax: 100, spirit: 40, inventory: {} })
 const site = HUNT_SITES['left-trail-1']
 
-test('뱀은 A3 기준 2×2, 여우는 I3가 포함된 3×3을 실제로 돈다', () => {
-  for (const [id, size] of [['A3', 2], ['I3', 3]]) {
+test('뱀은 A3 기준 2×2, 너구리는 J3가 포함된 3×3을 실제로 돈다 (v79.0.7 시트 기준)', () => {
+  for (const [id, size] of [['A3', 2], ['J3', 3]]) {
     const node = site.nodes.find(n => n.id === id)
     assert.ok(node)
     assert.equal(node.route.length, 4 * (size - 1))
@@ -63,8 +63,9 @@ test('v77 기존 수업·일퀘·로그·보안·폰트·아이템 구현 파일
 test('빈 수렵 칸의 title/정보 표시를 막고 수렵 종료 시 메뉴가 접힌다', () => {
   assert.match(source('src/components/locations/HuntField.jsx'), /title=\{\(node \|\| isPlayer\) \?[^]*: undefined\}/)
   assert.match(source('src/components/locations/HuntField.jsx'), /hasInformation &&/)
-  assert.match(source('src/components/locations/Hike.jsx'), /previousHuntStatus\.current === 'active' && status === 'finished'/)
-  assert.match(source('src/components/locations/Hike.jsx'), /setHuntOn\(false\)/)
+  // v-B.01: 개척은 산 탐색 밖의 [개척] 화면에서만 열린다.
+  assert.doesNotMatch(source('src/components/locations/Hike.jsx'), /<HuntField/)
+  assert.match(source('src/components/locations/Pioneer.jsx'), /<HuntField/)
   assert.match(source('src/components/locations/Hike.jsx'), /<Garden player=\{player\}/)
   assert.match(source('src/Game.jsx'), /onHuntAction=\{huntAction\}/)
   assert.match(source('src/Game.jsx'), /<HuntBattleModal/)

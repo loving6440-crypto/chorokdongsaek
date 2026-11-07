@@ -1,7 +1,7 @@
-// 제작법과 제작. 제작법을 모르면 어떤 재료를 섞어도 아무것도 만들 수 없다.
-//  - player.recipes = { [recipeId]: true }  (익힌 제작법)
-//  - 관리자는 모든 제작법을 아는 것으로 친다.
-import { countOf, itemOf } from './items'
+// 공작소 제작법. 등록된 제작법은 별도 습득 없이 재료만 있으면 즉시 제작한다.
+// - 예전 player.recipes 데이터와 진행 중인 player.crafting 은 호환을 위해 유지한다.
+import { countOf, itemOf } from './items.js'
+import { canAddInventory } from './inventoryCapacity.js'
 
 export const WORKSHOP = {
   id: 'workshop',
@@ -17,6 +17,8 @@ export const RECIPES = [
   { id: 'r-curse-doll', result: 'curse-doll', inputs: [['fine-woodchip', 5]] },
   { id: 'r-whetstone', result: 'whetstone', inputs: [['stone', 9]] },
   { id: 'r-five-knot', result: 'five-knot', inputs: [['five-color-thread', 3]] },
+  { id: 'r-oil-cloth', result: 'oil-cloth', inputs: [['soybean-oil', 3], ['cloth-scrap', 1]] },
+  { id: 'r-cinnabar-charm', result: 'cinnabar-charm', inputs: [['brush', 1], ['charm-scrap', 3], ['crescent-flower', 2], ['waning-flower', 2], ['cinnabar', 3]] },
 
   { id: 'r-feather-deco', result: 'feather-deco', inputs: [['dove-feather', 3], ['five-color-thread', 1]] },
   { id: 'r-jangseung-keyring', result: 'jangseung-keyring', inputs: [['carving-knife', 1], ['jangseung-piece', 5]] },
@@ -26,14 +28,16 @@ export const RECIPES = [
   { id: 'r-exorcism-gate', result: 'exorcism-gate', inputs: [['snake-skin', 2], ['mugwort', 3]] },
   { id: 'r-red-fox-charm', result: 'red-fox-charm', inputs: [['charm-scrap', 2], ['fox-fur', 3], ['hanji', 3], ['five-color-thread', 1], ['jangseung-piece', 1], ['inkstick', 1], ['pouch', 1]] },
   { id: 'r-spirit-disposable', result: 'spirit-disposable', inputs: [['raccoon-claw', 3], ['jangseung-piece', 3]] },
+  { id: 'r-goblin-mask', result: 'goblin-mask', inputs: [['jangseung-piece', 2], ['fine-woodchip', 2]] },
+  { id: 'r-five-color-thread', result: 'five-color-thread', inputs: [['web', 5], ['dye', 1]] },
   { id: 'r-hanji', result: 'hanji', inputs: [['crumpled-hanji', 2]], note: '구김살이 난 종이를 부드러운 종이로 재활용하자.', price: 30 },
   { id: 'r-brush', result: 'brush', inputs: [['split-brush', 2]], note: '다 쓴 붓을 모아오면 새 붓으로 교환해준다.', price: 40 },
 ]
 export const recipeOf = (id) => RECIPES.find((r) => r.id === id)
-export const knowsRecipe = (player, id, admin = false) => admin || !!player.recipes?.[id]
+export const knowsRecipe = (player, id, admin = false) => !!recipeOf(id)
 
-/** 매점에서 파는 제작법 (price 가 있는 것). */
-export const RECIPE_SHOP = RECIPES.filter((r) => r.price != null)
+/** v79.0.6부터 제작법 구매를 요구하지 않는다. */
+export const RECIPE_SHOP = []
 
 /** 매점에서 제작법을 산다. 이미 아는 제작법은 다시 살 수 없다. */
 export function buyRecipe(player, recipeId, admin = false) {
@@ -64,26 +68,28 @@ export const maxCraftQty = (player, r, admin = false) => {
 }
 
 /**
- * 제작 시작: 재료를 그 즉시 소모하고 player.crafting 에 대기를 건다. (완료는 progress.js 의 tickPlayer 가 처리)
- * 끝까지 기다려야 완성품이 나온다. 중간에 나가면(끊기면) 재료도 완성품도 돌아오지 않는다.
- * 제작법을 모르거나 재료가 모자라면 { error }. 이미 제작 중이면 { error }. 성공하면 { player, minutes }
+ * v79.0.6: 공작소에서 레시피와 재료가 있으면 즉시 완성한다.
+ * 기존 저장 데이터의 제작 대기는 progress.js/finishCraft 로 완료시켜 호환한다.
  */
 export function startCraft(player, recipeId, qty = 1, admin = false, now = Date.now()) {
-  if (player.crafting) return { error: '이미 제작 중이다.' }
+  if (player.crafting) return { error: '기존에 진행 중인 제작을 먼저 마쳐야 한다.' }
   const r = recipeOf(recipeId)
   if (!r) return { error: '그런 제작법은 없다.' }
-  if (!knowsRecipe(player, recipeId, admin)) return { error: '제작법을 모른다. 제작법이 없으면 아무것도 만들 수 없다.' }
-  const q = Math.max(1, Math.floor(qty))
-  if (!admin && !canCraftQty(player, r, q)) return { error: '재료가 모자란다.' }
+  if (!Number.isSafeInteger(qty) || qty < 1 || qty > 99) return { error: '제작 수량은 1~99개여야 한다.' }
+  if (!admin && !canCraftQty(player, r, qty)) return { error: '재료가 모자란다.' }
   const inv = { ...(player.inventory ?? {}) }
   if (!admin) {
     for (const [id, n] of r.inputs) {
-      inv[id] -= n * q
+      inv[id] -= n * qty
       if (inv[id] <= 0) delete inv[id]
     }
   }
-  const minutes = craftMinutes(r, q)
-  return { player: { ...player, inventory: inv, crafting: { recipeId, qty: q, startedAt: now, minutes } }, minutes }
+  if (!canAddInventory(inv, { [r.result]: qty })) return { error: '소지품이 가득 차 제작할 수 없다.' }
+  inv[r.result] = (inv[r.result] || 0) + qty
+  const next = { ...player, inventory: inv,
+    ...(r.result === 'exercise-lamp' ? { cleared: { ...(player.cleared ?? {}), 'exercise-lamp': now } } : {}),
+  }
+  return { player: next, item: itemOf(r.result), qty, minutes: 0 }
 }
 
 /** 제작 대기를 끊는다. 재료도 완성품도 돌아오지 않는다. */
@@ -102,19 +108,7 @@ export function finishCraft(player) {
   return { player: { ...player, inventory: inv, crafting: null, ...(r.result === 'exercise-lamp' ? { cleared: { ...player.cleared, 'exercise-lamp': Date.now() } } : {}) }, item: itemOf(r.result), qty: c.qty }
 }
 
-/** (옛 1회성 즉석 제작. 지금은 쓰지 않지만 혹시 참조하는 곳이 있을까봐 남겨둔다.) */
+/** 기존 호출을 위한 즉시 제작 진입점. */
 export function craft(player, recipeId, admin = false) {
-  const r = recipeOf(recipeId)
-  if (!r) return { error: '그런 제작법은 없다.' }
-  if (!knowsRecipe(player, recipeId, admin)) return { error: '제작법을 모른다. 제작법이 없으면 아무것도 만들 수 없다.' }
-  if (!admin && !canCraft(player, r)) return { error: '재료가 모자란다.' }
-  const inv = { ...(player.inventory ?? {}) }
-  if (!admin) {
-    for (const [id, n] of r.inputs) {
-      inv[id] -= n
-      if (inv[id] <= 0) delete inv[id]
-    }
-  }
-  inv[r.result] = (inv[r.result] || 0) + 1
-  return { player: { ...player, inventory: inv, ...(r.result === 'exercise-lamp' ? { cleared: { ...player.cleared, 'exercise-lamp': Date.now() } } : {}) }, item: itemOf(r.result) }
+  return startCraft(player, recipeId, 1, admin)
 }

@@ -1,7 +1,8 @@
 // 동아리 주간 활동(주간 퀘스트). 동아리에 가입하면 한 주(월요일 0시 KST ~ 다음 월요일 0시) 동안 할 수 있는 활동들이고,
 // 랭킹과 똑같은 주 경계로 초기화된다. player.weekly 에 이번 주의 실적을 쌓아 두고, checkClubQuests 가 매 틱 '달성' 여부만 갱신한다.
 // 보상은 자동으로 들어오지 않고, 달성한 뒤 플레이어가 직접 [보상 받기] 버튼을 눌러야 claimQuest/claimMetaQuest 로 지급된다.
-//  - 채집 · 동아리별 재료 납품 · 동아리별 적 토벌(14·15번)은 아직 그 시스템이 없어 구현을 생략한다 — 대신 누구나 바로 채운 것으로 쳐서,
+//  - 동아리별 재료 납품 · 동아리별 적 토벌(14·15번)은 아직 그 시스템이 없어 구현을 생략한다 — 대신 누구나 바로 채운 것으로 쳐서,
+//    (v-B.01: 예전 '채집 5회'는 '개척 10회'로 바뀌어 실제로 세며, 자동 달성 대상에서 빠졌다.)
 //    '동아리 활동 N개 달성' 메타 퀘스트가 막히지 않게 해 둔다. 어차피 보상이 없는 항목이라 자동으로 '받음' 처리해도 무방하다.
 import { clampSpirit } from './constants'
 
@@ -26,6 +27,7 @@ const BLANK_WEEKLY = () => ({
   nurseCounsel: 0,
   trainMs: 0,
   shopBuy: 0,
+  pioneer: 0, // v-B.01: 개척 터에 들어간 횟수
   newsDays: {},
   exploreVisited: {},
   claimed: {},
@@ -39,6 +41,7 @@ const BLANK_DAILY = () => ({
   dayStart: 0,
   craft: 0,
   gather: 0,
+  pioneer: 0, // v-B.01: 개척 터에 들어간 횟수
   battleReward: 0,
   lesson: 0,
   newsDone: false,
@@ -99,10 +102,9 @@ const exploreAllDone = (w) =>
 
 /** 퀘스트 목록. auto === true 인 항목은 그 시스템(채집 · 동아리별 납품 · 토벌)이 아직 없어 누구나 바로 채운 것으로 친다(보상도 없다). */
 export const CLUB_QUESTS = [
-  { id: 'craft5', label: '제작 5회 하기', reward: { money: 10 }, done: (w) => w.craft >= 5, progress: (w) => [Math.min(w.craft || 0, 5), 5] },
-  // 채집 시스템이 없어 실제로는 달성 조건을 확인할 수 없다 (사용자 지시: 구현 생략 OK) — 보상 없이 '달성'으로만 쳐서
-  // '15개 전부'를 이룰 수 있게 한다.
-  { id: 'gather5', label: '채집 5회 하기', reward: null, auto: true, done: () => true },
+  { id: 'craft5', label: '제작 5회 하기 (공작소·조리실)', reward: { money: 20 }, done: (w) => w.craft >= 5, progress: (w) => [Math.min(w.craft || 0, 5), 5] },
+  // v-B.01: '채집 5회(자동 달성)' → '개척 10회'. 개척 터에 한 번 들어갈 때마다 1회.
+  { id: 'pioneer10', label: '개척 10회 하기', reward: { money: 20 }, done: (w) => (w.pioneer || 0) >= 10, progress: (w) => [Math.min(w.pioneer || 0, 10), 10] },
   { id: 'enhance2', label: '무구 2회 이상 강화하기', reward: { money: 10 }, done: (w) => (w.enhance || 0) >= 2, progress: (w) => [Math.min(w.enhance || 0, 2), 2] },
   { id: 'battle10', label: '전투 보상 10번 얻기', reward: { money: 30, spirit: 10 }, done: (w) => w.battleReward >= 10, progress: (w) => [Math.min(w.battleReward || 0, 10), 10] },
   { id: 'battle21', label: '전투 보상 21번 얻기', reward: { money: 50, spirit: 30 }, done: (w) => w.battleReward >= 21, progress: (w) => [Math.min(w.battleReward || 0, 21), 21] },
@@ -111,10 +113,10 @@ export const CLUB_QUESTS = [
   { id: 'lesson35', label: '수업 35번 완료하기', reward: { money: 50, spirit: 30 }, done: (w) => w.lesson >= 35, progress: (w) => [Math.min(w.lesson || 0, 35), 35] },
   {
     id: 'nurse1',
-    label: '양호실에서 휴식·상담 총 5회 진행하기',
+    label: '양호실에서 휴식·상담 총 7회 진행하기',
     reward: { money: 5, item: 'nutrient' },
-    done: (w) => (w.nurseRest || 0) + (w.nurseCounsel || 0) >= 5,
-    progress: (w) => [Math.min((w.nurseRest || 0) + (w.nurseCounsel || 0), 5), 5],
+    done: (w) => (w.nurseRest || 0) + (w.nurseCounsel || 0) >= 7,
+    progress: (w) => [Math.min((w.nurseRest || 0) + (w.nurseCounsel || 0), 7), 7],
   },
   { id: 'train3h', label: '기숙사에서 총합 3시간 이상 수련하기', reward: { spirit: 20 }, done: (w) => w.trainMs >= TRAIN_HOURS_GOAL * 3600 * 1000 },
   { id: 'shop2', label: '매점에서 물건 2번 구매하기', reward: { money: 20 }, done: (w) => w.shopBuy >= 2, progress: (w) => [Math.min(w.shopBuy || 0, 2), 2] },
@@ -188,8 +190,8 @@ export function claimMetaQuest(player, questId, now = Date.now()) {
 
 // ───────── 오늘의 동아리 활동(일일 퀘스트) — 매일 00시(KST)에 초기화된다 ─────────
 export const DAILY_QUESTS = [
-  { id: 'd_craft1', label: '제작 1회 하기', reward: { money: 5 }, done: (d) => (d.craft || 0) >= 1 },
-  { id: 'd_gather1', label: '채집 1회 하기', reward: { money: 5 }, done: (d) => (d.gather || 0) >= 1 },
+  { id: 'd_craft1', label: '제작 1회 하기 (공작소·조리실)', reward: { money: 5 }, done: (d) => (d.craft || 0) >= 1 },
+  { id: 'd_pioneer2', label: '개척 2회 하기', reward: { money: 5 }, done: (d) => (d.pioneer || 0) >= 2, progress: (d) => [Math.min(d.pioneer || 0, 2), 2] }, // v-B.01: 채집 1회 → 개척 2회
   { id: 'd_battle2', label: '전투 보상 2번 이상 얻기', reward: { money: 5 }, done: (d) => (d.battleReward || 0) >= 2, progress: (d) => [Math.min(d.battleReward || 0, 2), 2] },
   { id: 'd_lesson3', label: '수업 3회 이상 완료하기', reward: { money: 5 }, done: (d) => (d.lesson || 0) >= 3, progress: (d) => [Math.min(d.lesson || 0, 3), 3] },
   { id: 'd_news', label: '교내 신문에 사연 투고하기', reward: { money: 5 }, done: (d) => !!d.newsDone },

@@ -79,8 +79,8 @@ export default function Garden({ player, onGardenAction, onMeet }) {
       </div>
     </>}
     {mode === 'greenhouse' && <>
-      <p className="mt-2 text-sm text-paper/70">총 5칸 중 <b className="text-gold">{filled}</b>칸 재배 중. 성장 시간은 밖에 나가 있어도 계속 흐르며, 수확은 이곳에서 직접 해야 해.</p>
-      <p className="mt-1 text-xs text-paper/55">소지품 {countSlots(player.inventory)} / {INVENTORY_SLOTS}칸 · 씨앗 1개 심으면 작물 1개 수확</p>
+      <p className="mt-2 text-sm text-paper/70">5칸 중 <b className="text-gold">{filled}</b>칸에서 생명이 자라나고 있다. 성장 시간은 밖으로 나가도 계속 흐르며, 수확은 이곳에 직접 재방문해야 한다.</p>
+      <p className="mt-1 text-xs text-paper/55">소지품 {countSlots(player.inventory)}/{INVENTORY_SLOTS}칸</p>
       <fieldset className="mt-3 rounded-lg border border-edge/15 p-3">
         <legend className="px-2 text-xs text-paper/70">심을 씨앗 선택</legend>
         <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7" role="group" aria-label="재배할 씨앗 선택">
@@ -102,7 +102,7 @@ export default function Garden({ player, onGardenAction, onMeet }) {
           </div>
         })}
       </div>
-      <p className="mt-2 text-xs text-paper/55">빈 칸이 없으면 새 씨앗을 심을 수 없어. 소지품 30칸이 가득 차면 수확할 수 없어.</p>
+      <p className="mt-2 text-xs text-paper/55">빈 칸이 없으면 새 씨앗을 심을 수 없고, 소지품 30칸이 가득 차면 수확할 수 없다.</p>
     </>}
     {message && <p role="status" className="mt-3 rounded-md border border-edge/20 p-2 text-xs text-gold">{message}</p>}
   </section>

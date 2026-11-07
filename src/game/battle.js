@@ -11,6 +11,10 @@ import { BESTIARY } from './bestiary.js'
 
 /** 전투 보상 = 상대 영력의 2배 */
 export const REWARD_MULT = 2
+/** 그슨대 [내리누르기]의 영능력 봉인 라운드 수 (v-B.02) */
+export const PSY_SEAL_ROUNDS = 3
+/** 그슨대 [어둠 드리우기]의 의지력 흡수 주사위 면 수: 영력의 3/4 */
+export const darkDrainDie = (enemy) => Math.max(1, Math.floor(enemy.spirit * 0.75))
 
 export const ENEMIES = [
   {
@@ -93,13 +97,40 @@ export const ENEMIES = [
       '평소에도 단체 공격이 자주 나온다.',
     ],
   },
+  {
+    id: 'geuseundae',
+    name: '그슨대',
+    blurb: '어둠 속에서 사람 앞을 가로막는 그림자 거인. 올려다볼수록 끝없이 커진다고 한다. 셋은 모여야 맞설 수 있다.',
+    tier: 5,
+    partySize: 3,
+    boss: true,
+    tags: ['다인 전투', '보스'],
+    // 밸런스(v-B.02 몬테카를로 3000판, 3인·전원 스탯 18~20, 아이템 없이):
+    //   숙련 플레이(도깨비불·효험·간파·막기 사용) 승률 약 23~24%, 평균 16라운드 — 불가살이(적정 스탯 8~10, 같은 방식 28%)보다 조금 어렵게 의도.
+    //   단순 공격 위주 약 27%. 스탯 15~17이면 약 5%, 21~23이면 약 44%.
+    hp: 1400,
+    atk: 23,
+    act: 18,
+    spirit: 24,
+    // 간파로 올려다볼 때마다(그리고 체력 25% 미만이면 매 라운드) 커진다: 1단계마다 공격력 +2, 최대 5단계. (mbattle.js growBoss)
+    grows: { atkPerStage: 2, max: 5 },
+    rage: {
+      stage1: '그슨대의 그림자가 짙어진다! (3라운드마다 반드시 영능력을 쓴다)',
+      stage2: '그슨대가 끝없이 솟아오른다! (이제 매 라운드 끝마다 더 커진다)',
+      jabToGroup: false,
+      growEachRound: true,
+    },
+    special: { label: '내리누르기', note: '한 사람을 거대한 손바닥으로 내리누른다. 막을 수 없는 피해를 주고, 다음 3라운드 동안 영능력을 봉인한다.' },
+    special2: { label: '어둠 드리우기', note: '일행 전원 위로 그림자를 드리운다. 막을 수 있는 피해를 주는 대신 의지력을 더 많이 빨아들인다.' },
+    gimmicks: [
+      '간파로 그슨대를 올려다볼 때마다 그슨대가 커진다. (1단계마다 공격력 +2, 최대 5단계)',
+      '체력 50% 미만: 3라운드마다 반드시 영능력을 쓴다.',
+      '체력 25% 미만: 매 라운드 끝마다 스스로 한 단계씩 커진다.',
+      '평소에도 단체 공격이 자주 나온다.',
+    ],
+  },
 ].map((e, i) => ({ ...e, tier: e.tier ?? i + 1, partySize: e.partySize ?? 1, reward: e.spirit * REWARD_MULT }))
 
-<<<<<<< Updated upstream
-/** 단계별 적정 레벨(모든 스탯이 대략 이 정도일 때) */
-export const REC_STATS = { 1: '2~3', 2: '5~6', 3: '8~10' }
-export const recLabel = (e) => `모든 스탯 ${REC_STATS[e.tier] ?? '?'} 기준`
-=======
 /**
  * v-B.04: 전투 데이터 50종(bestiary.js). 아직 등장 위치가 없어 체육관 목록(ENEMIES)·도감에는 나오지 않는다.
  * 다인·보스 전투, 느린 싸움, 개척 요괴 등 '적 id로 찾는' 곳은 모두 enemyById 로 찾으므로, 어디에 배치하든 그대로 싸울 수 있다.
@@ -113,7 +144,6 @@ export const enemyById = (id) => ALL_ENEMIES.find((e) => e.id === id) ?? null
 /** 단계별 적정 레벨(모든 스탯이 대략 이 정도일 때). 전투 데이터 50종은 각자 rec 를 갖고 있어 그 값을 먼저 쓴다. */
 export const REC_STATS = { 1: '2~3', 2: '5~6', 3: '8~10', 4: '15~17', 5: '18~20', 6: '29~30', 7: '39~40', 8: '45~47', 9: '50', 10: '60' }
 export const recLabel = (e) => `모든 스탯 ${e.rec ?? REC_STATS[e.tier] ?? '?'} 기준`
->>>>>>> Stashed changes
 export const partyLabel = (e) => (e.partySize > 1 ? `적정 ${e.partySize}명` : '적정 1명')
 
 /** 파티 전투에서 상대가 노릴 사람: 체력이 가장 많은 사람. 같으면 무작위. members = [{ id, hp }] (쓰러진 사람 제외) */
@@ -200,7 +230,7 @@ export const PSYCHICS = [
     id: 'monkey-paw',
     label: '원숭이 손',
     note: '얻는 만큼 잃는다. 영구적이게 얻고자 한다면 영구적이게 잃는다.',
-    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력에 10을 더한 만큼 소모한다. (석장 등 의지력 소비 감소 효과는 적용된다.)',
+    detail: '즉시 자신의 체력을 원하는 만큼 깎는다(체력은 0 이하로 내려갈 수 없다). 그 두 배만큼의 공격력을 일반 공격력에 더하고, 거기에 부적 1회치 피해를 더해 공격한다. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 의지력은 깎은 체력에 10을 더한 만큼 소모한다. (석장 등 의지력 소비 감소 효과는 적용된다.) 사용 후 ((호전−인내)+(호전−절제))%의 확률로 즉시 행동불능이 되어 3턴 동안 아무 행동도 할 수 없다.',
     cond: '(취득 경로 미정 · 박신아가 가지고 있다)',
     owner: 'shinah',
     use: true,
@@ -209,7 +239,7 @@ export const PSYCHICS = [
     id: 'dokkaebi-fire',
     label: '도깨비불',
     note: '어딘가에 홀연히 나타나는, 혼을 먹고 자라난다는 푸른 빛의 불꽃.',
-    detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 4배 공격. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 전투·단체전투 모두에서 쓸 수 있다.',
+    detail: '쓰는 즉시 의지력 20을 소모하고, 그 턴부터 3턴 동안 행동 불가 → 이어지는 턴에 자동으로 5배 공격. 영능력 공격이라 안목 판정 없이 무조건 명중한다. 전투·단체전투 모두에서 쓸 수 있다.',
     cond: '(취득 경로 미정)',
     mp: 20,
     use: true,
@@ -227,23 +257,66 @@ export const PSYCHICS = [
   },
   { id: 'earth-step', label: '지신밟기', mp: '인내+50 (최대 99)', use: true, note: '이곳은 절대적으로 안전하다. 거대한 무언가가 모두를 지켜주고 있다.', detail: '의지력 (인내+50, 최대 99) 소모. 첫 턴에만 사용할 수 있다. 전투가 끝날 때까지 아군 전원의 받는 피해가 인내/2% 감소한다.', cond: '(취득 경로 미정)' },
   { id: 'warding-scripture', label: '벽사진경', mp: '선택한 의지력', use: true, note: '사악한 것은 쫓아내고 복된 것은 맞이한다. 전투를 축제처럼 벌여 보자.', detail: '원하는 만큼 의지력을 사용해 지정한 일행 한 사람의 의지력을 그만큼 회복한다.', cond: '(취득 경로 미정)' },
-  { id: 'spirit-barrier', label: '영력결계', mp: 0, use: false, note: '볼 수 없다는 것은 축복이요, 볼 수 있다는 것은 저주라. 앎은 영혼을 얽매고 무지는 목을 조른다.', detail: '습득 시 항상 적용. 적의 영능력을 받지 않는 대신 적을 대상으로 하는 영능력·효험을 사용할 수 없다. 아군이나 자신을 대상으로 하는 영능력은 가능하다.', cond: '(취득 경로 미정)' },
+  { id: 'spirit-barrier', label: '영력결계', mp: 0, use: false, note: '볼 수 없다는 것은 축복이요, 볼 수 있다는 것은 저주라. 앎은 영혼을 얽매고 무지는 목을 조른다.', detail: '별도의 선언 없이 상시 발동. 일반 전투에서는 습득 시 적용되며, 보스 전투에서는 가져갈 영능력으로 선택했을 때만 적용된다. 적의 단일 영능력이 자신을 대상으로 하면 약공으로 대체된다. 단체 영능력은 그대로 발동하지만 자신에게만 효과가 없다. 대신 적 대상 영능력과 효험은 사용할 수 없으며, 자신·아군 대상 영능력은 사용할 수 있다.', cond: '(취득 경로 미정)' },
   { id: 'seven-stars', label: '칠성낙인', mp: 99, use: true, note: '북두칠성의 기운을 새겨낸다. 그것은 마치 은하수처럼 흐르고, 폭포수처럼 쏟아진다.', detail: '의지력 99를 소모한다. 첫 턴에 사용하면 전투 종료까지 장비 보정을 제외한 원래 호전 수치가 두 배가 된다.', cond: '(취득 경로 미정)' },
-  { id: 'language-barrier', label: '언어장벽', mp: 20, use: true, note: '인간도 짐승도 혼도 결국 태어나기 전 살았던 세계는 하나. 뜻이 통한다면 읽을 수 있으리.', detail: '의지력 20을 소모해 적의 앞으로 20턴을 간파하고, 선택한 세 턴을 다시 굴려 다른 행동으로 바꾼다.', cond: '(취득 경로 미정)' },
+  { id: 'language-barrier', label: '언어장벽', mp: 20, use: true, note: '인간도 짐승도 혼도 결국 태어나기 전 살았던 세계는 하나. 뜻이 통한다면 읽을 수 있으리.', detail: '의지력 20을 소모해 적의 앞으로 20턴을 먼저 간파한다. 드러난 20턴의 내용을 확인한 뒤, 바꿀 턴을 최대 세 개 골라 다시 굴린다. 몇 번째 라운드든, 일행 중 몇 번째 순서든 내 차례라면 언제든 쓸 수 있다. (간파는 턴을 쓰지 않고, 고른 턴을 확정할 때 내 턴이 끝난다.)', cond: '(취득 경로 미정)' },
 ]
+
+/** 상시 발동(패시브) 영능력: 전투 전에 켜고 끌 수 있다. (v79.0.7) */
+export const PASSIVE_PSYCHICS = PSYCHICS.filter((p) => p.use === false && !p.default && !p.toggle)
+/** 지금 갖고 있는 패시브 영능력 id 목록 */
+export const ownedPassives = (psychics = []) => PASSIVE_PSYCHICS.filter((p) => psychics.includes(p.id)).map((p) => p.id)
 
 /** 효험 등 default 인 영능력을 포함해, 지금 쓸 수 있는 영능력 목록. psychics = player.psychics (익힌 id 배열). */
 export const ownedPsychics = (psychics = []) => PSYCHICS.filter((p) => p.default || psychics.includes(p.id))
 
 /**
  * 도깨비불 (바리의 영능력): 쓴 턴을 포함해 3턴 동안 아무 행동도 하지 않고 기를 모은 뒤,
- * 그 다음 내 턴에 일반 공격의 4배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
+ * 그 다음 내 턴에 일반 공격의 5배 피해를 때린다. 강공격은 아니라서 방어 태세에는 절반으로 줄어든다.
  * 쓰고 나면 state.fire 가 남은 자동 턴 수(3)로 세팅되고, 내 턴이 올 때마다 fireTurn 을 불러 진행한다.
  */
 export const FIRE_TURNS = 3
+/** 도깨비불 폭발 배율 (v79.0.7: 4 → 5) */
+export const FIRE_MULT = 5
 /** 생존본능 도주 확률(%) = 50 + 1d(신속)×2 − 상대의 영력, 0~100 로 자른다. */
 export function fleeChance(roll, enemy) {
   return Math.max(0, Math.min(100, 50 + roll * 2 - enemy.spirit))
+}
+
+/** 원숭이 손의 대가로 행동불능이 되는 턴 수 (v79.0.7) */
+export const MONKEY_PAW_STUN_TURNS = 3
+
+/** 원숭이 손 행동불능 확률(%) = (호전−인내)+(호전−절제), 0~100 */
+export function monkeyPawStunChance(stats) {
+  const a = Number(stats?.aggression) || 0
+  const raw = (a - (Number(stats?.endurance) || 0)) + (a - (Number(stats?.control) || 0))
+  return Math.max(0, Math.min(100, Math.floor(raw)))
+}
+
+/** 언어장벽 1단계: 의지력을 내고 적의 행동 20턴을 드러낸다. 턴은 끝나지 않는다(keepTurn). */
+export function languageReveal(state, mpCost, rng = Math.random) {
+  const s = { ...state }
+  const expanded = [...(s.queue ?? [])]
+  while (expanded.length < 20) expanded.push(rollIntent(expanded[expanded.length - 1] ?? null, rng, s.party, !!s.enemy?.boss))
+  s.queue = expanded
+  s.known = Math.max(s.known || 0, 20)
+  s.lbPick = true
+  return { state: s, mpCost, keepTurn: true, events: [{ kind: 'player', text: `✦ 언어장벽! 의지력 ${mpCost}을 써서 적의 행동 20턴을 간파했다. 바꿀 턴을 최대 세 개 골라 확정하자.` }] }
+}
+
+/** 언어장벽 2단계: 고른 턴(0부터 센 번호, 최대 3개)을 다시 굴린다. 이 행동으로 내 턴이 끝난다. */
+export function languagePick(state, rerolls, rng = Math.random) {
+  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1, lbPick: false }
+  const queue = [...(s.queue ?? [])]
+  const indices = Array.isArray(rerolls) ? [...new Set(rerolls.map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x < Math.min(20, queue.length)))].slice(0, 3) : []
+  const changes = []
+  for (const i of indices) {
+    const before = queue[i]
+    queue[i] = rollIntent(i > 0 ? queue[i - 1] : null, rng, s.party, !!s.enemy?.boss)
+    changes.push(`${i + 1}번째 ${INTENTS[before]?.label ?? before} → ${INTENTS[queue[i]]?.label ?? queue[i]}`)
+  }
+  s.queue = queue
+  return { state: s, mpCost: 0, events: [{ kind: 'player', text: indices.length ? `✦ 언어장벽: ${indices.length}턴을 다시 정했다. (${changes.join(', ')})` : '✦ 언어장벽: 바꾸지 않고 그대로 두었다.' }] }
 }
 
 /** 영능력 사용(내 턴). 반환: { state, events, mpCost, fled } — 실패하면 내 턴을 쓴 것으로 치고 상대 턴으로 넘어간다. 못 쓰면 invalid: true (턴을 쓰지 않는다). */
@@ -255,6 +328,8 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     const need = mpCostOf(stats, amount)
     return need > mpNow0 ? need : 0
   }
+  // 언어장벽 2단계: 이미 20턴을 간파한 상태에서 바꿀 턴(최대 3개)을 확정한다. 의지력은 1단계에서 이미 냈다.
+  if (id === 'language-barrier' && state.lbPick) return languagePick(state, ctx.rerolls, rng)
   if (id === 'earth-step' || id === 'seven-stars' || id === 'warding-scripture' || id === 'language-barrier') {
     if (['earth-step', 'seven-stars'].includes(id) && state.myTurns > 0)
       return { state, events: [{ kind: 'warn', text: '첫 번째 턴에만 사용할 수 있다.' }], mpCost: 0, invalid: true }
@@ -272,13 +347,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     if (id === 'warding-scripture') {
       return { state: s, mpCost, healMpTarget: ctx.target ?? ctx.selfId, healMpAmount: rawCost, events: [{ kind: 'player', text: `✦ 벽사진경! 의지력 ${rawCost}을 회복시켰다.` }] }
     }
-    const expanded = [...(s.queue ?? [])]
-    while (expanded.length < 20) expanded.push(rollIntent(null, rng, s.party, !!s.enemy.boss))
-    const indices = Array.isArray(ctx.rerolls) ? [...new Set(ctx.rerolls.map(Number).filter(x=>Number.isInteger(x)&&x>=0&&x<20))].slice(0,3) : [0,1,2]
-    for(const i of indices) expanded[i] = rollIntent(expanded[i], rng, s.party, !!s.enemy.boss)
-    s.queue = expanded
-    s.known = Math.max(s.known || 0, 20)
-    return { state:s, mpCost, events:[{kind:'player',text:`✦ 언어장벽! 적의 행동 20턴을 간파하고 ${indices.length}턴을 재결정했다.`}] }
+    return languageReveal(state, mpCost, rng)
   }
   if (id === 'spirit-barrier') return { state, events: [{kind:'warn',text:'영력결계는 자동으로 발동하는 영능력이다.'}], mpCost: 0, invalid: true }
   if (id === 'dokkaebi-fire') {
@@ -360,11 +429,25 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
       dmg,
       text: `✦ 원숭이 손!${buffed ? ' 효험!' : ''} 체력 ${amt}을 깎아 공격력 +${extra}에 부적 1회치(${charmDmg}) 피해를 더함, 의지력 ${mpCost} 소모. ${dmg} 피해${note}${buffNote}`,
     }]
+    let selfStun = 0
     if (s.ehp <= 0) {
       s.over = 'win'
       ev.push({ kind: 'end', text: `${s.enemy.name}이(가) 쓰러졌다.` })
+    } else {
+      // v79.0.7: 사용 후 ((호전−인내)+(호전−절제))% 확률로 즉시 행동불능(내 턴 3번 동안 행동 불가).
+      const stunChance = monkeyPawStunChance(stats)
+      if (stunChance > 0) {
+        const d = Math.floor(rng() * 100) + 1
+        if (d <= stunChance) {
+          selfStun = MONKEY_PAW_STUN_TURNS
+          s.pstun = Math.max(s.pstun || 0, MONKEY_PAW_STUN_TURNS)
+          ev.push({ kind: 'warn', text: `원숭이 손의 대가! [확률 ${stunChance}%, d100 = ${d}] 몸이 굳어 즉시 행동불능이 되었다. (${MONKEY_PAW_STUN_TURNS}턴 동안 행동 불가)` })
+        } else {
+          ev.push({ kind: 'info', text: `원숭이 손의 대가를 피했다. [확률 ${stunChance}%, d100 = ${d}]` })
+        }
+      }
     }
-    return { state: s, events: ev, mpCost, boostUsed: !!ctx.boost }
+    return { state: s, events: ev, mpCost, boostUsed: !!ctx.boost, selfStun }
   }
   if (id === 'echo-form') {
     // 의지력 소모 = 50 - 인내 - 절제 + 호전 (최소 20, 최대 99, 지팡이 할인 등 기존 보정은 그대로 적용). (v71)
@@ -442,7 +525,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   }
 }
 
-/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 4배 공격. 반환: { state, events, done } */
+/** 도깨비불 진행 중인 내 턴: 기를 모으거나(자동), 마지막에 5배 공격. 반환: { state, events, done } */
 export function fireTurn(state, ctx, rng = Math.random) {
   const stats = afflictStats(ctx.stats, state.ps)
   const s = { ...state, guard: false }
@@ -468,12 +551,12 @@ export function fireTurn(state, ctx, rng = Math.random) {
   }
   const mult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
   const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraSelfOf(stats), rng)
-  const cr = fxCrit(Math.ceil(fb.base * 4 * mult * (stats.special === 'maple' ? 1.1 : 1)), stats, rng)
+  const cr = fxCrit(Math.ceil(fb.base * FIRE_MULT * mult * (stats.special === 'maple' ? 1.1 : 1)), stats, rng)
   let dmg = cr.dmg
   if (braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
   const ev = [
-    { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} ×4 = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
+    { kind: 'player', roll: r.hit, dmg, text: `✦ 도깨비불 폭발!${buffed ? ' 효험!' : ''} ×${FIRE_MULT} = ${dmg} 피해${noteOf(fb.notes)}${cr.note}${braced ? ' (방어에 절반으로 막힘)' : ''}${buffNote}` },
   ]
   if (s.ehp <= 0) {
     s.over = 'win'
@@ -793,9 +876,6 @@ export const shownQueue = (queue = [], lies) => (Array.isArray(lies) && lies.len
 export function specialEffects(enemy) {
   const { atk, spirit } = enemy
   const spiritNote = specialSpiritNote(enemy)
-<<<<<<< Updated upstream
-  switch (enemy.id) {
-=======
   if (enemy.special?.effect) {
     const lines = [effectLine(enemy, enemy.special)]
     if (enemy.special2) lines.push(effectLine(enemy, enemy.special2, true), '영능력을 쓸 때 두 가지 중 하나가 나온다.')
@@ -803,7 +883,6 @@ export function specialEffects(enemy) {
   }
   // 개척 요괴(목신·물귀신·어둑시니·앙괭이 등)는 curse: true 로 원한의 저주를 쓴다.
   switch (enemy.curse && enemy.id !== 'wonhon' && enemy.id !== 'mountain-ghost' ? '__curse__' : enemy.id) {
->>>>>>> Stashed changes
     case 'scarecrow':
       return [`내 의지력을 1d${spirit}×2 만큼 빨아들인다. (${2}~${spirit * 2}, 남은 의지력이 한도)`, '체력 피해는 없다.', spiritNote]
     case 'foxfire':
@@ -817,10 +896,18 @@ export function specialEffects(enemy) {
         '영능력을 쓸 때 두 가지 중 하나가 나온다.',
         spiritNote,
       ]
+    case 'geuseundae':
+      return [
+        `《${enemy.special.label}》 한 사람: 막을 수 없는 피해 1d${atk} + ${spirit} (${1 + spirit}~${atk + spirit}), 다음 ${PSY_SEAL_ROUNDS}라운드 동안 영능력(효험 포함) 봉인.`,
+        `《${enemy.special2.label}》 일행 전원: 막을 수 있는 피해 1d${atk} + ${Math.floor(spirit / 3)} (${1 + Math.floor(spirit / 3)}~${atk + Math.floor(spirit / 3)}, 막기·방어로 줄어든다), 의지력 1d${darkDrainDie(enemy)} 흡수 (남은 의지력이 한도).`,
+        '영능력을 쓸 때 두 가지 중 하나가 나온다. 커질수록 공격력(위 피해의 d값)이 오른다.',
+        spiritNote,
+      ]
     case 'snake':
       return [`막을 수 없는 피해 1d${atk} (1~${atk}).`, '다음 내 턴엔 막기를 할 수 없다.', spiritNote]
     case 'wonhon':
     case 'mountain-ghost':
+    case '__curse__':
       return [`저주 3턴: 걸린 다음 상대 턴부터 세 번, 매번 1d${Math.max(1, Math.floor(spirit / 2))} 피해 (1~${Math.max(1, Math.floor(spirit / 2))}).`, '막을 수 없고, 저주 중 다시 걸면 3턴으로 갱신된다.', spiritNote]
     default:
       return [enemy.special?.note ?? '상대마다 다른 비기.', spiritNote]
@@ -1314,8 +1401,6 @@ export function enemyTurn(state, ctx, rng = Math.random) {
         spEv.result = `${a + enemy.spirit} 피해 (막기 불가), 의지력 ${mpDrain} 흡수`
         ev.push({ kind: 'warn', text: `의지력이 ${mpDrain} 빨려 나갔다!` })
       }
-<<<<<<< Updated upstream
-=======
     } else if (enemy.id === 'geuseundae') {
       if (sp2) {
         // 어둠 드리우기: 막을 수 있는 피해(약공처럼 막기로 줄어든다) + 의지력을 더 많이 흡수.
@@ -1335,7 +1420,6 @@ export function enemyTurn(state, ctx, rng = Math.random) {
         sealed = true
         ev.push({ kind: 'warn', text: `거대한 손에 짓눌렸다! 다음 ${PSY_SEAL_ROUNDS}라운드 동안 영능력을 쓸 수 없다.` })
       }
->>>>>>> Stashed changes
     } else if (enemy.id === 'scarecrow') {
       const rr = die(enemy.spirit, rng)
       mpDrain = Math.min(mp, rr * 2)
@@ -1786,14 +1870,9 @@ export function enemyTurn(state, ctx, rng = Math.random) {
   }
 
   // 저주: 방금 건 턴에는 들어가지 않고, 이후 상대 턴마다 들어간다.
-<<<<<<< Updated upstream
-  if (s.curse > 0 && !(intent === 'special' && (enemy.id === 'wonhon' || enemy.id === 'mountain-ghost'))) {
-    const per = die(Math.max(1, Math.floor(enemy.spirit / 2)), rng)
-=======
   if (s.curse > 0 && !curseCast && !(intent === 'special' && !enemy.special?.effect && (enemy.id === 'wonhon' || enemy.id === 'mountain-ghost' || enemy.curse))) {
     const per0 = die(Math.max(1, Math.floor(enemy.spirit / 2)), rng)
     const per = ctx.reduction > 0 ? per0 - Math.floor(per0 * Math.min(1, ctx.reduction)) : per0 // 지신밟기
->>>>>>> Stashed changes
     const resisted = enduranceMitigation(stats.endurance, per, rng)
     s.php -= resisted.damage
     s.curse -= 1

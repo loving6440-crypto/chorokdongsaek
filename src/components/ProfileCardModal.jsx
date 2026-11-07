@@ -67,7 +67,7 @@ export default function ProfileCardModal({ target, party, meId, onClose }) {
     if (addingFriend || target.id === meId) return
     setAddingFriend(true)
     const result = await changeFriend(target.id, 'add')
-    setFriendStatus(result.ok ? (result.already ? '이미 친구 목록에 추가된 사람이야.' : '친구 목록에 추가했어. 상대에게 알림을 보냈어.') : `친구 추가 실패: ${result.error || '연결 오류'}`)
+    setFriendStatus(result.ok ? (result.already ? '이미 친구로 추가된 사람이다.' : result.alreadyPending ? '이미 친구 신청을 보냈다.' : '친구 신청을 보냈다. 상대가 수락하면 친구로 추가된다.') : `친구 신청 실패: ${result.error || '연결 오류'}`)
     setAddingFriend(false)
   }
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function ProfileCardModal({ target, party, meId, onClose }) {
           </button>
         </div>
         {target.id !== meId && <div className="mt-3 border-b border-edge/15 pb-3">
-          <button type="button" data-profile-add-friend disabled={addingFriend} onClick={addFriend} className="flat-btn mx-auto text-xs disabled:opacity-50"><UserRoundPlus size={13}/> 친구 추가</button>
+          <button type="button" data-profile-add-friend disabled={addingFriend} onClick={addFriend} className="flat-btn mx-auto text-xs disabled:opacity-50"><UserRoundPlus size={13}/> 친구 신청</button>
           {friendStatus && <p className="mt-2 text-center text-xs text-gold" role="status">{friendStatus}</p>}
         </div>}
         {state.loading ? (

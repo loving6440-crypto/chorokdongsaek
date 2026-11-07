@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Gift, Mail, Send } from 'lucide-react'
-import { MAIL_MAX, fetchMailPeople, fetchMailbox, markMailRead, sendNote } from '../net/online'
+import { MAIL_MAX, fetchMailPeople, fetchMailbox, markMailRead, respondFriendRequest, sendNote } from '../net/online'
 import { itemOf } from '../game/items'
 
 const fmtAt = (t) => {
@@ -23,6 +23,8 @@ const TABS = [
 export default function MailboxPanel({ online, meId }) {
   const [tab, setTab] = useState('notes')
   const [box, setBox] = useState({ received: [], sent: [], loading: true })
+  const [friendFeedback, setFriendFeedback] = useState('')
+  const [respondingId, setRespondingId] = useState(null)
   const isOn = online.status === 'online'
 
   const load = useCallback(async () => {
@@ -35,7 +37,15 @@ export default function MailboxPanel({ online, meId }) {
     load()
   }, [load, online.mailTick])
 
-  const notes = box.received.filter((m) => m.kind === 'note' || m.kind === 'friend' || (m.kind === 'gift' && m.text))
+  const respond = async (m, accept) => {
+    if (respondingId) return
+    setRespondingId(m.id)
+    const result = await respondFriendRequest(m.id, accept)
+    setRespondingId(null)
+    setFriendFeedback(result.ok ? (accept ? `${m.from.name}님과 친구로 추가했다.` : '친구 신청을 거절했다.') : result.error === 'already-answered' ? '이미 처리된 친구 신청이다.' : `친구 신청 처리 실패: ${result.error || '연결 오류'}`)
+    await load()
+  }
+  const notes = box.received.filter((m) => m.kind === 'note' || m.kind === 'friend' || m.kind === 'friend-request' || (m.kind === 'gift' && m.text))
   const gifts = box.received.filter((m) => m.kind === 'gift')
   const sentGifts = box.sent.filter((m) => m.kind === 'gift')
 
@@ -64,16 +74,21 @@ export default function MailboxPanel({ online, meId }) {
             ))}
           </div>
           {box.loading && <p className="mt-3 text-xs text-paper/55">불러오는 중…</p>}
+          {friendFeedback && <p role="status" className="mt-2 text-xs text-gold">{friendFeedback}</p>}
           {tab === 'notes' && (
             <ul className="mt-3 space-y-2" aria-label="받은 쪽지">
               {notes.map((m) => (
                 <li key={m.id} data-mail={m.id} className="rounded-xl bg-shade/25 px-3 py-2.5">
                   <p className="flex items-center justify-between gap-2 text-xs text-paper/60">
-                    <span><b className="font-serif text-sm text-paper">{m.from.name}</b>님의 {m.kind === 'friend' ? '친구 추가 알림' : '쪽지'}{m.kind === 'gift' && <Gift size={12} className="ml-1 inline text-gold" aria-label="선물과 함께" />}</span>
+                    <span><b className="font-serif text-sm text-paper">{m.from.name}</b>님의 {m.kind === 'friend-request' ? '친구 신청' : m.kind === 'friend' ? '친구 추가 알림' : '쪽지'}{m.kind === 'gift' && <Gift size={12} className="ml-1 inline text-gold" aria-label="선물과 함께" />}</span>
                     <span>{fmtAt(m.at)}</span>
                   </p>
                   <p className="mt-1 whitespace-pre-wrap break-words text-sm text-paper/90">{m.text}</p>
                   {m.kind === 'gift' && <p className="mt-1 text-[11px] text-gold/80">함께 온 선물: {itemsText(m.items)}</p>}
+                  {m.kind === 'friend-request' && (m.status === 'pending' ? <div className="mt-2 flex gap-2" data-friend-request={m.id}>
+                    <button type="button" disabled={respondingId === m.id} className="flat-btn text-xs disabled:opacity-50" onClick={() => respond(m, true)}>수락</button>
+                    <button type="button" disabled={respondingId === m.id} className="flat-btn-ghost text-xs disabled:opacity-50" onClick={() => respond(m, false)}>거절</button>
+                  </div> : <p className="mt-1 text-xs text-paper/55">{m.status === 'accepted' ? '수락한 친구 신청' : m.status === 'declined' ? '거절한 친구 신청' : '종료된 친구 신청'}</p>)}
                 </li>
               ))}
               {!box.loading && notes.length === 0 && <li className="rounded-xl border-2 border-dashed border-edge/20 p-6 text-center text-sm text-paper/55">받은 쪽지가 없다.</li>}

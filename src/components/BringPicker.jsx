@@ -1,16 +1,36 @@
 import { useState } from 'react'
-import { ITEMS, countOf } from '../game/items'
+import { ITEMS, countOf, itemOf } from '../game/items'
+import { BOSS_SLOT_COUNT, bossSlotsOf, loadBossSlot } from '../game/bossSlots'
 import { ownedPsychics } from '../game/battle'
 
 export const BRING_MAX = 3 // 보스 전투에 1인당 가져갈 수 있는 아이템 수 ('묶음'이 아니라 '개' 단위)
 export const PSYCHIC_BRING_MAX = 2 // 보스 전투에 1인당 가져갈 수 있는 영능력 수 (v71)
 
 /** 보스 전투 전에, 소지품에서 전투에 쓸 아이템을 최대 3개, 익힌 영능력을 최대 2개까지 고른다. */
-export default function BringPicker({ player, psychics = [], enemyName, onConfirm, onCancel }) {
+export default function BringPicker({ player, psychics = [], enemyName, onConfirm, onCancel, onSaveSlot }) {
   const list = ITEMS.filter((i) => i.battle && countOf(player, i.id) > 0)
   const psyList = ownedPsychics(psychics).filter((p) => !p.default) // 효험처럼 항상 쓸 수 있는 건 고를 필요가 없다
   const [sel, setSel] = useState({})
   const [psySel, setPsySel] = useState([])
+  const [slotMsg, setSlotMsg] = useState(null) // { text, error }
+  const slots = bossSlotsOf(player)
+  const psyIds = psyList.map((p) => p.id)
+  const slotSummary = (slot) => slot ? [
+    ...Object.entries(slot.items).map(([id, n]) => `${itemOf(id)?.name ?? id}${n > 1 ? ` ×${n}` : ''}`),
+    ...slot.psychics.map((id) => psyList.find((p) => p.id === id)?.label ?? id),
+  ].join(' · ') : '비어 있음'
+  // 슬롯을 고르면 그 조합이 바로 담긴다. 아이템이 모자라면 담지 않고 안내한다.
+  const useSlot = (i) => {
+    const r = loadBossSlot(player, i, psyIds)
+    if (r.error) { setSlotMsg({ text: r.error, error: true }); return }
+    setSel(r.items)
+    setPsySel(r.psychics)
+    setSlotMsg({ text: `${i + 1}번 슬롯을 담았다.${r.droppedPsychics.length ? ' (지금 갖고 있지 않은 영능력은 빠졌다)' : ''}`, error: false })
+  }
+  const storeSlot = (i) => {
+    onSaveSlot?.(i, sel, psySel)
+    setSlotMsg({ text: total || psySel.length ? `지금 고른 조합을 ${i + 1}번 슬롯에 저장했다.` : `${i + 1}번 슬롯을 비웠다.`, error: false })
+  }
   const total = Object.values(sel).reduce((a, b) => a + b, 0)
   const bump = (id, d) => setSel((s) => {
     const n = Math.max(0, Math.min(countOf(player, id), (s[id] || 0) + d))
@@ -27,7 +47,21 @@ export default function BringPicker({ player, psychics = [], enemyName, onConfir
   return (
     <div className="modal-scrim fixed inset-0 z-[85] grid place-items-center p-4" data-bring-picker>
       <div role="dialog" aria-modal="true" aria-label="가져갈 아이템과 영능력 고르기" className="ink-panel w-full max-w-sm max-h-[85vh] overflow-y-auto rounded-xl p-5">
-        <p className="font-serif text-lg text-gold">가져갈 아이템 고르기</p>
+        <p className="font-serif text-lg text-gold">보스 전투 슬롯</p>
+        <p className="mt-1 text-xs text-paper/70">자주 쓰는 조합(아이템 {BRING_MAX}개 · 영능력 {PSYCHIC_BRING_MAX}개)을 저장해 두고, 슬롯을 누르면 바로 담긴다.</p>
+        <ul className="mt-2 space-y-1.5" aria-label="보스 전투 슬롯">
+          {Array.from({ length: BOSS_SLOT_COUNT }, (_, i) => (
+            <li key={i} data-boss-slot={i + 1} className="flex items-center gap-2 rounded-lg bg-shade/25 px-2 py-1.5">
+              <button type="button" onClick={() => useSlot(i)} disabled={!slots[i]} className="flat-btn min-w-0 flex-1 justify-start text-left text-xs disabled:opacity-45" aria-label={`${i + 1}번 슬롯 사용`}>
+                <b className="mr-1 text-gold">{i + 1}번</b><span className="truncate">{slotSummary(slots[i])}</span>
+              </button>
+              {onSaveSlot && <button type="button" onClick={() => storeSlot(i)} className="shrink-0 rounded-lg bg-edge/10 px-2 py-1 text-[11px] text-paper/80 hover:bg-gold-fill/20" aria-label={`지금 고른 조합을 ${i + 1}번 슬롯에 저장`}>저장</button>}
+            </li>
+          ))}
+        </ul>
+        {slotMsg && <p role={slotMsg.error ? 'alert' : 'status'} data-boss-slot-msg className={`mt-2 rounded-lg px-3 py-1.5 text-xs ${slotMsg.error ? 'bg-crimson/15 text-crimson' : 'bg-gold/10 text-gold'}`}>{slotMsg.text}</p>}
+
+        <p className="mt-5 font-serif text-lg text-gold">가져갈 아이템 고르기</p>
         <p className="mt-1 text-xs text-paper/70">{enemyName}은(는) 보스다. 한 전투에 1인당 아이템을 <b>{BRING_MAX}개</b>까지만(낱개 기준) 가져갈 수 있다.</p>
         <p className="mt-2 text-sm text-paper" data-bring-total>{total} / {BRING_MAX}</p>
         {list.length === 0 ? (
@@ -50,7 +84,7 @@ export default function BringPicker({ player, psychics = [], enemyName, onConfir
           </ul>
         )}
         <p className="mt-5 font-serif text-lg text-gold">가져갈 영능력 고르기</p>
-        <p className="mt-1 text-xs text-paper/70">보스 전투에는 영능력도 1인당 <b>{PSYCHIC_BRING_MAX}개</b>까지만 가져갈 수 있다. (효험은 제한 없이 항상 쓸 수 있다)</p>
+        <p className="mt-1 text-xs text-paper/70">보스 전투에는 영능력도 1인당 <b>{PSYCHIC_BRING_MAX}개</b>까지만 가져갈 수 있다. (효험은 기본 영능력이나, 영력결계를 가져오면 효험을 사용할 수 없다. 영력결계는 가져온 경우에만 발동한다)</p>
         <p className="mt-2 text-sm text-paper" data-psy-bring-total>{psySel.length} / {PSYCHIC_BRING_MAX}</p>
         {psyList.length === 0 ? (
           <p className="mt-3 text-xs text-paper/60">익힌 영능력이 없다.</p>

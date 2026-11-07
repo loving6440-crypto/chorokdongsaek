@@ -21,6 +21,8 @@ const fmtTime = (ms) => {
   const p = (n) => String(n).padStart(2, '0')
   return h ? `${h}:${p(m)}:${p(sec)}` : `${p(m)}:${p(sec)}`
 }
+/** 초 → 'N분 M초' */
+const fmtRegen = (sec) => { const m = Math.floor(sec / 60), s = Math.round(sec % 60); return s ? `${m}분 ${s}초` : `${m}분` }
 const fmtMin = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간${m % 60 ? ` ${m % 60}분` : ''}` : `${m}분`)
 
 const PRESETS = [5, 30, 60, 120, 300]
@@ -128,8 +130,8 @@ function TrainingView({ control, training, minutes, setMinutes, now, onStartTrai
         {!training ? (
           <>
             <p className="mt-2 text-sm leading-relaxed text-paper/65">
-              가만히 있어도 절제 {control}에 맞춰 {spiritIntervalSec(control)}초에 영력 +0.1이 저절로 쌓인다.
-              수련은 그 자연 회복의 2배(소수점은 내림)로, 시작하면 자연 회복은 멈추고 끝까지 마쳤을 때 영력이 한 번에 들어온다. 중간에 나가면 보상은 없다.
+              가만히 있어도 절제 {control}에 맞춰 {fmtRegen(spiritIntervalSec(control) * 10)}에 영력 +1이 저절로 쌓인다. (기본 20분에 1, 절제 10마다 25초씩 빨라지고 10분에 1이 한계)
+              수련 보상은 기존 기준(5~10분에 1의 2배, 소수점은 내림) 그대로이며, 시작하면 자연 회복은 멈추고 끝까지 마쳤을 때 영력이 한 번에 들어온다. 중간에 나가면 보상은 없다.
               수련은 방치해도 된다. 탭을 백그라운드에 두거나 창을 내려 다른 프로그램을 봐도, 소지품·로그를 보거나 영력으로 스탯을 올려도 이어진다. 다만 다른 구역·활동으로 옮기거나 새 동작을 시작하면(확인 창이 뜬다) 수련을 포기하게 된다.
             </p>
 

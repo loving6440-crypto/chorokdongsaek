@@ -46,6 +46,7 @@ export const V79_ITEMS = [
   {"id": "loofah-fruit", "kind": "material", "tags": ["재료"], "name": "수세미 열매", "price": null, "desc": "보통은 물건을 닦는 데 쓰는 그것부터 떠올리겠지만, 누군가는 먹을 생각부터 하겠지.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
   {"id": "king-mushroom", "kind": "material", "tags": ["재료"], "name": "왕버섯", "price": null, "desc": "한 아름 되는 거대한 버섯. 생김새에 압도당한다.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
   {"id": "ginseng", "kind": "material", "tags": ["재료"], "name": "산삼", "price": null, "desc": "산속 깊은 곳에서 발견한 오래 묵은 산삼.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
+  {"id": "darkness", "kind": "material", "tags": ["재료"], "name": "어둠", "price": null, "desc": "동굴 깊은 곳의 암령에게서 떼어 낸 한 줌의 어둠. 손바닥 위에서도 빛을 삼킨다.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
   {"id": "antler", "kind": "material", "tags": ["재료"], "name": "녹용", "price": null, "desc": "신비로운 사슴의 뿔 조각.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
   {"id": "spirit-orb", "kind": "material", "tags": ["재료"], "name": "혼백구슬", "price": null, "desc": "영혼의 빛을 품은 희미한 구슬.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
   {"id": "bat-wing", "kind": "material", "tags": ["재료"], "name": "박쥐 날개", "price": null, "desc": "작은 박쥐에게서 얻은 가죽 같은 날개.", "effectText": "제작용 재료.", "effect": {}, "battle": false},

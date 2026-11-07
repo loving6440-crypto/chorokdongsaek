@@ -82,7 +82,7 @@ let cards = {} // 인적사항 카드: { [id]: { id, name, greeting, age, grade,
 const dirtyCards = new Set() // 마지막 저장 뒤 (다시) 바뀐 카드의 id — 이 사람들 것만 다음 저장 때 내보낸다
 let legacyCardsRowCleared = false // 예전의 "전원분 한 덩어리" 카드 줄을 지웠는지 (DB 연결 뒤 saveCardsNow 에서 확정)
 let cardsSaveTimer = null // scheduleCardsSave 가 부팅 중(마이그레이션)부터 바로 호출될 수 있어, 선언을 위로 올려 둔다
-let friendships = {} // { id: [친구 id] } (단방향 추가, 차단과 분리)
+let friendships = {} // { id: [친구 id] } (쌍방 동의 후 서로에게 등록, 기존 데이터는 유지)
 let blockedUsers = {} // { id: [차단 id] }
 let members = {} // 회원 명부: { [id]: { id, name, firstSeen, lastSeen, visits } } — 서버에 접속한 적 있는 모든 계정
 let stories = { pending: [], papers: {}, seq: 1 } // 익명 사연: pending [{id, text, at}] · papers { 'YYYY-MM-DD': [{ no, text, at }] } (그날의 교내 신문). 쓴 사람은 저장하지 않는다.
@@ -492,7 +492,10 @@ function disbandParty(p) {
 // ───────── 다인 전투 ─────────
 // 일행(파티) 중 한 명이 '다인 전투' 상대에게 도전하면 나머지 일행에게 초대가 가고, 수락한 사람들이 한 판에서 함께 싸운다.
 // 판은 서버가 진행한다. (src/game/mbattle.js)
-const MB_LOBBY_MS = 30_000
+// v-B.01: 파티 전투 수락 대기 30초 → 1분, 보스 전투는 영능력·아이템을 고를 시간까지 2분.
+const MB_LOBBY_MS = 60_000
+const MB_BOSS_LOBBY_MS = 120_000
+const mbLobbyMs = (enemy) => (enemy?.boss ? MB_BOSS_LOBBY_MS : MB_LOBBY_MS)
 const mbs = new Map() // bid → { id, host, enemyId, phase: 'lobby'|'fight'|'over', invited: {id: 'wait'|'yes'|'no'}, joins: {id: info}, mb, timer, deadline }
 const mbOf = new Map() // playerId → bid (로비이거나 전투 중)
 let mbSeq = 1
@@ -608,6 +611,7 @@ const mbInfo = (c, me) => ({
   name: c.name,
   bring: me?.bring === undefined ? undefined : cleanBring(me.bring),
   psychicBring: me?.psychicBring === undefined ? undefined : cleanPsychicBring(me.psychicBring),
+  passiveOff: Array.isArray(me?.passiveOff) ? me.passiveOff.filter((x) => x === 'spirit-barrier') : [], // v79.0.7: 전투 전에 끈 패시브
   stats: me?.stats,
   psychics: Array.isArray(me?.psychics) ? me.psychics.filter(x=>PSYCHICS.some(p=>p.id===x)) : [],
   curseUntil: Number.isFinite(me?.curseUntil) ? Math.max(0, Math.floor(me.curseUntil)) : 0,
@@ -1791,10 +1795,23 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, status: r.status })
   }
 
+  // 친구 신청은 사물함 쪽지에 보관하고 수락 전에는 어느 쪽 친구 목록에도 넣지 않는다.
+  const mutualFriends = (id) => (friendships[id] ?? []).filter(other => (friendships[other] ?? []).includes(id))
+  const pendingFriendRequest = (from, to) => mail.log.find(m => m.kind === 'friend-request' && m.from?.id === from && m.to?.id === to && m.status === 'pending')
+  const notifyFriendsChanged = (...ids) => { for (const id of new Set(ids)) sendTo(id, { t: 'friendsChanged' }) }
+  const setFriend = (a, b, add) => {
+    const list = new Set(friendships[a] ?? [])
+    if (add) list.add(b)
+    else list.delete(b)
+    friendships[a] = [...list].slice(0, 200)
+  }
+  const resolveRequests = (a, b, status = 'cancelled') => {
+    for (const m of mail.log) if (m.kind === 'friend-request' && m.status === 'pending' && ((m.from?.id === a && m.to?.id === b) || (m.from?.id === b && m.to?.id === a))) m.status = status
+  }
   // 친구 / 차단 관계: 서버 측 저장 및 검사. 대상의 캐릭터 이름은 회원 명부로부터 가져온다.
   if (route === '/api/friends/list') {
     const decorate = (id) => ({ id, name: members[id]?.name || id, online: clients.has(id) })
-    return json(res, 200, { ok: true, friends: (friendships[me.id] ?? []).filter((id) => members[id]).map(decorate), blocked: (blockedUsers[me.id] ?? []).filter((id) => members[id]).map(decorate) })
+    return json(res, 200, { ok: true, friends: mutualFriends(me.id).filter((id) => members[id]).map(decorate), blocked: (blockedUsers[me.id] ?? []).filter((id) => members[id]).map(decorate), pendingSent: mail.log.filter(m => m.kind === 'friend-request' && m.from?.id === me.id && m.status === 'pending').map(m => ({ id: m.id, to: m.to })) })
   }
   if (route === '/api/friends/change') {
     const to = cleanId(body.to)
@@ -1802,20 +1819,54 @@ async function handleApi(req, res, url) {
     if (!to || to === me.id || !members[to]) return json(res, 400, { error: 'no-target' })
     if (!['add', 'remove', 'block', 'unblock'].includes(action)) return json(res, 400, { error: 'bad-action' })
     if (rateLimited(`friend:${me.id}`)) return json(res, 429, { error: 'slow-down' })
-    const update = (bag, add) => { const set = new Set(bag[me.id] ?? []); if (add) set.add(to); else set.delete(to); bag[me.id] = [...set].slice(0, 200) }
+    const updateBlock = (add) => { const set = new Set(blockedUsers[me.id] ?? []); if (add) set.add(to); else set.delete(to); blockedUsers[me.id] = [...set].slice(0, 200) }
     if (action === 'add') {
-      if ((blockedUsers[me.id] ?? []).includes(to)) return json(res, 400, { error: 'blocked' })
-      if ((friendships[me.id] ?? []).includes(to)) return json(res, 200, { ok: true, already: true })
-      if ((friendships[me.id] ?? []).length >= 200) return json(res, 400, { error: 'friend-limit' })
-      update(friendships, true)
-      // 상대가 오프라인이어도 사물함에 알림을 남긴다. 이미 추가한 상대에게 중복 알림을 보내지 않는다.
-      addMail({ kind: 'friend', from: { id: me.id, name: me.name }, to: { id: to, name: members[to].name }, text: `${me.name}님이 친구 목록에 추가했어.` })
+      if ((blockedUsers[me.id] ?? []).includes(to) || (blockedUsers[to] ?? []).includes(me.id)) return json(res, 400, { error: 'blocked' })
+      if (mutualFriends(me.id).includes(to)) return json(res, 200, { ok: true, already: true })
+      const pending = pendingFriendRequest(me.id, to)
+      if (pending) return json(res, 200, { ok: true, pending: true, alreadyPending: true, requestId: pending.id })
+      if (mutualFriends(me.id).length >= 200 || mutualFriends(to).length >= 200) return json(res, 400, { error: 'friend-limit' })
+      const m = addMail({ kind: 'friend-request', status: 'pending', from: { id: me.id, name: me.name }, to: { id: to, name: members[to].name }, text: `${me.name} 님이 친구 신청을 보냈습니다.` })
+      scheduleSave()
+      return json(res, 200, { ok: true, pending: true, requestId: m.id })
     }
-    if (action === 'remove') update(friendships, false)
-    if (action === 'block') update(blockedUsers, true)
-    if (action === 'unblock') update(blockedUsers, false)
+    if (action === 'remove' || action === 'block') {
+      // 한 사람만 목록에서 지워도 쌍방 친구 관계를 정리한다.
+      setFriend(me.id, to, false)
+      setFriend(to, me.id, false)
+      resolveRequests(me.id, to)
+      notifyFriendsChanged(me.id, to)
+    }
+    if (action === 'block') updateBlock(true)
+    if (action === 'unblock') updateBlock(false)
     scheduleSave()
     return json(res, 200, { ok: true })
+  }
+  if (route === '/api/friends/respond') {
+    const requestId = typeof body.requestId === 'string' ? body.requestId : ''
+    const accept = body.accept
+    if (!requestId || typeof accept !== 'boolean') return json(res, 400, { error: 'bad-request' })
+    if (rateLimited(`friend:${me.id}`)) return json(res, 429, { error: 'slow-down' })
+    const request = mail.log.find(m => m.id === requestId && m.kind === 'friend-request')
+    // 알림에 적힌 다른 사람의 요청을 임의로 수락할 수 없도록 서버에서 수신자를 검사한다.
+    if (!request || request.to?.id !== me.id) return json(res, 404, { error: 'no-request' })
+    if (request.status !== 'pending') return json(res, 409, { error: 'already-answered', status: request.status })
+    const from = request.from.id
+    if (!members[from] || (blockedUsers[me.id] ?? []).includes(from) || (blockedUsers[from] ?? []).includes(me.id)) {
+      return json(res, 403, { error: 'blocked-or-missing' })
+    }
+    if (accept && (mutualFriends(me.id).length >= 200 || mutualFriends(from).length >= 200)) return json(res, 400, { error: 'friend-limit' })
+    request.status = accept ? 'accepted' : 'declined'
+    request.respondedAt = Date.now()
+    if (accept) {
+      setFriend(me.id, from, true)
+      setFriend(from, me.id, true)
+      resolveRequests(me.id, from, 'accepted')
+      addMail({ kind: 'note', from: { id: me.id, name: me.name }, to: { id: from, name: members[from].name }, text: `${me.name} 님이 친구 신청을 수락했다. 서로 친구로 추가했다.` })
+    }
+    notifyFriendsChanged(me.id, from)
+    scheduleSave()
+    return json(res, 200, { ok: true, accepted: accept })
   }
 
   // 우체통: 아이템 없이 쪽지만 보내기. 접속하지 않은 사람에게도 보낼 수 있다(사물함에 쌓인다).
@@ -2419,12 +2470,12 @@ async function handleApi(req, res, url) {
     mbOf.set(me.id, g.id)
     for (const m of free) {
       mbOf.set(m, g.id)
-      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name, boss: !!enemy.boss }, expires: Date.now() + MB_LOBBY_MS })
+      sendTo(m, { t: 'mb', ev: 'invite', bid: g.id, from: { id: me.id, name: me.name }, enemy: { id: enemy.id, name: enemy.name, boss: !!enemy.boss }, expires: Date.now() + mbLobbyMs(enemy) })
     }
     g.timer = setTimeout(() => {
       for (const id of Object.keys(g.invited)) if (g.invited[id] === 'wait') g.invited[id] = 'no'
       mbLobbyCheck(g)
-    }, MB_LOBBY_MS)
+    }, mbLobbyMs(enemy))
     mbLobbyCheck(g)
     return json(res, 200, { ok: true, bid: g.id, invited: free.length })
   }
@@ -2459,6 +2510,7 @@ async function handleApi(req, res, url) {
     if (!g || g.phase !== 'fight') return json(res, 410, { error: 'expired' })
     const r = MB.submit(g.mb, me.id, body.act)
     if (r.error) return json(res, 409, r)
+    if (r.reveal) { mbPush(g); return json(res, 200, { ok: true }) } // 언어장벽 간파: 턴은 그대로, 화면만 갱신
     if (MB.ready(g.mb)) mbStep(g)
     else mbPush(g)
     return json(res, 200, { ok: true })

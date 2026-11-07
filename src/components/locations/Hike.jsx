@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Footprints } from 'lucide-react'
+import { useState } from 'react'
 import { HIKE_PATHS, hikeSpotKey, OUTSIDE_BARI_LINES } from '../../game/hike'
-import HuntField from './HuntField'
 import Armory from './Armory'
 import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
@@ -83,35 +81,11 @@ const Placeholder = ({ name }) => (
   </div>
 )
 
-<<<<<<< Updated upstream
-/** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. */
-export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, onAdminGive, onGardenAction, onHuntAction, stats, onVisit, onGiveNpc }) {
-=======
 /** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. (v-B.01: 개척은 산 탐색 옆 [개척] 버튼으로만 들어간다) */
 export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, battle }) {
->>>>>>> Stashed changes
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
-  const [huntOn, setHuntOn] = useState(() => player.huntExpedition?.status === 'active')
-  const [turnExhausted, setTurnExhausted] = useState(false)
-  const previousHuntStatus = useRef(player.huntExpedition?.status)
-  useEffect(() => {
-    const status = player.huntExpedition?.status
-    if (previousHuntStatus.current === 'active' && status === 'finished') {
-      const session = player.huntExpedition
-      if (session?.turn >= session?.maxTurns) {
-        // 행동을 모두 쓴 경우 먼저 안내를 보여 주고, 확인할 때까지 수렵 화면을 유지한다.
-        setTurnExhausted(true)
-      }
-    }
-    previousHuntStatus.current = status
-  }, [player.huntExpedition?.status, player.huntExpedition?.turn, player.huntExpedition?.maxTurns])
-  const acknowledgeTurnExhausted = () => {
-    setTurnExhausted(false)
-    setHuntOn(true)
-  }
-
   const path = HIKE_PATHS.find((p) => p.id === pathId)
   const branch = path?.branches?.find((b) => b.id === branchId)
   const spots = branch ? branch.spots : path?.spots
@@ -121,25 +95,15 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
     setPathId(id)
     setBranchId(null)
     setSpotId(null)
-    setHuntOn(false)
   }
   const pickBranch = (id) => {
     setBranchId(id)
     setSpotId(null)
-    setHuntOn(false)
   }
   const pickSpot = (s) => {
     setSpotId(s.id)
-    setHuntOn(false)
     onVisit?.(hikeSpotKey(pathId, s.id, branchId))
   }
-  const pickHunt = () => {
-    setPathId(null)
-    setBranchId(null)
-    setSpotId(null)
-    setHuntOn(true)
-  }
-
   return (
     <section aria-label="산 탐색">
       <h2 className="font-serif text-2xl text-gold">산 탐색</h2>
@@ -157,10 +121,6 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
             {p.name}
           </button>
         ))}
-        <button type="button" aria-pressed={huntOn} onClick={pickHunt}
-          className={`tilt flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm ${huntOn ? 'bg-gold-fill text-ink' : 'bg-edge/[0.07] text-paper/85 hover:bg-gold-fill/20'}`}>
-          <Footprints size={13} aria-hidden />개척
-        </button>
       </div>
 
 
@@ -197,21 +157,6 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
             ))}
           </div>
         </>
-      )}
-
-      {huntOn && (
-        <div className="mt-2">
-          <HuntField player={player} stats={stats} onAction={onHuntAction} />
-        </div>
-      )}
-
-      {turnExhausted && (
-        <div className="fixed inset-0 z-[110] grid place-items-center bg-black/75 p-4" data-hunt-turn-exhausted-overlay>
-          <div className="ink-panel w-full max-w-sm rounded-xl p-5 text-center" role="alertdialog" aria-modal="true" aria-label="채집 종료 안내" aria-describedby="hunt-turn-exhausted-message" data-hunt-turn-exhausted>
-            <p id="hunt-turn-exhausted-message" className="text-sm leading-relaxed text-paper">행동 가능한 턴을 소진했습니다. 채집을 종료합니다.</p>
-            <button type="button" className="flat-btn mt-5 justify-center" onClick={acknowledgeTurnExhausted} autoFocus data-hunt-end-confirm>확인</button>
-          </div>
-        </div>
       )}
 
       {spot && (

@@ -33,7 +33,7 @@ test('시트의 셀 메모와 좌표를 반영하며 덤불은 회색 장애물�
     J1: ['mugwort', 13], C2: ['poisonMushroom', 10], F4: ['snakeBerry', 8],
     C5: ['mushroom', 5], C6: ['poisonMushroom', 10], H6: ['snakeBerry', 8], I10: ['mushroom', 5],
     E2: ['stoneTower', 7], G6: ['stonePillar', 5], E8: ['stonePillar', 5], C10: ['bush', 2],
-    A3: ['snake', 10], I3: ['fox', 15],
+    A3: ['snake', 10], J3: ['raccoon', 15], // v79.0.7: 시트 K5 너구리(3×3 반시계)
   }
   for (const node of LEFT_TRAIL_ONE.nodes) {
     assert.deepEqual([node.species, node.level], expected[node.id], node.id)
@@ -172,14 +172,18 @@ test('모든 확정 보상과 보너스 아이템은 소지품 정의가 있고 
       ...(definition.kind === 'animal' ? { route: clockwiseRoute(0, 6, 4) } : {}) }] })
     let p = enter(site)
     if (definition.kind === 'obstacle') p = withPosition(p, { x: 1, y: 9 })
-    const result = attemptHunt(p, 'target', stats(20), 2000, sequence(0, ...(definition.rewards[0].dice ? [0.99] : []), 0, 0.99))
+    // 확률 보상은 rng()를 추가로 소비한다. 이 테스트는 모든 보상 판정이 성공하는 주사위를 준다.
+    const rewardRolls = definition.rewards.flatMap(reward => [...(reward.chance != null ? [0] : []), ...(reward.dice ? [0.99] : [])])
+    const result = attemptHunt(p, 'target', stats(20), 2000, sequence(0, ...rewardRolls, 0, 0.99))
     assert.equal(result.success, true, species)
     const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'polishing-stone' : definition.kind === 'animal' ? 'trap-scraps' : null
     for (const reward of definition.rewards) {
       assert.ok(itemOf(reward.item), reward.item)
       // v79: 확정 보상과 랜덤 보너스가 같은 아이템이면 수량이 합산된다.
-      const expected = (reward.dice ?? reward.amount) + (reward.item === bonus ? (definition.kind === 'obstacle' ? 2 : 1) : 0)
-      assert.equal(result.rewards[reward.item], expected, species)
+      // v79.0.7: 1d2+1 같은 고정 가산(plus), 오전·오후 보상(달꽃터 am/pm)을 반영한다. (2000ms = 오전 9시 KST)
+      const item = reward.am ? reward.am : reward.item
+      const expected = (reward.dice ?? reward.amount) + (reward.plus ?? 0) + (item === bonus ? (definition.kind === 'obstacle' ? 2 : 1) : 0)
+      assert.equal(result.rewards[item], expected, species)
     }
     if (bonus) {
       assert.ok(result.rewards[bonus] > 0, bonus)
@@ -283,7 +287,7 @@ test('귀신은 장애물 뒤에서 멈추지 않고 우회하여 매 턴 한 �
   assert.equal(session.encounter.nodeId, 'ghost')
 })
 
-test('최종 턴 조우는 전투 후 종료, 승리 보상 영력20은 한 번만 지급하고 200 상한 적용', () => {
+test('최종 턴 조우는 전투 후 종료, 승리 보상 영력20은 한 번만 지급하고 500 상한 적용 (v79.0.8)', () => {
   let p = enter(fixtureSite({ maxTurns: 1 }))
   p.huntExpedition.nodes.push({ id: 'ghost', kind: 'ghost', x: 1, y: 8, enemy: {}, rewardSpirit: 20 })
   p = moveOnHunt(p, { x: 1, y: 9 }, 2000).player
@@ -291,9 +295,9 @@ test('최종 턴 조우는 전투 후 종료, 승리 보상 영력20은 한 번�
   assert.ok(p.huntExpedition.encounter)
   assert.ok(leaveHuntSite(p).error)
   assert.ok(moveOnHunt(p, { x: 0, y: 9 }).error)
-  p.spirit = 190
+  p.spirit = 490
   const result = resolveHuntEncounter(p, { win: true }, 3000)
-  assert.equal(result.player.spirit, 200)
+  assert.equal(result.player.spirit, 500)
   assert.equal(result.player.money, 50)
   assert.equal(result.player.huntExpedition.status, 'finished')
   assert.equal(huntCooldownLeft(result.player, p.huntExpedition.siteId, 3000), HUNT_COOLDOWN_MS)
