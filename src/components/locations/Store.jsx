@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Minus, Plus, ScrollText, ShoppingBag, X } from 'lucide-react'
+import { Coins, Minus, Plus, ScrollText, ShoppingBag, X } from 'lucide-react'
 import { STORE_HOURS, STORE_ITEMS, countOf, isStoreOpen, itemOf } from '../../game/items'
 import { RECIPE_SHOP, knowsRecipe } from '../../game/crafting'
 import { STORE_INFO, YUMIN } from '../../game/store'
+import { sellableItems } from '../../game/sell'
 import { pickNpcLine } from '../../game/npcLines'
 import ItemIcon from '../ItemIcon'
 import { capacityFor } from '../../game/inventoryCapacity'
@@ -10,7 +11,7 @@ import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
 
 /** 기숙사 매점. 아래쪽에서 점원 강유민이 들어올 때마다 대사를 하나씩 한다. */
-export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, admin = false, onGiveNpc }) {
+export default function Store({ player, onBuy, onSell, onBuyRecipe, onMeet, onLineSeen, admin = false, onGiveNpc }) {
   const [now, setNow] = useState(() => Date.now())
   const [{ line, firstOf }] = useState(() => pickNpcLine(YUMIN.id, YUMIN.lines, player, player.lineSeen))
   useEffect(() => {
@@ -26,6 +27,18 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
   const open = isStoreOpen(now)
   const [target, setTarget] = useState(null) // 구매 확인 팝업의 아이템
   const [qty, setQty] = useState(1)
+  // v-B.06: 판매 — 탭(구매 | 판매)과 판매 확인 팝업
+  const [tab, setTab] = useState('buy')
+  const [sellTarget, setSellTarget] = useState(null) // { item, count, price }
+  const [sellQty, setSellQty] = useState(1)
+  const [sellMsg, setSellMsg] = useState('')
+  const sellList = sellableItems(player)
+  const sq = sellTarget ? Math.max(1, Math.min(sellTarget.count, sellQty)) : 1
+  const doSell = () => {
+    const r = onSell?.(sellTarget.item.id, sq)
+    setSellMsg(r?.error ? r.error : `${sellTarget.item.name} ${sq}개를 팔아 ${r.gained}냥을 받았다.`)
+    setSellTarget(null)
+  }
   const askBuy = (item) => {
     setQty(1)
     setTarget(item)
@@ -33,11 +46,11 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
   const maxQty = target ? Math.min(99, capacityFor(player.inventory, target.id), admin ? 99 : Math.floor(player.money / target.price)) : 0
   const q = Math.max(1, Math.min(Math.max(1, maxQty), qty))
   useEffect(() => {
-    if (!target) return
-    const onKey = (e) => e.key === 'Escape' && setTarget(null)
+    if (!target && !sellTarget) return
+    const onKey = (e) => e.key === 'Escape' && (setTarget(null), setSellTarget(null))
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [target])
+  }, [target, sellTarget])
 
   return (
     <section aria-label="매점">
@@ -68,6 +81,41 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
           지금은 문이 닫혀 있다. 오전 {STORE_HOURS.open}시부터 밤 {STORE_HOURS.close - 12}시까지 연다.
         </p>
       )}
+      <div className="mt-3 flex gap-1.5" role="tablist" aria-label="구매 · 판매">
+        <button type="button" role="tab" aria-selected={tab === 'buy'} data-store-tab="buy" onClick={() => setTab('buy')} className={`flex items-center gap-1 rounded-full px-4 py-1.5 text-sm ${tab === 'buy' ? 'bg-gold-fill text-ink' : 'bg-edge/10 text-paper/80'}`}>
+          <ShoppingBag size={14} aria-hidden /> 구매
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'sell'} data-store-tab="sell" onClick={() => { setTab('sell'); setSellMsg('') }} className={`flex items-center gap-1 rounded-full px-4 py-1.5 text-sm ${tab === 'sell' ? 'bg-gold-fill text-ink' : 'bg-edge/10 text-paper/80'}`}>
+          <Coins size={14} aria-hidden /> 판매
+        </button>
+      </div>
+      {tab === 'sell' && (
+        <div data-store-sell>
+          <p className="mt-3 text-xs leading-relaxed text-paper/60">
+            누군가 잃어버린 물건은 정해진 값에, 매점·텃밭에서 파는 물건은 산 값의 1/5에, 재료는 구하기 어려운 만큼 쳐 준다. 무구·장비·강화 재료·화투패·만든 물건은 받지 않는다.
+          </p>
+          {sellMsg && <p className="mt-2 text-sm text-gold" role="status" data-sell-msg>{sellMsg}</p>}
+          {sellList.length === 0 ? (
+            <p className="mt-3 rounded-lg bg-edge/[0.06] px-3 py-3 text-sm text-paper/65" data-sell-empty>팔 만한 물건이 없다.</p>
+          ) : (
+            <ul className="mt-3 grid gap-2 md:grid-cols-2">
+              {sellList.map(({ item, count, price }) => (
+                <li key={item.id} className="ink-panel flex items-center gap-3 rounded-xl p-3" data-sell-item={item.id}>
+                  <ItemIcon item={item} size={40} className="shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-serif text-base text-paper">{item.name}</p>
+                    <p className="text-[11px] text-paper/55">보유 {count}개 · 개당 <b className="text-gold">{price}냥</b></p>
+                  </div>
+                  <button type="button" disabled={!open} onClick={() => { setSellQty(1); setSellTarget({ item, count, price }) }} className="flat-btn shrink-0 !py-1 text-sm disabled:opacity-40">
+                    {open ? '판매' : '영업 종료'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {tab === 'buy' && (
       <ul className="mt-3 grid gap-3 md:grid-cols-2">
         {STORE_ITEMS.map((item) => {
           const hasSpace = capacityFor(player.inventory, item.id) >= 1
@@ -102,6 +150,7 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
           )
         })}
       </ul>
+      )}
 
       {RECIPE_SHOP.length > 0 && (
         <>
@@ -150,6 +199,58 @@ export default function Store({ player, onBuy, onBuyRecipe, onMeet, onLineSeen, 
         {line.text}
       </NpcDialog>
       <NpcGift npcId="yumin" player={player} onGive={onGiveNpc} />
+      {sellTarget && (
+        <div className="modal-scrim fixed inset-0 z-[75] grid place-items-center p-4" onClick={() => setSellTarget(null)}>
+          <div role="alertdialog" aria-modal="true" aria-label="판매 확인" className="ink-panel w-full max-w-sm rounded-2xl p-5" onClick={(e) => e.stopPropagation()} data-sell-dialog>
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-serif text-lg text-gold">판매하시겠습니까?</p>
+              <button type="button" onClick={() => setSellTarget(null)} aria-label="판매 팝업 닫기" className="grid size-7 place-items-center rounded-lg bg-edge/10 text-paper/80 hover:bg-edge/20">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="mt-3 flex items-start gap-3">
+              <ItemIcon item={sellTarget.item} size={48} className="shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-serif text-base text-paper">{sellTarget.item.name}</p>
+                <p className="mt-1 text-xs leading-relaxed text-paper/75">{sellTarget.item.desc}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <span className="text-sm text-paper/80">몇 개 팔까요? <span className="text-[11px] text-paper/50">(개당 {sellTarget.price}냥)</span></span>
+              <div className="flex items-center gap-1.5">
+                <button type="button" aria-label="하나 줄이기" disabled={sq <= 1} onClick={() => setSellQty(sq - 1)} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper hover:bg-edge/20 disabled:opacity-35">
+                  <Minus size={14} />
+                </button>
+                <input
+                  aria-label="판매 개수"
+                  inputMode="numeric"
+                  value={sq}
+                  onChange={(e) => setSellQty(Math.max(1, Math.min(sellTarget.count, parseInt(e.target.value.replace(/\D/g, ''), 10) || 1)))}
+                  className="h-8 w-12 rounded-lg bg-shade/50 text-center font-serif text-base text-paper outline-none ring-1 ring-edge/20 focus:ring-gold/50"
+                />
+                <button type="button" aria-label="하나 늘리기" disabled={sq >= sellTarget.count} onClick={() => setSellQty(sq + 1)} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper hover:bg-edge/20 disabled:opacity-35">
+                  <Plus size={14} />
+                </button>
+                <button type="button" onClick={() => setSellQty(sellTarget.count)} disabled={sellTarget.count <= 1} className="rounded-lg bg-edge/10 px-2 py-1.5 text-[11px] text-paper/80 hover:bg-edge/20 disabled:opacity-35">
+                  전부
+                </button>
+              </div>
+            </div>
+            <p className="mt-3 flex items-baseline justify-between text-sm text-paper/80">
+              <span>받는 돈</span>
+              <b className="font-serif text-lg text-gold" data-sell-total>{sellTarget.price * sq}냥</b>
+            </p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button type="button" onClick={doSell} className="flat-btn justify-center" data-sell-confirm>
+                {sq}개 판매
+              </button>
+              <button type="button" onClick={() => setSellTarget(null)} className="flat-btn-ghost justify-center">
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {target && (
         <div className="modal-scrim fixed inset-0 z-[75] grid place-items-center p-4" onClick={() => setTarget(null)}>
           <div role="alertdialog" aria-modal="true" aria-label="구매 확인" className="ink-panel w-full max-w-sm rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>

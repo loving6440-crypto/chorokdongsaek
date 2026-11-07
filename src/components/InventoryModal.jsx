@@ -9,7 +9,7 @@ import { itemMatches } from '../game/itemSearch'
 import { INVENTORY_SLOTS, countSlots, inventoryStacks, maxStack, capacityFor } from '../game/inventoryCapacity'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
-export default function InventoryModal({ player, inBattle, reviveOn, boostOn, onUse, onDiscard, onEquip, onUnequip, onClaimPending, partyMates = [], partyBattle = false, onClose }) {
+export default function InventoryModal({ player, inBattle, reviveOn, boostOn, usedItems = [], downed = false, onUse, onDiscard, onEquip, onUnequip, onClaimPending, partyMates = [], partyBattle = false, onClose }) {
   const [sel, setSel] = useState(null) // 아이템 id
   const [slotSel, setSlotSel] = useState(null) // 착용 중인 부위 id
   const [targeting, setTargeting] = useState(false) // 마이쭈: 누구에게 줄까
@@ -49,7 +49,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, on
   const picked = sel ? owned.find((i) => i.id === sel) : null
   const ownedCount = picked ? countOf(player, picked.id) : 0
   const pn = picked ? Math.min(ownedCount, selectedStack?.id === picked.id ? selectedStack.quantity : ownedCount) : 0
-  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: ownedCount, reviveOn, boostOn }) : null
+  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: ownedCount, reviveOn, boostOn, usedThisBattle: usedItems.includes(picked.id), downed }) : null // v-B.06: 이미 쓴 에너지드링크·쓰러진 상태도 버튼에서 바로 알려 준다
   const slotItem = slotSel && eq[slotSel] ? itemOf(eq[slotSel]) : null
   const shown = picked ?? slotItem
   const displayName = (item) => item ? `${specialTitleOf(player, item.id)}${item.name}` : ''

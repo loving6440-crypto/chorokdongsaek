@@ -78,20 +78,9 @@ function ExtraBattle({ battle }) {
   )
 }
 
-<<<<<<< Updated upstream
-const Placeholder = ({ name }) => (
-  <div className="ink-panel mt-4 w-full rounded-xl p-5">
-    <p className="text-sm leading-relaxed text-paper/60">{name}. (아직 둘러볼 것이 준비되지 않았다)</p>
-  </div>
-)
-
-/** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. (v-B.01: 개척은 산 탐색 옆 [개척] 버튼으로만 들어간다) */
-export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, battle }) {
-=======
 /** 뒷산 · 산 탐사: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길 / 퇴마 실습장. (v-B.01: 개척은 산 탐사 옆 [개척] 버튼으로만 들어간다)
  *  v-B.07: 장소마다 구글 시트 [조사내용] 의 글과 선택지(장면, game/scene.js)가 나온다. */
 export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, onExploreAct, battle }) {
->>>>>>> Stashed changes
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
@@ -201,24 +190,9 @@ export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance
       )}
 
       {spot && (
-<<<<<<< Updated upstream
-        <div className="mt-2">
-          {spot.id === 'armory' ? (
-            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
-          ) : spot.id === 'garden' ? (
-            <Garden player={player} onGardenAction={onGardenAction} onMeet={onMeet} />
-          ) : spot.id === 'outside' ? (
-            <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />
-          ) : spot.id === 'extraBattle' && battle ? (
-            <ExtraBattle battle={battle} />
-          ) : (
-            <Placeholder name={spot.name} />
-          )}
-=======
         <div className="ink-panel mt-4 w-full rounded-xl p-5" aria-live="polite" data-hike-spot={spot.id}>
           <p className="mb-2 text-[11px] tracking-widest text-gold">{path.name}{branch ? ` · ${branch.name}` : ''} · {spot.name}</p>
           <Scene key={`${spot.id}:${visit}`} root={spot} ctx={ctx} scope={hikeSpotKey(pathId, spot.id, branchId)} onHome={home} renderWidget={renderWidget} />
->>>>>>> Stashed changes
         </div>
       )}
     </section>

@@ -1,11 +1,7 @@
 {
   "name": "chorokdongsaek",
   "private": true,
-<<<<<<< Updated upstream
-  "version": "80.0.5",
-=======
   "version": "80.0.7",
->>>>>>> Stashed changes
   "type": "module",
   "scripts": {
     "dev": "vite",

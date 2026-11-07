@@ -258,7 +258,7 @@ export const PSYCHICS = [
   { id: 'earth-step', label: '지신밟기', mp: '인내+50 (최대 99)', use: true, note: '이곳은 절대적으로 안전하다. 거대한 무언가가 모두를 지켜주고 있다.', detail: '의지력 (인내+50, 최대 99) 소모. 첫 턴에만 사용할 수 있다. 전투가 끝날 때까지 아군 전원의 받는 피해가 인내/2% 감소한다.', cond: '(취득 경로 미정)' },
   { id: 'warding-scripture', label: '벽사진경', mp: '선택한 의지력', use: true, note: '사악한 것은 쫓아내고 복된 것은 맞이한다. 전투를 축제처럼 벌여 보자.', detail: '원하는 만큼 의지력을 사용해 지정한 일행 한 사람의 의지력을 그만큼 회복한다.', cond: '(취득 경로 미정)' },
   { id: 'spirit-barrier', label: '영력결계', mp: 0, use: false, note: '볼 수 없다는 것은 축복이요, 볼 수 있다는 것은 저주라. 앎은 영혼을 얽매고 무지는 목을 조른다.', detail: '별도의 선언 없이 상시 발동. 일반 전투에서는 습득 시 적용되며, 보스 전투에서는 가져갈 영능력으로 선택했을 때만 적용된다. 적의 단일 영능력이 자신을 대상으로 하면 약공으로 대체된다. 단체 영능력은 그대로 발동하지만 자신에게만 효과가 없다. 대신 적 대상 영능력과 효험은 사용할 수 없으며, 자신·아군 대상 영능력은 사용할 수 있다.', cond: '(취득 경로 미정)' },
-  { id: 'seven-stars', label: '칠성낙인', mp: 99, use: true, note: '북두칠성의 기운을 새겨낸다. 그것은 마치 은하수처럼 흐르고, 폭포수처럼 쏟아진다.', detail: '의지력 99를 소모한다. 첫 턴에 사용하면 전투 종료까지 장비 보정을 제외한 원래 호전 수치가 두 배가 된다.', cond: '(취득 경로 미정)' },
+  { id: 'seven-stars', label: '칠성낙인', mp: 99, use: true, note: '북두칠성의 기운을 새겨낸다. 그것은 마치 은하수처럼 흐르고, 폭포수처럼 쏟아진다.', detail: '의지력 99를 소모한다. 내가 직접 행동을 고르는 첫 번째 턴에만 쓸 수 있고(신속이 느려 상대가 먼저 움직였거나, 돌발 행동으로 몸이 먼저 나간 턴은 세지 않는다), 쓰면 전투 종료까지 장비 보정을 제외한 원래 호전 수치가 두 배가 된다.', cond: '(취득 경로 미정)' },
   { id: 'language-barrier', label: '언어장벽', mp: 20, use: true, note: '인간도 짐승도 혼도 결국 태어나기 전 살았던 세계는 하나. 뜻이 통한다면 읽을 수 있으리.', detail: '의지력 20을 소모해 적의 앞으로 20턴을 먼저 간파한다. 드러난 20턴의 내용을 확인한 뒤, 바꿀 턴을 최대 세 개 골라 다시 굴린다. 몇 번째 라운드든, 일행 중 몇 번째 순서든 내 차례라면 언제든 쓸 수 있다. (간파는 턴을 쓰지 않고, 고른 턴을 확정할 때 내 턴이 끝난다.)', cond: '(취득 경로 미정)' },
 ]
 
@@ -306,7 +306,7 @@ export function languageReveal(state, mpCost, rng = Math.random) {
 
 /** 언어장벽 2단계: 고른 턴(0부터 센 번호, 최대 3개)을 다시 굴린다. 이 행동으로 내 턴이 끝난다. */
 export function languagePick(state, rerolls, rng = Math.random) {
-  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1, lbPick: false }
+  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1, choseTurns: (state.choseTurns || 0) + 1, lbPick: false }
   const queue = [...(s.queue ?? [])]
   const indices = Array.isArray(rerolls) ? [...new Set(rerolls.map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x < Math.min(20, queue.length)))].slice(0, 3) : []
   const changes = []
@@ -322,7 +322,7 @@ export function languagePick(state, rerolls, rng = Math.random) {
 /** 영능력 사용(내 턴). 반환: { state, events, mpCost, fled } — 실패하면 내 턴을 쓴 것으로 치고 상대 턴으로 넘어간다. 못 쓰면 invalid: true (턴을 쓰지 않는다). */
 export function psychicTurn(state, id, ctx, rng = Math.random) {
   const stats = afflictStats(ctx.stats, state.ps)
-  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1 }
+  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1, choseTurns: (state.choseTurns || 0) + 1 }
   const mpNow0 = Math.floor(ctx.mp ?? 0)
   const needMp = (amount) => {
     const need = mpCostOf(stats, amount)
@@ -331,7 +331,10 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
   // 언어장벽 2단계: 이미 20턴을 간파한 상태에서 바꿀 턴(최대 3개)을 확정한다. 의지력은 1단계에서 이미 냈다.
   if (id === 'language-barrier' && state.lbPick) return languagePick(state, ctx.rerolls, rng)
   if (id === 'earth-step' || id === 'seven-stars' || id === 'warding-scripture' || id === 'language-barrier') {
-    if (['earth-step', 'seven-stars'].includes(id) && state.myTurns > 0)
+    // v-B.06: 칠성낙인은 '내가 직접 행동을 고르는 첫 번째 턴'에만 — 돌발·연모처럼 억지로 움직인 턴, 시간 초과로 넘어간 턴은 세지 않는다.
+    if (id === 'seven-stars' && (state.choseTurns || 0) > 0)
+      return { state, events: [{ kind: 'warn', text: '칠성낙인은 내가 직접 고르는 첫 번째 턴에만 사용할 수 있다.' }], mpCost: 0, invalid: true }
+    if (id === 'earth-step' && state.myTurns > 0)
       return { state, events: [{ kind: 'warn', text: '첫 번째 턴에만 사용할 수 있다.' }], mpCost: 0, invalid: true }
     const rawCost = id === 'earth-step' ? Math.min(99, 50 + stats.endurance) : id === 'seven-stars' ? 99 : id === 'language-barrier' ? 20 : Math.max(1, Math.floor(ctx.amount ?? 10))
     const mpCost = mpCostOf(stats, rawCost)
@@ -1006,17 +1009,19 @@ export const auraSelfOf = (stats) => Math.floor(auraOf(stats) * 0.75)
 export const maxSurvives = (stats) => (stats.fx === 'bell' ? 2 : 1)
 
 /**
- * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) (이해)% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
- * 무당방울이 없거나 발동하지 않으면 null.
+ * 무당방울: 소지자가 유효한 행동을 할 때마다(매 턴) 10% 확률로 1d(이해)만큼 파티원 전원의 체력을 회복시킨다.
+ * (v-B.06 너프: 예전에는 (이해)% 확률이었다)
+ * 무당방울이 없거나 발동하지 않으면 null. 반환 { chance, roll, heal, label, basis }
  */
+export const BELL_CHANCE = 10
 export function bellTick(stats, rng = Math.random) {
   if (stats.fx !== 'bell') return null
-  const chance = Math.max(0, Math.min(100, stats.comprehension || 0))
-  if (chance <= 0) return null
+  const chance = BELL_CHANCE
+  if (!(stats.comprehension > 0)) return null // 1d0 은 회복할 게 없다
   const roll = die(100, rng)
   if (roll > chance) return null
   const heal = die(stats.comprehension, rng)
-  return { chance, roll, heal }
+  return { chance, roll, heal, label: '무당방울', basis: `${chance}%` }
 }
 
 /** 굴림으로 나온 기본 공격력(base)에 악기 · 단검 · 철퇴가 얹힌다. 반환 { base, notes[] } */
@@ -1053,7 +1058,8 @@ const noteOf = (notes) => (notes.length ? ` (${notes.join(', ')})` : '')
 export function playerTurn(state, action, ctx, rng = Math.random) {
   const stats = afflictStats(ctx.stats, state.ps)
   const mp = Math.floor(ctx.mp)
-  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1 }
+  // choseTurns: 내가 직접 고른 턴 수(돌발·연모·시간 초과처럼 억지로 움직인 턴은 ctx.forced) — 칠성낙인 판정용 (v-B.06)
+  const s = { ...state, guard: false, myTurns: (state.myTurns || 0) + 1, choseTurns: (state.choseTurns || 0) + (ctx.forced ? 0 : 1) }
   const ev = []
   let mpCost = 0
   const act = action
@@ -1977,7 +1983,7 @@ export function beforePlayer(state, action, ctx = {}, rng = Math.random) {
   }
   if (s.ps.paralyze > 0 && rng() * 100 < (s.ps.paralyzeChance ?? 30)) {
     ev.push({ kind: 'warn', text: `몸이 저려 ${ACT_KO[a] ?? '행동'}에 실패했다!` })
-    return { state: { ...s, guard: false, bound: false, myTurns: (s.myTurns || 0) + 1 }, action: a, events: ev, failed: true }
+    return { state: { ...s, guard: false, bound: false, myTurns: (s.myTurns || 0) + 1, choseTurns: (s.choseTurns || 0) + 1 }, action: a, events: ev, failed: true }
   }
   return { state: s, action: a, events: ev, failed: false }
 }

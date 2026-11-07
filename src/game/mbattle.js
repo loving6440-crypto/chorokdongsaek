@@ -148,6 +148,7 @@ const viewOfMember = (mb, m) => ({
   pendingDeath: false,
   survived: m.survived,
   myTurns: m.myTurns,
+  choseTurns: m.choseTurns || 0,
   fallingLight: !!mb.fallingLight,
   usedItems: m.usedItems,
   party: true,
@@ -466,7 +467,7 @@ export function resolveTurn(mb, rng = Math.random) {
         if (x.php > before) healedNames.push(x.name)
       }
       if (healedNames.length) {
-        evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ 무당방울! [이해 ${bell.chance}%, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
+        evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ ${bell.label}! [${bell.basis}, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
       }
     }
     evs.push(...nextActor(mb, rng))
@@ -507,7 +508,7 @@ export function resolveTurn(mb, rng = Math.random) {
     evs.push(...enemyPhase(mb, rng))
     return evs
   }
-  let act = m.act ?? { action: m.bound ? 'attack' : 'guard' }
+  let act = m.act ?? { action: m.bound ? 'attack' : 'guard', forced: true } // 시간 초과로 넘어간 턴은 '직접 고른 턴'이 아니다
   // 고독의 저주: 실제 시간 3일 동안 10% 확률로 내 턴을 자해 행동으로 대체한다.
   if (m.curseUntil > Date.now() && rng() < 0.1) {
     const selfDamage = Math.max(1, Math.ceil(rng() * Math.max(1, m.stats.aggression)))
@@ -529,6 +530,7 @@ export function resolveTurn(mb, rng = Math.random) {
     m.guard = false
     m.bound = false
     m.myTurns = (m.myTurns || 0) + 1
+    m.choseTurns = (m.choseTurns || 0) + 1
     m.lbPick = false
     evs.push(...nextActor(mb, rng))
     if (mb.turn) return evs
@@ -556,7 +558,7 @@ export function resolveTurn(mb, rng = Math.random) {
   } else {
     // 활: 일행 중 누구 하나라도 활을 들고 있으면, 활을 들지 않은 사람도 모든 공격이 반드시 명중하고 (호전)% 확률로 방어 태세를 무시한다.
     const archerBow = aliveOf(mb).some((x) => x.fx === 'bow' && !((x.ps?.weaponSeal || 0) > 0))
-    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff, archerBow }, rng)
+    r = playerTurn(v, act.action, { stats: m.stats, mp: m.mp, boost: m.boost, scanAmount: act.scanAmount, noRash: true, aura, buff: act.buff, archerBow, forced: !!act.forced }, rng)
   }
   if (r.invalid) {
     // 의지력 부족 등으로 행동이 무효면 턴을 쓰지 않는다 — 아무것도 바꾸지 않고, 같은 사람이 다시 고를 수 있도록 그대로 둔다.
@@ -616,6 +618,7 @@ export function resolveTurn(mb, rng = Math.random) {
   m.fireBuffed = !!r.state.fireBuffed // 도깨비불을 효험과 함께 썼다면, 터지는 순간까지 들고 있는다
   m.php = Math.max(0, Math.min(m.phpMax, r.state.php)) // 원숭이 손처럼 자기 체력을 깎는 영능력도 있으니 반영한다(기존 행동들은 자기 체력을 바꾸지 않아 그대로다)
   m.myTurns = r.state.myTurns ?? m.myTurns // 유효한 행동을 했을 때만 늘어난다(무효 처리는 여기까지 오지 않는다)
+  m.choseTurns = r.state.choseTurns ?? m.choseTurns // 직접 고른 턴 수(칠성낙인 판정, v-B.06)
   m.lbPick = false // 언어장벽 고르기는 이 턴의 행동으로 끝난다(시간 초과로 다른 행동이 들어가도 해제)
   // 그슨대: 간파로 올려다보면 커진다.
   // v-B.04: 커지는 계기를 보스마다 고를 수 있다(grows.trigger: 'scan' 기본 · 'charm' · 'psychic' · 'guard' · 'attack', 여럿이면 배열).
@@ -658,7 +661,7 @@ export function resolveTurn(mb, rng = Math.random) {
       if (x.php > before) healedNames.push(x.name)
     }
     if (healedNames.length) {
-      evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ 무당방울! [이해 ${bell.chance}%, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
+      evs.push(...addLog(mb, [{ kind: 'warn', text: `[${m.name}] ✦ ${bell.label}! [${bell.basis}, d100 = ${bell.roll}] 일행 전원 체력 +${bell.heal}. (${healedNames.join(', ')})` }], m.id))
     }
   }
   evs.push(...nextActor(mb, rng))
@@ -1262,6 +1265,7 @@ export function viewOf(mb, extra = {}) {
       bring: m.bring,
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
+      energyUsed: !!m.energyUsed, // 이 전투에서 에너지드링크를 이미 마셨다 (v-B.06: 소지품 창에서 바로 알린다)
       psychicBring: m.psychicBring,
       passiveOff: m.passiveOff || [],
       lbPick: !!m.lbPick,

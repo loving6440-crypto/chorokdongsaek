@@ -69,7 +69,8 @@ test('v79.0.4: 새로운 지신밟기·칠성낙인은 첫 턴과 의지력 조�
   for (const skill of ['earth-step', 'seven-stars']) {
     const battle = newBattle('scarecrow', stats, rng, 100, 100)
     assert.equal(psychicTurn(battle, skill, argumentsFor(skill), rng).invalid, undefined)
-    assert.equal(psychicTurn({ ...battle, myTurns: 1 }, skill, argumentsFor(skill), rng).invalid, true)
+    // v-B.06: 칠성낙인은 '직접 고른 턴'(choseTurns)으로 센다
+    assert.equal(psychicTurn({ ...battle, myTurns: 1, choseTurns: 1 }, skill, argumentsFor(skill), rng).invalid, true)
     assert.equal(psychicTurn(battle, skill, { ...argumentsFor(skill), mp: 0 }, rng).invalid, true)
   }
 })

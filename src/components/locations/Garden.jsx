@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Sprout, ShoppingBag, Warehouse, ArrowLeft } from 'lucide-react'
-import { GARDEN_CROPS, GARDEN_GROW_MS, SEED_PRICE, gardenPlots, harvestReady } from '../../game/garden'
-import { countOf } from '../../game/items'
+import { GARDEN_CROPS, GARDEN_EXTRA_SEEDS, GARDEN_GROW_MS, SEED_PRICE, gardenPlots, harvestReady } from '../../game/garden'
+import { countOf, itemOf } from '../../game/items'
+import ItemIcon from '../ItemIcon'
 import { countSlots, INVENTORY_SLOTS } from '../../game/inventoryCapacity'
 import NpcDialog from '../NpcDialog'
 
@@ -76,6 +77,12 @@ export default function Garden({ player, onGardenAction, onMeet, part }) {
           <CropSprite crop={crop} size={44}/>
           <div className="min-w-0 flex-1"><p className="text-sm text-paper">{crop.name} 씨앗</p><p className="text-[11px] text-paper/60">보유 {countOf(player,crop.seedId)}개 · {SEED_PRICE}냥</p></div>
           <button type="button" className="flat-btn shrink-0 !py-1 text-xs disabled:opacity-40" disabled={player.money < SEED_PRICE} onClick={() => action('buy', {seedId:crop.seedId})} data-buy-seed={crop.seedId}>구매</button>
+        </div>)}
+        {/* v-B.06: 재료용 씨앗 (심을 수는 없다) */}
+        {GARDEN_EXTRA_SEEDS.map(seed => <div key={seed.id} className="flex items-center gap-2 rounded-lg border border-edge/15 bg-edge/[0.04] p-3">
+          <ItemIcon item={itemOf(seed.id)} size={44} className="shrink-0"/>
+          <div className="min-w-0 flex-1"><p className="text-sm text-paper">{seed.name}</p><p className="text-[11px] text-paper/60">보유 {countOf(player,seed.id)}개 · {SEED_PRICE}냥 · 제작용 재료(심을 수 없다)</p></div>
+          <button type="button" className="flat-btn shrink-0 !py-1 text-xs disabled:opacity-40" disabled={player.money < SEED_PRICE} onClick={() => action('buy', {seedId:seed.id})} data-buy-seed={seed.id}>구매</button>
         </div>)}
       </div>
     </>}

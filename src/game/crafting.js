@@ -16,6 +16,7 @@ export const RECIPES = [
   { id: 'r-godok', result: 'godok', inputs: [['sewer-rat', 5], ['centipede', 5], ['small-pot', 1]] },
   { id: 'r-curse-doll', result: 'curse-doll', inputs: [['fine-woodchip', 5]] },
   { id: 'r-whetstone', result: 'whetstone', inputs: [['stone', 9]] },
+  { id: 'r-polishing-stone', result: 'polishing-stone', inputs: [['whetstone', 1], ['pebble', 1]] }, // v-B.06: 연마석 = 숫돌 + 자갈돌
   { id: 'r-five-knot', result: 'five-knot', inputs: [['five-color-thread', 3]] },
   { id: 'r-oil-cloth', result: 'oil-cloth', inputs: [['soybean-oil', 3], ['cloth-scrap', 1]] },
   { id: 'r-cinnabar-charm', result: 'cinnabar-charm', inputs: [['brush', 1], ['charm-scrap', 3], ['crescent-flower', 2], ['waning-flower', 2], ['cinnabar', 3]] },

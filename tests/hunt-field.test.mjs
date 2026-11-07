@@ -176,7 +176,8 @@ test('모든 확정 보상과 보너스 아이템은 소지품 정의가 있고 
     const rewardRolls = definition.rewards.flatMap(reward => [...(reward.chance != null ? [0] : []), ...(reward.dice ? [0.99] : [])])
     const result = attemptHunt(p, 'target', stats(20), 2000, sequence(0, ...rewardRolls, 0, 0.99))
     assert.equal(result.success, true, species)
-    const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'polishing-stone' : definition.kind === 'animal' ? 'trap-scraps' : null
+    const bonus = definition.kind === 'plant' ? 'fine-woodchip' : definition.kind === 'obstacle' ? 'pebble' : // v-B.06: 장애물 보너스는 자갈돌 1d2
+       definition.kind === 'animal' ? 'trap-scraps' : null
     for (const reward of definition.rewards) {
       assert.ok(itemOf(reward.item), reward.item)
       // v79: 확정 보상과 랜덤 보너스가 같은 아이템이면 수량이 합산된다.

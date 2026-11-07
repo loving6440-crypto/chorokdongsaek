@@ -2,18 +2,13 @@ import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
 import { ARMORY, SHINAH, pickShinahLine, shinahGiftLine } from '../../game/armory'
 import { STAT_META } from '../../game/constants'
-import { ENH_ITEMS, ENH_MAX, ENH_STATS, enhCostFor, SPECIAL_ENHANCEMENTS, WEAPONS, countOf, enhLevel, enhMaterialFor, enhTotal, equipOf, itemOf, ownedWeapons, specialEnhOf, specialTitleOf } from '../../game/items'
+import { ENH_ITEMS, ENH_MAX, ENH_STATS, enhCostFor, GOBLIN_TOKEN, GOBLIN_TOKEN_COST, SPECIAL_ENHANCEMENTS, SPECIAL_WHETSTONES, WEAPONS, countOf, enhLevel, enhMaterialFor, enhTotal, equipOf, itemOf, ownedWeapons, specialEnhOf, specialTitleOf } from '../../game/items'
 import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
 
-<<<<<<< Updated upstream
-/** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
-export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, admin, onAdminGive, onGiveNpc }) {
-=======
 /** 산 탐사 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
 // part: 'talk'(박신아와 대화만) | 'manage'(무구 관리만) | 없음(전부) — v-B.07 산 탐사의 두 선택지
 export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, admin, onAdminGive, onGiveNpc, part }) {
->>>>>>> Stashed changes
   const owned = ownedWeapons(player)
   // 같은 종류가 여럿이면 ①②… 로 구분한다.
   const nameOf = (w) => {
@@ -39,7 +34,9 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
   }
   const specialGo = (id) => { const r = onSpecialEnhance(cur.id, id); setMsg(r?.error ? r.error : `${r.special.title} ${cur.name}이(가) 되었다.`) }
   const removeGo = () => { const r = onRemoveSpecial(cur.id); setMsg(r?.error ?? `${cur.name}의 특수 강화를 해제하고 ${itemOf(r.special.card)?.name}을(를) 돌려받았다.`) }
-  const actConfirmed = () => { if (!confirm) return; if (confirm.type === 'normal') go(confirm.stat); if (confirm.type === 'special') specialGo(confirm.id); if (confirm.type === 'remove') removeGo(); setConfirm(null) }
+  const tokenGo = (baseId) => { const r = onTokenExchange?.(baseId); setMsg(r?.error ? r.error : `도깨비 증표 ${GOBLIN_TOKEN_COST}개를 ${r.weapon.name}(으)로 바꿨다.`) }
+  const actConfirmed = () => { if (!confirm) return; if (confirm.type === 'normal') go(confirm.stat); if (confirm.type === 'special') specialGo(confirm.id); if (confirm.type === 'remove') removeGo(); if (confirm.type === 'token') tokenGo(confirm.id); setConfirm(null) }
+  const tokens = countOf(player, GOBLIN_TOKEN)
 
   return (
     <section aria-label={ARMORY.label} data-armory>
@@ -103,12 +100,12 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
                 </ul>
                 <div className="mt-5 border-t border-edge/30 pt-4">
                   <p className="text-sm text-gold">특수 강화</p>
-                  <p className="mt-1 text-xs text-paper/60">무구당 1종 · 의지력 50 + 영력 50 + 500냥 + 해당 화투패 + 숫돌 1개</p>
+                  <p className="mt-1 text-xs text-paper/60">무구당 1종 · 의지력 50 + 영력 50 + 500냥 + 해당 화투패 1장 + 숫돌 {SPECIAL_WHETSTONES}개</p>
                   {specialEnhOf(player, cur.id) ? (
                     <div className="mt-2 rounded-lg bg-shade/25 p-3 text-sm"><p>{specialTitleOf(player, cur.id)} · {SPECIAL_ENHANCEMENTS.find(x => x.id === specialEnhOf(player, cur.id))?.effect}</p><button type="button" disabled={!admin && countOf(player, 'plain-cloth') < 1} onClick={() => setConfirm({ type: 'remove', text: `정말 강화 해제하시겠습니까?\n현재 선택 강화 효과 : ${specialTitleOf(player, cur.id)}\n무명천 1개를 사용하고 화투패 1개를 반환받습니다. 일반 강화는 유지됩니다.` })} className="flat-btn mt-2 text-xs disabled:opacity-40">무명천으로 해제</button></div>
                   ) : (
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {SPECIAL_ENHANCEMENTS.map((sp) => { const card = itemOf(sp.card); const have = countOf(player, sp.card); const duplicate = Object.values(player.weaponSpecial ?? {}).includes(sp.id); const ok = admin || (!duplicate && (player.mp ?? 0) >= 50 && (player.spirit ?? 0) >= 50 && (player.money ?? 0) >= 500 && have > 0 && countOf(player, 'whetstone') > 0); return <div key={sp.id} className="rounded-lg bg-shade/25 p-3"><p className="text-sm text-paper/90">{sp.title}{cur.name}</p><p className="mt-1 text-xs text-paper/60">{sp.effect}</p><p className="mt-1 text-[10px] text-paper/50">{card?.name}: {have}개 · 숫돌: {countOf(player, 'whetstone')}개{duplicate ? ' · 이미 다른 무구에 적용됨' : ''}</p><button type="button" disabled={!ok} onClick={() => setConfirm({ type: 'special', id: sp.id, text: `정말 강화하시겠습니까?\n현재 선택 강화 효과 : ${sp.title} · ${sp.effect}\n의지력 50 · 영력 50 · 500냥 · ${card.name} 1개 · 숫돌 1개` })} className="flat-btn mt-2 text-xs disabled:opacity-40">특수 강화</button></div> })}
+                      {SPECIAL_ENHANCEMENTS.map((sp) => { const card = itemOf(sp.card); const have = countOf(player, sp.card); const duplicate = Object.values(player.weaponSpecial ?? {}).includes(sp.id); const ok = admin || (!duplicate && (player.mp ?? 0) >= 50 && (player.spirit ?? 0) >= 50 && (player.money ?? 0) >= 500 && have > 0 && countOf(player, 'whetstone') >= SPECIAL_WHETSTONES); return <div key={sp.id} className="rounded-lg bg-shade/25 p-3"><p className="text-sm text-paper/90">{sp.title}{cur.name}</p><p className="mt-1 text-xs text-paper/60">{sp.effect}</p><p className="mt-1 text-[10px] text-paper/50">{card?.name}: {have}개 · 숫돌: {countOf(player, 'whetstone')}/{SPECIAL_WHETSTONES}개{duplicate ? ' · 이미 다른 무구에 적용됨' : ''}</p><button type="button" disabled={!ok} onClick={() => setConfirm({ type: 'special', id: sp.id, text: `정말 강화하시겠습니까?\n현재 선택 강화 효과 : ${sp.title} · ${sp.effect}\n의지력 50 · 영력 50 · 500냥 · ${card.name} 1개 · 숫돌 ${SPECIAL_WHETSTONES}개` })} className="flat-btn mt-2 text-xs disabled:opacity-40">특수 강화</button></div> })}
                     </div>
                   )}
                 </div>
@@ -116,7 +113,19 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
             )}
           </>
         )}
-        {confirm && <div role="alertdialog" aria-modal="true" aria-label="강화 확인" className="fixed inset-0 z-[90] grid place-items-center bg-black/75 p-4" onClick={() => setConfirm(null)}><div className="ink-panel w-full max-w-sm rounded-xl p-5" onClick={e => e.stopPropagation()}><p className="mb-4 whitespace-pre-line text-sm leading-relaxed text-paper">{confirm.text}</p><div className="flex justify-end gap-2"><button type="button" className="flat-btn-ghost" onClick={() => setConfirm(null)}>취소</button><button type="button" className="flat-btn" onClick={actConfirmed}>강화 확인</button></div></div></div>}
+        {/* v-B.06: 도깨비 증표 10개 → 무구 한 벌 (무구가 없어도 여기서 바꿀 수 있다) */}
+        <div className="mt-5 border-t border-edge/30 pt-4" data-goblin-token>
+          <p className="text-sm text-gold">도깨비 증표 교환</p>
+          <p className="mt-1 text-xs text-paper/60">도깨비 증표 {GOBLIN_TOKEN_COST}개를 모으면 원하는 무구 한 벌로 바꿀 수 있다. (보유 {tokens}개)</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {WEAPONS.map((w) => (
+              <button key={w.id} type="button" data-token-weapon={w.id} disabled={!admin && tokens < GOBLIN_TOKEN_COST} onClick={() => setConfirm({ type: 'token', id: w.id, text: `도깨비 증표 ${GOBLIN_TOKEN_COST}개를 ${w.name}(으)로 바꿀까요?\n${w.effectText}` })} className="rounded-full bg-shade/30 px-3 py-1 text-xs text-paper/85 disabled:opacity-40">
+                {w.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        {confirm && <div role="alertdialog" aria-modal="true" aria-label="강화 확인" className="fixed inset-0 z-[90] grid place-items-center bg-black/75 p-4" onClick={() => setConfirm(null)}><div className="ink-panel w-full max-w-sm rounded-xl p-5" onClick={e => e.stopPropagation()}><p className="mb-4 whitespace-pre-line text-sm leading-relaxed text-paper">{confirm.text}</p><div className="flex justify-end gap-2"><button type="button" className="flat-btn-ghost" onClick={() => setConfirm(null)}>취소</button><button type="button" className="flat-btn" onClick={actConfirmed}>{confirm.type === 'token' ? '교환 확인' : '강화 확인'}</button></div></div></div>}
         {msg && <p className="mt-3 text-sm text-gold" role="status" data-armory-msg>{msg}</p>}
       </div>
 
@@ -124,7 +133,7 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
         <div className="ink-panel mt-4 w-full rounded-xl p-4" data-armory-admin>
           <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 무구와 재료 받기</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {[...WEAPONS, ...ENH_ITEMS.map(itemOf), ...SPECIAL_ENHANCEMENTS.map(x => itemOf(x.card))].filter(Boolean).map((it) => (
+            {[...WEAPONS, ...ENH_ITEMS.map(itemOf), itemOf(GOBLIN_TOKEN), ...SPECIAL_ENHANCEMENTS.map(x => itemOf(x.card))].filter(Boolean).map((it) => (
               <button key={it.id} type="button" data-give={it.id} onClick={() => onAdminGive(it.id)} className="rounded-full bg-shade/30 px-2.5 py-1 text-xs text-paper/85">{it.name} +1</button>
             ))}
           </div>

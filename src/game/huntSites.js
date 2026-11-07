@@ -87,7 +87,7 @@ for (const [k, v] of Object.entries(TRAIL_SPECIES)) if (!HUNT_SPECIES[k]) HUNT_S
 
 export const HUNT_BONUSES = {
   plant: { item: 'fine-woodchip', amount: 1 },
-  obstacle: { item: 'polishing-stone', dice: 2 },
+  obstacle: { item: 'pebble', dice: 2 }, // v-B.06: 연마석 1d2 → 자갈돌 1d2 (연마석은 이제 공작소에서 만든다)
   animal: { item: 'trap-scraps', amount: 1 },
 }
 
