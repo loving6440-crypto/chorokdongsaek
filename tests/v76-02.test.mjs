@@ -17,12 +17,13 @@ const setupMulti = () => {
   return mb
 }
 
-test('무당방울: 이해 10이면 10%만 회복 발동, 무당방울 없으면 회복 없음',()=>{
+test('무당방울: 이해와 상관없이 10%만 회복 발동(v-B.06 너프), 무당방울 없으면 회복 없음',()=>{
   assert.equal(bellTick(stats({fx:'sword', comprehension:10}),rng(0.01)),null)
-  assert.deepEqual(bellTick(stats({fx:'bell', comprehension:10}),rng(0.09)), {chance:10,roll:10,heal:1})
+  assert.deepEqual(bellTick(stats({fx:'bell', comprehension:10}),rng(0.09)), {chance:10,roll:10,heal:1,label:'무당방울',basis:'10%'})
   assert.equal(bellTick(stats({fx:'bell', comprehension:10}),rng(0.10)),null)
   assert.equal(bellTick(stats({fx:'bell', comprehension:0}),rng(0)),null)
-  assert.equal(bellTick(stats({fx:'bell', comprehension:250}),rng(0.99))?.chance,100)
+  assert.equal(bellTick(stats({fx:'bell', comprehension:250}),rng(0.99)),null) // 예전엔 이해 100 이상이면 100% 발동
+  assert.equal(bellTick(stats({fx:'bell', comprehension:250}),rng(0.05))?.chance,10)
 })
 
 test('원숭이 손: 체력 30 감소 시 의지력 40 소모, 부족하면 무효',()=>{

@@ -13,6 +13,7 @@ export default function Gym({ view, ...rest }) {
         onEnhance={rest.onEnhance}
         onSpecialEnhance={rest.onSpecialEnhance}
         onRemoveSpecial={rest.onRemoveSpecial}
+        onTokenExchange={rest.onTokenExchange}
         onMeet={rest.onMeet}
         admin={rest.admin}
         onAdminGive={rest.onAdminGive}

@@ -11,7 +11,8 @@ import ProfileCardModal from './components/ProfileCardModal'
 import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
-import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { sellItem } from './game/sell'
+import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, exchangeGoblinTokens, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -170,8 +171,9 @@ export default function Game({
   const [locationId, setLocationId] = useState(() => initialSave?.locationId || 'dorm')
   const battleRef = useRef(false)
   // v-B.05: 단독 전투의 아이템 봉인(신 훔치기)·돌림병 — Battle 이 알려 준다.
-  const afflictRef = useRef({ itemSeal: false, healBlock: false })
-  const onAfflict = useCallback((a) => { afflictRef.current = a || { itemSeal: false, healBlock: false } }, [])
+  const afflictRef = useRef({ itemSeal: false, healBlock: false, downed: false })
+  const [soloDowned, setSoloDowned] = useState(false) // 단독 전투에서 쓰러져 버티기를 기다리는 중 (v-B.06: 이때는 아이템을 쓸 수 없다)
+  const onAfflict = useCallback((a) => { afflictRef.current = a || { itemSeal: false, healBlock: false, downed: false }; setSoloDowned(!!a?.downed) }, [])
   const reviveRef = useRef(false)
   const locRef = useRef(locationId)
   locRef.current = locationId
@@ -1074,6 +1076,25 @@ export default function Game({
     addLog(`${r.special.title}${itemOf(weaponId).name}에 특수 강화가 붙었다.`)
     return r
   }, [addLog, admin])
+  // v-B.06: 무구보관소 — 도깨비 증표 10개를 무구 한 벌로
+  const tokenExchange = useCallback((baseId) => {
+    if (battleRef.current) return { error: '전투 중이다.' }
+    const r = exchangeGoblinTokens(playerRef.current, baseId, admin)
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    addLog(`도깨비 증표를 ${r.weapon.name}(으)로 바꿨다.`)
+    return r
+  }, [addLog, admin])
+  // v-B.06: 매점 판매
+  const sellToStore = useCallback((itemId, qty) => {
+    const r = sellItem(playerRef.current, itemId, qty)
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    addLog(`매점에 ${r.item.name} ${r.qty}개를 팔았다. (+${r.gained}냥)`)
+    return r
+  }, [addLog])
   const removeSpecial = useCallback((weaponId) => {
     if (battleRef.current) return { error: '전투 중이다.' }
     const r = removeWeaponSpecial(playerRef.current, weaponId, admin)
@@ -1234,7 +1255,7 @@ export default function Game({
       // 다인 전투 중: 효과는 서버가 판에 적용한다. (체력·의지력은 서버 값이 곧바로 반영된다.) 자기 차례에만 쓸 수 있고, 쓰면 턴이 넘어간다.
       if (mbLiveRef.current) {
         const ok = canUseItem(item, { inBattle: true, isParty: true, countNow: cur.inventory?.[id] || 0, reviveOn: false, boostOn: false })
-        if (!ok.ok) return
+        if (!ok.ok) { notify(ok.why); return }
         const to = target && target !== 'self' ? target : undefined
         const r = await mbItem(id, to)
         if (!r.ok) {
@@ -1270,8 +1291,9 @@ export default function Game({
         reviveOn: reviveRef.current,
         boostOn: boostRef.current,
         usedThisBattle: battleUsedItemsRef.current.includes(id),
+        downed: battleRef.current && !!afflictRef.current.downed,
       })
-      if (!ok.ok) return
+      if (!ok.ok) { notify(ok.why); return } // v-B.06: 예전엔 아무 말 없이 무시돼 '안 써지는' 것처럼 보였다
       const e = item.effect
       // v-B.05: 단독 전투 중 신 훔치기(아이템 봉인)·돌림병(회복 봉쇄)
       if (battleRef.current && afflictRef.current.itemSeal) { notify('신과 함께 주머니를 빼앗겨 지금은 아이템을 쓸 수 없다.'); return }
@@ -1848,7 +1870,7 @@ export default function Game({
                   />
                 )}
                 {locationId === 'dorm' && activity === 'store' && (
-                  <Store player={player} onBuy={buyItem} onBuyRecipe={buyRecipe} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />
+                  <Store player={player} onBuy={buyItem} onSell={sellToStore} onBuyRecipe={buyRecipe} onMeet={meetNpc} onLineSeen={lineSeen} admin={admin} onGiveNpc={giveNpc} />
                 )}
                 {locationId === 'dorm' && activity === 'cafeteria' && (
                   <Cafeteria
@@ -1882,7 +1904,7 @@ export default function Game({
                     admin={admin}
                     onMeet={meetNpc}
                     onEnhance={enhance}
-                    onSpecialEnhance={specialEnhance} onRemoveSpecial={removeSpecial}
+                    onSpecialEnhance={specialEnhance} onRemoveSpecial={removeSpecial} onTokenExchange={tokenExchange}
                     onAdminGive={adminGive}
                     onGardenAction={gardenAction}
                     onHuntAction={huntAction}
@@ -2245,7 +2267,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} onClaimPending={claimInventoryPending} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} usedItems={mbLive ? (mbMe?.energyUsed ? ['energy'] : []) : battleUsedItems} downed={mbLive ? !!mbMe?.pendingDeath || mbMe?.status === 'down' : battleActive && soloDowned} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} onClaimPending={claimInventoryPending} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>

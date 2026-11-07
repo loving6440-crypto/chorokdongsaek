@@ -1,6 +1,7 @@
 import { V79_SHEET_DATA } from './v79SheetData.js'
 import { V79_ITEMS } from './v79Items.js'
 import { B05_ITEMS } from './itemsB05.js'
+import { B06_ITEMS, B06_OVERRIDES } from './itemsB06.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -950,6 +951,8 @@ const RAW_ITEMS = [
   ].map(([id, name, month, effectText]) => ({ id: `hwatu-${id}`, kind: 'tool', tags: ['완성품', '특수 강화 패'], name, price: null, desc: `${month}에 대응하는 무구 특수 강화용 화투패.`, effectText, effect: {}, battle: false })),
   // v-B.05: 뒷산 산길 5~20 의 개척 재료 33종
   ...B05_ITEMS,
+  // v-B.06: 아이템 시트에 새로 생긴 것들
+  ...B06_ITEMS,
 ]
 
 /**
@@ -978,7 +981,7 @@ const V79_OVERRIDES = {
   'spirit-disposable': { effect: {}, battle: false, effectText: '' },
 }
 export const ITEMS = RAW_ITEMS.map((original) => {
-  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}) }
+  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}) }
 
   const tags = [...(it.tags ?? [])]
   if (it.battle || it.party || it.effect?.partyHp || it.effect?.partyMp || it.effect?.partyBoost || it.effect?.giveHp) {
@@ -1042,7 +1045,7 @@ export function gearBonus(player) {
 export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
 
 // ───────── 무구 강화 v74 ─────────
-// 강화 1회당 선택 스탯 +1, 무구당 총 15포인트. 매회 연마석 1개와 의지력 20 소모.
+// 강화 1회당 선택 스탯 +1, 무구당 총 15포인트. n번째 강화에 연마석 n개(v-B.06) + 단계별 보조 재료 + 영력.
 export const ENH_MAX = 15
 export const ENH_TIER_SIZE = 1
 export const ENH_ITEMS = ['polishing-stone', 'whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay', 'plain-cloth']
@@ -1052,7 +1055,7 @@ export function enhCostFor(level) {
   if (lv >= ENH_MAX) return null
   const tier = Math.floor(lv / 3)
   return {
-    polishing: tier + 1,
+    polishing: lv + 1, // v-B.06: n번째 강화에 연마석 n개 (1, 2, 3 … 15)
     material: ['whetstone', 'oil-cloth', 'five-knot', 'cinnabar-charm', 'silver-inlay'][tier],
     quantity: lv % 3 + 1,
     spirit: (tier + 1) * 10,
@@ -1165,7 +1168,9 @@ export function enhanceWeapon(player, weaponId, stat, admin = false) {
   return { player: { ...player, inventory, spirit: admin ? player.spirit : player.spirit - cost.spirit, enh }, from, to: from + 1, total: total + 1, material, cost }
 }
 
-/** 화투패로 특수 강화. 무구당 1종, 같은 특수 강화 중복 불가. */
+/** 특수 강화에 드는 숫돌 수 (v-B.06: 1 → 9) */
+export const SPECIAL_WHETSTONES = 9
+/** 화투패로 특수 강화. 무구당 1종, 같은 특수 강화 중복 불가. 화투패 1장 + 숫돌 9개 + 의지력·영력 50 + 500냥. */
 export function specialEnhanceWeapon(player, weaponId, specialId, admin = false) {
   const w = itemOf(weaponId)
   if (!w || w.slot !== 'weapon' || !ownsWeapon(player, weaponId)) return { error: '강화할 무구를 소지하고 있지 않다.' }
@@ -1178,14 +1183,32 @@ export function specialEnhanceWeapon(player, weaponId, specialId, admin = false)
     if ((player.spirit ?? 0) < 50) return { error: '영력이 50 필요하다.' }
     if ((player.money ?? 0) < 500) return { error: '500냥이 필요하다.' }
     if (countOf(player, sp.card) < 1) return { error: `${itemOf(sp.card)?.name ?? '해당 화투패'}가 필요하다.` }
-    if (countOf(player, 'whetstone') < 1) return { error: '숫돌 1개가 필요하다.' }
+    if (countOf(player, 'whetstone') < SPECIAL_WHETSTONES) return { error: `숫돌 ${SPECIAL_WHETSTONES}개가 필요하다.` }
   }
   const inventory = { ...(player.inventory ?? {}) }
   if (!admin) {
-    for (const id of [sp.card, 'whetstone']) { inventory[id] = (inventory[id] ?? 0) - 1; if (inventory[id] <= 0) delete inventory[id] }
+    for (const [id, n] of [[sp.card, 1], ['whetstone', SPECIAL_WHETSTONES]]) { inventory[id] = (inventory[id] ?? 0) - n; if (inventory[id] <= 0) delete inventory[id] }
   }
   return { player: { ...player, inventory, mp: admin ? player.mp : player.mp - 50, spirit: admin ? player.spirit : player.spirit - 50, money: admin ? player.money : player.money - 500, weaponSpecial: { ...(player.weaponSpecial ?? {}), [weaponId]: specialId } }, special: sp }
 }
+// ───────── 도깨비 증표 (v-B.06) ─────────
+export const GOBLIN_TOKEN = 'goblin-token'
+export const GOBLIN_TOKEN_COST = 10
+/** 도깨비 증표 10개 → 고른 무구 한 벌. 반환 { player, id, weapon } 또는 { error } */
+export function exchangeGoblinTokens(player, baseId, admin = false) {
+  const w = BASE.get(baseId)
+  if (!w || w.kind !== 'gear' || w.slot !== 'weapon') return { error: '교환할 수 없는 무구다.' }
+  if (!admin && countOf(player, GOBLIN_TOKEN) < GOBLIN_TOKEN_COST) return { error: `도깨비 증표가 ${GOBLIN_TOKEN_COST}개 필요하다.` }
+  let next = player
+  if (!admin) {
+    const inventory = { ...(player.inventory ?? {}), [GOBLIN_TOKEN]: countOf(player, GOBLIN_TOKEN) - GOBLIN_TOKEN_COST }
+    if (inventory[GOBLIN_TOKEN] <= 0) delete inventory[GOBLIN_TOKEN]
+    next = { ...player, inventory }
+  }
+  const g = giveWeapon(next, baseId)
+  return { player: g.player, id: g.id, weapon: w }
+}
+
 /** 무명천으로 무구의 특수 강화만 떼고 화투패를 되돌려준다. */
 export function removeWeaponSpecial(player, weaponId, admin = false) {
   if (!ownsWeapon(player, weaponId)) return { error: '소지한 무구가 아니다.' }
@@ -1286,12 +1309,16 @@ export const isStoreOpen = (now = Date.now()) => {
 export const countOf = (player, id) => player.inventory?.[id] || 0
 
 /** 지금 이 아이템을 쓸 수 있는가. { ok, why } */
-export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostOn, usedThisBattle }) {
+export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostOn, usedThisBattle, downed }) {
   if (!countNow) return { ok: false, why: '갖고 있지 않다' }
+  // v-B.06: 매점에 파는 물건(누군가 잃어버린 물건 등)은 '사용'하지 않고 매점 → 판매에서 판다.
+  if (item.effect?.sellMoney && Object.keys(item.effect).length === 1) return { ok: false, why: '매점에서 팔 수 있는 물건이다. (기숙사 매점 → 판매)' }
+  // v-B.06: 쓰러져 버티기를 기다리는 동안엔 아무것도 쓸 수 없다(예전엔 에너지드링크가 소모만 되고 효과가 없었다).
+  if (inBattle && downed) return { ok: false, why: item.effect?.revive ? '이미 쓰러진 뒤라 마실 수 없다. 에너지드링크는 쓰러지기 전에 미리 마셔 둬야 한다.' : '쓰러진 상태에서는 아이템을 쓸 수 없다.' }
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
   if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
   if (!Object.keys(item.effect ?? {}).length && !item.giftNpc && !['material','gear','tool'].includes(item.kind)) return { ok: false, why: '아직 사용할 수 있는 효과가 없는 아이템이다.' }
-  if (item.kind === 'tool') return { ok: false, why: '무구보관소에서 무구를 강화할 때 쓴다' }
+  if (item.kind === 'tool') return { ok: false, why: item.id === 'goblin-token' ? '무구보관소에서 10개를 무구 한 벌로 바꿀 수 있다' : '무구보관소에서 무구를 강화할 때 쓴다' }
   if (item.giftNpc && !inBattle) return { ok: false, why: '전투 중이 아닐 땐 NPC에게 건네면 호감도가 오른다. (NPC와 대화하는 곳에서)' }
   if ((item.effect?.enemyVulnerability || item.effect?.instantKill) && !isParty) return {ok:false, why:'현재 단체 전투에서만 사용할 수 있다'}
   if (item.effect?.trainUnder10 && inBattle) return {ok:false, why:'전투 중에는 사용할 수 없다'}

@@ -82,7 +82,7 @@ const Placeholder = ({ name }) => (
 )
 
 /** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. (v-B.01: 개척은 산 탐색 옆 [개척] 버튼으로만 들어간다) */
-export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, battle }) {
+export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, battle }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
@@ -162,7 +162,7 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
       {spot && (
         <div className="mt-2">
           {spot.id === 'armory' ? (
-            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
+            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onTokenExchange={onTokenExchange} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
           ) : spot.id === 'garden' ? (
             <Garden player={player} onGardenAction={onGardenAction} onMeet={onMeet} />
           ) : spot.id === 'outside' ? (

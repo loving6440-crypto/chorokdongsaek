@@ -134,11 +134,11 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   }, [hp])
 
   // v-B.05: 아이템 봉인·돌림병을 바깥(소지품 창)에 알린다.
-  const afflictKey = b && phase === 'fight' && !b.over ? `${itemSealed(b) ? 1 : 0}${healBlocked(b) ? 1 : 0}` : '00'
+  const afflictKey = b && phase === 'fight' && !b.over ? `${itemSealed(b) ? 1 : 0}${healBlocked(b) ? 1 : 0}${b.pendingDeath ? 1 : 0}` : '000'
   useEffect(() => {
-    onAfflict?.({ itemSeal: afflictKey[0] === '1', healBlock: afflictKey[1] === '1' })
+    onAfflict?.({ itemSeal: afflictKey[0] === '1', healBlock: afflictKey[1] === '1', downed: afflictKey[2] === '1' })
   }, [afflictKey, onAfflict])
-  useEffect(() => () => onAfflict?.({ itemSeal: false, healBlock: false }), [onAfflict])
+  useEffect(() => () => onAfflict?.({ itemSeal: false, healBlock: false, downed: false }), [onAfflict])
 
   // 체력은 전투 후에도 이어진다: 바뀔 때마다 몸 상태(비율)를 바깥에 알린다.
   const lastHp = useRef(null)
@@ -291,9 +291,9 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     if (!t) return { state, events: [] }
     const healed = Math.min(state.phpMax, state.php + t.heal)
     if (healed === state.php) {
-      return { state, events: [{ kind: 'info', text: `무당방울이 울렸지만 체력이 이미 가득해 소용이 없었다. [이해 ${t.chance}%, d100 = ${t.roll}]` }] }
+      return { state, events: [{ kind: 'info', text: `${t.label}의 기운이 돌았지만 체력이 이미 가득해 소용이 없었다. [${t.basis}, d100 = ${t.roll}]` }] }
     }
-    return { state: { ...state, php: healed }, events: [{ kind: 'warn', text: `✦ 무당방울! [이해 ${t.chance}%, d100 = ${t.roll}] 체력 +${t.heal}.` }] }
+    return { state: { ...state, php: healed }, events: [{ kind: 'warn', text: `✦ ${t.label}! [${t.basis}, d100 = ${t.roll}] 체력 +${t.heal}.` }] }
   }
 
   // 내 행동 한 번을 처리하고 이어서 상대 턴으로 넘긴다.
@@ -390,7 +390,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         push([{ kind: 'rash', text: '연모의 불길에 사로잡혀 몸이 먼저 튀어 나간다! 이번 턴엔 일반 공격만 한다.' }])
         timer.current = setTimeout(() => {
           setBusy(false)
-          resolve(state, 'attack')
+          resolve(state, 'attack', { forced: true })
         }, 800)
         return
       }
@@ -403,7 +403,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       push([{ kind: 'rash', text: '호전이 앞서 몸이 멋대로 튀어 나갔다! 이번 턴엔 무조건 일반 공격을 한다.' }])
       timer.current = setTimeout(() => {
         setBusy(false)
-        resolve(state, 'attack')
+        resolve(state, 'attack', { forced: true }) // 돌발로 억지로 움직인 턴은 '직접 고른 턴'이 아니다 (칠성낙인)
       }, 800)
     },
     [stats, push, resolve, finish, runEnemy, onBoostUsed],
@@ -487,7 +487,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     }
     let r
     try {
-      r = psychicTurn(cur, id, {
+      r = psychicTurn(pre.state, id, {
         stats,
         baseAggression: Number.isFinite(baseAggression) ? baseAggression : stats.aggression,
         mp: mpRef.current,

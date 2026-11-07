@@ -3,14 +3,15 @@ import assert from 'node:assert/strict'
 import { ENH_MAX, enhCostFor, enhanceWeapon, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, itemOf, enhTotal } from '../src/game/items.js'
 import { mpCostOf, enduranceMitigation } from '../src/game/battle.js'
 
-const inventory = { 'w-sword#unit': 1, 'polishing-stone': 90, whetstone: 90, 'oil-cloth': 90, 'five-knot': 90, 'cinnabar-charm': 90, 'silver-inlay': 90, 'plain-cloth': 1, 'hwatu-pine': 1 }
+const inventory = { 'w-sword#unit': 1, 'polishing-stone': 200, whetstone: 90, 'oil-cloth': 90, 'five-knot': 90, 'cinnabar-charm': 90, 'silver-inlay': 90, 'plain-cloth': 1, 'hwatu-pine': 1 }
 const player = () => ({ hp: 100, mp: 1000, spirit: 1000, money: 1500, inventory: { ...inventory }, enh: {}, weaponSpecial: {}, equip: {} })
 
 test('15 단계 강화 비용표', () => {
   assert.equal(ENH_MAX, 15)
   for(let level=0; level<15; level++){
     const tier=Math.floor(level/3)
-    assert.deepEqual(enhCostFor(level), { polishing: tier+1, material:['whetstone','oil-cloth','five-knot','cinnabar-charm','silver-inlay'][tier], quantity:level%3+1, spirit:(tier+1)*10 })
+    assert.deepEqual(enhCostFor(level), { polishing: level+1, // v-B.06: n번째 강화에 연마석 n개
+      material:['whetstone','oil-cloth','five-knot','cinnabar-charm','silver-inlay'][tier], quantity:level%3+1, spirit:(tier+1)*10 })
   }
   assert.equal(enhCostFor(15), null)
 })
@@ -32,6 +33,7 @@ test('특수 강화 해제 시 화투패 반환, 일반 강화 유지', () => {
   const r=specialEnhanceWeapon(p,'w-sword#unit','pine')
   assert.ok(!r.error,r.error)
   assert.equal(r.player.inventory['hwatu-pine'], undefined)
+  assert.equal(r.player.inventory.whetstone, p.inventory.whetstone - 9) // v-B.06: 숫돌 9개
   const removed=removeWeaponSpecial(r.player,'w-sword#unit')
   assert.ok(!removed.error,removed.error)
   assert.equal(removed.player.inventory['hwatu-pine'],1)

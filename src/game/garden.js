@@ -14,6 +14,12 @@ export const GARDEN_CROPS = Object.freeze([
   { id: 'soybean', name: '콩', seedId: 'seed-soybean' },
 ])
 const CROPS_BY_SEED = new Map(GARDEN_CROPS.map(c => [c.seedId, c]))
+// v-B.06: 씨앗 상점에서 같이 파는 재료용 씨앗 — 비닐하우스에 심지는 못한다(아이템 시트: 제작용 재료).
+export const GARDEN_EXTRA_SEEDS = Object.freeze([
+  { id: 'wheat-seed', name: '밀 씨앗' },
+  { id: 'barley-seed', name: '보리 씨앗' },
+])
+const EXTRA_BY_ID = new Map(GARDEN_EXTRA_SEEDS.map(c => [c.id, c]))
 
 /** 기존 저장 데이터에도 적용. 무효 슬롯은 농작물을 생성하지 않고 빈 칸으로 보인다. */
 export function gardenPlots(player) {
@@ -28,7 +34,7 @@ export const cropOfSeed = seedId => CROPS_BY_SEED.get(seedId) ?? null
 export const harvestReady = (plot, now = Date.now()) => !!plot && now >= plot.plantedAt + GARDEN_GROW_MS
 
 export function buyGardenSeed(player, seedId, qty = 1) {
-  const crop = cropOfSeed(seedId)
+  const crop = cropOfSeed(seedId) ?? (EXTRA_BY_ID.has(seedId) ? { name: EXTRA_BY_ID.get(seedId).name.replace(/ 씨앗$/, '') } : null)
   if (!crop) return { error: '판매하지 않는 씨앗입니다.' }
   if (!Number.isSafeInteger(qty) || qty < 1 || qty > 99) return { error: '구매 수량이 올바르지 않습니다.' }
   if (!Number.isFinite(player.money) || player.money < SEED_PRICE * qty) return { error: '냥이 모자랍니다.' }
