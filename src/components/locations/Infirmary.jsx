@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import { BedDouble, MessageCircle, Square } from 'lucide-react'
 import LocationIntro from '../LocationIntro'
 import { REST_KINDS, REST_MAX, REST_MIN, REST_UNIT_MIN } from '../../game/progress'
+import { HAENIM_CHOICES } from '../../game/explore'
+import Scene from '../Scene'
+
+// v-B.07 양호 선생 해님과의 대화(본관 2층 양호실과 같은 대사)
+const HAENIM_ROOT = { id: 'haenimRoot', name: '해님', text: [], choices: HAENIM_CHOICES }
 
 function Meter({ label, value, max, tone }) {
   return (
@@ -42,6 +47,15 @@ export default function Infirmary({ view, player, onStartRest, onStopRest }) {
   }, [resting])
 
   if (view === 'intro') return <LocationIntro id="infirmary" />
+  if (view === 'haenim') {
+    return (
+      <section aria-label="해님과 대화" className="ink-panel w-full rounded-md p-5" data-haenim>
+        <p className="text-[10px] tracking-[0.2em] text-zinc-400 light:text-zinc-500">양호실 · 해님</p>
+        <p className="mt-2 text-sm leading-relaxed text-paper/70">하얀 커튼 너머로 양호 선생 해님이 고개를 내민다.</p>
+        <Scene root={HAENIM_ROOT} ctx={{ stats: player.stats, player, name: player.name, act: () => ({}) }} scope="infirmary:haenim" hideRootText />
+      </section>
+    )
+  }
 
   const k = resting?.kind ?? kind
   const info = KIND_INFO[k]

@@ -1,4 +1,4 @@
-// 무구보관소 (산 탐색) — 무구 강화 장소와 NPC 박신아
+// 무구보관소 (산 탐사) — 무구 강화 장소와 NPC 박신아
 export const ARMORY = {
   id: 'armory',
   label: '무구보관소',
@@ -9,7 +9,7 @@ export const SHINAH = {
   id: 'shinah',
   name: '박신아',
   portrait: '/shinah.png',
-  where: '뒷산 · 산 탐색 · 무구보관소',
+  where: '뒷산 · 산 탐사 · 무구보관소',
   // 방문할 때마다 기본 대사 중 하나를 뽑는다.
   lines: [
     { text: '엉? 이거 불법 아니냐고? 팍 씨, 그런게 뭐가 중요해. 넌 무기 강화하고 싶고 난 그거 도와줄 수 있다. 그거면 된 거 아니냐?' },

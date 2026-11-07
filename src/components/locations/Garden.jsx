@@ -31,8 +31,9 @@ function CropSprite({ crop, sprouted = false, size = 40 }) {
   </svg>
 }
 
-export default function Garden({ player, onGardenAction, onMeet }) {
-  const [mode, setMode] = useState(null) // 텃밭에 들어올 때마다 선택 화면부터
+// part: 'shop' | 'greenhouse' — v-B.07 산 탐사의 두 선택지로 곧장 연다(입구 화면 없이).
+export default function Garden({ player, onGardenAction, onMeet, part }) {
+  const [mode, setMode] = useState(part ?? null) // 텃밭에 들어올 때마다 선택 화면부터
   const [seedId, setSeedId] = useState(GARDEN_CROPS[0].seedId)
   const [message, setMessage] = useState('')
   const [now, setNow] = useState(Date.now)
@@ -54,7 +55,7 @@ export default function Garden({ player, onGardenAction, onMeet }) {
   return <section aria-label="텃밭" className="ink-panel mt-4 rounded-xl p-4 sm:p-5" data-garden>
     <div className="flex items-center justify-between gap-2">
       <h3 className="flex items-center gap-2 font-serif text-lg text-gold"><Sprout size={18}/>뒷산의 텃밭</h3>
-      {mode && <button type="button" onClick={() => {setMode(null); setMessage('')}} className="flat-btn !py-1 text-xs"><ArrowLeft size={13}/> 텃밭 입구</button>}
+      {mode && !part && <button type="button" onClick={() => {setMode(null); setMessage('')}} className="flat-btn !py-1 text-xs"><ArrowLeft size={13}/> 텃밭 입구</button>}
     </div>
     {!mode && <>
       <p className="mt-2 text-sm text-paper/70">텃밭에서 무엇을 할까?</p>

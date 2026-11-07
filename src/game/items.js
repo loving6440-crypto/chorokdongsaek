@@ -1,6 +1,11 @@
 import { V79_SHEET_DATA } from './v79SheetData.js'
 import { V79_ITEMS } from './v79Items.js'
 import { B05_ITEMS } from './itemsB05.js'
+<<<<<<< Updated upstream
+=======
+import { B06_ITEMS, B06_OVERRIDES } from './itemsB06.js'
+import { B07_ITEMS } from './itemsB07.js'
+>>>>>>> Stashed changes
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -950,6 +955,12 @@ const RAW_ITEMS = [
   ].map(([id, name, month, effectText]) => ({ id: `hwatu-${id}`, kind: 'tool', tags: ['완성품', '특수 강화 패'], name, price: null, desc: `${month}에 대응하는 무구 특수 강화용 화투패.`, effectText, effect: {}, battle: false })),
   // v-B.05: 뒷산 산길 5~20 의 개척 재료 33종
   ...B05_ITEMS,
+<<<<<<< Updated upstream
+=======
+  // v-B.06: 아이템 시트에 새로 생긴 것들
+  ...B06_ITEMS,
+  ...B07_ITEMS,
+>>>>>>> Stashed changes
 ]
 
 /**
@@ -1291,7 +1302,11 @@ export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostO
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
   if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
   if (!Object.keys(item.effect ?? {}).length && !item.giftNpc && !['material','gear','tool'].includes(item.kind)) return { ok: false, why: '아직 사용할 수 있는 효과가 없는 아이템이다.' }
+<<<<<<< Updated upstream
   if (item.kind === 'tool') return { ok: false, why: '무구보관소에서 무구를 강화할 때 쓴다' }
+=======
+  if (item.kind === 'tool') return { ok: false, why: item.id === 'goblin-token' ? '무구보관소에서 10개를 무구 한 벌로 바꿀 수 있다' : item.id === 'lost-key' ? '본관 3층 물품보관소에서 [몰래 열어보기]를 할 때 지니고 있으면 된다' : '무구보관소에서 무구를 강화할 때 쓴다' }
+>>>>>>> Stashed changes
   if (item.giftNpc && !inBattle) return { ok: false, why: '전투 중이 아닐 땐 NPC에게 건네면 호감도가 오른다. (NPC와 대화하는 곳에서)' }
   if ((item.effect?.enemyVulnerability || item.effect?.instantKill) && !isParty) return {ok:false, why:'현재 단체 전투에서만 사용할 수 있다'}
   if (item.effect?.trainUnder10 && inBattle) return {ok:false, why:'전투 중에는 사용할 수 없다'}

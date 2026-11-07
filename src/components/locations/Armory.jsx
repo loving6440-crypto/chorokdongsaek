@@ -6,8 +6,14 @@ import { ENH_ITEMS, ENH_MAX, ENH_STATS, enhCostFor, SPECIAL_ENHANCEMENTS, WEAPON
 import NpcDialog from '../NpcDialog'
 import NpcGift from '../NpcGift'
 
+<<<<<<< Updated upstream
 /** 산 탐색 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
 export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSpecial, onMeet, admin, onAdminGive, onGiveNpc }) {
+=======
+/** 산 탐사 › 무구보관소: 무구의 육조 스탯을 하나씩 +1 (스탯 하나에 최대 +15까지 원하는 만큼 몰아 올릴 수 있다). 재료는 현재 수치 구간에 맞는 완성품. */
+// part: 'talk'(박신아와 대화만) | 'manage'(무구 관리만) | 없음(전부) — v-B.07 산 탐사의 두 선택지
+export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, admin, onAdminGive, onGiveNpc, part }) {
+>>>>>>> Stashed changes
   const owned = ownedWeapons(player)
   // 같은 종류가 여럿이면 ①②… 로 구분한다.
   const nameOf = (w) => {
@@ -37,15 +43,24 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
 
   return (
     <section aria-label={ARMORY.label} data-armory>
-      <h2 className="font-serif text-2xl text-gold">{ARMORY.label}</h2>
-      <div className="ink-panel mt-4 w-full rounded-xl p-5">
-        <p className="text-sm leading-[1.9] break-keep text-paper/85" data-armory-desc>{ARMORY.desc}</p>
-      </div>
-      <NpcDialog npc={SHINAH.name} src={SHINAH.portrait} dataNpc="shinah">{line}</NpcDialog>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" className="flat-btn-ghost text-xs" data-shinah-talk onClick={() => setLine(pickShinahLine())}>다시 말을 건다</button>
-      </div>
-      <NpcGift npcId={SHINAH.id} player={player} onGive={onGiveNpc} onGift={giftReaction} />
+      {!part && (
+        <>
+          <h2 className="font-serif text-2xl text-gold">{ARMORY.label}</h2>
+          <div className="ink-panel mt-4 w-full rounded-xl p-5">
+            <p className="text-sm leading-[1.9] break-keep text-paper/85" data-armory-desc>{ARMORY.desc}</p>
+          </div>
+        </>
+      )}
+      {part !== 'manage' && (
+        <>
+          <NpcDialog npc={SHINAH.name} src={SHINAH.portrait} dataNpc="shinah">{line}</NpcDialog>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="flat-btn-ghost text-xs" data-shinah-talk onClick={() => setLine(pickShinahLine())}>다시 말을 건다</button>
+          </div>
+          <NpcGift npcId={SHINAH.id} player={player} onGive={onGiveNpc} onGift={giftReaction} />
+        </>
+      )}
+      {part !== 'talk' && (<>
 
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
         <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><Hammer size={12} aria-hidden />무구 강화</p>
@@ -115,6 +130,7 @@ export default function Armory({ player, onEnhance, onSpecialEnhance, onRemoveSp
           </div>
         </div>
       )}
+      </>)}
     </section>
   )
 }

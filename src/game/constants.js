@@ -164,7 +164,7 @@ export const LOCATIONS = {
     accentLabel: '적',
     navNote: '남쪽, 붉은 천이 걸린 실습터이자 산.',
     subtitle: 'TRPG 다이스 전투 실습',
-    facilities: ['퇴마 실습', '산 탐색', '개척', '무구보관소', '도깨비 농장'],
+    facilities: ['퇴마 실습', '산 탐사', '개척', '무구보관소', '도깨비 농장'],
     npcs: ['bari', 'shinah'],
   },
   shrine: {
@@ -235,7 +235,8 @@ export const COURSES = [
   },
 ]
 
-export const SHRINE_INSIGHT_UNLOCK = 15
+// v-B.07: 사당 표지판은 안목 20 이상이면 읽힌다(읽은 뒤부터 [사당 탐사]가 열린다).
+export const SHRINE_INSIGHT_UNLOCK = 20
 export const GYM_DC = 12
 // 신속 1당 1분에 영력 +0.1 (= 10분에 1). 실제 반영은 1초마다 /60 씩.
 export const SPIRIT_PER_AGILITY = 0.1

@@ -362,6 +362,8 @@ export const leaveClub = async () => {
   return r
 }
 export const fetchClubMembers = (club) => post('/api/club/members', { club })
+/** v-B.07 학생기록부: 그 학년으로 등록된 학생 이름 목록 */
+export const fetchStudents = (grade) => post('/api/students', { grade })
 export const sendClubChat = (text) => post('/api/club/chat', { text })
 
 // ───────── 오목 ─────────

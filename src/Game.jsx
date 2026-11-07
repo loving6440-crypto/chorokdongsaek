@@ -65,7 +65,9 @@ import { travelMinutes } from './game/travel'
 import { rollTravelEvent } from './game/travelEvents'
 import TravelPanel from './components/TravelPanel'
 import { HIKE_SPOT_IDS } from './game/hike'
-import { FLOORS as MAINHALL_FLOORS } from './game/explore'
+import { MAINHALL_SPOT_KEYS } from './game/explore'
+import { claimWait as claimExploreWait, goblinPlay, openRicePouches, readShrineSign, ricePouchText, spendMp as spendExploreMp, startWait as startExploreWait } from './game/exploreActions'
+import { GOBLIN_GAMES } from './game/hike'
 import { ANNEX_FLOORS } from './game/annex'
 import {
   GYM_DAILY_REWARDS,
@@ -124,7 +126,7 @@ function useDesktop() {
 
 // 동아리 '본관·별관·산의 모든 장소를 탐사하기' 퀘스트가 확인할 전체 목록을 한 번 등록해 둔다.
 setExploreAreaSpots({
-  mainHall: MAINHALL_FLOORS.flatMap((f) => f.areas.flatMap((a) => [`mainHall:${f.id}:${a.id}`, ...(a.details ?? []).map((d) => `mainHall:${f.id}:${d.id}`)])),
+  mainHall: MAINHALL_SPOT_KEYS,
   annex: ANNEX_FLOORS.flatMap((f) => f.rooms.map((r) => `annex:${f.id}:${r.id}`)),
   gym: HIKE_SPOT_IDS,
 })
@@ -245,7 +247,7 @@ export default function Game({
   const [seenLog, setSeenLog] = useState(null) // 활동 로그 화면에서 마지막으로 본 기록 id
   // 서버 동기화로 Game이 재마운트돼도 진행 중인 수렵 화면으로 복귀한다.
   // v78.0.1에서는 언제나 intro로 초기화되어 정상적인 채집 뒤 저장 충돌이 나면
-  // 사용자가 산 탐색에서 튕겨난 것처럼 보였다.
+  // 사용자가 산 탐사에서 튕겨난 것처럼 보였다.
   const [activity, setActivity] = useState(() => initialSave?.locationId === 'gym' &&
     (restored?.huntExpedition?.status === 'active' || ['hike','pioneer'].includes(initialSave?.activity)) ? 'pioneer' : 'intro')
   const [course, setCourse] = useState(null)
@@ -1676,9 +1678,39 @@ export default function Game({
     }
   }, [])
 
-  const exploreShrine = () => {
-    interruptAll('새 동작을 시작해')
-    addLog('사당 아래로 한 걸음을 내디뎠다. 귀문의 공기가 뼈를 적신다. (탐사 모듈 준비 중)')
+  const investigateShrine = useCallback(
+    (area, label, text) => {
+      interruptAll('새 동작을 시작해')
+      addLog(`사당 탐사 · ${area} ${label}: ${text}`)
+    },
+    [addLog, interruptAll],
+  )
+
+  // v-B.07 탐사 중의 일: 10분 기다리기 · 의지력 쓰기 · 도깨비 놀이 · 볍씨 주머니 · 사당 표지판. 결과 객체를 그대로 돌려준다.
+  const exploreAct = (kind, payload = {}) => {
+    const cur = playerRef.current
+    const now = Date.now()
+    let r
+    if (kind === 'waitStart') r = startExploreWait(cur, payload.key, payload.minutes, now)
+    else if (kind === 'waitClaim') r = claimExploreWait(cur, payload.key, now)
+    else if (kind === 'spendMp') r = spendExploreMp(cur, payload.amount)
+    else if (kind === 'goblinPlay') r = goblinPlay(cur, payload, effectiveStats(cur), now)
+    else if (kind === 'ricePouch') r = openRicePouches(cur)
+    else if (kind === 'shrineSign') r = readShrineSign(cur, cur.stats)
+    else return { error: '알 수 없는 행동이다.' }
+    if (r.error) return r
+    if (kind !== 'shrineSign' && kind !== 'waitClaim') interruptAll('새 동작을 시작해')
+    if (r.player && r.player !== cur) {
+      const next = syncCodex(r.player)
+      playerRef.current = next
+      setPlayer(next)
+    }
+    if (kind === 'waitStart') addLog(`${payload.label ?? '탐사'}: ${payload.minutes}분을 기다리기 시작했다.`)
+    if (kind === 'spendMp') addLog(`의지력 ${payload.amount}을(를) 써서 곧바로 ${payload.reason ?? '시도'}.`)
+    if (kind === 'goblinPlay') addLog(`도깨비들과 ${GOBLIN_GAMES.find((g) => g.id === payload.game)?.name ?? '놀이'} — ${r.win ? '승리' : '패배'}. (${r.notice})`)
+    if (kind === 'ricePouch') addLog(ricePouchText(r.pouches, r.grains))
+    if (kind === 'shrineSign' && r.first) addLog('사당 표지판 아래의 글자를 읽었다. [사당 탐사]가 열렸다.')
+    return r
   }
 
   // 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 곧바로 고친다.
@@ -1773,6 +1805,7 @@ export default function Game({
       <div className="order-3 flex min-w-0 flex-1 flex-col gap-3 lg:order-2 lg:min-h-0">
         <ActivityBar
           panel={panel}
+          unlocks={{ shrine: !!player.shrineSignRead }}
           locationId={locationId}
           onMove={(id) => {
             // 신수·벼룩시장·사물함 등을 보고 있다가도 장소 버튼을 누르면 학교 구역 화면으로 자동 전환된다. (v71)
@@ -1820,7 +1853,7 @@ export default function Game({
                     {player.curseUntil > Date.now() ? '[저주] 모든 육조 스탯이 5할 · 10% 확률 자해 · 3일 지속 (아이템과 취침으로 해제 불가)' : '[쇠약] 모든 육조 스탯이 5할 · 기숙사에서 6시간 취침 시 회복'} · 남은 시간 {weakLeftText(player)}
                   </p>
                 )}
-                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} admin={admin} onCraft={craftItem} onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))} onVisit={visitSpot} />}
+                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} onVisit={visitSpot} onExploreAct={exploreAct} />}
                 {locationId === 'infirmary' && (
                   <Infirmary
                     view={activity}
@@ -1845,6 +1878,7 @@ export default function Game({
                     onApplyClub={applyClub}
                     onFetchMembers={fetchClubMembers}
                     onVisit={visitSpot}
+                    onExploreAct={exploreAct}
                   />
                 )}
                 {locationId === 'dorm' && activity === 'store' && (
@@ -1888,6 +1922,7 @@ export default function Game({
                     onHuntAction={huntAction}
                     onVisit={visitSpot}
                     onGiveNpc={giveNpc}
+                    onExploreAct={exploreAct}
                     stats={effStats}
                     mp={player.mp}
                     hp={player.hp}
@@ -1943,7 +1978,7 @@ export default function Game({
                   />
                 )}
                 {locationId === 'shrine' && (
-                  <Shrine view={activity} player={player} onExplore={exploreShrine} onMeet={meetNpc} onLineSeen={lineSeen} onGiveNpc={giveNpc} />
+                  <Shrine view={activity} player={player} onMeet={meetNpc} onLineSeen={lineSeen} onGiveNpc={giveNpc} onExploreAct={exploreAct} onEnter={moveTo} onInvestigate={investigateShrine} onVisit={visitSpot} />
                 )}
               </>
             )}

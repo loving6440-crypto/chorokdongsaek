@@ -1,64 +1,41 @@
 import { useState } from 'react'
-import { FLOORS, introOf, scriptOfDay } from '../../game/explore'
-import { LOCKED_TEXT, canOpenLocker } from '../../game/locker'
-import Locker from '../Locker'
-import Workshop from './Workshop'
+import { FLOORS, introOf } from '../../game/explore'
+import Scene, { Paras } from '../Scene'
+import { GotoInfirmary, LockerSpot, StudentList } from '../ExploreWidgets'
 
-/** **굵게**(눌러볼 수 있는 단서) / *기울임*(강조) 표기를 꾸밈으로 바꾼다. */
-function Rich({ text }) {
-  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/).map((t, i) => {
-    if (t.startsWith('**')) return <b key={i} className="font-semibold text-paper">{t.slice(2, -2)}</b>
-    if (t.startsWith('*') && t.length > 2) return <em key={i} className="text-gold">{t.slice(1, -1)}</em>
-    return t
-  })
-}
-
-const Paras = ({ list }) =>
-  list.map((t, i) => (
-    <p key={i} className={`text-sm leading-[1.9] break-keep text-paper/90 ${i ? 'mt-3' : ''}`}>
-      <Rich text={t} />
-    </p>
-  ))
-
-/** 본관 탐사: 층 → 구역 → 세부 조사 순으로 살핀다. 누를 때마다 그 자리의 스크립트가 나온다. */
-export default function Explore({ stats, player, admin, onCraft, onStopCraft, onInvestigate, onEnter, onLockerMove, onLockerOpen, onVisit }) {
+/** 본관 탐사: 층 → 구역 → 선택지 순으로 살핀다. (v-B.07: 구글 시트 [조사내용] 그대로 · 장면 규칙은 game/scene.js) */
+export default function Explore({ stats, player, onInvestigate, onEnter, onLockerMove, onLockerOpen, onVisit, onExploreAct }) {
   const [floorId, setFloorId] = useState(null)
   const [areaId, setAreaId] = useState(null)
-  const [detailId, setDetailId] = useState(null)
-  const [shown, setShown] = useState(null) // { label, paras }
+  const [visit, setVisit] = useState(0) // 같은 구역을 다시 눌러도 처음부터 보이게
   const floor = FLOORS.find((f) => f.id === floorId)
   const area = floor?.areas.find((a) => a.id === areaId)
+
+  const act = (kind, payload) => {
+    if (kind === 'goto') return onEnter?.(payload.location)
+    return onExploreAct?.(kind, payload) ?? {}
+  }
+  const ctx = { stats, player, name: player?.name, act }
 
   const pickFloor = (id) => {
     setFloorId(id)
     setAreaId(null)
-    setDetailId(null)
-    setShown(null)
-  }
-  const show = (label, floorName, id) => {
-    const paras = scriptOfDay(floor.id, id, Date.now(), stats)
-    setShown({ label, paras })
-    onInvestigate?.(floorName, label, paras.join(' ').replace(/\*+/g, ''))
   }
   const look = (a) => {
     onVisit?.(`mainHall:${floor.id}:${a.id}`)
-    if (a.goto) return onEnter?.(a.goto)
     setAreaId(a.id)
-    setDetailId(null)
-    if (a.locker) {
-      // 물품보관함: 자기 학년의 것만 열린다.
-      setShown(canOpenLocker(player, a.locker) ? { label: a.name, paras: [], locker: a.locker } : { label: a.name, paras: [LOCKED_TEXT], locked: true })
-      return
-    }
-    show(a.name, floor.name, a.id)
+    setVisit((v) => v + 1)
   }
-  const lookDetail = (d) => {
-    onVisit?.(`mainHall:${floor.id}:${d.id}`)
-    setDetailId(d.id)
-    if (d.workshop) return setShown({ label: `${area.name} · ${d.name}`, paras: [], workshop: true })
-    show(`${area.name} · ${d.name}`, floor.name, d.id)
+  const home = () => {
+    setFloorId(null)
+    setAreaId(null)
   }
-
+  const renderWidget = (node) => {
+    if (node.widget === 'students') return <StudentList grade={node.grade} player={player} />
+    if (node.widget === 'locker') return <LockerSpot grade={node.locker} player={player} onMove={onLockerMove} onOpen={onLockerOpen} />
+    if (node.widget === 'gotoInfirmary') return <GotoInfirmary act={act} />
+    return null
+  }
   const intro = floor ? introOf(floor, Date.now(), stats) : []
 
   return (
@@ -81,10 +58,14 @@ export default function Explore({ stats, player, admin, onCraft, onStopCraft, on
 
       {floor && (
         <div className="mt-4">
-          <div className="ink-panel w-full rounded-xl p-5">
-            <p className="font-serif text-lg text-paper">{floor.name}</p>
-            <div className="mt-2">{intro.length ? <Paras list={intro} /> : <p className="text-sm leading-[1.9] text-paper/85">(둘러보기 문구 준비 중)</p>}</div>
-          </div>
+          {intro.length > 0 && (
+            <div className="ink-panel w-full rounded-xl p-5">
+              <p className="font-serif text-lg text-paper">{floor.name}</p>
+              <div className="mt-2">
+                <Paras list={intro} />
+              </div>
+            </div>
+          )}
           <p className="mt-4 text-[11px] tracking-widest text-paper/55">조사 가능 구역</p>
           <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="조사 구역">
             {floor.areas.map((a) => (
@@ -94,38 +75,26 @@ export default function Explore({ stats, player, admin, onCraft, onStopCraft, on
                 aria-pressed={a.id === areaId}
                 onClick={() => look(a)}
                 title={a.note}
+                data-explore-area={a.id}
                 className={`tilt rounded-xl px-4 py-2 text-sm text-paper ${a.id === areaId ? 'bg-gold-fill/30' : 'bg-edge/[0.07] hover:bg-gold-fill/20'}`}
               >
                 {a.name}
               </button>
             ))}
           </div>
-          {area?.details && (
-            <>
-              <p className="mt-4 text-[11px] tracking-widest text-paper/55">{area.name}에서 더 살펴보기</p>
-              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="세부 조사">
-                {area.details.map((d) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    aria-pressed={d.id === detailId}
-                    onClick={() => lookDetail(d)}
-                    className={`tilt rounded-full px-3.5 py-1.5 text-sm text-paper ${d.id === detailId ? 'bg-gold-fill/30' : 'bg-edge/[0.07] hover:bg-gold-fill/20'}`}
-                  >
-                    {d.name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {shown?.workshop && <div className="mt-4"><Workshop player={player} admin={admin} onCraft={onCraft} onStopCraft={onStopCraft} /></div>}
-          {shown && !shown.workshop && (
+          {area && (
             <div className="ink-panel mt-4 w-full rounded-xl p-5" aria-live="polite">
-              <p className="text-[11px] tracking-widest text-gold">{shown.label}</p>
-              <div className="mt-2">
-                <Paras list={shown.paras} />
-              </div>
-              {shown.locker && <Locker player={player} grade={shown.locker} onMove={onLockerMove} onOpen={onLockerOpen} />}
+              <p className="mb-2 text-[11px] tracking-widest text-gold">{floor.name} · {area.name}</p>
+              <Scene
+                key={`${area.id}:${visit}`}
+                root={area}
+                ctx={ctx}
+                scope={`mainHall:${floor.id}:${area.id}`}
+                onHome={home}
+                renderWidget={renderWidget}
+                onOpen={(c, depth) => depth === 1 && onVisit?.(`mainHall:${floor.id}:${c.id}`)}
+                onShow={(node, paras) => paras.length && onInvestigate?.(floor.name, node.name, paras.join(' ').replace(/\*+|~~/g, ''))}
+              />
             </div>
           )}
         </div>

@@ -802,3 +802,17 @@ body { font-size: calc(1rem * var(--ui-font-scale)); }
 /* v79 KoPub 웹폰트 */
 [data-ui-font="kopub-dotum"] { --ui-font-family: "KoPub Dotum", sans-serif; }
 [data-ui-font="kopub-batang"] { --ui-font-family: "KoPub Batang", serif; }
+
+/* v-B.07 탐사 장면: 아주 조금씩 흔들리는 글 · 타이핑 커서 */
+.scene-jitter { display: inline-block; animation: scene-jitter 0.32s steps(2, end) infinite; }
+p.scene-jitter { display: block; }
+@keyframes scene-jitter {
+  0% { transform: translate(0, 0) }
+  25% { transform: translate(0.6px, -0.4px) }
+  50% { transform: translate(-0.5px, 0.5px) }
+  75% { transform: translate(0.4px, 0.6px) }
+  100% { transform: translate(-0.6px, -0.3px) }
+}
+.scene-caret { animation: scene-caret 0.9s steps(1, end) infinite; color: var(--color-gold, #c9a85b); }
+@keyframes scene-caret { 50% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .scene-jitter { animation-duration: 1.2s; } }

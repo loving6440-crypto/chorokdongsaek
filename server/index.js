@@ -2072,6 +2072,19 @@ async function handleApi(req, res, url) {
     scheduleSave()
     return json(res, 200, { ok: true })
   }
+  // v-B.07 본관 3층 교실의 학생기록부: 그 학년으로 등록된 학생 전원의 이름(인적사항 카드 기준, 학년이 없으면 나이로 셈한다).
+  if (route === '/api/students') {
+    const grade = [1, 2, 3].includes(body.grade) ? body.grade : null
+    if (!grade) return json(res, 400, { error: 'bad-grade' })
+    const gradeOfCard = (c) => ([1, 2, 3].includes(c?.grade) ? c.grade : Number.isInteger(c?.age) ? Math.min(3, Math.max(1, c.age - 16)) : null)
+    const names = Object.entries(cards)
+      .filter(([, c]) => gradeOfCard(c) === grade)
+      .map(([pid, c]) => c.name || members[pid]?.name || pid)
+      .sort((a, b) => a.localeCompare(b, 'ko'))
+      .slice(0, 1000)
+    return json(res, 200, { ok: true, grade, names })
+  }
+
   // 동아리 부실을 방문하면 누구나 멤버 목록(이름·학년·나이·포부)을 열람할 수 있다. (가입 여부와 상관없이)
   if (route === '/api/club/members') {
     const clubId = typeof body.club === 'string' ? body.club : ''

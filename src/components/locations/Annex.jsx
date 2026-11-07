@@ -9,24 +9,7 @@ import ClubRoomPanel from '../ClubRoomPanel'
 import BoardGames from './BoardGames'
 import Workshop from './Workshop'
 import Cooking from './Cooking'
-
-/** **굵게**(눌러볼 수 있는 단서) 표기를 꾸밈으로 바꾼다. (Explore.jsx 의 Rich 와 같은 규칙) */
-function Rich({ text }) {
-  return text.split(/(\*\*[^*]+\*\*)/).map((t, i) =>
-    t.startsWith('**') ? (
-      <b key={i} className="font-semibold text-paper">{t.slice(2, -2)}</b>
-    ) : (
-      t
-    ),
-  )
-}
-
-const Flavor = ({ paras }) =>
-  paras.map((t, i) => (
-    <p key={i} className={`text-sm leading-[1.9] break-keep text-paper/90 ${i ? 'mt-3' : ''}`}>
-      <Rich text={t} />
-    </p>
-  ))
+import Scene, { Paras } from '../Scene'
 
 /** 공작소: 제작 / 미술 동아리 (오단애는 조리실로 자리를 옮겼다) */
 function CraftRoom({ player, admin, onCraft, onStopCraft, myClub, onApplyClub, onFetchMembers }) {
@@ -136,9 +119,10 @@ function ClubOnlyRoom({ room, myClub, onApplyClub, onFetchMembers }) {
 }
 
 /** 별관 탐사: 층 → 방 순으로 살핀다. 2층 공작소 · 패 놀이터는 전용 화면을, 그 외 동아리 방은 공용 동아리 화면을 더 보여 준다. */
-export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers, onVisit }) {
+export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers, onVisit, onExploreAct }) {
   const [floorId, setFloorId] = useState(null)
   const [roomId, setRoomId] = useState(null)
+  const [visit, setVisit] = useState(0)
   const floor = ANNEX_FLOORS.find((f) => f.id === floorId)
   const room = floor?.rooms.find((r) => r.id === roomId)
 
@@ -150,7 +134,13 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
   }
   const pickRoom = (r) => {
     setRoomId(r.id)
+    setVisit((v) => v + 1)
     onVisit?.(`annex:${floor.id}:${r.id}`)
+  }
+  const ctx = { stats: player.stats, player, name: player.name, act: (kind, payload) => onExploreAct?.(kind, payload) ?? {} }
+  const home = () => {
+    setFloorId(null)
+    setRoomId(null)
   }
 
   return (
@@ -173,6 +163,14 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
 
       {floor && (
         <div className="mt-4">
+          {floor.intro?.length > 0 && (
+            <div className="ink-panel mb-4 w-full rounded-xl p-5" data-annex-intro>
+              <p className="font-serif text-lg text-paper">{floor.name}</p>
+              <div className="mt-2">
+                <Paras list={floor.intro} />
+              </div>
+            </div>
+          )}
           <p className="text-[11px] tracking-widest text-paper/55">둘러볼 방</p>
           <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="방 선택">
             {floor.rooms.map((r) => (
@@ -192,7 +190,7 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
             <div className="ink-panel mt-4 w-full rounded-xl p-5" aria-live="polite">
               <p className="text-[11px] tracking-widest text-gold">{floor.name} · {room.name}</p>
               <div className="mt-2">
-                <Flavor paras={room.flavor} />
+                <Scene key={`${room.id}:${visit}`} root={room} ctx={ctx} scope={`annex:${floor.id}:${room.id}`} onHome={home} />
               </div>
 
               {room.id === 'craft' && (

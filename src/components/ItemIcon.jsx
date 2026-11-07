@@ -6,6 +6,11 @@ import HwatuFace from './minigames/HwatuFace'
 import { GARDEN_ITEM_ICONS } from './icons79garden'
 import { V79B_ICONS } from './icons79b'
 import { B05_ICONS } from './iconsB05'
+<<<<<<< Updated upstream
+=======
+import { B06_ICONS } from './iconsB06'
+import { B07_ICONS } from './iconsB07'
+>>>>>>> Stashed changes
 
 /**
  * 아이템 아이콘: 플랫 디자인의 원형 배지.
@@ -552,4 +557,9 @@ export default function ItemIcon({ item, id, size = 40, locked = false, classNam
 Object.assign(BG, EXTRA_BG)
 Object.assign(CUSTOM_ICONS, EXTRA_ICONS, V79_EXTRA_ICONS, V79_ICONS, GARDEN_ITEM_ICONS, V79B_ICONS)
 Object.assign(CUSTOM_ICONS, B05_ICONS) // v-B.05 개척 재료 33종
+<<<<<<< Updated upstream
+=======
+Object.assign(CUSTOM_ICONS, B06_ICONS) // v-B.06 아이템 시트 새 아이템 7종
+Object.assign(CUSTOM_ICONS, B07_ICONS) // v-B.07 누군가가 잃어버린 열쇠
+>>>>>>> Stashed changes
 export const CUSTOM_ICON_IDS = Object.keys(CUSTOM_ICONS)

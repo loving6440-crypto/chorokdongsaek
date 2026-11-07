@@ -24,16 +24,19 @@ export const ACTIVITIES = {
   gym: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },
     { id: 'battle', label: '퇴마 실습', icon: Swords },
-    { id: 'hike', label: '산 탐색', icon: Mountain },
+    { id: 'hike', label: '산 탐사', icon: Mountain },
     { id: 'pioneer', label: '개척', icon: Compass },
   ],
   infirmary: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },
     { id: 'rest', label: '휴식 · 상담', icon: BedDouble },
+    { id: 'haenim', label: '해님과 대화', icon: MessageCircle },
   ],
   shrine: [
     { id: 'intro', label: '둘러보기', icon: BookOpen },
     { id: 'sign', label: '표지판', icon: Signpost },
     { id: 'guard', label: '문지기와 대화', icon: MessageCircle },
+    // v-B.07: 표지판(안목 20 이상)을 읽은 뒤부터 보인다. (unlock 키는 ActivityBar 가 확인한다)
+    { id: 'explore', label: '사당 탐사', icon: Compass, unlock: 'shrine' },
   ],
 }
