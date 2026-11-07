@@ -9,6 +9,7 @@ import { enterHuntSite, huntOdds } from '../src/game/huntField.js'
 import { itemOf } from '../src/game/items.js'
 import { B05_ITEMS } from '../src/game/itemsB05.js'
 import { HIKE_PATHS, HIKE_SPOT_IDS } from '../src/game/hike.js'
+import { B08_SHEET_OVERRIDES } from '../src/game/itemsB08.js'
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const stats = (n = 10) => ({ insight: n, aggression: n, endurance: 0, control: n, agility: n, comprehension: n })
@@ -397,7 +398,7 @@ test('v-B.05 개척: 새 재료 33종과 그 아이콘', () => {
   assert.equal(B05_ITEMS.length, 33)
   const icons = read('../src/components/iconsB05.jsx')
   for (const it of B05_ITEMS) {
-    assert.equal(itemOf(it.id)?.name, it.name)
+    assert.equal(itemOf(it.id)?.name, B08_SHEET_OVERRIDES[it.id]?.name ?? it.name) // v-B.08: 시트에서 바뀐 이름(칡 뿌리 · 흰까치 깃 …)
     assert.ok(itemOf(it.id).tags.includes('재료'))
     assert.match(icons, new RegExp(`'${it.id}': \\{ bg: '\\w+', art: ART\\.\\w+ \\}`), it.id)
   }

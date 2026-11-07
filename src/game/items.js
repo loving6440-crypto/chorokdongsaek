@@ -2,6 +2,9 @@ import { V79_SHEET_DATA } from './v79SheetData.js'
 import { V79_ITEMS } from './v79Items.js'
 import { B05_ITEMS } from './itemsB05.js'
 import { B06_ITEMS, B06_OVERRIDES } from './itemsB06.js'
+import { B07_ITEMS } from './itemsB07.js'
+import { B08_SHEET_ITEMS, B08_SHEET_OVERRIDES } from './itemsB08.js'
+import { B08_ITEMS } from './recipesB08.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -953,6 +956,9 @@ const RAW_ITEMS = [
   ...B05_ITEMS,
   // v-B.06: 아이템 시트에 새로 생긴 것들
   ...B06_ITEMS,
+  ...B07_ITEMS,
+  ...B08_SHEET_ITEMS,
+  ...B08_ITEMS,
 ]
 
 /**
@@ -981,7 +987,7 @@ const V79_OVERRIDES = {
   'spirit-disposable': { effect: {}, battle: false, effectText: '' },
 }
 export const ITEMS = RAW_ITEMS.map((original) => {
-  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}) }
+  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}), ...(B08_SHEET_OVERRIDES[original.id] ?? {}) }
 
   const tags = [...(it.tags ?? [])]
   if (it.battle || it.party || it.effect?.partyHp || it.effect?.partyMp || it.effect?.partyBoost || it.effect?.giveHp) {
@@ -1043,6 +1049,8 @@ export function gearBonus(player) {
 }
 /** 지금 든 무구의 특수 효과 id (없으면 null) */
 export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
+/** v-B.08 지금 찬 장신구의 특수 효과 id (기합의 띠 · 도깨비 탈, 없으면 null) */
+export const trinketFx = (player) => itemOf(equipOf(player).trinket)?.trinketFx ?? null
 
 // ───────── 무구 강화 v74 ─────────
 // 강화 1회당 선택 스탯 +1, 무구당 총 15포인트. n번째 강화에 연마석 n개(v-B.06) + 단계별 보조 재료 + 영력.
@@ -1289,6 +1297,12 @@ export function equipItem(player, id) {
   if (old) inv[old] = (inv[old] || 0) + 1
   return { player: { ...player, inventory: inv, equip: { ...eq, [it.slot]: id } } }
 }
+/** v-B.08 기합의 띠처럼 효과가 나면 끊어지는 장신구: 착용한 그 장신구를 없앤다(소지품으로 돌아오지 않는다). */
+export function breakTrinket(player, id) {
+  const eq = equipOf(player)
+  if (eq.trinket !== id) return player
+  return { ...player, equip: { ...eq, trinket: null } }
+}
 /** 벗기. 신체는 다른 옷으로 갈아입어야 한다. */
 export function unequipSlot(player, slot) {
   const eq = equipOf(player)
@@ -1318,7 +1332,7 @@ export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostO
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
   if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
   if (!Object.keys(item.effect ?? {}).length && !item.giftNpc && !['material','gear','tool'].includes(item.kind)) return { ok: false, why: '아직 사용할 수 있는 효과가 없는 아이템이다.' }
-  if (item.kind === 'tool') return { ok: false, why: item.id === 'goblin-token' ? '무구보관소에서 10개를 무구 한 벌로 바꿀 수 있다' : '무구보관소에서 무구를 강화할 때 쓴다' }
+  if (item.kind === 'tool') return { ok: false, why: item.id === 'goblin-token' ? '무구보관소에서 10개를 무구 한 벌로 바꿀 수 있다' : item.id === 'lost-key' ? '본관 3층 물품보관소에서 [몰래 열어보기]를 할 때 지니고 있으면 된다' : '무구보관소에서 무구를 강화할 때 쓴다' }
   if (item.giftNpc && !inBattle) return { ok: false, why: '전투 중이 아닐 땐 NPC에게 건네면 호감도가 오른다. (NPC와 대화하는 곳에서)' }
   if ((item.effect?.enemyVulnerability || item.effect?.instantKill) && !isParty) return {ok:false, why:'현재 단체 전투에서만 사용할 수 있다'}
   if (item.effect?.trainUnder10 && inBattle) return {ok:false, why:'전투 중에는 사용할 수 없다'}

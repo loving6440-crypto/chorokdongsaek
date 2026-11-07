@@ -5,7 +5,8 @@ export const TRAVEL_LINES = [
   '저만치 뒷산의 텃밭을 가꾸는 어른의 뒷모습이 보인다. 당신을 돌아보며 희미한 미소를 보인다.',
   '건물에 도착하기 전까지 긴장을 늦추지 말자.',
 ]
-export const LOST_THINGS = ['lost-hairband', 'lost-slippers', 'lost-phone', 'lost-love-letter']
+// v-B.07: 누군가가 잃어버린 열쇠(본관 3층 다른 학년 보관함을 몰래 열어보는 데 쓴다)도 함께 줍는다.
+export const LOST_THINGS = ['lost-hairband', 'lost-slippers', 'lost-phone', 'lost-love-letter', 'lost-key']
 export function rollTravelEvent(rng=Math.random) {
   const text = TRAVEL_LINES[Math.floor(rng()*TRAVEL_LINES.length)]
   if (rng() >= 0.05) return { text }

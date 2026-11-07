@@ -1,7 +1,8 @@
 /**
  * NPC 대화창(미연시풍). 모든 NPC 가 이 모양을 쓴다: 이름표와 대사가 초상화의 위쪽에 놓인다. (바리의 위치가 기준)
  */
-export default function NpcDialog({ npc, src, face, dataNpc, children }) {
+// lineClassName: 대사 글에 덧붙일 클래스 (예: 탐사 스크립트의 명조체)
+export default function NpcDialog({ npc, src, face, dataNpc, children, lineClassName = '' }) {
   return (
     <div className="ink-panel mt-4 flex items-start gap-3 rounded-2xl p-3 sm:p-4" aria-live="polite" aria-label={`${npc}의 말`} data-npc={dataNpc}>
       {src ? (
@@ -25,7 +26,7 @@ export default function NpcDialog({ npc, src, face, dataNpc, children }) {
       )}
       <div className="min-w-0 flex-1">
         <p className="inline-block rounded-full bg-gold-fill px-3 py-0.5 text-xs font-medium text-ink light:text-ink">{npc}</p>
-        <p className="mt-2 min-h-[4.5rem] text-sm leading-[1.85] break-keep text-paper/95" data-npc-line>
+        <p className={`mt-2 min-h-[4.5rem] text-sm leading-[1.85] break-keep text-paper/95 ${lineClassName}`} data-npc-line>
           {children}
         </p>
       </div>

@@ -413,7 +413,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     let dmg = 0, note = ''
     if (!r.miss) {
       const fb = fxBase(r.dmg + extra, stats, s.ehp, s.enemy.hp, aura, rng)
-      const cr = fxCrit(Math.ceil(fb.base * boostMult * (stats.special === 'maple' ? 1.1 : 1)), stats, rng)
+      const cr = fxCrit(Math.ceil(fb.base * boostMult * atkMult(stats)), stats, rng)
       dmg = cr.dmg
       note = `${noteOf(fb.notes)}${cr.note}`
     }
@@ -421,7 +421,7 @@ export function psychicTurn(state, id, ctx, rng = Math.random) {
     // (부적은 빗나감이 없으므로, 위 일반 공격이 빗나가도 이 몫만큼은 반드시 들어간다)
     const cpr = attackRoll(stats, rng, true)
     const cfb = fxBase(cpr.dmg, stats, s.ehp, s.enemy.hp, aura, rng)
-    const ccr = fxCrit(Math.ceil(cfb.base * 2 * (stats.special === 'maple' ? 1.1 : 1)), stats, rng)
+    const ccr = fxCrit(Math.ceil(cfb.base * 2 * atkMult(stats)), stats, rng)
     const charmDmg = ccr.dmg
     dmg += charmDmg
     if (braced) { dmg = Math.ceil(dmg / 2); note += ' (방어에 절반으로 막힘)' }
@@ -554,7 +554,7 @@ export function fireTurn(state, ctx, rng = Math.random) {
   }
   const mult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
   const fb = fxBase(r.dmg, stats, s.ehp, s.enemy.hp, ctx.aura ?? auraSelfOf(stats), rng)
-  const cr = fxCrit(Math.ceil(fb.base * FIRE_MULT * mult * (stats.special === 'maple' ? 1.1 : 1)), stats, rng)
+  const cr = fxCrit(Math.ceil(fb.base * FIRE_MULT * mult * atkMult(stats)), stats, rng)
   let dmg = cr.dmg
   if (braced) dmg = Math.ceil(dmg / 2)
   s.ehp = Math.max(0, s.ehp - dmg)
@@ -580,7 +580,12 @@ const d10 = (rng) => die(10, rng)
 
 export const maxHp = (stats) => BASE_HP + HP_PER_ENDURANCE * stats.endurance
 /** 돌발 행동 확률(%) = 호전 − 절제 (0 미만이면 0). 호전 30 · 절제 17 이면 13%, 호전 5 · 절제 1 이면 4%. */
-export const rashPercent = (stats) => Math.max(0, Math.min(100, Math.floor(stats.aggression - stats.control)))
+// v-B.08 도깨비 탈(장신구): 돌발 확률 +50%
+export const rashPercent = (stats) => Math.max(0, Math.min(100, Math.floor(stats.aggression - stats.control) + (stats.trinket === 'goblin-mask' ? 50 : 0)))
+/** 공격력 배율: 단풍 패 +10%, 도깨비 탈(장신구) +200% (v-B.08) */
+export const atkMult = (stats) => (stats.special === 'maple' ? 1.1 : 1) * (stats.trinket === 'goblin-mask' ? 3 : 1)
+/** 도깨비 탈: 단체 전투에서 일반 공격이 아군에게 갈 확률(%) = ⌊호전/3⌋ */
+export const maskFriendlyFirePercent = (stats) => (stats.trinket === 'goblin-mask' ? Math.max(0, Math.floor((stats.aggression || 0) / 3)) : 0)
 /**
  * 내 턴이 시작될 때마다 항상 굴리는 돌발 판정(1d100). 굴림이 확률 이하이면 hit — 그 턴엔 어떤 조건이든 상대에게 무조건 일반 공격을 한다.
  */
@@ -837,6 +842,7 @@ export function afflictStats(stats, ps) {
   const out = { ...stats }
   out.fx = ps.weaponSeal > 0 ? null : stats.fx
   out.special = ps.weaponSeal > 0 ? null : stats.special
+  if (stats.trinket) Object.defineProperty(out, 'trinket', { value: stats.trinket, enumerable: false }) // v-B.08 장신구 효과는 무구 봉인과 상관없다
   if (ps.statSwap > 0 && Array.isArray(ps.swap)) {
     const [a, b] = ps.swap
     out[a] = stats[b]
@@ -1082,7 +1088,7 @@ export function playerTurn(state, action, ctx, rng = Math.random) {
   // 효과 1) 모든 공격이 반드시 명중한다. 효과 2) (호전)% 확률로 상대의 방어 태세를 무시한다(절반으로 막히지 않는다).
   const bowActive = stats.fx === 'bow' || !!ctx.archerBow
   const boostMult = typeof ctx.boost === 'number' ? ctx.boost : ctx.boost ? 2 : 1
-  const mult = boostMult * (stats.special === 'maple' ? 1.1 : 1) // 단풍의 공격력 +10%
+  const mult = boostMult * atkMult(stats) // 단풍의 공격력 +10%
   const bn = ctx.boost ? ` (×${boostMult})` : ''
 
   // 로그에는 다이스가 어떻게 굴러갔는지는 빼고 공격력(피해)만 보인다. (v71)

@@ -2,11 +2,17 @@ import { useState } from 'react'
 import { CookingPot } from 'lucide-react'
 import { COOK_RECIPES, KITCHEN, canCook } from '../../game/cooking'
 import { countOf, itemOf } from '../../game/items'
+import { withMeta } from './recipeMeta'
+
+// v-B.08: 요리법은 적정 레벨순. 분류 탭으로 걸러 본다.
+const LISTED = withMeta(COOK_RECIPES)
+const TABS = [['all', '전체'], ['can', '만들 수 있음'], ['material', '재료'], ['etc', '요리']]
 
 /** 조리실: 등록된 조리법은 재료가 있으면 바로 조리한다. */
 export default function Cooking({ player, admin, onCook }) {
   const [msg, setMsg] = useState('')
-  const known = COOK_RECIPES
+  const [tab, setTab] = useState('all')
+  const known = LISTED.filter(({ r, group }) => tab === 'all' || (tab === 'can' ? admin || canCook(player, r) : group === tab))
   const go = (r) => {
     const res = onCook(r.id)
     setMsg(res?.error ?? `${itemOf(r.result).name}을(를) 만들었다.`)
@@ -19,11 +25,16 @@ export default function Cooking({ player, admin, onCook }) {
       </div>
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
         <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><CookingPot size={12} aria-hidden />조리</p>
+        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="제작법 분류">
+          {TABS.map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} data-recipe-tab={id} onClick={() => setTab(id)} className={`rounded-full border px-2.5 py-0.5 text-[11px] ${tab === id ? 'border-gold/60 bg-gold/15 text-gold' : 'border-edge/25 text-paper/65 hover:text-paper'}`}>{label}</button>
+          ))}
+        </div>
         {known.length === 0 ? (
-          <p className="mt-3 text-sm text-paper/70" data-kitchen-empty>등록된 조리실 제작법이 없다.</p>
+          <p className="mt-3 text-sm text-paper/70" data-kitchen-empty>{tab === 'all' ? '등록된 조리실 제작법이 없다.' : '여기에 해당하는 요리법이 없다.'}</p>
         ) : (
           <ul className="mt-3 space-y-2" aria-label="요리법 목록">
-            {known.map((r) => {
+            {known.map(({ r, lv, depth }) => {
               const out = itemOf(r.result)
               const ok = admin || canCook(player, r)
               return (
@@ -32,6 +43,10 @@ export default function Cooking({ player, admin, onCook }) {
                     <div className="min-w-0">
                       <p className="font-serif text-base text-paper">{out.name}</p>
                       <p className="mt-0.5 text-xs text-paper/60">{r.note ?? out.desc}</p>
+                      <p className="mt-1 flex flex-wrap gap-1.5 text-[10px]" data-recipe-meta>
+                        <span className="rounded-full bg-gold/15 px-2 py-px text-gold" data-recipe-lv={lv ?? 'none'}>{lv == null ? '아직 얻을 수 없는 재료가 있다' : `적정 레벨 ${lv}`}</span>
+                        {depth > 1 && <span className="rounded-full bg-shade/40 px-2 py-px text-paper/70" data-recipe-depth={depth}>{depth}단 제작</span>}
+                      </p>
                       <p className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
                         {r.inputs.map(([id, n]) => (
                           <span key={id} className={`rounded-full border px-2 py-px ${countOf(player, id) >= n ? 'border-edge/30 text-paper/80' : 'border-crimson/50 text-crimson'}`}>

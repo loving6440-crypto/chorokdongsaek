@@ -12,7 +12,7 @@ import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
 import { sellItem } from './game/sell'
-import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, exchangeGoblinTokens, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, exchangeGoblinTokens, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx, trinketFx, breakTrinket } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -66,7 +66,9 @@ import { travelMinutes } from './game/travel'
 import { rollTravelEvent } from './game/travelEvents'
 import TravelPanel from './components/TravelPanel'
 import { HIKE_SPOT_IDS } from './game/hike'
-import { FLOORS as MAINHALL_FLOORS } from './game/explore'
+import { MAINHALL_SPOT_KEYS } from './game/explore'
+import { claimWait as claimExploreWait, goblinPlay, openRicePouches, readShrineSign, ricePouchText, spendMp as spendExploreMp, startWait as startExploreWait } from './game/exploreActions'
+import { GOBLIN_GAMES } from './game/hike'
 import { ANNEX_FLOORS } from './game/annex'
 import {
   GYM_DAILY_REWARDS,
@@ -125,7 +127,7 @@ function useDesktop() {
 
 // 동아리 '본관·별관·산의 모든 장소를 탐사하기' 퀘스트가 확인할 전체 목록을 한 번 등록해 둔다.
 setExploreAreaSpots({
-  mainHall: MAINHALL_FLOORS.flatMap((f) => f.areas.flatMap((a) => [`mainHall:${f.id}:${a.id}`, ...(a.details ?? []).map((d) => `mainHall:${f.id}:${d.id}`)])),
+  mainHall: MAINHALL_SPOT_KEYS,
   annex: ANNEX_FLOORS.flatMap((f) => f.rooms.map((r) => `annex:${f.id}:${r.id}`)),
   gym: HIKE_SPOT_IDS,
 })
@@ -247,7 +249,7 @@ export default function Game({
   const [seenLog, setSeenLog] = useState(null) // 활동 로그 화면에서 마지막으로 본 기록 id
   // 서버 동기화로 Game이 재마운트돼도 진행 중인 수렵 화면으로 복귀한다.
   // v78.0.1에서는 언제나 intro로 초기화되어 정상적인 채집 뒤 저장 충돌이 나면
-  // 사용자가 산 탐색에서 튕겨난 것처럼 보였다.
+  // 사용자가 산 탐사에서 튕겨난 것처럼 보였다.
   const [activity, setActivity] = useState(() => initialSave?.locationId === 'gym' &&
     (restored?.huntExpedition?.status === 'active' || ['hike','pioneer'].includes(initialSave?.activity)) ? 'pioneer' : 'intro')
   const [course, setCourse] = useState(null)
@@ -1003,6 +1005,15 @@ export default function Game({
     },
     [addLog],
   )
+  // v-B.08 기합의 띠: 전투불능 순간 체력 1로 일어서고 끊어진다(착용 칸에서 사라진다).
+  const breakHeadband = useCallback(() => {
+    const cur = playerRef.current
+    if (trinketFx(cur) !== 'headband') return
+    const next = breakTrinket(cur, equipOf(cur).trinket)
+    playerRef.current = next
+    setPlayer(next)
+    addLog('기합의 띠가 끊어졌다. (장신구 칸이 비었다)')
+  }, [addLog])
   const unequip = useCallback(
     (slot) => {
       if (battleRef.current) return { error: '전투 중에는 장비를 바꿀 수 없다.' }
@@ -1316,12 +1327,14 @@ export default function Game({
       const giveHp = e.giveHp ? e.giveHp.self : 0 // 쌍쌍바 등: 혼자 쓸 때는 self 쪽 회복량
       const weakUntilNext = Math.max(cur.curseUntil > now0 ? cur.curseUntil : 0,
         e.cureWeak ? 0 : e.weakCap != null ? Math.min(cur.weakUntil || 0, now0 + e.weakCap) : cur.weakUntil || 0)
+      // v-B.08 일기장: 의지력을 (지금 스탯의 합)만큼 회복 — e.mpStats: ['endurance', 'control']
+      const mpGain = (e.mp || 0) + (e.mpStats ? e.mpStats.reduce((s, k) => s + Math.max(0, Math.floor(effectiveStats(cur)[k] || 0)), 0) : 0)
       const next = {
         ...cur,
         ...(buffs ? { buffs } : {}),
         inventory: { ...cur.inventory, [id]: cur.inventory[id] - 1 },
         hp: e.hp || giveHp ? Math.min(cur.hpMax, cur.hp + (e.hp || 0) + giveHp) : cur.hp,
-        mp: e.mp ? Math.min(cur.mpMax, cur.mp + e.mp) : cur.mp,
+        mp: mpGain ? Math.min(cur.mpMax, cur.mp + mpGain) : cur.mp,
         money: e.sellMoney ? (cur.money || 0) + e.sellMoney : cur.money,
         weakUntil: weakUntilNext,
       }
@@ -1353,7 +1366,9 @@ export default function Game({
                       ? `${e.sellMoney}냥 획득`
                       : e.giveHp
                         ? `체력 +${e.giveHp.self}`
-                        : item.effectText
+                        : e.mpStats
+                          ? `의지력 +${mpGain} (${e.mpStats.map((k) => STAT_META[k].label).join('+')})`
+                          : item.effectText
         })`,
       )
     },
@@ -1519,7 +1534,7 @@ export default function Game({
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
   const mbSnapshot = (passiveOff = []) => {
     const cur = playerRef.current
-    return { passiveOff, stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { passiveOff, stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), trinket: trinketFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
   // v79.0.7: 일반 다인 전투 전 패시브 영능력(영력결계) 사용 여부 고르기 { enemyId } 또는 { invite: true }
@@ -1578,6 +1593,10 @@ export default function Game({
     if (me.reviveUsed && reviveRef.current) {
       reviveRef.current = false
       setReviveOn(false)
+    }
+    if (me.headbandUsed && !mbRef.current.headbandDone) {
+      mbRef.current.headbandDone = true
+      breakHeadband()
     }
     const rec2 = mbRef.current
     if (!rec2.downed && (me.status === 'down' || me.pendingDeath)) {
@@ -1698,9 +1717,39 @@ export default function Game({
     }
   }, [])
 
-  const exploreShrine = () => {
-    interruptAll('새 동작을 시작해')
-    addLog('사당 아래로 한 걸음을 내디뎠다. 귀문의 공기가 뼈를 적신다. (탐사 모듈 준비 중)')
+  const investigateShrine = useCallback(
+    (area, label, text) => {
+      interruptAll('새 동작을 시작해')
+      addLog(`사당 탐사 · ${area} ${label}: ${text}`)
+    },
+    [addLog, interruptAll],
+  )
+
+  // v-B.07 탐사 중의 일: 10분 기다리기 · 의지력 쓰기 · 도깨비 놀이 · 볍씨 주머니 · 사당 표지판. 결과 객체를 그대로 돌려준다.
+  const exploreAct = (kind, payload = {}) => {
+    const cur = playerRef.current
+    const now = Date.now()
+    let r
+    if (kind === 'waitStart') r = startExploreWait(cur, payload.key, payload.minutes, now)
+    else if (kind === 'waitClaim') r = claimExploreWait(cur, payload.key, now)
+    else if (kind === 'spendMp') r = spendExploreMp(cur, payload.amount)
+    else if (kind === 'goblinPlay') r = goblinPlay(cur, payload, effectiveStats(cur), now)
+    else if (kind === 'ricePouch') r = openRicePouches(cur)
+    else if (kind === 'shrineSign') r = readShrineSign(cur, cur.stats)
+    else return { error: '알 수 없는 행동이다.' }
+    if (r.error) return r
+    if (kind !== 'shrineSign' && kind !== 'waitClaim') interruptAll('새 동작을 시작해')
+    if (r.player && r.player !== cur) {
+      const next = syncCodex(r.player)
+      playerRef.current = next
+      setPlayer(next)
+    }
+    if (kind === 'waitStart') addLog(`${payload.label ?? '탐사'}: ${payload.minutes}분을 기다리기 시작했다.`)
+    if (kind === 'spendMp') addLog(`의지력 ${payload.amount}을(를) 써서 곧바로 ${payload.reason ?? '시도'}.`)
+    if (kind === 'goblinPlay') addLog(`도깨비들과 ${GOBLIN_GAMES.find((g) => g.id === payload.game)?.name ?? '놀이'} — ${r.win ? '승리' : '패배'}. (${r.notice})`)
+    if (kind === 'ricePouch') addLog(ricePouchText(r.pouches, r.grains))
+    if (kind === 'shrineSign' && r.first) addLog('사당 표지판 아래의 글자를 읽었다. [사당 탐사]가 열렸다.')
+    return r
   }
 
   // 관리자 도구: 스탯 · 체력 · 영력 · 의지력을 곧바로 고친다.
@@ -1795,6 +1844,7 @@ export default function Game({
       <div className="order-3 flex min-w-0 flex-1 flex-col gap-3 lg:order-2 lg:min-h-0">
         <ActivityBar
           panel={panel}
+          unlocks={{ shrine: !!player.shrineSignRead }}
           locationId={locationId}
           onMove={(id) => {
             // 신수·벼룩시장·사물함 등을 보고 있다가도 장소 버튼을 누르면 학교 구역 화면으로 자동 전환된다. (v71)
@@ -1842,7 +1892,7 @@ export default function Game({
                     {player.curseUntil > Date.now() ? '[저주] 모든 육조 스탯이 5할 · 10% 확률 자해 · 3일 지속 (아이템과 취침으로 해제 불가)' : '[쇠약] 모든 육조 스탯이 5할 · 기숙사에서 6시간 취침 시 회복'} · 남은 시간 {weakLeftText(player)}
                   </p>
                 )}
-                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} admin={admin} onCraft={craftItem} onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))} onVisit={visitSpot} />}
+                {locationId === 'mainHall' && <MainHall player={viewPlayer} view={activity} onOpenCourse={setCourse} onInvestigate={investigate} onEnter={moveTo} onLockerMove={lockerMove} onLockerOpen={lockerOpen} onVisit={visitSpot} onExploreAct={exploreAct} />}
                 {locationId === 'infirmary' && (
                   <Infirmary
                     view={activity}
@@ -1867,6 +1917,7 @@ export default function Game({
                     onApplyClub={applyClub}
                     onFetchMembers={fetchClubMembers}
                     onVisit={visitSpot}
+                    onExploreAct={exploreAct}
                   />
                 )}
                 {locationId === 'dorm' && activity === 'store' && (
@@ -1910,6 +1961,7 @@ export default function Game({
                     onHuntAction={huntAction}
                     onVisit={visitSpot}
                     onGiveNpc={giveNpc}
+                    onExploreAct={exploreAct}
                     stats={effStats}
                     mp={player.mp}
                     hp={player.hp}
@@ -1938,6 +1990,8 @@ export default function Game({
                       reviveRef.current = false
                       setReviveOn(false)
                     }}
+                    headbandOn={trinketFx(player) === 'headband'}
+                    onHeadbandUsed={breakHeadband}
                     psychics={player.psychics ?? []}
                     baseAggression={player.stats?.aggression}
                     curseUntil={player.curseUntil || 0}
@@ -1965,7 +2019,7 @@ export default function Game({
                   />
                 )}
                 {locationId === 'shrine' && (
-                  <Shrine view={activity} player={player} onExplore={exploreShrine} onMeet={meetNpc} onLineSeen={lineSeen} onGiveNpc={giveNpc} />
+                  <Shrine view={activity} player={player} onMeet={meetNpc} onLineSeen={lineSeen} onGiveNpc={giveNpc} onExploreAct={exploreAct} onEnter={moveTo} onInvestigate={investigateShrine} onVisit={visitSpot} />
                 )}
               </>
             )}
@@ -1990,6 +2044,7 @@ export default function Game({
           onStart={startBattle} onHp={changeHp} onMp={changeMp}
           onFinish={finishHuntBattle} onLog={addLogs} onDown={downed} onSpecialSeen={seeSpecial}
           reviveOn={reviveOn} onReviveUsed={() => { reviveRef.current = false; setReviveOn(false) }}
+          headbandOn={trinketFx(player) === 'headband'} onHeadbandUsed={breakHeadband}
           boostOn={boostOn} onBoostUsed={() => { boostRef.current = false; setBoostOn(false) }}
           onActive={on => {
             setBattleActive(on)

@@ -7,6 +7,9 @@ import Garden from './Garden'
 import Battle from './Battle'
 import { BESTIARY_ENEMIES, REC_STATS } from '../../game/battle'
 import { TIER_HANJA } from '../../game/constants'
+import { resolveEntries } from '../../game/scene'
+import Scene, { Paras } from '../Scene'
+import { GoblinToday, RicePouch } from '../ExploreWidgets'
 
 const leftText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -75,17 +78,13 @@ function ExtraBattle({ battle }) {
   )
 }
 
-const Placeholder = ({ name }) => (
-  <div className="ink-panel mt-4 w-full rounded-xl p-5">
-    <p className="text-sm leading-relaxed text-paper/60">{name}. (아직 둘러볼 것이 준비되지 않았다)</p>
-  </div>
-)
-
-/** 뒷산 · 산 탐색: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길. (v-B.01: 개척은 산 탐색 옆 [개척] 버튼으로만 들어간다) */
-export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, battle }) {
+/** 뒷산 · 산 탐사: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길 / 퇴마 실습장. (v-B.01: 개척은 산 탐사 옆 [개척] 버튼으로만 들어간다)
+ *  v-B.07: 장소마다 구글 시트 [조사내용] 의 글과 선택지(장면, game/scene.js)가 나온다. */
+export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, onExploreAct, battle }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
+  const [visit, setVisit] = useState(0)
   const path = HIKE_PATHS.find((p) => p.id === pathId)
   const branch = path?.branches?.find((b) => b.id === branchId)
   const spots = branch ? branch.spots : path?.spots
@@ -102,11 +101,32 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
   }
   const pickSpot = (s) => {
     setSpotId(s.id)
+    setVisit((v) => v + 1)
     onVisit?.(hikeSpotKey(pathId, s.id, branchId))
   }
+  const act = (kind, payload) => onExploreAct?.(kind, payload) ?? {}
+  const ctx = { stats: stats ?? player.stats, player, name: player.name, act }
+  const home = () => {
+    setPathId(null)
+    setBranchId(null)
+    setSpotId(null)
+  }
+  const pathText = path?.text ? resolveEntries(path.text, ctx.stats, `gym:${path.id}`) : []
+  const branchText = branch?.text ? resolveEntries(branch.text, ctx.stats, `gym:${path.id}:${branch.id}`) : []
+  const renderWidget = (node) => {
+    if (node.widget === 'armoryTalk') return <Armory player={player} part="talk" onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onTokenExchange={onTokenExchange} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
+    if (node.widget === 'armoryManage') return <Armory player={player} part="manage" onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onTokenExchange={onTokenExchange} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
+    if (node.widget === 'seedShop') return <Garden player={player} part="shop" onGardenAction={onGardenAction} onMeet={onMeet} />
+    if (node.widget === 'greenhouse') return <Garden player={player} part="greenhouse" onGardenAction={onGardenAction} onMeet={onMeet} />
+    if (node.widget === 'ricePouch') return <RicePouch player={player} act={act} />
+    if (node.widget === 'goblinToday') return <GoblinToday player={player} />
+    if (node.widget === 'outsideBari') return <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />
+    if (node.widget === 'extraBattle') return spot.id === 'extraBattle' && battle ? <ExtraBattle battle={battle} /> : null
+    return null
+  }
   return (
-    <section aria-label="산 탐색">
-      <h2 className="font-serif text-2xl text-gold">산 탐색</h2>
+    <section aria-label="산 탐사">
+      <h2 className="font-serif text-2xl text-gold">산 탐사</h2>
       <p className="mt-1 text-sm text-paper/65">자유롭게 산을 돌아다닐 수 있다. 단, 어딘가에서 예기치 못한 존재와 조우하게 될지도 모른다.</p>
 
       <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="갈림길 선택">
@@ -140,6 +160,16 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
         </div>
       )}
 
+      {(pathText.length > 0 || branchText.length > 0) && (
+        <div className="ink-panel mt-4 w-full rounded-xl p-5" data-hike-intro>
+          <p className="font-serif text-lg text-paper">{branch?.text ? branch.name : path.name}</p>
+          <div className="mt-2">
+            <Paras list={branch?.text ? branchText : pathText} />
+          </div>
+          {!branch && path?.note && <p className="mt-3 text-[11px] text-paper/50">{path.note}</p>}
+        </div>
+      )}
+
       {spots && (
         <>
           <p className="mt-4 text-[11px] tracking-widest text-paper/55">둘러볼 곳</p>
@@ -160,18 +190,9 @@ export default function Hike({ player, admin, onEnhance, onSpecialEnhance, onRem
       )}
 
       {spot && (
-        <div className="mt-2">
-          {spot.id === 'armory' ? (
-            <Armory player={player} onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onTokenExchange={onTokenExchange} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
-          ) : spot.id === 'garden' ? (
-            <Garden player={player} onGardenAction={onGardenAction} onMeet={onMeet} />
-          ) : spot.id === 'outside' ? (
-            <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />
-          ) : spot.id === 'extraBattle' && battle ? (
-            <ExtraBattle battle={battle} />
-          ) : (
-            <Placeholder name={spot.name} />
-          )}
+        <div className="ink-panel mt-4 w-full rounded-xl p-5" aria-live="polite" data-hike-spot={spot.id}>
+          <p className="mb-2 text-[11px] tracking-widest text-gold">{path.name}{branch ? ` · ${branch.name}` : ''} · {spot.name}</p>
+          <Scene key={`${spot.id}:${visit}`} root={spot} ctx={ctx} scope={hikeSpotKey(pathId, spot.id, branchId)} onHome={home} renderWidget={renderWidget} />
         </div>
       )}
     </section>

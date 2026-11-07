@@ -12,7 +12,8 @@ const BOX = 'ink-panel shrink-0 overflow-auto rounded-2xl p-3 sm:p-4 max-lg:max-
 const LOG_BOX = 'ink-panel flex h-[18rem] shrink-0 flex-col overflow-hidden rounded-2xl p-3 sm:p-4 lg:h-[17rem] xl:h-[9.75rem]'
 
 /** 위쪽 칸: 구역을 옮기고, 지금 구역에서 할 활동을 고른다. 고른 활동은 아래 칸에 나온다. */
-export default function ActivityBar({ panel, locationId, onMove, activity, onSelect, logs }) {
+// unlocks: { shrine: true } — 조건이 붙은 활동(unlock)은 열렸을 때만 보인다.
+export default function ActivityBar({ panel, locationId, onMove, activity, onSelect, logs, unlocks = {} }) {
   if (panel === 'log') {
     return (
       <header className={LOG_BOX} aria-label="활동 로그">
@@ -36,7 +37,7 @@ export default function ActivityBar({ panel, locationId, onMove, activity, onSel
       </header>
     )
   }
-  const list = ACTIVITIES[locationId]
+  const list = ACTIVITIES[locationId].filter((a) => !a.unlock || unlocks[a.unlock])
   return (
     <header className={`${BOX} space-y-3`} aria-label="활동 선택">
       <LocationTabs currentId={locationId} onMove={onMove} />

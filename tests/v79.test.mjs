@@ -63,7 +63,7 @@ test('v79: 저주 쇠약은 씻거나 자더라도 타임스탬프가 살아 있
 })
 test('v79: 건물 이동 5% 확률 지급, 일상 문구 기본 동등 추첨',()=>{
   assert.equal(TRAVEL_LINES.length,4)
-  assert.equal(LOST_THINGS.length,4)
+  assert.equal(LOST_THINGS.length,5) // v-B.07: 누군가가 잃어버린 열쇠가 더해졌다
   const vals=[0,0.01,0.1];let i=0
   assert.equal(rollTravelEvent(()=>vals[i++]).reward,'ginseng-candy')
   const vals2=[0.1,0.2];i=0

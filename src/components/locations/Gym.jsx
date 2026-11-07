@@ -22,6 +22,7 @@ export default function Gym({ view, ...rest }) {
         stats={rest.stats}
         onVisit={rest.onVisit}
         onGiveNpc={rest.onGiveNpc}
+        onExploreAct={rest.onExploreAct}
         battle={rest}
       />
     )
