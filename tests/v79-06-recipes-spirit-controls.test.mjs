@@ -25,8 +25,9 @@ test('모든 등록 제작법은 정확한 장소에 표시될 수 있고 재료
       assert.ok(Number.isInteger(count) && count > 0)
     }
   }
-  assert.match(workshop, /const known = RECIPES/)
-  assert.match(kitchen, /const known = COOK_RECIPES/)
+  // v-B.08: 모든 제작법을 적정 레벨순으로 늘어놓고 탭으로 거른다
+  assert.match(workshop, /const LISTED = withMeta\(RECIPES\)/)
+  assert.match(kitchen, /const LISTED = withMeta\(COOK_RECIPES\)/)
   assert.ok(RECIPES.some(r => r.id === 'r-goblin-mask' && r.result === 'goblin-mask'))
   assert.ok(COOK_RECIPES.some(r => r.id === 'cook-soybean-oil' && r.result === 'soybean-oil'))
 })

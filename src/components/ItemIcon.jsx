@@ -8,6 +8,7 @@ import { V79B_ICONS } from './icons79b'
 import { B05_ICONS } from './iconsB05'
 import { B06_ICONS } from './iconsB06'
 import { B07_ICONS } from './iconsB07'
+import { B08_ICONS } from './iconsB08'
 
 /**
  * 아이템 아이콘: 플랫 디자인의 원형 배지.
@@ -556,4 +557,5 @@ Object.assign(CUSTOM_ICONS, EXTRA_ICONS, V79_EXTRA_ICONS, V79_ICONS, GARDEN_ITEM
 Object.assign(CUSTOM_ICONS, B05_ICONS) // v-B.05 개척 재료 33종
 Object.assign(CUSTOM_ICONS, B06_ICONS) // v-B.06 아이템 시트 새 아이템 7종
 Object.assign(CUSTOM_ICONS, B07_ICONS) // v-B.07 누군가가 잃어버린 열쇠
+Object.assign(CUSTOM_ICONS, B08_ICONS) // v-B.08 새 제작품 100종 + 까치 깃
 export const CUSTOM_ICON_IDS = Object.keys(CUSTOM_ICONS)

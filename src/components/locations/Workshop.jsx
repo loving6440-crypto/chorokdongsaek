@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
 import { RECIPES, WORKSHOP, canCraft, maxCraftQty, recipeOf } from '../../game/crafting'
 import { countOf, itemOf } from '../../game/items'
+import { withMeta } from './recipeMeta'
+
+// v-B.08: 제작법은 적정 레벨순. 분류 탭으로 걸러 본다.
+const LISTED = withMeta(RECIPES)
+const TABS = [['all', '전체'], ['can', '만들 수 있음'], ['material', '재료'], ['body', '장비'], ['trinket', '장신구'], ['etc', '그 밖']]
 
 const leftText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -14,7 +19,8 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
   const [pickId, setPickId] = useState(null) // 개수를 고르는 중인 제작법 id
   const [qty, setQty] = useState(1)
   const [, setTick] = useState(0)
-  const known = RECIPES
+  const [tab, setTab] = useState('all')
+  const known = LISTED.filter(({ r, group }) => tab === 'all' || (tab === 'can' ? admin || canCraft(player, r) : group === tab))
   const cf = player.crafting
 
   useEffect(() => {
@@ -61,11 +67,16 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
         <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><Hammer size={12} aria-hidden />제작</p>
         <p className="mt-1 text-[11px] text-paper/50">재료가 있다면 제작법을 별도로 배우지 않아도 즉시 제작할 수 있다.</p>
+        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="제작법 분류">
+          {TABS.map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} data-recipe-tab={id} onClick={() => setTab(id)} className={`rounded-full border px-2.5 py-0.5 text-[11px] ${tab === id ? 'border-gold/60 bg-gold/15 text-gold' : 'border-edge/25 text-paper/65 hover:text-paper'}`}>{label}</button>
+          ))}
+        </div>
         {known.length === 0 ? (
-          <p className="mt-3 text-sm text-paper/70" data-workshop-empty>등록된 공작소 제작법이 없다.</p>
+          <p className="mt-3 text-sm text-paper/70" data-workshop-empty>{tab === 'all' ? '등록된 공작소 제작법이 없다.' : '여기에 해당하는 제작법이 없다.'}</p>
         ) : (
           <ul className="mt-3 space-y-2" aria-label="제작법 목록">
-            {known.map((r) => {
+            {known.map(({ r, lv, depth }) => {
               const out = itemOf(r.result)
               const ok = admin || canCraft(player, r)
               const picking = pickId === r.id
@@ -76,6 +87,10 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
                     <div className="min-w-0">
                       <p className="font-serif text-base text-paper">{out.name}</p>
                       <p className="mt-0.5 text-xs text-paper/60">{r.note ?? out.desc}</p>
+                      <p className="mt-1 flex flex-wrap gap-1.5 text-[10px]" data-recipe-meta>
+                        <span className="rounded-full bg-gold/15 px-2 py-px text-gold" data-recipe-lv={lv ?? 'none'}>{lv == null ? '아직 얻을 수 없는 재료가 있다' : `적정 레벨 ${lv}`}</span>
+                        {depth > 1 && <span className="rounded-full bg-shade/40 px-2 py-px text-paper/70" data-recipe-depth={depth}>{depth}단 제작</span>}
+                      </p>
                       <p className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
                         {r.inputs.map(([id, n]) => (
                           <span key={id} className={`rounded-full border px-2 py-px ${countOf(player, id) >= n ? 'border-edge/30 text-paper/80' : 'border-crimson/50 text-crimson'}`}>

@@ -3,6 +3,8 @@ import { V79_ITEMS } from './v79Items.js'
 import { B05_ITEMS } from './itemsB05.js'
 import { B06_ITEMS, B06_OVERRIDES } from './itemsB06.js'
 import { B07_ITEMS } from './itemsB07.js'
+import { B08_SHEET_ITEMS, B08_SHEET_OVERRIDES } from './itemsB08.js'
+import { B08_ITEMS } from './recipesB08.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -955,6 +957,8 @@ const RAW_ITEMS = [
   // v-B.06: 아이템 시트에 새로 생긴 것들
   ...B06_ITEMS,
   ...B07_ITEMS,
+  ...B08_SHEET_ITEMS,
+  ...B08_ITEMS,
 ]
 
 /**
@@ -983,7 +987,7 @@ const V79_OVERRIDES = {
   'spirit-disposable': { effect: {}, battle: false, effectText: '' },
 }
 export const ITEMS = RAW_ITEMS.map((original) => {
-  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}) }
+  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}), ...(B08_SHEET_OVERRIDES[original.id] ?? {}) }
 
   const tags = [...(it.tags ?? [])]
   if (it.battle || it.party || it.effect?.partyHp || it.effect?.partyMp || it.effect?.partyBoost || it.effect?.giveHp) {
@@ -1045,6 +1049,8 @@ export function gearBonus(player) {
 }
 /** 지금 든 무구의 특수 효과 id (없으면 null) */
 export const weaponFx = (player) => itemOf(equipOf(player).weapon)?.fx ?? null
+/** v-B.08 지금 찬 장신구의 특수 효과 id (기합의 띠 · 도깨비 탈, 없으면 null) */
+export const trinketFx = (player) => itemOf(equipOf(player).trinket)?.trinketFx ?? null
 
 // ───────── 무구 강화 v74 ─────────
 // 강화 1회당 선택 스탯 +1, 무구당 총 15포인트. n번째 강화에 연마석 n개(v-B.06) + 단계별 보조 재료 + 영력.
@@ -1290,6 +1296,12 @@ export function equipItem(player, id) {
   if (inv[id] <= 0) delete inv[id]
   if (old) inv[old] = (inv[old] || 0) + 1
   return { player: { ...player, inventory: inv, equip: { ...eq, [it.slot]: id } } }
+}
+/** v-B.08 기합의 띠처럼 효과가 나면 끊어지는 장신구: 착용한 그 장신구를 없앤다(소지품으로 돌아오지 않는다). */
+export function breakTrinket(player, id) {
+  const eq = equipOf(player)
+  if (eq.trinket !== id) return player
+  return { ...player, equip: { ...eq, trinket: null } }
 }
 /** 벗기. 신체는 다른 옷으로 갈아입어야 한다. */
 export function unequipSlot(player, slot) {

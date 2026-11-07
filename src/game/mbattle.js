@@ -4,7 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
-import { enemyById, effectHitsAll, effectPierces, effectTargeting, effectExpr, afflictStats, tickStatus, tickEnemyStatus, playerTurnStart, beforePlayer, afterPlayer, reviveCheck, strikeOf, shownQueue, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal } from './battle.js'
+import { enemyById, effectHitsAll, effectPierces, effectTargeting, effectExpr, afflictStats, tickStatus, tickEnemyStatus, playerTurnStart, beforePlayer, afterPlayer, reviveCheck, strikeOf, shownQueue, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal, maskFriendlyFirePercent } from './battle.js'
 import { itemTurnFree } from './items.js'
 
 /** 일행 전체의 악기 보정을 공격자 기준으로 합산한다 — 악기를 든 사람 자신이 공격자면 그만큼은 75%만 적용된다. (v71) */
@@ -42,12 +42,14 @@ export function cleanStats(raw = {}) {
 
 export const FX_IDS = ['fan', 'spear', 'dagger', 'sword', 'bow', 'bell', 'instrument', 'sickle', 'staff', 'mace']
 
-export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0, passiveOff = [] }) {
+export const TRINKET_FX_IDS = ['headband', 'goblin-mask'] // v-B.08 장신구 특수 효과
+export function makeMember({ id, name, stats, fx, trinket, special, hp, hpMax, mp, mpMax, revive, boost, bring, psychicBring, psychics = [], baseAggression, curseUntil = 0, passiveOff = [] }) {
   const st = cleanStats(stats)
   // 무구의 특수 효과 id 는 스탯 목록에 나타나지 않게(열거되지 않게) 붙인다. (엔진은 stats.fx 를 본다)
   const fxId = FX_IDS.includes(fx) ? fx : null
   if (fxId) Object.defineProperty(st, 'fx', { value: fxId, enumerable: false })
   if (typeof special === 'string') Object.defineProperty(st, 'special', { value: special, enumerable: false })
+  if (TRINKET_FX_IDS.includes(trinket)) Object.defineProperty(st, 'trinket', { value: trinket, enumerable: false })
   const phpMax = Math.round(clampNum(hpMax ?? maxHp(st), 1, 9999))
   return {
     id,
@@ -78,6 +80,7 @@ export function makeMember({ id, name, stats, fx, special, hp, hpMax, mp, mpMax,
     status: 'alive', // alive | down | fled
     pendingDeath: false,
     revive: !!revive,
+    headband: trinket === 'headband', // v-B.08 기합의 띠: 에너지드링크가 없을 때 한 번 체력 1로 일어선다(띠는 끊어진다)
     boost: !!boost,
     bring: bring ?? null, // 보스 전투: 가져온 아이템 { id: 개수 } (null 이면 제한 없음)
     psychicBring: psychicBring ?? null, // 보스 전투: 가져온 영능력 id 목록(최대 2개, null 이면 제한 없음) (v71)
@@ -578,6 +581,21 @@ export function resolveTurn(mb, rng = Math.random) {
   }
   // v-B.05: 의지력 비용·자기 피해·적의 껍질/둔갑/방패 진형 등
   r = afterPlayer(v, r, { action: act.action, mp: m.mp }, rng)
+  // v-B.08 도깨비 탈: 일반 공격이 (호전/3)% 확률로 아군에게 간다 — 상대가 받을 피해를 대신 아군이 받는다(아군은 체력 1 아래로 내려가지 않는다).
+  const ffPercent = act.action === 'attack' ? maskFriendlyFirePercent(m.stats) : 0
+  if (ffPercent > 0) {
+    const others = aliveOf(mb).filter((x) => x.id !== m.id)
+    const roll = 1 + Math.floor(rng() * 100)
+    const dealt = Math.max(0, v.ehp - r.state.ehp)
+    if (others.length && roll <= ffPercent && dealt > 0) {
+      const victim = others[Math.floor(rng() * others.length)]
+      const hurt = Math.min(dealt, Math.max(0, victim.php - 1))
+      victim.php -= hurt
+      // 상대에게 들어갈 뻔한 일격은 없던 일로(쓰러졌다 알림도 지운다) — 그 피해는 아군이 받는다.
+      const evs0 = (r.events ?? []).filter((e) => e.kind !== 'end').map((e) => (e.kind === 'player' ? { ...e, text: `(홀림) ${e.text}` } : e))
+      r = { ...r, state: { ...r.state, ehp: v.ehp, over: r.state.over === 'win' ? null : r.state.over }, events: [...evs0, { kind: 'warn', text: `도깨비 탈에 홀려 ${victim.name}을(를) 공격했다! 상대 대신 ${victim.name}이(가) 맞았다. (${victim.name} 체력 -${hurt}, 확률 ${ffPercent}% · 굴림 ${roll})` }] }
+    }
+  }
   m.ps = r.state.ps || {}
   mb.es = r.state.es || {}
   banishCheck(mb, m, Math.max(0, mb.ehp - r.state.ehp))
@@ -712,13 +730,18 @@ function banishCheck(mb, by, dealt) {
   }
 }
 
-/** 쓰러질 때의 처리(에너지드링크 → 버티기 대기 → 전투불능). lines 에 로그를 덧붙인다. */
+/** v-B.08: 쓰러지는 순간 다시 일어설 수 있는지 — 에너지드링크가 먼저, 없으면 기합의 띠. 쓰면 그 문구를 돌려준다. */
+function spendRevive(m) {
+  if (m.revive) { m.revive = false; m.reviveUsed = true; return `[${m.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!` }
+  if (m.headband) { m.headband = false; m.headbandUsed = true; return `[${m.name}] 기합의 띠가 끊어지며 체력 1로 다시 일어섰다!` }
+  return null
+}
+/** 쓰러질 때의 처리(에너지드링크 · 기합의 띠 → 버티기 대기 → 전투불능). lines 에 로그를 덧붙인다. */
 function downOrPending(mb, m, lines) {
-  if (m.revive) {
-    m.revive = false
+  if (m.revive || m.headband) {
+    const text = spendRevive(m)
     m.php = 1
-    m.reviveUsed = true
-    lines.push({ kind: 'warn', text: `[${m.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!`, popup: { type: 'revived', name: m.name } })
+    lines.push({ kind: 'warn', text, popup: { type: 'revived', name: m.name } })
   } else if ((m.survived | 0) < maxSurvives(m.stats) && m.mp >= 2) {
     m.pendingDeath = true
     m.php = 0
@@ -1026,14 +1049,13 @@ function enemyPhase(mb, rng) {
     let tevs = (blocksGroupSpecial ? r.events.filter(e => !/행동이 무효화/.test(e.text || '')) : r.events)
       .map((e) => (e.kind === 'warn' || e.kind === 'end' ? { ...e, kind: e.kind === 'end' ? 'warn' : e.kind, text: `[${t.name}] ${e.text}` } : (group || targets.length > 1) && e.kind === 'enemy' ? { ...e, text: `[${t.name}] ${e.text}` } : e))
     const downed = r.state.pendingDeath || r.state.over === 'lose'
-    if (downed && t.revive) {
-      t.revive = false
+    if (downed && (t.revive || t.headband)) {
+      const text = spendRevive(t)
       t.php = 1
       tevs = [
         ...tevs.filter((e) => !/버티기를 쓸 수 있다|쓰러졌다|버티지 못/.test(e.text || '')),
-        { kind: 'warn', text: `[${t.name}] 에너지드링크의 힘으로 체력 1로 다시 일어섰다!`, popup: { type: 'revived', name: t.name } },
+        { kind: 'warn', text, popup: { type: 'revived', name: t.name } },
       ]
-      t.reviveUsed = true
     } else if (r.state.pendingDeath) {
       t.pendingDeath = true
       t.php = 0
@@ -1265,6 +1287,7 @@ export function viewOf(mb, extra = {}) {
       bring: m.bring,
       revive: m.revive,
       reviveUsed: !!m.reviveUsed,
+      headbandUsed: !!m.headbandUsed, // v-B.08 기합의 띠가 끊어졌다 → 내 쪽에서 장신구를 없앤다
       energyUsed: !!m.energyUsed, // 이 전투에서 에너지드링크를 이미 마셨다 (v-B.06: 소지품 창에서 바로 알린다)
       psychicBring: m.psychicBring,
       passiveOff: m.passiveOff || [],

@@ -2,7 +2,7 @@
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { clampSpirit, MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
-import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx, specialEnhOf } from './items'
+import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx, trinketFx, specialEnhOf } from './items'
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
 import { enemyById } from './battle'
@@ -181,14 +181,16 @@ export function effectiveStats(player, now = Date.now()) {
   for (const [k, v] of Object.entries(tempBonus(player, now))) bonus[k] = (bonus[k] || 0) + v
   const hasBonus = Object.keys(bonus).length > 0
   const fx = weaponFx(player)
+  const tfx = trinketFx(player) // v-B.08 장신구 특수 효과(기합의 띠 · 도깨비 탈)
   const special = specialEnhOf(player, equipOf(player).weapon)
-  if (!isWeak(player, now) && !hasBonus && !fx && !special) return player.stats
+  if (!isWeak(player, now) && !hasBonus && !fx && !special && !tfx) return player.stats
   const weak = isWeak(player, now)
   // 쇠약으로 5할이 된 뒤에 장비 보정이 더해진다.
   const out = Object.fromEntries(Object.entries(player.stats).map(([k, v]) => [k, (weak ? Math.max(1, Math.floor(v / 2)) : v) + (bonus[k] || 0)]))
   // 무구의 특수 효과 id. 스탯 목록에는 나타나지 않도록(열거되지 않게) 붙인다.
   if (fx) Object.defineProperty(out, 'fx', { value: fx, enumerable: false })
   if (special) Object.defineProperty(out, 'special', { value: special, enumerable: false })
+  if (tfx) Object.defineProperty(out, 'trinket', { value: tfx, enumerable: false })
   return out
 }
 export const weakLeftText = (player, now = Date.now()) => {

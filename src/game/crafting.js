@@ -2,6 +2,7 @@
 // - 예전 player.recipes 데이터와 진행 중인 player.crafting 은 호환을 위해 유지한다.
 import { countOf, itemOf } from './items.js'
 import { canAddInventory } from './inventoryCapacity.js'
+import { B08_RECIPES } from './recipesB08.js'
 
 export const WORKSHOP = {
   id: 'workshop',
@@ -33,6 +34,10 @@ export const RECIPES = [
   { id: 'r-five-color-thread', result: 'five-color-thread', inputs: [['web', 5], ['dye', 1]] },
   { id: 'r-hanji', result: 'hanji', inputs: [['crumpled-hanji', 2]], note: '구김살이 난 종이를 부드러운 종이로 재활용하자.', price: 30 },
   { id: 'r-brush', result: 'brush', inputs: [['split-brush', 2]], note: '다 쓴 붓을 모아오면 새 붓으로 교환해준다.', price: 40 },
+  // v-B.08 아이템 시트: 소형 돌제단
+  { id: 'r-small-altar', result: 'small-altar', inputs: [['stone', 5], ['fine-woodchip', 3]] },
+  // v-B.08 개척 재료로 만드는 새 제작법 50개 (recipesB08.js)
+  ...B08_RECIPES,
 ]
 export const recipeOf = (id) => RECIPES.find((r) => r.id === id)
 export const knowsRecipe = (player, id, admin = false) => !!recipeOf(id)

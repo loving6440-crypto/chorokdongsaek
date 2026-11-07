@@ -57,7 +57,13 @@ import { MULTI_TAG, isMulti } from '../../game/mbattle'
 import { tierLabel } from '../../game/constants'
 
 /** 체육관 전투: 턴제, 10면체. 상대의 능력치와 다음 행동은 가려져 있고, 안목·조우 횟수·간파로 드러난다. */
-export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive, roster, rosterIntro, onAfflict }) {
+/** 스탯 일부만 바꾼 사본 — 숨겨 둔 무구 · 장신구 효과(fx · special · trinket)는 그대로 옮긴다. */
+const withHidden = (stats, patch) => {
+  const out = { ...stats, ...patch }
+  for (const k of ['fx', 'special', 'trinket']) if (stats[k] !== undefined && !Object.prototype.propertyIsEnumerable.call(stats, k)) Object.defineProperty(out, k, { value: stats[k], enumerable: false })
+  return out
+}
+export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, headbandOn = false, onHeadbandUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive, roster, rosterIntro, onAfflict }) {
   // v-B.05: 둘레길 [추가전투]는 같은 화면에 다른 상대 목록(roster)을 넘긴다. 없으면 체육관 상대들.
   const list = roster ?? ENEMIES
   const [phase, setPhase] = useState('pick') // pick | fight | result
@@ -106,6 +112,8 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
   mpRef.current = mp // 의지력은 항상 바깥(게임)의 값을 따른다. 아이템으로 바뀔 수 있다.
   const reviveRef = useRef(false)
   reviveRef.current = reviveOn
+  const headbandRef = useRef(false) // v-B.08 기합의 띠(장신구): 에너지드링크가 없을 때 한 번 체력 1로 일어선다
+  headbandRef.current = headbandOn
   const boostRef = useRef(false)
   boostRef.current = boostOn
   const [buffArmed, setBuffArmed] = useState(false) // 효험을 켜 두었는가(다음 공격/부적/생존본능·원숭이 손·도깨비불에 적용)
@@ -217,11 +225,12 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         }
         if (st.pendingDeath || st.over === 'lose') onDown?.()
         // 에너지드링크: 전투불능이 되는 순간 1회 체력 1로 부활, 전투는 계속된다.
-        if ((st.pendingDeath || st.over === 'lose') && reviveRef.current) {
+        if ((st.pendingDeath || st.over === 'lose') && (reviveRef.current || headbandRef.current)) {
+          const byEnergy = reviveRef.current
           st = { ...st, php: 1, pendingDeath: false, over: null }
-          evs = [...evs.filter((e) => e.kind !== 'end' && !/버티기를 쓸 수 있다/.test(e.text || '')), { kind: 'warn', text: '에너지드링크의 힘으로 체력 1로 다시 일어섰다!' }]
-          reviveRef.current = false
-          onReviveUsed?.()
+          evs = [...evs.filter((e) => e.kind !== 'end' && !/버티기를 쓸 수 있다/.test(e.text || '')), { kind: 'warn', text: byEnergy ? '에너지드링크의 힘으로 체력 1로 다시 일어섰다!' : '기합의 띠가 끊어지며 체력 1로 다시 일어섰다!' }]
+          if (byEnergy) { reviveRef.current = false; onReviveUsed?.() }
+          else { headbandRef.current = false; onHeadbandUsed?.() }
         }
         setB(st)
         push(evs)
@@ -230,7 +239,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         else if (!st.pendingDeath) beginRef.current?.(st)
       }, delay)
     },
-    [stats, push, finish, spend, onReviveUsed, onDown],
+    [stats, push, finish, spend, onReviveUsed, onHeadbandUsed, onDown],
   )
 
   // v79.0.7: 패시브 영능력이 있으면 전투 전에 켤지 끌지 먼저 묻는다.
@@ -319,7 +328,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       }
       cur = pre.state
       const buffed = !barrierOn(cur.enemy) && !((cur.psySeal || 0) > 0) && buffArmed && (action === 'attack' || action === 'charm')
-      let r = playerTurn(cur, action, { stats: cur.starBonus ? {...stats, aggression: stats.aggression + cur.starBonus} : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
+      let r = playerTurn(cur, action, { stats: cur.starBonus ? withHidden(stats, { aggression: stats.aggression + cur.starBonus }) : stats, mp: mpRef.current, boost: boostRef.current, noRash: true, buff: buffed, ...extra })
       if (!r.invalid) r = afterPlayer(cur, r, { action, mp: mpRef.current })
       if (pre.events.length) r = { ...r, events: [...pre.events, ...(r.events || [])] }
       if (action === 'scan' && !r.invalid) onScan?.()
@@ -370,7 +379,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
       if (state.fire) {
         setBusy(true)
         timer.current = setTimeout(() => {
-          const f = afterPlayer(state, fireTurn(state, { stats: state.starBonus ? {...stats, aggression: stats.aggression + state.starBonus} : stats, mp: mpRef.current, boost: boostRef.current }, Math.random), { action: 'fire', mp: mpRef.current })
+          const f = afterPlayer(state, fireTurn(state, { stats: state.starBonus ? withHidden(stats, { aggression: stats.aggression + state.starBonus }) : stats, mp: mpRef.current, boost: boostRef.current }, Math.random), { action: 'fire', mp: mpRef.current })
           if (f.boostUsed) {
             boostRef.current = false
             onBoostUsed?.()
@@ -713,7 +722,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
           })}
         </ul>
         <p className="mt-4 text-[11px] leading-relaxed text-paper/50">
-          내 상태 · 체력 {Math.floor(hp)} / {hpMax} · 의지력 {Math.floor(stats.special === 'plum' && phase === 'fight' ? mpRef.current : mp)} · {stats.special === 'plum' ? '매화의 전투 의지력 한도 150 · ' : ''}돌발 행동 확률 {rash}% (호전 − 절제)
+          내 상태 · 체력 {Math.floor(hp)} / {hpMax} · 의지력 {Math.floor(stats.special === 'plum' && phase === 'fight' ? mpRef.current : mp)} · {stats.special === 'plum' ? '매화의 전투 의지력 한도 150 · ' : ''}돌발 행동 확률 {rash}% (호전 − 절제{stats.trinket === 'goblin-mask' ? ' + 도깨비 탈 50' : ''})
         </p>
       </section>
     )

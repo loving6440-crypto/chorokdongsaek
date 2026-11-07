@@ -2,6 +2,7 @@
 // 등록된 조리실 요리법은 별도로 익히지 않아도 재료만 있으면 즉시 조리 가능하다.
 import { countOf, itemOf } from './items.js'
 import { canAddInventory } from './inventoryCapacity.js'
+import { B08_COOK_RECIPES } from './recipesB08.js'
 
 export const KITCHEN = {
   id: 'kitchen',
@@ -20,6 +21,11 @@ export const COOK_RECIPES = [
   { id: 'cook-poison-mushroom-stew', result: 'poison-mushroom-stew', inputs: [['poison-mushroom', 5]] },
   { id: 'cook-bibimbap', result: 'bibimbap', inputs: [['chwinamul', 2], ['lettuce', 2], ['fern', 2], ['rice', 2]] },
   { id: 'cook-flower-pancake', result: 'flower-pancake', inputs: [['azalea', 1], ['dandelion', 1], ['rice', 2]] },
+  // v-B.08 아이템 시트: 나물무침(시트 조합 '취나물,') · 정체불능의 보약
+  { id: 'cook-herb-salad', result: 'herb-salad', inputs: [['chwinamul', 1]] },
+  { id: 'cook-mystery-tonic', result: 'mystery-tonic', inputs: [['licorice', 2], ['waning-flower', 1], ['crescent-flower', 1], ['lake-water', 1]] },
+  // v-B.08 개척 재료로 만드는 새 요리법 50개 (recipesB08.js)
+  ...B08_COOK_RECIPES,
 ]
 
 export const cookRecipeOf = (id) => COOK_RECIPES.find((r) => r.id === id)

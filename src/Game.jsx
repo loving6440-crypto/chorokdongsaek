@@ -12,7 +12,7 @@ import { codexKnown } from './game/codex'
 import Store from './components/locations/Store'
 import Cafeteria from './components/locations/Cafeteria'
 import { sellItem } from './game/sell'
-import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, exchangeGoblinTokens, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx } from './game/items'
+import { ENH_STATS, START_MONEY, canUseItem, dropEnh, enhanceWeapon, exchangeGoblinTokens, specialEnhanceWeapon, removeWeaponSpecial, discardInventoryItem, giftEnhOf, giveWeapon, mergeEnh, migrateWeapons, equipItem, equipOf, isStoreOpen, itemOf, unequipSlot, weaponFx, trinketFx, breakTrinket } from './game/items'
 import { bgm } from './game/bgm'
 import GameModal from './components/GameModal'
 import ActivityBar from './components/ActivityBar'
@@ -1005,6 +1005,15 @@ export default function Game({
     },
     [addLog],
   )
+  // v-B.08 기합의 띠: 전투불능 순간 체력 1로 일어서고 끊어진다(착용 칸에서 사라진다).
+  const breakHeadband = useCallback(() => {
+    const cur = playerRef.current
+    if (trinketFx(cur) !== 'headband') return
+    const next = breakTrinket(cur, equipOf(cur).trinket)
+    playerRef.current = next
+    setPlayer(next)
+    addLog('기합의 띠가 끊어졌다. (장신구 칸이 비었다)')
+  }, [addLog])
   const unequip = useCallback(
     (slot) => {
       if (battleRef.current) return { error: '전투 중에는 장비를 바꿀 수 없다.' }
@@ -1318,12 +1327,14 @@ export default function Game({
       const giveHp = e.giveHp ? e.giveHp.self : 0 // 쌍쌍바 등: 혼자 쓸 때는 self 쪽 회복량
       const weakUntilNext = Math.max(cur.curseUntil > now0 ? cur.curseUntil : 0,
         e.cureWeak ? 0 : e.weakCap != null ? Math.min(cur.weakUntil || 0, now0 + e.weakCap) : cur.weakUntil || 0)
+      // v-B.08 일기장: 의지력을 (지금 스탯의 합)만큼 회복 — e.mpStats: ['endurance', 'control']
+      const mpGain = (e.mp || 0) + (e.mpStats ? e.mpStats.reduce((s, k) => s + Math.max(0, Math.floor(effectiveStats(cur)[k] || 0)), 0) : 0)
       const next = {
         ...cur,
         ...(buffs ? { buffs } : {}),
         inventory: { ...cur.inventory, [id]: cur.inventory[id] - 1 },
         hp: e.hp || giveHp ? Math.min(cur.hpMax, cur.hp + (e.hp || 0) + giveHp) : cur.hp,
-        mp: e.mp ? Math.min(cur.mpMax, cur.mp + e.mp) : cur.mp,
+        mp: mpGain ? Math.min(cur.mpMax, cur.mp + mpGain) : cur.mp,
         money: e.sellMoney ? (cur.money || 0) + e.sellMoney : cur.money,
         weakUntil: weakUntilNext,
       }
@@ -1355,7 +1366,9 @@ export default function Game({
                       ? `${e.sellMoney}냥 획득`
                       : e.giveHp
                         ? `체력 +${e.giveHp.self}`
-                        : item.effectText
+                        : e.mpStats
+                          ? `의지력 +${mpGain} (${e.mpStats.map((k) => STAT_META[k].label).join('+')})`
+                          : item.effectText
         })`,
       )
     },
@@ -1521,7 +1534,7 @@ export default function Game({
   // 판은 서버가 진행한다. 여기서는 (1) 초대/참여, (2) 서버가 알려 주는 내 체력·의지력을 반영, (3) 끝나면 결과를 적용한다.
   const mbSnapshot = (passiveOff = []) => {
     const cur = playerRef.current
-    return { passiveOff, stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
+    return { passiveOff, stats: effectiveStats(cur), psychics: cur.psychics ?? [], baseAggression: cur.stats?.aggression ?? cur.aggression ?? effectiveStats(cur).aggression, curseUntil: cur.curseUntil || 0, fx: weaponFx(cur), trinket: trinketFx(cur), special: cur.weaponSpecial?.[equipOf(cur).weapon] ?? null, hp: Math.floor(cur.hp), hpMax: cur.hpMax, mp: Math.floor(cur.mp), mpMax: cur.mpMax, revive: reviveRef.current, boost: boostRef.current }
   }
   const [bringPick, setBringPick] = useState(null) // 보스 전투 전 가져갈 아이템 고르기 { enemyId } 또는 { invite: true }
   // v79.0.7: 일반 다인 전투 전 패시브 영능력(영력결계) 사용 여부 고르기 { enemyId } 또는 { invite: true }
@@ -1580,6 +1593,10 @@ export default function Game({
     if (me.reviveUsed && reviveRef.current) {
       reviveRef.current = false
       setReviveOn(false)
+    }
+    if (me.headbandUsed && !mbRef.current.headbandDone) {
+      mbRef.current.headbandDone = true
+      breakHeadband()
     }
     const rec2 = mbRef.current
     if (!rec2.downed && (me.status === 'down' || me.pendingDeath)) {
@@ -1973,6 +1990,8 @@ export default function Game({
                       reviveRef.current = false
                       setReviveOn(false)
                     }}
+                    headbandOn={trinketFx(player) === 'headband'}
+                    onHeadbandUsed={breakHeadband}
                     psychics={player.psychics ?? []}
                     baseAggression={player.stats?.aggression}
                     curseUntil={player.curseUntil || 0}
@@ -2025,6 +2044,7 @@ export default function Game({
           onStart={startBattle} onHp={changeHp} onMp={changeMp}
           onFinish={finishHuntBattle} onLog={addLogs} onDown={downed} onSpecialSeen={seeSpecial}
           reviveOn={reviveOn} onReviveUsed={() => { reviveRef.current = false; setReviveOn(false) }}
+          headbandOn={trinketFx(player) === 'headband'} onHeadbandUsed={breakHeadband}
           boostOn={boostOn} onBoostUsed={() => { boostRef.current = false; setBoostOn(false) }}
           onActive={on => {
             setBattleActive(on)

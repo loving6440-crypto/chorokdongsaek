@@ -617,6 +617,7 @@ const mbInfo = (c, me) => ({
   curseUntil: Number.isFinite(me?.curseUntil) ? Math.max(0, Math.floor(me.curseUntil)) : 0,
   baseAggression: Number.isFinite(me?.baseAggression) ? Math.max(1,Math.min(999,Math.floor(me.baseAggression))) : undefined,
   fx: me?.fx,
+  trinket: typeof me?.trinket === 'string' ? me.trinket : null, // v-B.08 장신구 특수 효과(기합의 띠 · 도깨비 탈)
   special: typeof me?.special === 'string' ? me.special : null,
   hp: me?.hp,
   hpMax: me?.hpMax,
