@@ -10,6 +10,7 @@ import {
   isMatch,
   stageConfig,
 } from '../../game/minigames/hwatu'
+import { hwatuDecks } from '../../game/minigames/rankedVerify'
 import { sfx } from '../../game/sfx'
 import { isTypingTarget, useLesson } from '../../game/lessonContext'
 import HwatuFace, { HwatuBack } from './HwatuFace'
@@ -58,7 +59,7 @@ function reducer(s, a) {
         phase: 'peek',
         stage,
         score: a.keepScore ? s.score : 0,
-        deck: buildDeck(stage),
+        deck: a.deck ?? buildDeck(stage),
         matched: [],
         open: [],
         chances: cfg.chances,
@@ -140,6 +141,18 @@ export default function Hwatu() {
     return () => clearTimeout(t)
   }, [s.phase, s.open, s.deck])
 
+  // v-B.15 랭킹 검증: 서버 씨앗으로 판마다 패를 깔고, 뒤집은 순서와 판별 시간을 서버가 재현한다.
+  const sessRef = useRef(null)
+  const deckGen = useRef(null)
+  const stagesRef = useRef([])
+  const starting = useRef(false)
+  const startRef = useRef({ fresh: () => {}, next: () => {} })
+  const rankedProof = (seconds) => {
+    if (!sessRef.current || !stagesRef.current.length) return null
+    const stages = stagesRef.current.map((st, i, all) => (i === all.length - 1 ? { ...st, seconds } : st))
+    return { sid: sessRef.current.sid, proof: { stages } }
+  }
+
   // 단계 전환 효과음 / 최고점 저장
   const run = useLesson()
   const prevPhase = useRef('ready')
@@ -153,17 +166,29 @@ export default function Hwatu() {
     if (s.phase === 'clear') {
       sfx.play('hwatuClear')
       run.metric(s.stage) // 최소 조건: 3판 완료 (깬 판 수)
-      run.submit(s.score) // 판을 깰 때마다 기록을 올려 둔다 (최고 기록만 남는다)
+      run.submit(s.score, rankedProof(s.seconds)) // 판을 깰 때마다 기록을 올려 둔다 (최고 기록만 남는다)
     }
     if (s.phase === 'over') {
       sfx.play('hwatuOver')
-      run.finish(s.score, { dead: true, metric: null })
+      run.finish(s.score, { dead: true, metric: null, ranked: rankedProof(s.seconds) })
     }
     if (s.phase === 'clear' || s.phase === 'over') saveBest(s.best)
   }, [s.phase, s.best, s.stage, s.score, run])
 
-  const startFresh = () => dispatch({ type: 'start', stage: 1, keepScore: false })
-  const startNext = () => dispatch({ type: 'start', stage: s.stage + 1, keepScore: true })
+  const startFresh = async () => {
+    if (starting.current) return
+    starting.current = true
+    const sess = await run.session()
+    starting.current = false
+    sessRef.current = sess
+    deckGen.current = sess ? hwatuDecks(sess.seed) : null
+    stagesRef.current = [{ flips: [], seconds: 0 }]
+    dispatch({ type: 'start', stage: 1, keepScore: false, deck: deckGen.current?.(1) })
+  }
+  const startNext = () => {
+    stagesRef.current.push({ flips: [], seconds: 0 })
+    dispatch({ type: 'start', stage: s.stage + 1, keepScore: true, deck: deckGen.current?.(s.stage + 1) })
+  }
 
   // Enter: 시작 / 다음 판 / 다시
   useEffect(() => {
@@ -171,10 +196,10 @@ export default function Hwatu() {
       if (e.key !== 'Enter' || e.repeat || isTypingTarget(e)) return
       if (s.phase === 'ready' || s.phase === 'over') {
         e.preventDefault()
-        dispatch({ type: 'start', stage: 1, keepScore: false })
+        startRef.current.fresh()
       } else if (s.phase === 'clear') {
         e.preventDefault()
-        dispatch({ type: 'start', stage: s.stage + 1, keepScore: true })
+        startRef.current.next()
       } else if (s.phase === 'peek') {
         e.preventDefault()
         dispatch({ type: 'skipPeek' })
@@ -184,8 +209,12 @@ export default function Hwatu() {
     return () => window.removeEventListener('keydown', onKey)
   }, [s.phase, s.stage])
 
+  startRef.current = { fresh: startFresh, next: startNext }
+
   const flip = (id) => {
     if (s.phase !== 'play' || s.open.length >= 2 || s.matched.includes(id) || s.open.includes(id)) return
+    const cur = stagesRef.current[stagesRef.current.length - 1]
+    if (cur) cur.flips.push(id)
     sfx.play('hwatuFlip')
     dispatch({ type: 'open', id })
   }

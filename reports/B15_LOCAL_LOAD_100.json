@@ -1,0 +1,23 @@
+{
+  "environment": "local-node-file-store-no-supabase",
+  "targetConcurrentConnections": 100,
+  "actualOnline": 100,
+  "setupMs": 270,
+  "authGetRequests": 100,
+  "authGetErrors": 0,
+  "authGetP50Ms": 18,
+  "authGetP95Ms": 19,
+  "authGetMaxMs": 19,
+  "concurrentChatPosts": 100,
+  "chatErrors": 0,
+  "chatPostP95Ms": 125,
+  "onlineAfterChat": 100,
+  "sseConnects": 100,
+  "sseWrites": 15150,
+  "sseSendBytes": 2410300,
+  "sseSlowDisconnects": 0,
+  "economyReadCount": 0,
+  "economyWriteCount": 0,
+  "accountAuthDbLookupsEquivalent": 301,
+  "caveat": "No real PostgreSQL/Supabase or Render latency; not a production capacity guarantee"
+}

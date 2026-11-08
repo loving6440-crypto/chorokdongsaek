@@ -80,7 +80,7 @@ function ExtraBattle({ battle }) {
 
 /** 뒷산 · 산 탐사: 왼길 / 중앙길(산 오르기 · 둘레길) / 오른길 / 퇴마 실습장. (v-B.01: 개척은 산 탐사 옆 [개척] 버튼으로만 들어간다)
  *  v-B.07: 장소마다 구글 시트 [조사내용] 의 글과 선택지(장면, game/scene.js)가 나온다. */
-export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, onExploreAct, battle }) {
+export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance, onRemoveSpecial, onTokenExchange, onMeet, onAdminGive, onGardenAction, onVisit, onGiveNpc, onExploreAct, battle, online }) {
   const [pathId, setPathId] = useState(null)
   const [branchId, setBranchId] = useState(null)
   const [spotId, setSpotId] = useState(null)
@@ -116,8 +116,8 @@ export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance
   const renderWidget = (node) => {
     if (node.widget === 'armoryTalk') return <Armory player={player} part="talk" onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onTokenExchange={onTokenExchange} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
     if (node.widget === 'armoryManage') return <Armory player={player} part="manage" onEnhance={onEnhance} onSpecialEnhance={onSpecialEnhance} onRemoveSpecial={onRemoveSpecial} onTokenExchange={onTokenExchange} onMeet={onMeet} admin={admin} onAdminGive={onAdminGive} onGiveNpc={onGiveNpc} />
-    if (node.widget === 'seedShop') return <Garden player={player} part="shop" onGardenAction={onGardenAction} onMeet={onMeet} />
-    if (node.widget === 'greenhouse') return <Garden player={player} part="greenhouse" onGardenAction={onGardenAction} onMeet={onMeet} />
+    if (node.widget === 'seedShop') return <Garden player={player} part="shop" onGardenAction={onGardenAction} onMeet={onMeet} online={online} />
+    if (node.widget === 'greenhouse') return <Garden player={player} part="greenhouse" onGardenAction={onGardenAction} onMeet={onMeet} online={online} />
     if (node.widget === 'ricePouch') return <RicePouch player={player} act={act} />
     if (node.widget === 'goblinToday') return <GoblinToday player={player} />
     if (node.widget === 'outsideBari') return <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />

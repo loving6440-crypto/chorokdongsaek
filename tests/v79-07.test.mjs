@@ -251,7 +251,8 @@ test('v79.0.8: 영력 상한 500 — 어떤 값도 넘지 않고, 시작값은 1
   assert.doesNotMatch(progress, /if \(!admin\) p = clampSpirit\(p\)/)
   assert.match(read('../src/game/huntField.js'), /SPIRIT_BASELINE_MAX - player\.spirit/)
   const game = read('../src/Game.jsx')
-  assert.match(game, /const safe = clampSpirit\(limitNewGains\(previous, candidate\)\)/, '모든 setPlayer 경로')
+  // v-B.17: 가방 안전망(protectBags)이 한 겹 더 들어갔지만 영력 상한은 여전히 맨 바깥에서 막는다.
+  assert.match(game, /const safe = clampSpirit\(protectBags\(previous, limitNewGains\(previous, candidate\)\)\)/, '모든 setPlayer 경로')
   assert.match(game, /nextPlayer = clampSpirit\(limitNewGains\(previousPlayer, nextPlayer\)\)/, '1초 틱 경로')
   assert.match(game, /player: clampSpirit\(playerRef\.current\)/, '저장 경로')
   assert.match(read('../src/components/AdminPanel.jsx'), /spirit: num\(v\.spirit, 0, SPIRIT_MAX\)/, '관리자 입력')

@@ -5,6 +5,7 @@
 import { CAT_MATERIAL, itemOf } from './items.js'
 import { gradeOf } from './character.js'
 import { canAddInventory } from './inventoryCapacity.js'
+import { BAG_ID, bagRemovalError } from './bag.js'
 
 export const LOCKER_SLOTS = 100
 export const STACK_MATERIAL = 99
@@ -35,6 +36,7 @@ export function deposit(player, grade, id, n) {
   const have = player.inventory?.[id] || 0
   if (!item || !Number.isInteger(n) || n < 1) return { error: '개수를 확인해 주세요.' }
   if (have < n) return { error: '가진 개수가 모자란다.' }
+  if (id === BAG_ID) { const why = bagRemovalError(player, n); if (why) return { error: why } } // v-B.17
   const cur = lockerOf(player, grade)
   if (n > maxDeposit(cur, id, have)) return { error: '보관함에 칸이 모자란다.' }
   const inv = { ...player.inventory, [id]: have - n }

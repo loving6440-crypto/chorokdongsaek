@@ -1,4 +1,5 @@
 import PsychicDetails from '../PsychicDetails'
+import { applyItemToBattle } from '../../game/battleItems'
 import LanguageBarrierPicker from '../LanguageBarrierPicker'
 import PassivePicker from '../PassivePicker'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -63,7 +64,7 @@ const withHidden = (stats, patch) => {
   for (const k of ['fx', 'special', 'trinket']) if (stats[k] !== undefined && !Object.prototype.propertyIsEnumerable.call(stats, k)) Object.defineProperty(out, k, { value: stats[k], enumerable: false })
   return out
 }
-export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, headbandOn = false, onHeadbandUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive, roster, rosterIntro, onAfflict }) {
+export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax, seen, specials, rewardLeft, onStart, onMp, onHp, onFinish, onLog, onDown, onSpecialSeen, onScan, reviveOn, onReviveUsed, headbandOn = false, onHeadbandUsed, boostOn, onBoostUsed, psychics = [], onActive, usedItems = [], itemFx = null, onSpotItems, onGiveItem, onOpenItems, multi, slowFight, onStartSlow, onStopSlow, tutorialDone, tutorialRewardTaken, onTutorialDone, onClaimTutorialReward, onTutorialActive, roster, rosterIntro, onAfflict }) {
   // v-B.05: 둘레길 [추가전투]는 같은 화면에 다른 상대 목록(roster)을 넘긴다. 없으면 체육관 상대들.
   const list = roster ?? ENEMIES
   const [phase, setPhase] = useState('pick') // pick | fight | result
@@ -191,6 +192,20 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
     const last = [...events].reverse().find((e) => e.roll)
     if (last) setDice({ n: last.roll, kind: last.kind, k: Math.random() })
   }, [])
+
+  // v-B.16: 소지품에서 쓴 아이템이 판 상태(적 피해 · 영력 · 간파 · 부적 · 상태 해제)를 바꾼다.
+  const lastItemFx = useRef(itemFx?.seq ?? null)
+  useEffect(() => {
+    if (!itemFx || itemFx.seq === lastItemFx.current) return
+    lastItemFx.current = itemFx.seq
+    if (!fightingRef.current) return
+    const cur = bRef.current
+    if (!cur || cur.over) return
+    const r = applyItemToBattle(cur, itemFx.effect, { name: itemFx.name })
+    setB(r.state)
+    if (r.events.length) push(r.events)
+  }, [itemFx, push])
+
 
   const finish = useCallback(
     (state) => {
@@ -590,6 +605,7 @@ export default function Battle({ encounter, stats, baseAggression, mp, hp, hpMax
         onOpenItems={onOpenItems}
         onSpecialSeen={onSpecialSeen}
         onClose={multi.onClose}
+        onFlee={multi.onFlee}
       />
     )
   }

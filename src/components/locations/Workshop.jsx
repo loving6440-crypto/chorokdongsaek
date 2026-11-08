@@ -3,6 +3,7 @@ import { Hammer } from 'lucide-react'
 import { RECIPES, WORKSHOP, canCraft, maxCraftQty, recipeOf } from '../../game/crafting'
 import { countOf, itemOf } from '../../game/items'
 import { withMeta } from './recipeMeta'
+import { useVerifiedLocationEconomy } from '../../hooks/useVerifiedLocationEconomy'
 
 // v-B.08: 제작법은 적정 레벨순. 분류 탭으로 걸러 본다.
 const LISTED = withMeta(RECIPES)
@@ -14,14 +15,18 @@ const leftText = (ms) => {
 }
 
 /** 공작소: 등록된 제작법이 있으면 재료만으로 즉시 제작. 이전 버전 제작 대기 상태만 호환 표시. */
-export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminLearn }) {
+export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminLearn, online = false }) {
+  const verified = useVerifiedLocationEconomy(online)
+  const verifiedOn = verified.mode === 'verified'
+  const viewPlayer = verifiedOn ? { ...player, inventory: verified.wallet?.inventory ?? {}, crafting: null } : player
+  const free = admin && !verifiedOn
   const [msg, setMsg] = useState('')
   const [pickId, setPickId] = useState(null) // 개수를 고르는 중인 제작법 id
   const [qty, setQty] = useState(1)
   const [, setTick] = useState(0)
   const [tab, setTab] = useState('all')
-  const known = LISTED.filter(({ r, group }) => tab === 'all' || (tab === 'can' ? admin || canCraft(player, r) : group === tab))
-  const cf = player.crafting
+  const known = LISTED.filter(({ r, group }) => tab === 'all' || (tab === 'can' ? free || canCraft(viewPlayer, r) : group === tab))
+  const cf = verifiedOn ? null : player.crafting
 
   useEffect(() => {
     if (!cf) return
@@ -33,14 +38,15 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
     setPickId(r.id)
     setQty(1)
   }
-  const go = () => {
+  const go = async () => {
+    if (verified.busy || verified.mode === 'pending' || verified.mode === 'error') return
     const r = recipeOf(pickId)
-    const res = onCraft(pickId, qty)
-    setMsg(res?.error ?? `${itemOf(r.result).name} ${qty}개를 제작했다.`)
-    setPickId(null)
+    const res = verifiedOn ? await verified.transact('craft', { recipeId: pickId, qty }) : onCraft(pickId, qty)
+    setMsg(res?.error ? (verified.message || `제작 실패: ${res.error}`) : `${itemOf(r.result).name} ${qty}개를 ${verifiedOn ? '서버 장부에서 ' : ''}제작했다.`)
+    if (res?.ok || (!verifiedOn && !res?.error)) setPickId(null)
   }
 
-  if (cf) {
+  if (cf && verified.mode === 'legacy') {
     const r = recipeOf(cf.recipeId)
     const out = itemOf(r.result)
     const left = cf.startedAt + cf.minutes * 60000 - Date.now()
@@ -61,6 +67,7 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
   return (
     <section aria-label={WORKSHOP.name} data-workshop>
       <h2 className="font-serif text-2xl text-gold">{WORKSHOP.name}</h2>
+      {verified.mode !== 'legacy' && <p data-verified-workshop className="mt-2 text-sm text-gold">{verifiedOn ? '서버 검증 제작 · 검증 장부 재료만 사용합니다. 기존 소지품과 별개입니다.' : verified.mode === 'pending' ? '서버 거래 상태 확인 중…' : '서버 장부 연결 실패: 새로고침 후 다시 시도하세요.'}</p>}
       <div className="ink-panel mt-3 w-full rounded-xl p-5">
         <p className="text-sm leading-[1.9] break-keep text-paper/85" data-workshop-desc>{WORKSHOP.desc}</p>
       </div>
@@ -76,11 +83,11 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
           <p className="mt-3 text-sm text-paper/70" data-workshop-empty>{tab === 'all' ? '등록된 공작소 제작법이 없다.' : '여기에 해당하는 제작법이 없다.'}</p>
         ) : (
           <ul className="mt-3 space-y-2" aria-label="제작법 목록">
-            {known.map(({ r, lv, depth }) => {
+            {known.map(({ r, lv, depth, missing }) => {
               const out = itemOf(r.result)
-              const ok = admin || canCraft(player, r)
+              const ok = (verified.mode === 'legacy' || verifiedOn) && (free || canCraft(viewPlayer, r))
               const picking = pickId === r.id
-              const maxQ = maxCraftQty(player, r, admin)
+              const maxQ = maxCraftQty(viewPlayer, r, free)
               return (
                 <li key={r.id} data-recipe={r.id} className="rounded-xl bg-shade/25 p-3">
                   <div className="flex items-start justify-between gap-2">
@@ -88,28 +95,28 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
                       <p className="font-serif text-base text-paper">{out.name}</p>
                       <p className="mt-0.5 text-xs text-paper/60">{r.note ?? out.desc}</p>
                       <p className="mt-1 flex flex-wrap gap-1.5 text-[10px]" data-recipe-meta>
-                        <span className="rounded-full bg-gold/15 px-2 py-px text-gold" data-recipe-lv={lv ?? 'none'}>{lv == null ? '아직 얻을 수 없는 재료가 있다' : `적정 레벨 ${lv}`}</span>
+                        <span className="rounded-full bg-gold/15 px-2 py-px text-gold" data-recipe-lv={lv ?? 'none'} title={lv == null ? '이 재료들은 아직 게임 안에서 얻을 곳이 없다. 다음 업데이트에서 수급처가 추가된다.' : undefined}>{lv == null ? `수급처 준비 중 · ${missing.join(', ')}` : `적정 레벨 ${lv}`}</span>
                         {depth > 1 && <span className="rounded-full bg-shade/40 px-2 py-px text-paper/70" data-recipe-depth={depth}>{depth}단 제작</span>}
                       </p>
                       <p className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
                         {r.inputs.map(([id, n]) => (
-                          <span key={id} className={`rounded-full border px-2 py-px ${countOf(player, id) >= n ? 'border-edge/30 text-paper/80' : 'border-crimson/50 text-crimson'}`}>
-                            {itemOf(id).name} {n} <span className="opacity-60">({countOf(player, id)})</span>
+                          <span key={id} className={`rounded-full border px-2 py-px ${countOf(viewPlayer, id) >= n ? 'border-edge/30 text-paper/80' : 'border-crimson/50 text-crimson'}`}>
+                            {itemOf(id).name} {n} <span className="opacity-60">({countOf(viewPlayer, id)})</span>
                           </span>
                         ))}
                       </p>
                     </div>
-                    <button type="button" data-craft={r.id} disabled={!ok} onClick={() => openPick(r)} className="flat-btn shrink-0 text-xs disabled:opacity-40">만들기</button>
+                    <button type="button" data-craft={r.id} disabled={!ok || verified.busy} onClick={() => openPick(r)} className="flat-btn shrink-0 text-xs disabled:opacity-40">만들기</button>
                   </div>
                   {picking && (
                     <div className="mt-2 rounded-lg bg-shade/30 p-2.5" data-craft-qty-panel>
-                      <p className="text-xs text-paper/80">몇 개 만들까요? <span className="text-[11px] text-paper/50">(최대 {admin ? 99 : maxQ}개)</span></p>
+                      <p className="text-xs text-paper/80">몇 개 만들까요? <span className="text-[11px] text-paper/50">(최대 {free ? 99 : maxQ}개)</span></p>
                       <div className="mt-1.5 flex items-center gap-2">
                         <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} className="flat-btn !px-2 !py-1 text-xs">−</button>
                         <b className="font-serif text-base text-gold" data-craft-qty>{qty}</b>
                         <button
                           type="button"
-                          onClick={() => setQty((q) => Math.min(admin ? 99 : Math.max(1, maxQ), q + 1))}
+                          onClick={() => setQty((q) => Math.min(free ? 99 : Math.max(1, maxQ), q + 1))}
                           className="flat-btn !px-2 !py-1 text-xs"
                         >
                           +
@@ -117,7 +124,7 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
                       </div>
                       <p className="mt-1.5 text-[11px] text-paper/60" data-craft-time>재료가 충분하면 즉시 제작된다.</p>
                       <div className="mt-2 flex gap-2">
-                        <button type="button" onClick={go} className="flat-btn text-xs">바로 제작</button>
+                        <button type="button" onClick={go} disabled={verified.busy || !ok} className="flat-btn text-xs disabled:opacity-40">바로 제작</button>
                         <button type="button" onClick={() => setPickId(null)} className="flat-btn text-xs">취소</button>
                       </div>
                     </div>
@@ -129,7 +136,7 @@ export default function Workshop({ player, admin, onCraft, onStopCraft, onAdminL
         )}
         {msg && <p className="mt-3 text-sm text-gold" role="status" data-workshop-msg>{msg}</p>}
       </div>
-      {admin && (
+      {free && (
         <div className="ink-panel mt-4 w-full rounded-xl p-4" data-workshop-admin>
           <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 제작 시 재료가 소모되지 않는다</p>
         </div>

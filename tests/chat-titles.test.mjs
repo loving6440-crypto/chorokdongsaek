@@ -33,14 +33,16 @@ async function portFree() {
   return p
 }
 
-async function api(port, route, body) {
-  const res = await fetch(`http://127.0.0.1:${port}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+async function api(port, route, body, token = null) {
+  const res = await fetch(`http://127.0.0.1:${port}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
   return { status: res.status, ...(await res.json()) }
 }
 
-async function listenEvents(port, id, name, key = '') {
+async function listenEvents(port, id, name, token) {
+  const ticket = await api(port, '/api/events/ticket', { id }, token)
+  assert.equal(ticket.ok, true)
   const controller = new AbortController()
-  const params = new URLSearchParams({ id, name, ...(key ? { key } : {}) })
+  const params = new URLSearchParams({ ticket: ticket.ticket, name })
   const res = await fetch(`http://127.0.0.1:${port}/api/events?${params}`, { signal: controller.signal })
   assert.equal(res.status, 200)
   let textBuffer = ''
@@ -110,22 +112,27 @@ test('실제 서버에서 권한 검증·칭호 부여·실시간 채팅·삭제
   let sse
   try {
     server = await startServer(env)
-    assert.equal((await api(port, '/api/account/signup', { id: 'titleUser', password: 'pass1234', twitter: 'titleUser' })).ok, true)
+    const titleAcc = await api(port, '/api/account/signup', { id: 'titleUser', password: 'pass1234', twitter: 'titleUser' })
+    const adminAcc = await api(port, '/api/account/signup', { id: 'adminUser', password: 'pass1234', twitter: 'adminUser', adminKey: env.CHOROK_ADMIN_KEY })
+    assert.equal(titleAcc.ok, true)
+    assert.equal(adminAcc.ok, true)
+    const titleToken = titleAcc.token
+    const adminToken = adminAcc.token
     const args = { id: 'adminUser', key: env.CHOROK_ADMIN_KEY, target: 'titleUser', title: '활자' }
-    assert.equal((await api(port, '/api/admin/chat-title', { ...args, key: 'wrong' })).status, 403)
-    assert.equal((await api(port, '/api/admin/chat-title', { ...args, title: '관리자' })).error, 'bad-title')
-    assert.equal((await api(port, '/api/admin/chat-title', { ...args, target: 'missing' })).error, 'no-account')
-    const added = await api(port, '/api/admin/chat-title', args)
+    assert.equal((await api(port, '/api/admin/chat-title', { ...args, key: 'wrong' }, adminToken)).status, 403)
+    assert.equal((await api(port, '/api/admin/chat-title', { ...args, title: '관리자' }, adminToken)).error, 'bad-title')
+    assert.equal((await api(port, '/api/admin/chat-title', { ...args, target: 'missing' }, adminToken)).error, 'no-account')
+    const added = await api(port, '/api/admin/chat-title', args, adminToken)
     assert.equal(added.ok, true)
     assert.equal(added.title, '활자')
-    sse = await listenEvents(port, 'titleUser', '테스터')
+    sse = await listenEvents(port, 'titleUser', '테스터', titleToken)
     const hello = await sse.next(ev => ev.t === 'hello')
     assert.equal(hello.you.title, '활자')
-    const sent = await api(port, '/api/chat', { id: 'titleUser', channel: 'talk', text: '테스트 메시지' })
+    const sent = await api(port, '/api/chat', { id: 'titleUser', channel: 'talk', text: '테스트 메시지' }, titleToken)
     assert.equal(sent.ok, true)
     const chat = await sse.next(ev => ev.t === 'chat' && ev.msg?.text === '테스트 메시지')
     assert.equal(chat.msg.from.title, '활자')
-    assert.equal((await api(port, '/api/admin/chat-title', { ...args, title: '출판인' })).ok, true)
+    assert.equal((await api(port, '/api/admin/chat-title', { ...args, title: '출판인' }, adminToken)).ok, true)
     const changed = await sse.next(ev => ev.t === 'chatTitle' && ev.title === '출판인')
     assert.equal(changed.id, 'titleUser')
     await sleep(650) // 스냅샷 저장
@@ -134,9 +141,9 @@ test('실제 서버에서 권한 검증·칭호 부여·실시간 채팅·삭제
     const snapshot = JSON.parse(readFileSync(env.CHOROK_DATA, 'utf8'))
     assert.equal(snapshot.customChatTitles.titleUser, '출판인')
     server = await startServer(env)
-    sse = await listenEvents(port, 'titleUser', '테스터')
+    sse = await listenEvents(port, 'titleUser', '테스터', titleToken)
     assert.equal((await sse.next(ev => ev.t === 'hello')).you.title, '출판인')
-    assert.equal((await api(port, '/api/admin/chat-title', { ...args, title: '' })).ok, true)
+    assert.equal((await api(port, '/api/admin/chat-title', { ...args, title: '' }, adminToken)).ok, true)
     assert.equal((await sse.next(ev => ev.t === 'chatTitle' && ev.title === null)).id, 'titleUser')
     await sse.close(); sse = null
   } finally {

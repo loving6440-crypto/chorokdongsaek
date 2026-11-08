@@ -2,7 +2,9 @@
 // 모두 타임스탬프 기반이라 새로고침해도 이어진다.
 import { LESSON_SPIRIT_REWARD, LESSON_WAIT_MINUTES, COURSE_INFO } from './courseInfo'
 import { clampSpirit, MP_MAX, SPIRIT_BASELINE_MAX, STAT_KEYS, STAT_MAX } from './constants'
-import { START_MONEY, baseIdOf, equipOf, gearBonus, migrateWeapons, weaponFx, trinketFx, specialEnhOf } from './items'
+import { START_MONEY, baseIdOf, equipOf, migrateWeapons, weaponFx, specialEnhOf } from './items'
+import { WEAK_MS } from './statCalc.js'
+import { grantStarterBag } from './bag.js'
 import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
 import { enemyById } from './battle'
@@ -137,6 +139,7 @@ export function sanitizeRestored(player, joinedAt, admin = false) {
   }
   if (p.money == null) p = { ...p, money: START_MONEY }
   if (!p.inventory) p = { ...p, inventory: {} }
+  p = grantStarterBag(p) // v-B.17: 예전 캐릭터에도 가방 하나(한 번만)
   p = migrateHuntSave(p)
   // 최초 입학 프로필: 예전 저장분엔 없으니 지금 값을 최초 값으로 삼는다.
   if (!p.profile0) p = { ...p, profile0: { name: p.name, greeting: p.greeting ?? '', age: p.age, grade: p.grade ?? null, avatar: p.avatar } }
@@ -167,32 +170,8 @@ export function syncCodex(player) {
 }
 
 /** 영능력(스킬)을 새로 익힌다. 전투의 '영능력' 탭에 자동으로 들어간다. 이미 있으면 같은 player 를 돌려준다. */
-export const WEAK_MS = 24 * 3600 * 1000 // [쇠약] 지속 시간: 리얼타임 24시간
-export const isWeak = (player, now = Date.now()) => Math.max(player.weakUntil || 0, player.curseUntil || 0) > now
-/** [쇠약] 중이면 모든 육조 스탯이 현재 스탯의 5할(내림, 최소 1). 아니면 그대로. */
-/** 아이템으로 받은 시간제 보정(예: 쑥 → 인내 +1, 24시간). 만료된 건 무시한다. */
-export function tempBonus(player, now = Date.now()) {
-  const out = {}
-  for (const b of player.buffs ?? []) if (b.until > now) out[b.stat] = (out[b.stat] || 0) + b.amount
-  return out
-}
-export function effectiveStats(player, now = Date.now()) {
-  const bonus = { ...gearBonus(player) }
-  for (const [k, v] of Object.entries(tempBonus(player, now))) bonus[k] = (bonus[k] || 0) + v
-  const hasBonus = Object.keys(bonus).length > 0
-  const fx = weaponFx(player)
-  const tfx = trinketFx(player) // v-B.08 장신구 특수 효과(기합의 띠 · 도깨비 탈)
-  const special = specialEnhOf(player, equipOf(player).weapon)
-  if (!isWeak(player, now) && !hasBonus && !fx && !special && !tfx) return player.stats
-  const weak = isWeak(player, now)
-  // 쇠약으로 5할이 된 뒤에 장비 보정이 더해진다.
-  const out = Object.fromEntries(Object.entries(player.stats).map(([k, v]) => [k, (weak ? Math.max(1, Math.floor(v / 2)) : v) + (bonus[k] || 0)]))
-  // 무구의 특수 효과 id. 스탯 목록에는 나타나지 않도록(열거되지 않게) 붙인다.
-  if (fx) Object.defineProperty(out, 'fx', { value: fx, enumerable: false })
-  if (special) Object.defineProperty(out, 'special', { value: special, enumerable: false })
-  if (tfx) Object.defineProperty(out, 'trinket', { value: tfx, enumerable: false })
-  return out
-}
+// v-B.15: 실효 스탯 계산은 서버(다인 전투 검증)도 같이 쓰도록 statCalc.js 로 옮겼다. 기존 import 경로는 그대로 유지한다.
+export { WEAK_MS, isWeak, tempBonus, effectiveStats } from './statCalc.js'
 export const weakLeftText = (player, now = Date.now()) => {
   const m = Math.max(0, Math.ceil(((Math.max(player.weakUntil || 0, player.curseUntil || 0)) - now) / 60000))
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`

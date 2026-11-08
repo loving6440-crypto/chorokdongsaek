@@ -1,7 +1,7 @@
 {
   "name": "chorokdongsaek",
   "private": true,
-  "version": "80.0.8",
+  "version": "80.0.17",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "node server/index.js",
-    "live": "node scripts/live.mjs"
+    "live": "node scripts/live.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "economy:audit": "node scripts/economy-audit.mjs",
+    "loadtest:local": "node scripts/loadtest-100-local.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",

@@ -8,13 +8,13 @@ export const GROUND = 132 // 캔버스에서 땅의 y 좌표
 export const PLAYER_X = 48
 export const STAND = { w: 32, h: 26 } // 여우
 
-const GRAVITY = 2100
+export const GRAVITY = 2100
 const JUMP_V = -640 // 위로 향하는 속도(음수)
 const MIN_JUMP_V = -260 // 점프 키를 일찍 떼면 이 속도로 잘려 낮게 뛴다
-const START_SPEED = 260 // v71: 살짝 낮췄다 (이전 290)
-const MAX_SPEED = 1300 // v71: 살짝 낮췄다 (이전 1440)
-const ACCEL = 10 // 초당 가속 — v71: 살짝 낮췄다 (이전 12)
-const SCORE_PER_PX = 1 / 12
+export const START_SPEED = 260 // v71: 살짝 낮췄다 (이전 290)
+export const MAX_SPEED = 1300 // v71: 살짝 낮췄다 (이전 1440)
+export const ACCEL = 10 // 초당 가속 — v71: 살짝 낮췄다 (이전 12)
+export const SCORE_PER_PX = 1 / 12
 
 export function createRun(best = 0) {
   return {

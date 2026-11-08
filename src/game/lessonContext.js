@@ -9,6 +9,7 @@ export const LessonContext = createContext({
   finish: noop, // 판이 끝났다: finish(score, { dead, won })
   won: noop, // 이어서 할 수 있는 성공 (2048 달성)
   abandon: noop, // 도중에 포기하고 다시 시작
+  session: () => Promise.resolve(null), // v-B.15 랭킹 판 세션 { sid, seed } (없으면 null → 랭킹 미반영)
 })
 export const useLesson = () => useContext(LessonContext)
 

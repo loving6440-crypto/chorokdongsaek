@@ -11,6 +11,7 @@ import {
   pieceCells,
   reducer,
 } from '../../game/minigames/logicTetris'
+import { ACTION_CODE_TETRIS } from '../../game/minigames/rankedVerify'
 import { sfx } from '../../game/sfx'
 import { isTypingTarget, useLesson } from '../../game/lessonContext'
 
@@ -50,8 +51,19 @@ const KEY_ACTIONS = {
   P: 'pause',
 }
 
+// v-B.15 랭킹 검증: 실제로 판을 바꾼 조작만 상태 안에 문자열로 기록한다(순수 reducer 유지 · StrictMode 안전).
+// 서버는 같은 씨앗으로 이 기록을 처음부터 다시 돌려 점수를 계산한다.
+function rankedReducer(state, action) {
+  if (action.type === 'reseed') return state.status === 'ready' && !state.log ? { ...initGame(action.seed), log: '' } : state
+  if (action.type === 'restart') return { ...reducer(state, action), log: '' }
+  const next = reducer(state, action)
+  const code = ACTION_CODE_TETRIS[action.type]
+  if (next !== state && code) return { ...next, log: (state.log ?? '') + code }
+  return next
+}
+
 export default function Tetris() {
-  const [state, dispatch] = useReducer(reducer, undefined, () => initGame(freshSeed()))
+  const [state, dispatch] = useReducer(rankedReducer, undefined, () => ({ ...initGame(freshSeed()), log: '' }))
   const best = useMemo(() => Math.max(loadBest(), state.score), [state.score])
 
   // 마지막으로 누른 조작 (잠글 때 '쿵'과 '살짝'을 구분하는 데 쓴다)
@@ -106,12 +118,27 @@ export default function Tetris() {
 
   // 수업 시스템에 알린다: 시작 → 시도 1회, 점수 → 최소 조건, 종료 → 랭킹
   const run = useLesson()
+  const sessRef = useRef(null) // { sid, seed } — 없으면 이번 판은 랭킹 미반영
+  const rankedOf = (st) => (sessRef.current ? { sid: sessRef.current.sid, proof: { actions: st.log } } : null)
+  useEffect(() => {
+    let alive = true
+    run.session().then((sess) => {
+      // 세션이 오기 전에 이미 판을 시작했다면 그 판은 그대로(랭킹 미반영) 둔다.
+      if (!alive || !sess || live.current.status !== 'ready' || live.current.log) return
+      sessRef.current = sess
+      dispatch({ type: 'reseed', seed: sess.seed })
+    })
+    return () => {
+      alive = false
+    }
+  }, [run])
   const prevStatus = useRef(state.status)
   useEffect(() => {
     const p = prevStatus.current
     prevStatus.current = state.status
     if (state.status === 'playing' && (p === 'ready' || p === 'over')) run.start()
-    if (state.status === 'over' && p !== 'over') run.finish(state.score, { dead: true })
+    if (state.status === 'over' && p !== 'over') run.finish(state.score, { dead: true, ranked: rankedOf(state) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, state.score, run])
   useEffect(() => {
     if (state.status === 'playing') run.metric(state.score)
@@ -120,7 +147,8 @@ export default function Tetris() {
   const live = useRef(state)
   live.current = state
   useEffect(() => () => {
-    if (live.current.status === 'playing' && live.current.score > 0) run.submit(live.current.score)
+    if (live.current.status === 'playing' && live.current.score > 0) run.submit(live.current.score, rankedOf(live.current))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run])
 
   // 게임이 끝나면 최고 기록 저장
@@ -128,7 +156,16 @@ export default function Tetris() {
     if (state.status === 'over' && state.score > loadBest()) saveBest(state.score)
   }, [state.status, state.score])
 
-  const restart = useCallback(() => dispatch({ type: 'restart', seed: freshSeed() }), [])
+  const restarting = useRef(false)
+  const restart = useCallback(() => {
+    if (restarting.current) return
+    restarting.current = true
+    run.session().then((sess) => {
+      restarting.current = false
+      sessRef.current = sess
+      dispatch({ type: 'restart', seed: sess ? sess.seed : freshSeed() })
+    })
+  }, [run])
 
   useEffect(() => {
     const onKey = (e) => {

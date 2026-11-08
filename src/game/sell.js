@@ -1,3 +1,4 @@
+import { BAG_ID, bagRemovalError } from './bag.js'
 /**
  * v-B.06 매점 판매.
  *  - 누군가 잃어버린 물건 시리즈: 정해진 값 (머리끈 1 · 실내화 5 · 러브레터 8 · 핸드폰 20)
@@ -70,6 +71,7 @@ export function sellItem(player, id, qty = 1, now = Date.now()) {
   if (!Number.isSafeInteger(qty) || qty < 1) return { error: '판매 수량이 올바르지 않다.' }
   const have = countOf(player, id)
   if (have < qty) return { error: '그만큼 갖고 있지 않다.' }
+  if (id === BAG_ID) { const why = bagRemovalError(player, qty); if (why) return { error: why } } // v-B.17
   const inventory = { ...(player.inventory ?? {}), [id]: have - qty }
   if (inventory[id] <= 0) delete inventory[id]
   const gained = price * qty

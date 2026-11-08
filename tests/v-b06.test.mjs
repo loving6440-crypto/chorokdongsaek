@@ -170,6 +170,7 @@ test('v-B.06 에너지드링크: 쓸 수 없는 때는 이유를 알려 준다 (
   const game = read('../src/Game.jsx')
   assert.match(game, /if \(!ok\.ok\) \{ notify\(ok\.why\); return \}/, '예전엔 조용히 무시됐다')
   assert.match(game, /usedItems=\{mbLive \? \(mbMe\?\.energyUsed \? \['energy'\] : \[\]\) : battleUsedItems\}/)
-  assert.match(read('../src/components/InventoryModal.jsx'), /usedThisBattle: usedItems\.includes\(picked\.id\), downed/)
+  // v-B.16: 같은 전투에서 다른 부활 아이템을 이미 썼는지도 함께 본다(reviveSpent).
+  assert.match(read('../src/components/InventoryModal.jsx'), /usedThisBattle: usedItems\.includes\(picked\.id\) \|\| reviveSpent, downed/)
   assert.match(read('../src/components/locations/Battle.jsx'), /downed: afflictKey\[2\] === '1'/)
 })

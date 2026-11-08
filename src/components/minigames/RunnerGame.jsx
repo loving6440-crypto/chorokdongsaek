@@ -443,11 +443,23 @@ export default function RunnerGame() {
   const skinCtx = useSkin()
   const skin = skinRunnerOf(skinCtx.current)
 
+  // v-B.15 랭킹 검증: 판을 시작할 때 서버 세션을 열고, 서버가 잰 경과 시간으로 낼 수 있는 점수의 상한을 검사한다.
+  const sessRef = useRef(null)
+  const runToken = useRef(0)
+  const openSession = useCallback(() => {
+    const token = ++runToken.current
+    sessRef.current = null
+    run.session().then((sess) => {
+      if (token === runToken.current) sessRef.current = sess
+    })
+  }, [run])
+
   /** 점프 입력: 대기/종료 화면이면 시작·재시작, 달리는 중이면 점프. */
   const press = useCallback(() => {
     input.current.jumpHeld = true
     const s = stateRef.current
     if (s.status === 'ready') {
+      openSession()
       run.start()
       startRun(s)
       sfx.play('runStart')
@@ -455,6 +467,7 @@ export default function RunnerGame() {
       setStatus('running')
     } else if (s.status === 'over') {
       if (performance.now() - overAt.current < 450) return // 부딪힌 직후의 연타는 무시
+      openSession()
       run.start()
       const fresh = createRun(s.best)
       startRun(fresh)
@@ -464,7 +477,7 @@ export default function RunnerGame() {
     } else if (jump(s)) {
       sfx.play('jump')
     }
-  }, [run])
+  }, [run, openSession])
   const release = useCallback(() => {
     input.current.jumpHeld = false
   }, [])
@@ -486,7 +499,7 @@ export default function RunnerGame() {
         if (ev === 'point') sfx.play('point')
         if (ev === 'point' || ev === 'die') run.metric(s.score)
         if (ev === 'die') {
-          run.finish(s.score, { dead: true })
+          run.finish(s.score, { dead: true, ranked: sessRef.current ? { sid: sessRef.current.sid, proof: { t: s.t } } : null })
           sfx.play('crash')
           saveBest(s.best)
           overAt.current = performance.now()

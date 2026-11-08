@@ -165,6 +165,27 @@ export async function createAccountStore({ db, file }) {
       if (found && opts?.withAvatar && db) found = await fillAvatars(found)
       return found
     },
+    // B.14: authentication only needs three scalar fields; avoid pulling the
+    // potentially multi-MB character save JSONB on every authenticated request.
+    async session(id) {
+      if (!db) {
+        const account = await this.get(id)
+        return account ? { id: account.id, sessionVersion: account.sessionVersion ?? 0, mustReset: !!account.mustReset } : null
+      }
+      const row = await db.query(
+        `SELECT data->>'id' AS id,
+                data->>'sessionVersion' AS version,
+                data->>'mustReset' AS reset
+         FROM saves WHERE id = $1`, [ACC(id)],
+      )
+      if (row.rows.length) {
+        const r = row.rows[0]
+        return { id: r.id || id, sessionVersion: Number(r.version ?? 0), mustReset: r.reset === 'true' }
+      }
+      // Rare pre-normalization Korean IDs retain the previous migration path.
+      const legacy = await this.get(id)
+      return legacy ? { id: legacy.id, sessionVersion: legacy.sessionVersion ?? 0, mustReset: !!legacy.mustReset } : null
+    },
     async put(acc) {
       if (db) {
         const toStore = { ...acc }
@@ -225,23 +246,40 @@ export async function createAccountStore({ db, file }) {
 }
 
 // ───────── 로그인 토큰 ─────────
-// 형식: base64url("아이디|만료시각") + '.' + HMAC 서명. 서버가 기억할 필요가 없어 재시작해도 그대로 쓸 수 있다.
+// v2 토큰에는 계정의 세션 버전이 들어간다. 비밀번호 변경 시 버전을 올리면 과거 토큰이 무효화된다.
+// 이미 발급된 v1 토큰은 버전 0인 기존 계정에 한해서만 만료 시각까지 허용한다.
 const TOKEN_DAYS = 180
-export function makeToken(secret, id) {
-  const body = Buffer.from(`${id}|${Date.now() + TOKEN_DAYS * 86_400_000}`).toString('base64url')
-  const sig = crypto.createHmac('sha256', secret).update(body).digest('base64url')
-  return `${body}.${sig}`
+export function makeToken(secret, id, version = 0) {
+  const body = Buffer.from(JSON.stringify({ id, exp: Date.now() + TOKEN_DAYS * 86_400_000, version })).toString('base64url')
+  const signed = `v2.${body}`
+  const sig = crypto.createHmac('sha256', secret).update(signed).digest('base64url')
+  return `${signed}.${sig}`
 }
-export function readToken(secret, token) {
-  if (typeof token !== 'string') return null
-  const [body, sig] = token.split('.')
-  if (!body || !sig) return null
-  const want = crypto.createHmac('sha256', secret).update(body).digest('base64url')
-  if (sig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return null
-  const [id, exp] = Buffer.from(body, 'base64url').toString().split('|')
-  if (!id || !(Number(exp) > Date.now())) return null
-  return id
+export function readTokenClaims(secret, token) {
+  if (typeof token !== 'string' || token.length > 1500) return null
+  const parts = token.split('.')
+  const v2 = parts.length === 3 && parts[0] === 'v2'
+  if (!v2 && parts.length !== 2) return null
+  const signed = v2 ? `${parts[0]}.${parts[1]}` : parts[0]
+  const sig = parts[v2 ? 2 : 1]
+  const want = crypto.createHmac('sha256', secret).update(signed).digest()
+  let actual
+  try { actual = Buffer.from(sig, 'base64url') } catch { return null }
+  if (actual.length !== want.length || !crypto.timingSafeEqual(actual, want)) return null
+  let claims
+  try {
+    if (v2) claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    else {
+      const [id, exp] = Buffer.from(parts[0], 'base64url').toString().split('|')
+      claims = { id, exp: Number(exp), version: 0 }
+    }
+  } catch { return null }
+  if (typeof claims.id !== 'string' || !/^[a-zA-Z0-9가-힣_]{2,40}$/.test(claims.id)
+    || !(claims.exp > Date.now()) || !Number.isSafeInteger(claims.version) || claims.version < 0) return null
+  return { id: claims.id, version: claims.version }
 }
+// 호환용: 단순 서명 검증만 한다. 라우터는 반드시 저장된 세션 버전까지 비교해야 한다.
+export const readToken = (secret, token) => readTokenClaims(secret, token)?.id ?? null
 
 // 브라우저로 돌려줄 때는 비밀번호 해시를 뺀다.
 export const publicAccount = ({ passwordHash, twitterNorm, ...rest }) => rest

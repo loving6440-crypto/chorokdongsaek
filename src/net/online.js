@@ -1,6 +1,7 @@
 // 온라인 서버 연결(SSE) 과 그 상태 저장소. React 에서는 useOnline() 으로 읽는다.
 // 서버가 없으면 status 가 'offline' 으로 남고, 게임의 나머지 부분은 그대로 동작한다.
 import { useSyncExternalStore } from 'react'
+import { getAuthToken } from '../game/auth.js'
 
 const HISTORY_MAX = 100
 
@@ -228,36 +229,65 @@ function handle(ev) {
   }
 }
 
+let connectionGeneration = 0
+let reconnectTimer = null
+
 export function connect(id, name, key = '') {
   if (typeof EventSource === 'undefined') return
-  if (source && state.me?.id === id && state.me?.name === name && state.status !== 'offline') return
+  if (state.me?.id === id && state.me?.name === name && state.status !== 'offline') return
   disconnect()
+  const generation = connectionGeneration
   set({ status: 'connecting', me: { id, name } })
-  const es = new EventSource(`/api/events?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
-  source = es
-  es.onmessage = (e) => {
+
+  const open = async () => {
+    if (generation !== connectionGeneration) return
+    const token = getAuthToken()
+    if (!token) { set({ status: 'offline' }); return }
     try {
-      handle(JSON.parse(e.data))
+      // 관리자 키와 계정 토큰을 URL 로 전달하지 않는다. POST 인증으로 SSE 전용 단기 티켓만 발급.
+      const response = await fetch('/api/events/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, ...(key ? { key } : {}) }),
+      })
+      if (generation !== connectionGeneration) return
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || !data.ticket) {
+        set({ status: response.status === 401 ? 'offline' : 'connecting' })
+        if (response.status !== 401) reconnectTimer = setTimeout(open, 4000)
+        return
+      }
+      const es = new EventSource(`/api/events?ticket=${encodeURIComponent(data.ticket)}&name=${encodeURIComponent(name)}`)
+      if (generation !== connectionGeneration) { es.close(); return }
+      source = es
+      es.onmessage = (e) => {
+        try { handle(JSON.parse(e.data)) } catch { /* 깨진 프레임은 무시 */ }
+      }
+      es.onerror = () => {
+        if (generation !== connectionGeneration) return
+        es.close()
+        if (source === es) source = null
+        set({ status: 'connecting' })
+        reconnectTimer = setTimeout(open, 2500)
+      }
     } catch {
-      /* 깨진 프레임은 무시 */
+      if (generation !== connectionGeneration) return
+      set({ status: 'connecting' })
+      reconnectTimer = setTimeout(open, 4000)
     }
   }
-  // 연결이 끊기면 브라우저가 자동으로 다시 붙는다. 그동안은 연결 중으로 표시한다.
-  es.onerror = () => set({ status: es.readyState === EventSource.CLOSED ? 'offline' : 'connecting' })
+  open()
 }
 
 export function disconnect() {
+  connectionGeneration++
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = null
   if (source) source.close()
   source = null
   set({
-    status: 'offline',
-    me: null,
-    online: [],
-    party: null,
-    invite: null,
-    mb: null,
-    mbInvite: null,
-    mbLobby: null,
+    status: 'offline', me: null, online: [], party: null, invite: null,
+    mb: null, mbInvite: null, mbLobby: null,
     history: { rp: [], talk: [], party: [] },
     unread: { rp: 0, talk: 0, party: 0 },
   })
@@ -276,7 +306,7 @@ async function post(path, body) {
   try {
     const r = await fetch(path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
       body: JSON.stringify({ id: state.me?.id, ...body }),
     })
     const data = await r.json().catch(() => ({}))
@@ -451,7 +481,7 @@ export function onMarketSold(cb) {
 }
 export async function marketFetch() {
   try {
-    const r = await fetch(`/api/market?id=${encodeURIComponent(state.me?.id ?? '')}`)
+    const r = await fetch(`/api/market?id=${encodeURIComponent(state.me?.id ?? '')}`, { headers: { Authorization: `Bearer ${getAuthToken()}` } })
     if (!r.ok) return { ok: false, status: r.status }
     return await r.json()
   } catch {
@@ -462,6 +492,32 @@ export const marketList = (item, qty, price) => post('/api/market/list', { item,
 export const marketBuy = (listing) => post('/api/market/buy', { listing })
 export const marketCancel = (listing) => post('/api/market/cancel', { listing })
 export const marketClaim = () => post('/api/market/claim', {})
+
+// B.14: feature status is public and does not query the player's wallet.
+export async function getVerifiedEconomyStatus() {
+  try {
+    const r = await fetch('/api/economy/status')
+    const data = await r.json().catch(() => ({}))
+    return { ok: r.ok, status: r.status, ...data }
+  } catch { return { ok: false, status: 0, error: 'network' } }
+}
+// B.11 서버 검증 경제: 이 API는 게임 save의 money/inventory를 절대 보내지 않는다.
+export async function getVerifiedWallet() {
+  try {
+    const r = await fetch('/api/economy/wallet', { headers: { Authorization: `Bearer ${getAuthToken()}` } })
+    const data = await r.json().catch(() => ({}))
+    return { ok: r.ok, status: r.status, ...data }
+  } catch { return { ok: false, status: 0, error: 'network' } }
+}
+export async function getVerifiedMarket() {
+  try {
+    const r = await fetch('/api/economy/market', { headers: { Authorization: `Bearer ${getAuthToken()}` } })
+    const data = await r.json().catch(() => ({}))
+    return { ok: r.ok, status: r.status, ...data }
+  } catch { return { ok: false, status: 0, error: 'network' } }
+}
+export const verifiedEconomyAction = (route, payload) => post(`/api/economy/${route}`, payload)
+
 
 export const leaveParty = () => post('/api/party/leave', {})
 /** 파티장 전용: 인원이 몇 명이든 일행을 바로 해체한다. */
@@ -474,7 +530,7 @@ export const sendPartyStats = (stats) => post('/api/party/stats', { stats })
 export async function mbStart(enemy, me) {
   const r = await post('/api/mb/start', { enemy, me })
   if (!r.ok) {
-    const why = { 'not-leader': '파티장만 다인 전투와 보스 전투를 신청할 수 있다.', 'need-party': '일행 상태에서만 참여할 수 있다. (접속 중인 일행이 있어야 한다)', 'mates-busy': '일행이 모두 다른 전투 중이다.', 'already-in-battle': '이미 다인 전투에 참여 중이다.', 'slow-down': '잠시 후 다시 시도해 줘.' }[r.error]
+    const why = { 'not-leader': '파티장만 다인 전투와 보스 전투를 신청할 수 있다.', 'need-party': '일행 상태에서만 참여할 수 있다. (접속 중인 일행이 있어야 한다)', 'mates-busy': '일행이 모두 다른 전투 중이다.', 'already-in-battle': '이미 다인 전투에 참여 중이다.', 'slow-down': '잠시 후 다시 시도해 줘.', 'character-not-synced': '캐릭터 기록이 아직 서버에 저장되지 않았다. 잠시 뒤 다시 시도해 줘.' }[r.error]
     pushNotice(why ?? '다인 전투를 시작하지 못했다.')
   }
   return r
@@ -484,7 +540,7 @@ export async function mbRespond(accept, me) {
   set({ mbInvite: null })
   if (!inv) return { ok: false }
   const r = await post('/api/mb/respond', { bid: inv.bid, accept, me })
-  if (!r.ok) pushNotice('초대가 이미 만료되었다.')
+  if (!r.ok) pushNotice(r.error === 'character-not-synced' ? '캐릭터 기록이 아직 서버에 저장되지 않아 참여하지 못했다. 잠시 뒤 다시 시도해 줘.' : '초대가 이미 만료되었다.')
   return r
 }
 export const mbCancel = () => {
@@ -497,6 +553,14 @@ export const mbSurvive = (accept) => post('/api/mb/survive', { bid: state.mb?.bi
 export const mbItem = (item, to) => post('/api/mb/item', { bid: state.mb?.bid, item, to })
 /** 결과 화면을 닫는다 */
 export const mbClose = () => set({ mb: null })
+/** v-B.17 [전투 이탈]: 본인이 직접 누를 때만 다인 전투에서 빠진다. (접속이 끊겨도 빠지지 않는다) */
+export async function mbFlee() {
+  const bid = state.mb?.bid
+  if (!bid) return { ok: false }
+  const r = await post('/api/mb/flee', { bid })
+  if (!r.ok) pushNotice('지금은 이탈할 수 없다.')
+  return r
+}
 
 // ───────── 인적사항 카드 ─────────
 /** 내 카드를 서버에 올린다. card = { name, greeting, age, grade, avatar } */
@@ -504,7 +568,7 @@ export const sendCard = (card) => post('/api/card', { card })
 /** 다른 사람의 카드를 가져온다. { ok, card, online, title } 또는 { ok:false } */
 export async function fetchCard(targetId) {
   try {
-    const r = await fetch(`/api/card?id=${encodeURIComponent(state.me?.id ?? '')}&target=${encodeURIComponent(targetId)}`)
+    const r = await fetch(`/api/card?id=${encodeURIComponent(state.me?.id ?? '')}&target=${encodeURIComponent(targetId)}`, { headers: { Authorization: `Bearer ${getAuthToken()}` } })
     if (!r.ok) return { ok: false, status: r.status }
     return await r.json()
   } catch {
@@ -523,16 +587,38 @@ export async function fetchRanking(course, id, week = 'this') {
   }
 }
 
-export async function submitScore(course, id, name, score) {
+/** v-B.15: 랭킹 판 시작 — 서버가 씨앗과 세션을 정한다. 실패하면 null (그 판은 랭킹에 오르지 않는다). */
+export async function startRankedSession(course, id, timeoutMs = 2500) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null
+  const timer = setTimeout(() => ctrl?.abort(), timeoutMs)
+  try {
+    const r = await fetch('/api/ranking/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
+      body: JSON.stringify({ id, course }),
+      signal: ctrl?.signal,
+    })
+    const j = await r.json().catch(() => null)
+    return r.ok && j?.sid && Number.isInteger(j.seed) ? { sid: j.sid, seed: j.seed >>> 0 } : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** v-B.15: 랭킹 제출 — 점수는 참고값이고, 서버가 proof 를 재현해 점수를 직접 계산한다. */
+export async function submitScore(course, id, name, score, ranked) {
+  if (!ranked?.sid) return { ok: false, error: 'no-session' }
   try {
     const r = await fetch('/api/ranking', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name, course, score }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
+      body: JSON.stringify({ id, course, score, sid: ranked.sid, proof: ranked.proof }),
     })
-    return r.ok ? await r.json() : null
+    return (await r.json().catch(() => null)) ?? { ok: false, error: `http-${r.status}` }
   } catch {
-    return null
+    return { ok: false, error: 'network' }
   }
 }
 
@@ -551,7 +637,7 @@ export async function verifyAdminKey(id, key) {
   try {
     const r = await fetch('/api/admin/verify', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
       body: JSON.stringify({ id, key }),
     })
     const data = await r.json().catch(() => ({}))
@@ -582,7 +668,7 @@ export async function fetchMembers(id, key) {
   try {
     const r = await fetch('/api/admin/members', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
       body: JSON.stringify({ id, key }),
     })
     const data = await r.json().catch(() => ({}))
@@ -611,7 +697,7 @@ async function adminPost(path, id, key, extra = {}) {
   try {
     const r = await fetch(path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
       body: JSON.stringify({ id, key, ...extra }),
     })
     const data = await r.json().catch(() => ({}))

@@ -5,7 +5,7 @@ import Pioneer from './Pioneer'
 
 export default function Gym({ view, ...rest }) {
   if (view === 'intro') return <LocationIntro id="gym" />
-  if (view === 'pioneer') return <Pioneer player={rest.player} stats={rest.stats} onHuntAction={rest.onHuntAction} />
+  if (view === 'pioneer') return <Pioneer player={rest.player} stats={rest.stats} onHuntAction={rest.onHuntAction} online={rest.online} />
   if (view === 'hike')
     return (
       <Hike
@@ -18,6 +18,7 @@ export default function Gym({ view, ...rest }) {
         admin={rest.admin}
         onAdminGive={rest.onAdminGive}
         onGardenAction={rest.onGardenAction}
+        online={rest.online}
         onHuntAction={rest.onHuntAction}
         stats={rest.stats}
         onVisit={rest.onVisit}

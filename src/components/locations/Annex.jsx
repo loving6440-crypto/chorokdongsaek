@@ -12,7 +12,7 @@ import Cooking from './Cooking'
 import Scene, { Paras } from '../Scene'
 
 /** 공작소: 제작 / 미술 동아리 (오단애는 조리실로 자리를 옮겼다) */
-function CraftRoom({ player, admin, onCraft, onStopCraft, myClub, onApplyClub, onFetchMembers }) {
+function CraftRoom({ player, admin, onCraft, onStopCraft, myClub, onApplyClub, onFetchMembers, online }) {
   const [tab, setTab] = useState('craft') // craft | club
 
   return (
@@ -34,7 +34,7 @@ function CraftRoom({ player, admin, onCraft, onStopCraft, myClub, onApplyClub, o
         ))}
       </div>
       {tab === 'craft' ? (
-        <Workshop player={player} admin={admin} onCraft={onCraft} onStopCraft={onStopCraft} />
+        <Workshop player={player} admin={admin} onCraft={onCraft} onStopCraft={onStopCraft} online={online} />
       ) : (
         <ClubRoomPanel clubId="craft" myClub={myClub} onApply={onApplyClub} onFetchMembers={onFetchMembers} />
       )}
@@ -73,7 +73,7 @@ function BoardRoom({ player, admin, onHoljjak, myClub, onApplyClub, onFetchMembe
 }
 
 /** 조리실: 조리(단애와 함께) / 요리 동아리 */
-function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub, onApplyClub, onFetchMembers }) {
+function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub, onApplyClub, onFetchMembers, online }) {
   const [tab, setTab] = useState('cook')
   const [{ line }] = useState(() => pickNpcLine(DANAE.id, DANAE.lines, player, player.lineSeen))
   useEffect(() => {
@@ -104,7 +104,7 @@ function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub
             {line.text}
           </NpcDialog>
           <NpcGift npcId="danae" player={player} onGive={onGiveNpc} />
-          <Cooking player={player} admin={admin} onCook={onCook} />
+          <Cooking player={player} admin={admin} onCook={onCook} online={online} />
         </>
       ) : (
         <ClubRoomPanel clubId="cook" myClub={myClub} onApply={onApplyClub} onFetchMembers={onFetchMembers} />
@@ -119,7 +119,7 @@ function ClubOnlyRoom({ room, myClub, onApplyClub, onFetchMembers }) {
 }
 
 /** 별관 탐사: 층 → 방 순으로 살핀다. 2층 공작소 · 패 놀이터는 전용 화면을, 그 외 동아리 방은 공용 동아리 화면을 더 보여 준다. */
-export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers, onVisit, onExploreAct }) {
+export default function Annex({ view, player, admin, onCraft, onStopCraft, onCook, onMeet, onLineSeen, onGiveNpc, onHoljjak, myClub, onApplyClub, onFetchMembers, onVisit, onExploreAct, online }) {
   const [floorId, setFloorId] = useState(null)
   const [roomId, setRoomId] = useState(null)
   const [visit, setVisit] = useState(0)
@@ -199,6 +199,7 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
                   admin={admin}
                   onCraft={onCraft}
                   onStopCraft={onStopCraft}
+                  online={online}
                   myClub={myClub}
                   onApplyClub={onApplyClub}
                   onFetchMembers={onFetchMembers}
@@ -212,6 +213,7 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
                   player={player}
                   admin={admin}
                   onCook={onCook}
+                  online={online}
                   onMeet={onMeet}
                   onLineSeen={onLineSeen}
                   onGiveNpc={onGiveNpc}

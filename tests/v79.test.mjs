@@ -56,7 +56,8 @@ test('v79: 초보용 고독 3라운드 피해 증가 적용',()=>{
 })
 test('v79: 저주 쇠약은 씻거나 자더라도 타임스탬프가 살아 있으면 적용',()=>{
   const now=Date.now()
-  const src=readFileSync(new URL('../src/game/progress.js',import.meta.url),'utf8')
+  // v-B.15: 실효 스탯 계산(isWeak 포함)은 서버와 함께 쓰도록 statCalc.js 로 옮겨졌다(progress.js 가 재수출).
+  const src=readFileSync(new URL('../src/game/progress.js',import.meta.url),'utf8')+readFileSync(new URL('../src/game/statCalc.js',import.meta.url),'utf8')
   assert.match(src,/player\.curseUntil/)
   assert.match(src,/export const isWeak =/)
   assert.ok(now < now+10000)
@@ -64,7 +65,8 @@ test('v79: 저주 쇠약은 씻거나 자더라도 타임스탬프가 살아 있
 test('v79: 건물 이동 5% 확률 지급, 일상 문구 기본 동등 추첨',()=>{
   assert.equal(TRAVEL_LINES.length,4)
   assert.equal(LOST_THINGS.length,5) // v-B.07: 누군가가 잃어버린 열쇠가 더해졌다
-  const vals=[0,0.01,0.1];let i=0
+  // v-B.17: 분실물 5%(그 안에서 열쇠 8%) · 선생님 사탕은 겹치지 않는 별도 2.5%
+  const vals=[0,0.5,0.01];let i=0
   assert.equal(rollTravelEvent(()=>vals[i++]).reward,'ginseng-candy')
   const vals2=[0.1,0.2];i=0
   assert.equal(rollTravelEvent(()=>vals2[i++]).reward,undefined)
