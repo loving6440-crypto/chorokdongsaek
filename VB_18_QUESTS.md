@@ -246,3 +246,19 @@
 - 파일:
   - 새 파일: `src/game/freeCraft.js`, `src/components/CraftBench.jsx`, `src/components/RecipeBook.jsx`
   - 고친 파일: `Workshop.jsx` · `Cooking.jsx` · `Annex.jsx` · `Game.jsx`(`benchCraftAct`), `v79Items.js`(숯), `itemsB17.js` · `items.js` · `sell.js` · `materialLevels.js`(쓰레기), `iconsB17.jsx`, `index.css` · `NpcDialog.jsx` 외 초상화 4곳
+
+### r7 — 아는 제작법대로 만들기
+- [제작] 버튼 아래에 **[아는 제작법대로 만들기]** 버튼이 있다. 조리실에서는 '아는 요리법대로 만들기'로 보인다.
+- 누르면 팝업이 뜬다.
+  - 목록에는 **지금 재료로 만들 수 있는 것**과 **이미 한 번 만들어 본 것**이 겹치는 제작법만 가나다순으로 나온다.
+  - 줄마다 재료와 '최대 N개'가 함께 보인다.
+  - 하나를 고르고 몇 개치 만들지 정한다(− / + / 직접 입력 / 최대). 드는 재료 합계가 보이고, [N개 만들기]로 만든다.
+- 만든 기록은 캐릭터 저장의 `player.madeRecipes`에 남는다.
+  - [제작] 칸에서 제작법대로 만들었을 때와 [아는 제작법대로 만들기]로 만들었을 때 기록된다.
+  - **이번 업데이트 뒤에 만든 것부터** 기록된다. 예전에 만든 기록은 따로 없어서, 처음에는 목록이 비어 있다.
+- 동아리 '제작' 1회로 친다.
+- 파일:
+  - `freeCraft.js`: `madeBefore` · `markMade` · `maxQtyFor` · `knownMakeable` · `knownCraft`
+  - `CraftBench.jsx`: `KnownCraftModal`
+  - `Game.jsx`: `knownCraftAct`
+  - `Workshop.jsx` · `Cooking.jsx` · `Annex.jsx`

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CookingPot } from 'lucide-react'
 import { COOK_RECIPES, KITCHEN, canCook } from '../../game/cooking'
-import { BENCH_SLOTS, matchRecipe } from '../../game/freeCraft'
+import { BENCH_SLOTS, PLACE_RECIPES, matchRecipe } from '../../game/freeCraft'
 import CraftBench from '../CraftBench'
 import RecipeBook from '../RecipeBook'
 import { itemOf } from '../../game/items'
@@ -12,7 +12,7 @@ import { useVerifiedLocationEconomy } from '../../hooks/useVerifiedLocationEcono
 const LISTED = withMeta(COOK_RECIPES)
 
 /** 조리실: 등록된 조리법은 재료가 있으면 바로 조리한다. */
-export default function Cooking({ player, admin, onCook, onBench, online = false }) {
+export default function Cooking({ player, admin, onCook, onBench, onKnownCraft, online = false }) {
   const verified = useVerifiedLocationEconomy(online)
   const verifiedOn = verified.mode === 'verified'
   const viewPlayer = verifiedOn ? { ...player, inventory: verified.wallet?.inventory ?? {} } : player
@@ -28,6 +28,15 @@ export default function Cooking({ player, admin, onCook, onBench, online = false
       return res?.error ? { error: verified.message || res.error } : { item: itemOf(m.recipe.result), qty: m.k, failed: false }
     }
     return onBench?.(list)
+  }
+  // v-B.18 [아는 요리법대로 만들기]
+  const knownGo = async (recipeId, qty) => {
+    if (verifiedOn) {
+      const res = await verified.transact('craft', { recipeId, qty })
+      const r = PLACE_RECIPES.kitchen.find((x) => x.id === recipeId)
+      return res?.error ? { error: verified.message || res.error } : { item: itemOf(r.result), qty, failed: false }
+    }
+    return onKnownCraft?.(recipeId, qty)
   }
   const loadRecipe = (r) => {
     setSlots([...r.inputs.map(([id, n]) => ({ id, n })), ...Array(Math.max(0, BENCH_SLOTS - r.inputs.length)).fill(null)].slice(0, BENCH_SLOTS))
@@ -50,7 +59,7 @@ export default function Cooking({ player, admin, onCook, onBench, online = false
         </div>
         <div className="mt-4">
           {view === 'bench' ? (
-            <CraftBench player={viewPlayer} place="kitchen" slots={slots} setSlots={setSlots} onCraft={benchGo} disabled={verified.busy || verified.mode === 'pending' || verified.mode === 'error' ? '잠시 뒤에 다시 시도해 주세요.' : ''} />
+            <CraftBench player={viewPlayer} place="kitchen" slots={slots} setSlots={setSlots} onCraft={benchGo} onKnownCraft={knownGo} disabled={verified.busy || verified.mode === 'pending' || verified.mode === 'error' ? '잠시 뒤에 다시 시도해 주세요.' : ''} />
           ) : (
             <RecipeBook listed={LISTED} player={viewPlayer} free={free} canMake={(r) => canCook(viewPlayer, r)} onLoad={loadRecipe} emptyText="등록된 조리실 제작법이 없다." />
           )}

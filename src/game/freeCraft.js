@@ -88,3 +88,30 @@ export function benchCraft(player, slots, place, admin = false) {
   inv[failId] = (inv[failId] || 0) + 1
   return { player: { ...player, inventory: inv }, item: itemOf(failId), qty: 1, recipe: null, failed: true }
 }
+
+// ───────── v-B.18 아는 제작법대로 만들기 ─────────
+// player.madeRecipes = { 제작법 id: 처음 만든 시각 } — 제작법대로 한 번이라도 만든 것(이 기능이 생긴 뒤부터 기록).
+export const madeBefore = (player, recipeId) => !!player?.madeRecipes?.[recipeId]
+export function markMade(player, recipeId, now = Date.now()) {
+  if (!recipeId || madeBefore(player, recipeId)) return player
+  return { ...player, madeRecipes: { ...(player.madeRecipes ?? {}), [recipeId]: now } }
+}
+/** 지금 재료로 이 제작법을 몇 번 만들 수 있나(최대 99) */
+export function maxQtyFor(player, r) {
+  return Math.max(0, Math.min(99, ...r.inputs.map(([id, n]) => Math.floor(countOf(player, id) / n))))
+}
+/** 팝업 목록: 지금 만들 수 있고 · 이미 한 번 만들어 본 제작법(교집합), 가나다순 */
+export function knownMakeable(player, place) {
+  return (PLACE_RECIPES[place] ?? [])
+    .filter((r) => madeBefore(player, r.id) && maxQtyFor(player, r) >= 1)
+    .sort((a, b) => (itemOf(a.result)?.name ?? '').localeCompare(itemOf(b.result)?.name ?? '', 'ko'))
+}
+/** 제작법대로 qty개. 반환 { player, item, qty, recipe } 또는 { error } */
+export function knownCraft(player, place, recipeId, qty, admin = false) {
+  const r = (PLACE_RECIPES[place] ?? []).find((x) => x.id === recipeId)
+  if (!r) return { error: '그런 제작법은 없다.' }
+  if (!madeBefore(player, r.id)) return { error: '아직 만들어 본 적 없는 제작법이다.' }
+  if (!Number.isSafeInteger(qty) || qty < 1) return { error: '개수를 확인해 주세요.' }
+  if (!admin && qty > maxQtyFor(player, r)) return { error: '재료가 모자란다.' }
+  return benchCraft(player, r.inputs.map(([id, n]) => ({ id, n: n * qty })), place, admin)
+}

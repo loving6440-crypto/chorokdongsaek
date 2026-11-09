@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Hammer } from 'lucide-react'
 import { RECIPES, WORKSHOP, canCraft, recipeOf } from '../../game/crafting'
-import { BENCH_SLOTS, matchRecipe } from '../../game/freeCraft'
+import { BENCH_SLOTS, PLACE_RECIPES, matchRecipe } from '../../game/freeCraft'
 import CraftBench from '../CraftBench'
 import RecipeBook from '../RecipeBook'
 import { itemOf } from '../../game/items'
@@ -17,7 +17,7 @@ const leftText = (ms) => {
 }
 
 /** 공작소: 제작 칸에 재료를 올려 만든다. 제작법에 없는 조합이면 쓰레기. 이전 버전 제작 대기 상태만 호환 표시. */
-export default function Workshop({ player, admin, onCraft, onBench, onStopCraft, onAdminLearn, online = false }) {
+export default function Workshop({ player, admin, onCraft, onBench, onKnownCraft, onStopCraft, onAdminLearn, online = false }) {
   const verified = useVerifiedLocationEconomy(online)
   const verifiedOn = verified.mode === 'verified'
   const viewPlayer = verifiedOn ? { ...player, inventory: verified.wallet?.inventory ?? {}, crafting: null } : player
@@ -44,6 +44,15 @@ export default function Workshop({ player, admin, onCraft, onBench, onStopCraft,
     return onBench?.(list)
   }
   // [제작법 보기] → [칸에 올리기]: 재료를 제작 칸에 올리고 [제작] 탭으로
+  // v-B.18 [아는 제작법대로 만들기]
+  const knownGo = async (recipeId, qty) => {
+    if (verifiedOn) {
+      const res = await verified.transact('craft', { recipeId, qty })
+      const r = PLACE_RECIPES.workshop.find((x) => x.id === recipeId)
+      return res?.error ? { error: verified.message || res.error } : { item: itemOf(r.result), qty, failed: false }
+    }
+    return onKnownCraft?.(recipeId, qty)
+  }
   const loadRecipe = (r) => {
     setSlots([...r.inputs.map(([id, n]) => ({ id, n })), ...Array(Math.max(0, BENCH_SLOTS - r.inputs.length)).fill(null)].slice(0, BENCH_SLOTS))
     setView('bench')
@@ -84,7 +93,7 @@ export default function Workshop({ player, admin, onCraft, onBench, onStopCraft,
         </div>
         <div className="mt-4">
           {view === 'bench' ? (
-            <CraftBench player={viewPlayer} place="workshop" slots={slots} setSlots={setSlots} onCraft={benchGo} disabled={verified.busy || verified.mode === 'pending' || verified.mode === 'error' ? '잠시 뒤에 다시 시도해 주세요.' : ''} />
+            <CraftBench player={viewPlayer} place="workshop" slots={slots} setSlots={setSlots} onCraft={benchGo} onKnownCraft={knownGo} disabled={verified.busy || verified.mode === 'pending' || verified.mode === 'error' ? '잠시 뒤에 다시 시도해 주세요.' : ''} />
           ) : (
             <RecipeBook listed={LISTED} player={viewPlayer} free={free} canMake={(r) => canCraft(viewPlayer, r)} onLoad={loadRecipe} emptyText="등록된 공작소 제작법이 없다." />
           )}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ItemIcon from './ItemIcon'
 import { itemOf } from '../game/items'
 import { inventoryStacks } from '../game/inventoryCapacity'
-import { BENCH_SLOTS, benchPreview, benchTotals } from '../game/freeCraft'
+import { BENCH_SLOTS, benchPreview, benchTotals, knownMakeable, maxQtyFor } from '../game/freeCraft'
 import { josa } from '../game/quests'
 
 /**
@@ -12,12 +12,13 @@ import { josa } from '../game/quests'
  *  - [제작]: 맞는 제작법이 있으면 그대로 만들고, 없으면 실패작(조리실 숯 · 공작소 쓰레기)이 나온다. 누르기 전에 미리 보여 준다.
  * props: player · place('kitchen'|'workshop') · onCraft(slots) → 결과 · slots/setSlots(바깥에서 채워 줄 때) · disabled(이유 글)
  */
-export default function CraftBench({ player, place, onCraft, slots: outerSlots, setSlots: outerSet, disabled = '' }) {
+export default function CraftBench({ player, place, onCraft, onKnownCraft, slots: outerSlots, setSlots: outerSet, disabled = '' }) {
   const [inner, setInner] = useState(() => Array(BENCH_SLOTS).fill(null))
   const slots = outerSlots ?? inner
   const setSlots = outerSet ?? setInner
   const [msg, setMsg] = useState(null)
   const [over, setOver] = useState(null)
+  const [knownOpen, setKnownOpen] = useState(false) // v-B.18 아는 제작법대로 만들기 팝업
   const inv = player?.inventory ?? {}
   const placed = benchTotals(slots)
   const left = (id) => Math.max(0, (inv[id] || 0) - (placed[id] || 0))
@@ -112,6 +113,27 @@ export default function CraftBench({ player, place, onCraft, slots: outerSlots, 
         <button type="button" className="flat-chip" data-bench-clear onClick={clear} disabled={preview.empty}>칸 비우기</button>
         {disabled && <span className="text-[11px] text-paper/50">{disabled}</span>}
       </div>
+      {onKnownCraft && (
+        <div className="mt-2">
+          <button type="button" className="flat-btn text-xs disabled:opacity-40" data-known-open disabled={!!disabled} onClick={() => setKnownOpen(true)}>
+            아는 {place === 'kitchen' ? '요리법' : '제작법'}대로 만들기
+          </button>
+        </div>
+      )}
+      {knownOpen && (
+        <KnownCraftModal
+          player={player}
+          place={place}
+          onClose={() => setKnownOpen(false)}
+          onMake={async (id, q) => {
+            const r = await onKnownCraft(id, q)
+            if (!r || r.error) return r ?? { error: '만들 수 없다.' }
+            setMsg({ text: r.qty > 1 ? `${r.item.name} ${r.qty}개가 완성되었다!` : `${josa(r.item.name, '이')} 완성되었다!`, item: r.item })
+            setKnownOpen(false)
+            return r
+          }}
+        />
+      )}
       {msg && (
         <p className={`mt-2 text-sm ${msg.error ? 'text-crimson' : msg.failed ? 'text-paper/80' : 'text-gold'}`} role="status" data-bench-msg>
           {msg.item && <ItemIcon item={msg.item} size={22} className="mr-1.5 inline-block align-middle" />}
@@ -148,6 +170,70 @@ export default function CraftBench({ player, place, onCraft, slots: outerSlots, 
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * v-B.18 [아는 제작법대로 만들기] 팝업: 지금 만들 수 있고 · 이미 한 번 만들어 본 제작법만 가나다순으로.
+ * 하나를 고르고 몇 개치 만들지 정해서 만든다.
+ */
+function KnownCraftModal({ player, place, onClose, onMake }) {
+  const list = knownMakeable(player, place)
+  const [pick, setPick] = useState(null)
+  const [qty, setQty] = useState(1)
+  const [err, setErr] = useState('')
+  const r = list.find((x) => x.id === pick)
+  const max = r ? maxQtyFor(player, r) : 1
+  const q = Math.max(1, Math.min(max, qty))
+  const word = place === 'kitchen' ? '요리법' : '제작법'
+  return (
+    <div className="modal-scrim fixed inset-0 z-[80] grid place-items-center p-4" data-known-modal={place} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={`아는 ${word}대로 만들기`} className="ink-panel flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl p-5">
+        <p className="font-serif text-lg text-gold">아는 {word}대로 만들기</p>
+        <p className="mt-1 text-[11px] text-paper/55">지금 재료로 만들 수 있고, 이미 한 번 만들어 본 {word}만 보인다.</p>
+        {list.length === 0 ? (
+          <p className="mt-4 text-sm text-paper/70" data-known-empty>지금 만들 수 있는 아는 {word}이 없다. 제작 칸에서 한 번 만들어 보면 여기에 생긴다.</p>
+        ) : (
+          <ul className="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1" aria-label={`아는 ${word}`}>
+            {list.map((x) => {
+              const it = itemOf(x.result)
+              const on = x.id === pick
+              return (
+                <li key={x.id}>
+                  <button type="button" data-known-pick={x.id} aria-pressed={on} onClick={() => { setPick(x.id); setQty(1); setErr('') }} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left ${on ? 'bg-gold-fill/25 ring-1 ring-gold/50' : 'bg-shade/25 hover:bg-gold-fill/10'}`}>
+                    <ItemIcon item={it} size={30} className="shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm text-paper">{it.name}</span>
+                      <span className="block truncate text-[10px] text-paper/55">{x.inputs.map(([id, n]) => `${itemOf(id)?.name} ${n}`).join(' · ')}</span>
+                    </span>
+                    <span className="text-[10px] text-paper/50">최대 {maxQtyFor(player, x)}개</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {r && (
+          <div className="mt-3 rounded-xl bg-shade/30 p-3" data-known-qty-panel>
+            <p className="text-xs text-paper/80">[{itemOf(r.result).name}] 몇 개치 만들까? <span className="text-paper/50">(최대 {max}개)</span></p>
+            <div className="mt-2 flex items-center gap-2">
+              <button type="button" className="flat-btn !px-2 !py-1 text-xs" onClick={() => setQty((v) => Math.max(1, Math.min(max, v) - 1))}>−</button>
+              <input type="number" min="1" max={max} value={q} aria-label="만들 개수" data-known-qty onChange={(e) => setQty(Math.floor(Number(e.target.value) || 1))} className="w-16 rounded border border-edge/30 bg-shade px-2 py-1 text-center text-sm text-paper" />
+              <button type="button" className="flat-btn !px-2 !py-1 text-xs" onClick={() => setQty((v) => Math.min(max, Math.min(max, v) + 1))}>+</button>
+              <button type="button" className="flat-chip" onClick={() => setQty(max)}>최대</button>
+            </div>
+            <p className="mt-1.5 text-[10px] text-paper/50">드는 재료: {r.inputs.map(([id, n]) => `${itemOf(id)?.name} ${n * q}`).join(' · ')}</p>
+          </div>
+        )}
+        {err && <p className="mt-2 text-xs text-crimson" role="alert">{err}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" className="flat-chip" onClick={onClose}>닫기</button>
+          <button type="button" className="flat-btn text-xs disabled:opacity-40" data-known-make disabled={!r} onClick={async () => { const res = await onMake(r.id, q); if (res?.error) setErr(res.error) }}>
+            {r ? `${q}개 만들기` : '만들기'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -426,3 +426,34 @@ test('B18 자유 제작: 제작 칸 10칸, 제작법과 맞으면 그대로(배�
   assert.match(read('../src/index.css'), /img\.npc-portrait, \[data-npc\] img \{ image-rendering: auto !important; \}/)
   assert.match(read('../src/components/NpcDialog.jsx'), /className="npc-portrait /)
 })
+
+test('B18 아는 제작법대로 만들기: 지금 만들 수 있고 · 한 번 만들어 본 제작법만, N개치', async () => {
+  const F = await import('../src/game/freeCraft.js')
+  const { RECIPES } = await import('../src/game/crafting.js')
+  const [r1, r2] = RECIPES.filter((r) => r.inputs.length >= 2).slice(0, 2)
+  const inv = {}
+  for (const r of [r1, r2]) for (const [id, n] of r.inputs) inv[id] = (inv[id] || 0) + n * 3
+  let p = { inventory: inv }
+  assert.equal(F.knownMakeable(p, 'workshop').length, 0, '만들어 본 적이 없으면 비어 있다')
+  assert.match(F.knownCraft(p, 'workshop', r1.id, 1).error, /만들어 본 적 없는/)
+  // 제작 칸에서 한 번 만들면 기록된다(게임에서는 benchCraftAct 가 markMade)
+  const once = F.benchCraft(p, r1.inputs.map(([id, n]) => ({ id, n })), 'workshop')
+  p = F.markMade(once.player, once.recipe.id)
+  assert.ok(F.madeBefore(p, r1.id))
+  const list = F.knownMakeable(p, 'workshop')
+  assert.deepEqual(list.map((r) => r.id), [r1.id], '교집합: 만들어 봤고 지금 만들 수 있는 것만')
+  const max = F.maxQtyFor(p, r1)
+  assert.ok(max >= 1)
+  const made = F.knownCraft(p, 'workshop', r1.id, max)
+  assert.ok(!made.error, made.error)
+  assert.equal(made.qty, max)
+  assert.equal(F.knownMakeable(made.player, 'workshop').length, 0, '재료가 떨어지면 목록에서 빠진다')
+  assert.match(F.knownCraft(made.player, 'workshop', r1.id, 1).error, /모자란다/)
+  // 연결
+  const game = read('../src/Game.jsx')
+  assert.match(game, /onKnownCraft=\{knownCraftAct\}/)
+  assert.match(game, /markMade\(bumpDaily\(bumpWeekly\(r\.player, 'craft'\), 'craft'\), r\.recipe\?\.id\)/)
+  const bench = read('../src/components/CraftBench.jsx')
+  assert.match(bench, /아는 \{place === 'kitchen' \? '요리법' : '제작법'\}대로 만들기/)
+  assert.match(bench, /function KnownCraftModal/)
+})

@@ -115,7 +115,7 @@ import GuideModal from './components/GuideModal'
 import UpdateNotesModal from './components/UpdateNotesModal'
 import Market from './components/Market'
 import QuestBoard from './components/QuestBoard'
-import { benchCraft } from './game/freeCraft'
+import { benchCraft, knownCraft, markMade } from './game/freeCraft'
 import ExtraQuestModal from './components/ExtraQuestModal'
 import { questEvent, rollExtra, acceptBari, acceptNpc, acceptExtra, turnInQuest, abandonQuest, relayQuest, readyCount, josa, EXTRA_ZONES } from './game/quests'
 
@@ -1063,7 +1063,7 @@ export default function Game({
       const r = startCraft(cur, recipeId, qty, admin)
       if (r.error) return r
       // 이전 버전에서는 제작 대기 완료 시 정산되던 동아리 퀘스트를 즉시 제작 시점에 정산한다.
-      const completed = bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      const completed = markMade(bumpDaily(bumpWeekly(r.player, 'craft'), 'craft'), recipeId)
       playerRef.current = completed
       setPlayer(completed)
       addLog(`공작소에서 ${r.item?.name ?? itemOf(recipeOf(recipeId)?.result)?.name ?? ''} ${r.qty}개를 제작했다.`)
@@ -1079,7 +1079,7 @@ export default function Game({
       const r = cook(playerRef.current, recipeId, admin)
       if (r.error) return r
       // v79.0.7: 조리도 동아리 퀘스트의 '제작' 1회로 친다.
-      const completed = bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      const completed = markMade(bumpDaily(bumpWeekly(r.player, 'craft'), 'craft'), recipeId)
       playerRef.current = completed
       setPlayer(completed)
       addLog(`조리실에서 ${r.item.name}을(를) 만들었다.`)
@@ -1096,11 +1096,28 @@ export default function Game({
       if (place === 'workshop' && cur.crafting) return { error: '이미 제작 중이다.' }
       const r = benchCraft(cur, slots, place, admin)
       if (r.error) return r
-      const next = r.failed ? r.player : bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      const next = r.failed ? r.player : markMade(bumpDaily(bumpWeekly(r.player, 'craft'), 'craft'), r.recipe?.id)
       playerRef.current = next
       setPlayer(next)
       const where = place === 'kitchen' ? '조리실' : '공작소'
       addLog(r.failed ? `${where}에서 제작법에 없는 조합을 시도했다. 재료가 엉망이 되어 ${josa(r.item.name, '이')} 남았다.` : `${where}에서 ${r.qty > 1 ? `${r.item.name} ${r.qty}개를` : josa(r.item.name, '을')} 만들었다.`)
+      return { ...r, player: next }
+    },
+    [addLog, admin],
+  )
+
+  // v-B.18 [아는 제작법대로 만들기]: 만들어 본 적 있는 제작법을 골라 N개치 만든다.
+  const knownCraftAct = useCallback(
+    (place, recipeId, qty) => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const cur = playerRef.current
+      if (place === 'workshop' && cur.crafting) return { error: '이미 제작 중이다.' }
+      const r = knownCraft(cur, place, recipeId, qty, admin)
+      if (r.error) return r
+      const next = bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      playerRef.current = next
+      setPlayer(next)
+      addLog(`${place === 'kitchen' ? '조리실' : '공작소'}에서 ${r.item.name} ${r.qty}개를 만들었다.`)
       return { ...r, player: next }
     },
     [addLog, admin],
@@ -2024,6 +2041,7 @@ export default function Game({
                     admin={admin}
                     onCraft={craftItem}
                     onBench={benchCraftAct}
+                    onKnownCraft={knownCraftAct}
                     onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))}
                     onCook={cookItem}
                     online={online.status === 'online'}
