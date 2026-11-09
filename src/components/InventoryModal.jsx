@@ -11,6 +11,10 @@ import { useVerifiedLocationEconomy } from '../hooks/useVerifiedLocationEconomy'
 import { BAG_ID, BAG_SLOTS, bagContents, bagCount, bagRoom, bagSlotsUsed } from '../game/bag'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
+const STACK_KEYS = new Set(['hp', 'mp', 'giveHp', 'giveMp', 'spirit', 'sellMoney', 'mpStats', 'trainUnder10', 'hpCost'])
+/** 여러 개를 한 번에 써도 효과가 그만큼 쌓이는 아이템인가 */
+export const multiUsable = (item) => !!item?.effect && !item.effect.hunt && Object.keys(item.effect).length > 0 && Object.keys(item.effect).every((k) => STACK_KEYS.has(k))
+
 export default function InventoryModal({ player, inBattle, reviveOn, boostOn, usedItems = [], downed = false, onUse, onDiscard, onEquip, onUnequip, onClaimPending, onBag, partyMates = [], partyBattle = false, onClose, online = false }) {
   const trusted = useVerifiedLocationEconomy(online)
   const [sel, setSel] = useState(null) // 아이템 id
@@ -63,6 +67,8 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
   const shown = picked ?? slotItem
   const displayName = (item) => item ? `${specialTitleOf(player, item.id)}${item.name}` : ''
   // 마이쭈(boost)·쌍쌍바(giveHp): 누구에게 줄지 고르는 아이템.
+  // v-B.18: 수량 칸이 [사용]에도 적용된다(전투 밖). 효과가 겹치지 않는 아이템(버프 · 부활 · 개척 아이템 등)은 한 번에 하나.
+  const useN = picked && !inBattle && multiUsable(picked) ? Math.max(1, Math.min(pn ?? 1, discardQty)) : 1
   const chewyTarget = itemNeedsTarget(picked) && inBattle // v-B.16: 의지력·상태 해제를 건네는 요리도 포함
 
   const doEquip = () => {
@@ -281,10 +287,12 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
                   <button
                     type="button"
                     disabled={!pu.ok || (picked.effect?.trainUnder10 && !charcoalStat)}
-                    onClick={() => (chewyTarget ? setTargeting(true) : onUse(picked.id, charcoalStat))}
+                    onClick={() => (chewyTarget ? setTargeting(true) : onUse(picked.id, charcoalStat, useN))}
                     className="flat-btn !py-1 text-xs disabled:opacity-40"
+                    data-use-qty={useN}
+                    title={!inBattle && discardQty > 1 && useN === 1 ? '효과가 겹치지 않는 아이템이라 한 번에 하나만 쓴다' : undefined}
                   >
-                    {chewyTarget ? '건네기' : '사용'}
+                    {chewyTarget ? '건네기' : useN > 1 ? `${useN}개 사용` : '사용'}
                   </button>
                 )}
                 {picked && isGear(picked) && (
@@ -297,7 +305,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
                     벗기
                   </button>
                 )}
-                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="버릴 수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
+                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
                 <button type="button" onClick={closeAll} className="rounded-lg bg-edge/10 px-3 py-1 text-xs text-paper/80 hover:bg-edge/20">
                   닫기
                 </button>

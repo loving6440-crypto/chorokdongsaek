@@ -50,6 +50,7 @@ export default function Cooking({ player, admin, onCook, online = false }) {
                     <div className="min-w-0">
                       <p className="font-serif text-base text-paper">{out.name}</p>
                       <p className="mt-0.5 text-xs text-paper/60">{r.note ?? out.desc}</p>
+                      {out.effectText && <p className="mt-1 text-xs leading-relaxed text-gold" data-recipe-effect>효과 · {out.effectText}</p>}
                       <p className="mt-1 flex flex-wrap gap-1.5 text-[10px]" data-recipe-meta>
                         <span className="rounded-full bg-gold/15 px-2 py-px text-gold" data-recipe-lv={lv ?? 'none'} title={lv == null ? '이 재료들은 아직 게임 안에서 얻을 곳이 없다. 다음 업데이트에서 수급처가 추가된다.' : undefined}>{lv == null ? `수급처 준비 중 · ${missing.join(', ')}` : `적정 레벨 ${lv}`}</span>
                         {depth > 1 && <span className="rounded-full bg-shade/40 px-2 py-px text-paper/70" data-recipe-depth={depth}>{depth}단 제작</span>}

@@ -5,7 +5,7 @@ import { appendActivityLog, appendActivityLogs, latestActivityLog, normalizeActi
 
 const source = readFileSync(new URL('../src/game/clubQuests.js', import.meta.url), 'utf8')
 // 동아리 퀘스트 모듈은 clampSpirit 외에 외부 의존성이 없으므로 원본 소스를 메모리로 평가한다.
-const questCode = source.replace("import { clampSpirit } from './constants'", 'const clampSpirit = (p) => p')
+const questCode = source.replace(/import \{ clampSpirit \} from '\.\/constants(\.js)?'/, 'const clampSpirit = (p) => p')
 const quests = await import(`data:text/javascript;base64,${Buffer.from(questCode).toString('base64')}`)
 const { dayStartOf, weekStartOf, bumpDaily, bumpWeekly, ensureDaily, ensureWeekly, CLUB_QUESTS, DAILY_QUESTS } = quests
 

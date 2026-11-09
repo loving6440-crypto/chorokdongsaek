@@ -4,6 +4,7 @@ import { ANNEX_FLOORS } from '../../game/annex'
 import { DANAE } from '../../game/danae'
 import { pickNpcLine } from '../../game/npcLines'
 import NpcDialog from '../NpcDialog'
+import { RelayButtons } from '../QuestParts'
 import NpcGift from '../NpcGift'
 import ClubRoomPanel from '../ClubRoomPanel'
 import BoardGames from './BoardGames'
@@ -73,9 +74,11 @@ function BoardRoom({ player, admin, onHoljjak, myClub, onApplyClub, onFetchMembe
 }
 
 /** 조리실: 조리(단애와 함께) / 요리 동아리 */
-function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub, onApplyClub, onFetchMembers, online }) {
+function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub, onApplyClub, onFetchMembers, online, onExploreAct }) {
   const [tab, setTab] = useState('cook')
-  const [{ line }] = useState(() => pickNpcLine(DANAE.id, DANAE.lines, player, player.lineSeen))
+  const [{ line: greet }] = useState(() => pickNpcLine(DANAE.id, DANAE.lines, player, player.lineSeen))
+  const [said, setSaid] = useState(null) // v-B.18 전하기(신아 → 단애) 뒤 단애의 반응
+  const line = said ?? greet
   useEffect(() => {
     onMeet?.('danae')
   }, [onMeet])
@@ -103,6 +106,7 @@ function CookRoom({ player, admin, onCook, onMeet, onLineSeen, onGiveNpc, myClub
           <NpcDialog npc={DANAE.name} src={DANAE.faces[line.face ?? 'plain']} face={line.face} dataNpc="danae">
             {line.text}
           </NpcDialog>
+          <RelayButtons player={player} to="danae" act={(op, payload) => onExploreAct?.('quest', { op, ...payload }) ?? { error: '지금은 건넬 수 없다.' }} onDone={(l) => l && setSaid(l)} />
           <NpcGift npcId="danae" player={player} onGive={onGiveNpc} />
           <Cooking player={player} admin={admin} onCook={onCook} online={online} />
         </>
@@ -220,6 +224,7 @@ export default function Annex({ view, player, admin, onCraft, onStopCraft, onCoo
                   myClub={myClub}
                   onApplyClub={onApplyClub}
                   onFetchMembers={onFetchMembers}
+                  onExploreAct={onExploreAct}
                 />
               )}
               {room.club && room.id !== 'craft' && room.id !== 'board' && room.id !== 'cook' && (

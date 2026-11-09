@@ -9,6 +9,7 @@ import { checkAchievements } from './achievements'
 import { finishCraft } from './crafting'
 import { enemyById } from './battle'
 import { bumpWeekly, bumpDaily, markWeeklySet, ensureDaily, checkClubQuests } from './clubQuests'
+import { questEvent } from './quests.js'
 import { finishGather, startGather as startGatherAt, cancelGather as cancelGatherAt } from './gather'
 import { finishHunt, startHunt as startHuntAt, cancelHunt as cancelHuntAt } from './hunt'
 import { migrateHuntSave } from './huntMigration'
@@ -418,5 +419,5 @@ export function finishSlowFight(player, now = Date.now()) {
   const logs = [
     `퇴마 실습(느린 싸움): ${sf.minutes}분을 들여 ${enemy.name}을(를) 확실하게 쓰러뜨렸다. 체력 -${curHp - hp}, 의지력 -${curMp - mp}.${r.granted ? ` 영력 +${r.granted}, 돈 +${r.granted}냥.` : ' (오늘의 보상은 모두 받았다)'}`,
   ]
-  return { player: r.player, logs }
+  return { player: questEvent(r.player, { type: 'kill', id: enemy.id }, now), logs } // v-B.18 느린 싸움 승리도 부탁 · 동아리 토벌에 센다
 }

@@ -10,6 +10,7 @@ import { TIER_HANJA } from '../../game/constants'
 import { resolveEntries } from '../../game/scene'
 import Scene, { Paras } from '../Scene'
 import { GoblinToday, RicePouch } from '../ExploreWidgets'
+import { BariQuest } from '../QuestParts'
 
 const leftText = (ms) => {
   const m = Math.max(0, Math.ceil(ms / 60000))
@@ -120,6 +121,7 @@ export default function Hike({ player, stats, admin, onEnhance, onSpecialEnhance
     if (node.widget === 'greenhouse') return <Garden player={player} part="greenhouse" onGardenAction={onGardenAction} onMeet={onMeet} online={online} />
     if (node.widget === 'ricePouch') return <RicePouch player={player} act={act} />
     if (node.widget === 'goblinToday') return <GoblinToday player={player} />
+    if (node.widget === 'bariQuest') return <BariQuest player={player} act={act} />
     if (node.widget === 'outsideBari') return <OutsideBari player={player} onMeet={onMeet} onGiveNpc={onGiveNpc} />
     if (node.widget === 'extraBattle') return spot.id === 'extraBattle' && battle ? <ExtraBattle battle={battle} /> : null
     return null

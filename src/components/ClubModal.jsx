@@ -17,6 +17,7 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers, 
   const club = net.club
   const meta = club ? clubMetaOf(club.id) : null
   const weekly = ensureWeekly(player ?? {}).weekly
+  const ctx = { player: player ?? {}, clubId: club?.id ?? null } // v-B.18 동아리별 납품 · 토벌
   const doneCount = claimedCount(weekly)
   const daily = ensureDaily(player ?? {}).daily
   const dailyDoneCount = dailyClaimedCount(daily)
@@ -142,26 +143,30 @@ export default function ClubModal({ player, onClose, onProfile, onFetchMembers, 
             <ul className="mt-1.5 space-y-1 rounded-lg bg-shade/25 p-2.5" data-club-quests>
               {CLUB_QUESTS.map((q) => {
                 const claimed = !!weekly.claimed?.[q.id]
-                const achieved = !claimed && q.done(weekly)
+                const achieved = !claimed && q.done(weekly, ctx)
+                // v-B.18: 동아리별 납품 · 토벌은 동아리 · 그 주의 수준에 따라 이름과 보상이 바뀐다.
+                const label = q.labelFor?.(weekly, ctx) ?? q.label
+                const reward = q.rewardFor?.(weekly, ctx) ?? q.reward
+                const prog = q.progress?.(weekly, ctx)
                 return (
                   <li key={q.id} data-quest={q.id} data-quest-done={claimed} className={`flex items-start gap-1.5 text-xs leading-relaxed ${claimed ? 'text-gold' : achieved ? 'text-paper' : 'text-paper/75'}`}>
                     <span className={`mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-full ${claimed ? 'bg-gold text-ink' : 'border border-edge/30'}`}>
                       {claimed && <Check size={10} aria-hidden />}
                     </span>
                     <span className="flex-1">
-                      {q.label}
-                      {q.progress && !claimed && (
+                      {label}
+                      {prog && !claimed && (
                         <span className="ml-1 text-[10px] text-paper/50" data-quest-progress>
-                          ({q.progress(weekly)[0]}/{q.progress(weekly)[1]}회)
+                          ({prog[0]}/{prog[1]}{q.club ? '' : '회'})
                         </span>
                       )}
-                      {q.reward && <span className="ml-1 text-[10px] text-paper/45">({rewardText(q.reward)})</span>}
+                      {reward && <span className="ml-1 text-[10px] text-paper/45">({rewardText(reward)})</span>}
                     </span>
-                    {achieved && q.reward && (
+                    {achieved && reward && (
                       <button
                         type="button"
                         data-claim-quest={q.id}
-                        onClick={() => onClaimQuest?.(q.id)}
+                        onClick={() => onClaimQuest?.(q.id, club?.id)}
                         className="shrink-0 rounded border border-gold bg-gold px-2 py-0.5 text-[10px] font-medium text-ink hover:brightness-110"
                       >
                         보상 받기

@@ -114,6 +114,9 @@ import ClubModal from './components/ClubModal'
 import GuideModal from './components/GuideModal'
 import UpdateNotesModal from './components/UpdateNotesModal'
 import Market from './components/Market'
+import QuestBoard from './components/QuestBoard'
+import ExtraQuestModal from './components/ExtraQuestModal'
+import { questEvent, rollExtra, acceptBari, acceptNpc, acceptExtra, turnInQuest, abandonQuest, relayQuest, readyCount, EXTRA_ZONES } from './game/quests'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
 function useDesktop() {
@@ -352,6 +355,10 @@ export default function Game({
         setActivity('intro')
         setLocationId(trv.toId)
         addLog(`${LOCATIONS[trv.toId].name}에 도착했다.`)
+        // v-B.18 엑스트라: 본관 · 별관 · 뒷산 · 사당에 도착하면 가끔 누군가 말을 걸어온다.
+        const ex = rollExtra(nextPlayer, trv.toId, now)
+        nextPlayer = ex.player
+        if (ex.enc) setExtraEnc(ex.enc)
       }
       nextPlayer = clampSpirit(limitNewGains(previousPlayer, nextPlayer))
       const pendingGained = Object.entries(nextPlayer.pendingInventory ?? {}).some(([id, n]) => n > (previousPlayer.pendingInventory?.[id] ?? 0))
@@ -657,6 +664,7 @@ export default function Game({
   }
 
   const [travelRewardPopup, setTravelRewardPopup] = useState(null)
+  const [extraEnc, setExtraEnc] = useState(null) // v-B.18 엑스트라가 건 말(받아들일지 고른다)
   const [travelConfirm, setTravelConfirm] = useState(null) // { toId, minutes }
   const moveTo = (id) => {
     if (id === locationId) return
@@ -689,7 +697,9 @@ export default function Game({
     if (cur.mp < cost) return
     const { traveling: _t, ...rest } = cur
     const next0 = trv.event?.reward ? { ...rest, mp: cur.mp - cost, inventory: { ...rest.inventory, [trv.event.reward]: (rest.inventory?.[trv.event.reward] || 0) + 1 } } : { ...rest, mp: cur.mp - cost }
-    const next = limitNewGains(cur, next0)
+    const ex = rollExtra(limitNewGains(cur, next0), trv.toId)
+    const next = ex.player
+    if (ex.enc) setExtraEnc(ex.enc)
     if (trv.event?.reward) setTravelRewardPopup(trv.event.reward)
     playerRef.current = next
     setPlayer(next)
@@ -702,6 +712,11 @@ export default function Game({
     interruptAll('다른 곳으로 이동해')
     setActivity('intro') // 들어서면 묘사부터
     setLocationId(id)
+    if (EXTRA_ZONES.includes(id)) {
+      const ex = rollExtra(playerRef.current, id)
+      if (ex.player !== playerRef.current) { playerRef.current = ex.player; setPlayer(ex.player) }
+      if (ex.enc) setExtraEnc(ex.enc)
+    }
     const nm = LOCATIONS[id].name
     const last = nm.charCodeAt(nm.length - 1) - 0xac00
     const jong = last >= 0 && last % 28
@@ -739,9 +754,12 @@ export default function Game({
   }
 
   // 동아리 주간 활동: 달성한 퀘스트의 보상을 직접 받는다.
-  const claimClubQuest = (questId) => {
-    const r = claimQuest(playerRef.current, questId)
-    if (!r.ok) return
+  const claimClubQuest = (questId, clubId = null) => {
+    const r = claimQuest(playerRef.current, questId, Date.now(), clubId)
+    if (!r.ok) {
+      if (r.error) notify(r.error)
+      return
+    }
     playerRef.current = r.player
     setPlayer(r.player)
     if (r.log) addLog(r.log)
@@ -1132,6 +1150,17 @@ export default function Game({
     return { ok: true }
   }, [addLog, setPlayer])
 
+  // v-B.18 수량만큼 쓰기(전투 밖, 효과가 쌓이는 아이템만 — InventoryModal 의 multiUsable). 한 번이라도 안 써지면 멈춘다.
+  const useItemN = async (id, target, n = 1) => {
+    const times = battleRef.current || mbLiveRef.current ? 1 : Math.max(1, Math.floor(n) || 1)
+    for (let i = 0; i < times; i++) {
+      const before = playerRef.current.inventory?.[id] || 0
+      if (before <= 0) break
+      await useItem(id, target)
+      if ((playerRef.current.inventory?.[id] || 0) >= before) break
+    }
+  }
+
   const discardItem = useCallback((itemId, qty) => {
     if (battleRef.current || mbLiveRef.current) return { error: '전투 중에는 버릴 수 없다.' }
     const r = discardInventoryItem(playerRef.current, itemId, qty)
@@ -1500,7 +1529,8 @@ export default function Game({
           throw new Error('수렵 턴이 남아 있는데 채집으로 종료되었습니다.')
         }
         // v-B.01: 개척 터에 들어갈 때마다 동아리 '개척' 1회 (주간 개척 10회 · 오늘 개척 2회)
-        const counted = action.type === 'enter' ? bumpDaily(bumpWeekly(result.player, 'pioneer', 1, now), 'pioneer', 1, now) : result.player
+        const counted0 = action.type === 'enter' ? bumpDaily(bumpWeekly(result.player, 'pioneer', 1, now), 'pioneer', 1, now) : result.player
+        const counted = action.type === 'enter' ? questEvent(counted0, { type: 'pioneer' }, now) : counted0 // v-B.18 '개척 N번' 부탁
         const next = syncCodex(counted)
         playerRef.current = next
         setPlayer(next)
@@ -1719,6 +1749,7 @@ export default function Game({
       const rewardPlayer = { ...cur, _battleNoScanWin: !battleScannedRef.current }
       const r = applyBattleResult(rewardPlayer, win, enemy.reward)
       let resultPlayer = r.player
+      if (win && enemy?.id) resultPlayer = questEvent(resultPlayer, { type: 'kill', id: enemy.id }) // v-B.18 부탁 · 동아리 토벌
       if (win && special === 'pine' && !battleDownedRef.current && battleVitalsRef.current) resultPlayer = { ...resultPlayer, hp: Math.min(resultPlayer.hpMax, battleVitalsRef.current.hp), mp: Math.min(resultPlayer.mpMax, battleVitalsRef.current.mp) }
       delete resultPlayer._battleNoScanWin
       playerRef.current = resultPlayer
@@ -1751,7 +1782,7 @@ export default function Game({
 
   // 동아리 '모든 장소 탐사' 퀘스트: 본관/별관/산 탐사의 각 세부 장소를 클릭할 때마다 호출된다.
   const visitSpot = useCallback((key) => {
-    const next = markWeeklySet(playerRef.current, 'exploreVisited', key)
+    const next = questEvent(markWeeklySet(playerRef.current, 'exploreVisited', key), { type: 'visit', key })
     if (next !== playerRef.current) {
       playerRef.current = next
       setPlayer(next)
@@ -1766,6 +1797,26 @@ export default function Game({
     [addLog, interruptAll],
   )
 
+  // v-B.18 퀘스트: 받기 · 건네기 · 그만두기. 결과 객체를 그대로 돌려준다(대사 line · 지문 text 포함).
+  const questAct = (op, payload = {}) => {
+    if (battleRef.current || mbLiveRef.current) return { error: '전투 중이다.' }
+    const cur = playerRef.current
+    const now = Date.now()
+    let r
+    if (op === 'acceptBari') r = acceptBari(cur, now)
+    else if (op === 'acceptNpc') r = acceptNpc(cur, payload.npc, now)
+    else if (op === 'turnIn') r = turnInQuest(cur, payload.uid, now, { via: payload.via ?? 'board' })
+    else if (op === 'abandon') r = abandonQuest(cur, payload.uid, now)
+    else if (op === 'acceptExtra') r = acceptExtra(cur, payload.enc, now)
+    else if (op === 'relay') r = relayQuest(cur, payload.uid, payload.to, now) // 해님 → 바리 · 신아 → 단애
+    else return { error: '알 수 없는 행동이다.' }
+    if (r.error) return r
+    playerRef.current = r.player
+    setPlayer(r.player)
+    if (r.log) addLog(r.log)
+    return r
+  }
+
   // v-B.07 탐사 중의 일: 10분 기다리기 · 의지력 쓰기 · 도깨비 놀이 · 볍씨 주머니 · 사당 표지판. 결과 객체를 그대로 돌려준다.
   const exploreAct = (kind, payload = {}) => {
     const cur = playerRef.current
@@ -1774,7 +1825,10 @@ export default function Game({
     if (kind === 'waitStart') r = startExploreWait(cur, payload.key, payload.minutes, now)
     else if (kind === 'waitClaim') r = claimExploreWait(cur, payload.key, now)
     else if (kind === 'spendMp') r = spendExploreMp(cur, payload.amount)
-    else if (kind === 'goblinPlay') r = goblinPlay(cur, payload, effectiveStats(cur), now)
+    else if (kind === 'goblinPlay') {
+      r = goblinPlay(cur, payload, effectiveStats(cur), now)
+      if (!r.error) r = { ...r, player: questEvent(r.player, { type: 'play' }, now) } // v-B.18 '도깨비들과 놀아 주기' 부탁
+    } else if (kind === 'quest') return questAct(payload.op, payload)
     else if (kind === 'ricePouch') r = openRicePouches(cur)
     else if (kind === 'shrineSign') r = readShrineSign(cur, cur.stats)
     else return { error: '알 수 없는 행동이다.' }
@@ -1913,11 +1967,13 @@ export default function Game({
         />
         <main className="ink-panel relative flex min-h-[16rem] min-w-0 flex-1 lg:min-h-0 flex-col overflow-hidden rounded-2xl" aria-label="활동 화면">
           <GlobalBoardGames active={locationId === 'annex'} />
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' || panel === 'mailbox' ? panel : `${locationId}-${activity}`}>
+          <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-6" key={panel === 'market' || panel === 'mailbox' || panel === 'quest' ? panel : `${locationId}-${activity}`}>
             {player.traveling ? (
               <TravelPanel traveling={player.traveling} mp={player.mp} onFastTravel={fastTravel} />
             ) : panel === 'mailbox' ? (
               <MailboxPanel online={online} meId={online.me?.id} />
+            ) : panel === 'quest' ? (
+              <QuestBoard player={player} onAct={questAct} />
             ) : panel === 'market' ? (
               <Market player={player} admin={admin} online={online.status === 'online'} onSell={marketSell} onBuy={marketBuyIt} onCancel={marketCancelIt} onOpen={claimProceeds} />
             ) : (
@@ -2099,6 +2155,7 @@ export default function Game({
           onOpenItems={() => setInvOpen(true)} onGiveItem={giveItem} onAfflict={onAfflict}
         />
       )}
+      {extraEnc && !player.traveling && <ExtraQuestModal enc={extraEnc} player={player} onAccept={(enc) => questAct('acceptExtra', { enc })} onClose={() => setExtraEnc(null)} />}
       {travelRewardPopup && <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="이동 아이템 획득">
         <div className="ink-panel max-w-sm rounded-xl border border-gold/40 p-6 text-center shadow-xl">
           <p className="text-lg text-gold">{itemOf(travelRewardPopup)?.name ?? '아이템'}을(를) 획득했다!</p>
@@ -2123,7 +2180,7 @@ export default function Game({
       </div>
 
       <div className="order-2 flex shrink-0 flex-col gap-3 lg:order-3 lg:min-h-0 lg:w-80">
-        <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} unreadMail={online.mailUnread} hideLog={desktop} />
+        <MenuPanel current={panel} onSelect={selectPanel} unreadLog={!!unreadLog} unreadMail={online.mailUnread} questReady={readyCount(player)} hideLog={desktop} />
         {desktop && <ChatPanel docked logs={logs} onGift={setGiftTo} onProfile={setCardTo} />}
       </div>
 
@@ -2366,7 +2423,7 @@ export default function Game({
       {introReplay && <Intro replay onDone={() => setIntroReplay(false)} />}
       {giftTo && <GiftModal target={giftTo} player={player} onSend={sendGiftTo} onClose={() => setGiftTo(null)} />}
       {invOpen && (
-        <InventoryModal online={online.status === 'online'} player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} usedItems={mbLive ? (mbMe?.energyUsed ? ['energy'] : []) : battleUsedItems} downed={mbLive ? !!mbMe?.pendingDeath || mbMe?.status === 'down' : battleActive && soloDowned} onUse={useItem} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} onClaimPending={claimInventoryPending} onBag={bagAction} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
+        <InventoryModal online={online.status === 'online'} player={mbLive && mbView?.boss ? { ...player, inventory: Object.fromEntries(Object.entries(mbMe?.bring ?? {}).filter(([, n]) => n > 0)) } : player} inBattle={battleActive || mbLive} reviveOn={mbLive ? !!mbMe?.revive : reviveOn} boostOn={mbLive ? !!mbMe?.boost : boostOn} usedItems={mbLive ? (mbMe?.energyUsed ? ['energy'] : []) : battleUsedItems} downed={mbLive ? !!mbMe?.pendingDeath || mbMe?.status === 'down' : battleActive && soloDowned} onUse={useItemN} onDiscard={discardItem} onEquip={equip} onUnequip={unequip} onClaimPending={claimInventoryPending} onBag={bagAction} partyBattle={mbLive} partyMates={mbLive ? (mbView.members ?? []).filter((m) => m.id !== online.me?.id && m.status === 'alive') : (online.party?.members ?? []).filter((m) => m.id !== online.me?.id)} onClose={() => setInvOpen(false)} />
       )}
       {!desktop && <ChatPanel onGift={setGiftTo} onProfile={setCardTo} />}
     </div>

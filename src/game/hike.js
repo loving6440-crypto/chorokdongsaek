@@ -172,7 +172,8 @@ export const HIKE_PATHS = [
             night: { from: 18, to: 6, closed: '바리가 다른 곳에 있다.' },
             npc: BARI,
             lines: ['“왜 따뜻한 기숙사에서 안 주무시고 여기 계세요?”'],
-            choices: [{ id: 'goblinQuest', name: '도깨비 퀘스트', npc: BARI, lines: ['“아, 요즘 교내의 도깨비들이 영 말썽이라⋯⋯. 조만간 부탁드릴 일이 조금씩 생길 것 같아요. 죄송해요.”'] }],
+            // v-B.18: 바리의 도깨비 퀘스트(하룻밤에 한 건 · 도깨비 증표 1~2개). 글은 game/questData.js
+            choices: [{ id: 'goblinQuest', name: '도깨비 퀘스트', widget: 'bariQuest' }],
           },
         ],
       },
