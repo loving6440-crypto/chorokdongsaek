@@ -12,7 +12,7 @@ export default function Avatar({ avatar, size = 40, className = '' }) {
         src={avatar.src}
         alt=""
         draggable={false}
-        className={`shrink-0 rounded-full object-cover ring-1 ring-gold/40 ${className}`}
+        className={`user-photo shrink-0 rounded-full object-cover ring-1 ring-gold/40 ${className}`}
         style={box}
       />
     )

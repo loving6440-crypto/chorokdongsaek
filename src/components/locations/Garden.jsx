@@ -5,6 +5,8 @@ import { countOf, itemOf } from '../../game/items'
 import ItemIcon from '../ItemIcon'
 import { countSlots, INVENTORY_SLOTS } from '../../game/inventoryCapacity'
 import NpcDialog from '../NpcDialog'
+import VerifiedGarden from './VerifiedGarden'
+import { useVerifiedLocationEconomy } from '../../hooks/useVerifiedLocationEconomy'
 
 const CROP_COLORS = ['#b77568', '#b58b65', '#7e9971', '#9f906e', '#91a37b', '#699680', '#9a8362']
 const remainingText = ms => {
@@ -33,7 +35,14 @@ function CropSprite({ crop, sprouted = false, size = 40 }) {
 }
 
 // part: 'shop' | 'greenhouse' — v-B.07 산 탐사의 두 선택지로 곧장 연다(입구 화면 없이).
-export default function Garden({ player, onGardenAction, onMeet, part }) {
+export default function Garden(props) {
+  const economy = useVerifiedLocationEconomy(!!props.online)
+  if (economy.mode === 'verified') return <VerifiedGarden economy={economy} part={props.part} />
+  if (economy.mode === 'pending' || economy.mode === 'error') return <section aria-label="텃밭" className="ink-panel mt-4 rounded-xl p-4"><p className="text-sm text-gold">{economy.mode === 'pending' ? '서버 재고 확인 중…' : '서버 재고를 확인할 수 없습니다. 다시 접속해 주세요.'}</p></section>
+  return <LegacyGarden {...props} />
+}
+
+function LegacyGarden({ player, onGardenAction, onMeet, part }) {
   const [mode, setMode] = useState(part ?? null) // 텃밭에 들어올 때마다 선택 화면부터
   const [seedId, setSeedId] = useState(GARDEN_CROPS[0].seedId)
   const [message, setMessage] = useState('')

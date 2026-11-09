@@ -1,3 +1,40 @@
+> **B.18 퀘스트:** [VB_18_QUESTS.md](./VB_18_QUESTS.md). 바리의 도깨비 퀘스트(캠핑장 · 밤 · 증표 1~2개), 동아리별 주간 납품 · 토벌, 메뉴 [의뢰](NPC 다섯 명의 하루 한 건 부탁), 본관 · 별관 · 뒷산 · 사당 도착 시 엑스트라 랜덤 부탁. 엔진 `src/game/quests.js`, 글 `src/game/questData.js`.
+
+> **B.17 적 재조정 · 가방 · 재접속:** [VB_17_PATCH.md](./VB_17_PATCH.md). 제작품 키트 기준으로 적 57종 체력·공격력 재조정(`scripts/balance-sim.mjs`, `reports/B17_ENEMY_BALANCE_SIM.json`), 잃어버린 열쇠 확률(분실물 5% 중 8%), 다인 전투 재접속·자동 처리·[이탈] 버튼, [가방] 40칸, 프로필 사진 원본 화질. 관리자 로그인 방식·가입 규칙은 그대로.
+
+> **B.16 제작품 효과:** [VB_16_ITEM_EFFECTS.md](./VB_16_ITEM_EFFECTS.md). 효과가 비어 있던 완성품 102종에 효과(난이도 비례, 효과 40종), 새 태그 #개척, 개척 화면 이동 버튼 아래 [개척 아이템] 칸.
+
+> **B.15 랭킹 검증·운영 보강:** [VB_15_RANKING_TRUST_OPS.md](./VB_15_RANKING_TRUST_OPS.md). 랭킹 등록을 서버 세션 + 재현 검증으로 재개, 다인 전투 스탯을 서버 저장 캐릭터 기준으로 제한, 공용 기록을 영역별 행으로 분리 저장, DB 인증서 검증 옵션(`CHOROK_DB_CA_CERT`). 관리자 로그인 방식·가입 규칙은 그대로.
+
+> **B.14 성능 최적화 패치:** [VB_14_PERFORMANCE_SCALING.md](./VB_14_PERFORMANCE_SCALING.md). 검증 경제 기본 OFF, B.13 기능·데이터 유지. `npm run loadtest:local -- 100`으로 로컬 SSE/채팅 부하 재현 가능. 실제 Supabase 100명 성능은 아직 검증하지 않았습니다.
+
+# v-B.13 서버 검증 개척·수렵 1차 적용
+
+- 자세한 내용은 **[VB_13_SERVER_EXPEDITION.md](./VB_13_SERVER_EXPEDITION.md)** 참조.
+- 검증 경제 기능 플래그는 **기본 비활성화 (`CHOROK_ENABLE_VERIFIED_ECONOMY=0`)** 유지. Render 설정은 사용자가 관리.
+- 서버에서 개척 입장·이동·채집/수렵 보상을 판정해 검증 장부에 지급. 검증 모드는 임시 고정 스탯을 사용하며 요괴 전투는 무보상 회피한다.
+- 레거시 돈·인벤토리·기존 자산의 자동 이전 없음. 운영 전면 활성화 금지.
+- `npm test` 288개 통과. 실제 Vite 빌드 및 Supabase 연동 검증은 미완료.
+
+---
+
+## v-B.12 검증 경제 기존 화면 연동 (기본 비활성화)
+
+- `CHOROK_ENABLE_VERIFIED_ECONOMY=0` (기본값): 기존 공작소·조리실·텃밭이 그대로 동작하며, 검증 경제 기능은 비활성화됩니다. 기존 장터/선물/랭킹 점검은 계속 유지됩니다.
+- 테스트 서버에서만 `1`로 설정하면 공작소·조리실·텃밭이 **서버 검증 장부 재고**를 사용합니다. 텃밭 5칸 씨앗 구매·심기·1시간 수확을 서버가 판정하며 소지품 창에 검증 재고를 별도 표시합니다.
+- **구 저장 자산과 신규 검증 자산은 합산하거나 자동 이전하지 않습니다.** 이는 완전한 단일 경제 통합이 아니라 안전한 화면 연결 단계입니다.
+- 상세 사항: [`VB_12_P0_VERIFIED_BRIDGE.md`](./VB_12_P0_VERIFIED_BRIDGE.md)
+
+> **v-B.11 P0 3단계 안내** — 검증 장부를 사용하는 텃밭 20분 채집, 서버 판정 제작/조리, 교내 고정가 매입과 새로운 벼룩시장·선물 UI를 추가했습니다. **기존 캐릭터 소지품과 검증 장부는 아직 별개**이고 전투/개척 보상은 미연결입니다. `CHOROK_ENABLE_VERIFIED_ECONOMY=1`은 **테스트 서버에서만** 사용하세요. 자세한 내용은 [`VB_11_TRUSTED_GAMEPLAY.md`](./VB_11_TRUSTED_GAMEPLAY.md)를 참고하세요.
+
+---
+
+> **v-B.10 P0 2단계 안내** — 서버 전용 원자적 거래 장부와 이전 감사 도구가 추가되었습니다. 기존 장터·선물·신규 랭킹 제출은 계속 일시 중단됩니다. **사용자 재화 자동 이전 및 게임 UI 연동은 아직 하지 않았습니다.** 실제 운영 서버에 `CHOROK_ENABLE_VERIFIED_ECONOMY=1`을 설정하지 마세요. 자세한 내용은 [`VB_10_VERIFIED_ECONOMY.md`](./VB_10_VERIFIED_ECONOMY.md)를 참고하세요.
+
+---
+
+> **v-B.09 / P0 보안 1차 패치:** [VB_09_P0_SECURITY_PATCH.md](./VB_09_P0_SECURITY_PATCH.md) 참고. 로그인 보안 강화, 신규 가입 정책 변경, 거래/랭킹 서버 검증 준비 중 안전 중지.
+
 # 草綠同色 (초록동색)
 
 **v-B.08 (package 80.0.8):** 아이템 시트 맞추기 + 새 제작법 100개 — 시트의 이름 · 설명 · 효과를 반영(기합의 띠 · 도깨비 탈 · 뱀딸기 귀걸이 · 금관 장신구화, 일기장 의지력 회복, 소형 돌제단 · 나물무침 · 정체불능의 보약 제작법, 먹 매점 판매, 까치 깃). 공작소 50(장비 10 · 장신구 10) · 조리실 50 새 제작법과 2 · 3단 제작, 재료 수급처 · 적정 레벨 계산(`game/materialLevels.js`), 제작법 목록 적정 레벨순 · 분류 탭. 자세한 내용은 `VB_08_PATCH.md`.
@@ -688,7 +725,7 @@ npm start        # 서버 실행: 게임 + 채팅 · 파티 · 랭킹  → http:
 실제 운영 중인 서버의 수치(초당 요청 수, 실제 전송 바이트 등)는 이 환경에서 직접 볼 수 없어 측정하지 못했다. 대신 코드를 다시 읽어보면서 "굳이 그렇게 자주 보낼 필요는 없었던" 지점들을 찾아 손댔다 — 전부 동작은 그대로이고 빈도·크기만 줄이는 저위험 수정이다. 실제 효과는 배포 뒤 아래에 새로 추가한 계측치로 확인할 수 있다.
 
 ### 계측치 추가 (관리자 전용)
-- `GET /api/admin/metrics?key=<관리자키>`로 서버가 켜진 뒤 누적된 수치를 볼 수 있다: 전체 서버 스냅샷을 DB/파일에 실제로 쓴 횟수·누적 바이트(`snapshotSaveCount`/`snapshotSaveBytes`), SSE(`/api/events`) (재)접속 횟수(`sseConnectCount`), 계정 자동저장이 실제로 처리된 횟수·누적 바이트(`accountSaveCount`/`accountSaveBytes`), 평균 크기(`...Avg`), 서버가 켜진 지 몇 초인지(`upSeconds`). 서버를 재시작하면 0부터 다시 쌓인다(`server/index.js`의 `metrics`).
+- `GET /api/admin/metrics`에 로그인 `Authorization: Bearer <토큰>`과 `X-Admin-Key: <관리자키>` 헤더를 함께 보내 서버가 켜진 뒤 누적된 수치를 볼 수 있다: 전체 서버 스냅샷을 DB/파일에 실제로 쓴 횟수·누적 바이트(`snapshotSaveCount`/`snapshotSaveBytes`), SSE(`/api/events`) (재)접속 횟수(`sseConnectCount`), 계정 자동저장이 실제로 처리된 횟수·누적 바이트(`accountSaveCount`/`accountSaveBytes`), 평균 크기(`...Avg`), 서버가 켜진 지 몇 초인지(`upSeconds`). 서버를 재시작하면 0부터 다시 쌓인다(`server/index.js`의 `metrics`).
 
 ### 자동저장이 쉬지 않고 나가던 문제 — 가장 큰 원인을 고쳤다
 - **원인**: 1초마다 도는 영력·체력 자연 회복 틱(`tickPlayer`)이 가만히 서 있기만 해도 매초 새 `player` 객체를 만들어 냈고, 그게 `src/Game.jsx`의 자동저장 트리거(`useEffect`)를 매초 다시 돌려 "저장할 것이 있다"로 계속 표시했다. 그 결과 `src/game/auth.js`의 `schedulePush`(서버로 계정 저장을 보내는 함수)가 기존엔 4초마다 거의 쉬지 않고 불렸다 — 정작 의미 있게 바뀐 건 거의 없는데도.

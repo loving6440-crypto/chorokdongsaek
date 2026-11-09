@@ -7,9 +7,23 @@ export const TRAVEL_LINES = [
 ]
 // v-B.07: 누군가가 잃어버린 열쇠(본관 3층 다른 학년 보관함을 몰래 열어보는 데 쓴다)도 함께 줍는다.
 export const LOST_THINGS = ['lost-hairband', 'lost-slippers', 'lost-phone', 'lost-love-letter', 'lost-key']
+// v-B.17: 이동 중 [누군가가 잃어버린~] 분실물을 주울 확률은 5%. 그 5% 안에서 열쇠 8%, 나머지 네 개가 92%를 똑같이(23%씩) 나눈다.
+export const LOST_CHANCE = 0.05
+export const LOST_KEY_SHARE = 0.08
+export const LOST_WEIGHTS = { 'lost-key': LOST_KEY_SHARE, ...Object.fromEntries(LOST_THINGS.filter((id) => id !== 'lost-key').map((id) => [id, (1 - LOST_KEY_SHARE) / 4])) }
+// 선생님 사탕은 분실물과 겹치지 않는 별도 2.5%(예전과 같은 전체 확률)다.
+export const CANDY_CHANCE = 0.025
+export function pickLostThing(r) {
+  let acc = 0
+  for (const id of LOST_THINGS) {
+    acc += LOST_WEIGHTS[id]
+    if (r < acc) return id
+  }
+  return LOST_THINGS[LOST_THINGS.length - 2]
+}
 export function rollTravelEvent(rng=Math.random) {
   const text = TRAVEL_LINES[Math.floor(rng()*TRAVEL_LINES.length)]
-  if (rng() >= 0.05) return { text }
-  if (rng() < 0.5) return { text: '선생님 중 한 명이 웃으며 손을 내밀라는 시늉을 한다. 손바닥 위에 빨간 포장지의 사탕이 놓인다.', reward: 'ginseng-candy' }
-  return { text: '발에 무언가가 채인다. 이게 뭐지? 허리를 숙여 확인해보니 분실물인 것 같다. 학생들이 많이 오가는 매점에 가져다줄까?', reward: LOST_THINGS[Math.floor(rng()*LOST_THINGS.length)] }
+  if (rng() < LOST_CHANCE) return { text: '발에 무언가가 채인다. 이게 뭐지? 허리를 숙여 확인해보니 분실물인 것 같다. 학생들이 많이 오가는 매점에 가져다줄까?', reward: pickLostThing(rng()) }
+  if (rng() < CANDY_CHANCE / (1 - LOST_CHANCE)) return { text: '선생님 중 한 명이 웃으며 손을 내밀라는 시늉을 한다. 손바닥 위에 빨간 포장지의 사탕이 놓인다.', reward: 'ginseng-candy' }
+  return { text }
 }

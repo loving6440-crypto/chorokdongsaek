@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { HUNT_KINDS, HUNT_PATHS, HUNT_SITES, HUNT_SIZE, HUNT_SPECIES, siteMissingData } from '../../game/huntSites'
-import { huntCooldownLeft, huntOdds } from '../../game/huntField'
-import { itemOf } from '../../game/items'
+import { huntBuffsOf, huntCooldownLeft, huntOddsNow } from '../../game/huntField'
+import { isHuntItem, itemOf } from '../../game/items'
+import ItemIcon from '../ItemIcon'
 
 const same = (a, b) => a?.x === b?.x && a?.y === b?.y
 const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
@@ -10,7 +11,7 @@ const timeLeft = ms => `${Math.floor(Math.ceil(ms / 1000) / 60)}분 ${String(Mat
 const nameOf = node => node.name ?? HUNT_SPECIES[node.species]?.name ?? HUNT_KINDS[node.kind].label
 const liveNode = node => node.kind === 'ghost' || (node.attemptsLeft ?? 3) > 0
 
-export default function HuntField({ player, stats, onAction }) {
+export default function HuntField({ player, stats, onAction, disabledActions = false, showItems = true }) {
   const expedition = player.huntExpedition
   const running = expedition?.status === 'active'
   const [pathId, setPathId] = useState(() => {
@@ -22,6 +23,7 @@ export default function HuntField({ player, stats, onAction }) {
   const [hovered, setHovered] = useState(null)
   const [now, setNow] = useState(Date.now)
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const [pickItem, setPickItem] = useState(null) // v-B.16 개척 아이템 칸에서 고른 아이템 id
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
@@ -36,7 +38,12 @@ export default function HuntField({ player, stats, onAction }) {
   const hasInformation = points.length > 0 || (active && same(focusCell, position))
   const cooldown = huntCooldownLeft(player, siteId, now)
   const missing = siteMissingData(site)
-  const act = action => onAction?.(action)
+  const act = action => !disabledActions && onAction?.(action)
+  // v-B.16: 소지품의 #개척 아이템은 이동 버튼 아래 칸에 저절로 들어간다(개수 제한 없음).
+  const huntItems = showItems ? Object.entries(player.inventory ?? {}).filter(([id, n]) => n > 0 && isHuntItem(itemOf(id))).map(([id, n]) => ({ item: itemOf(id), n })) : []
+  const pickedItem = huntItems.find(x => x.item.id === pickItem) ?? null
+  const huntBuffs = huntBuffsOf(current)
+  const oddsOf = node => huntOddsNow(current ? player : { ...player, huntExpedition: null }, node.kind, node.level, stats)
   const choosePath = id => {
     setPathId(id)
     setSiteId(`${id}-trail-1`)
@@ -50,7 +57,7 @@ export default function HuntField({ player, stats, onAction }) {
     setSelected(p)
   }
   const move = (dx, dy) => {
-    if (!active || current.encounter) return
+    if (disabledActions || !active || current.encounter) return
     const p = { x: position.x + dx, y: position.y + dy }
     if (p.x < 0 || p.y < 0 || p.x >= HUNT_SIZE || p.y >= HUNT_SIZE) return
     setSelected(p)
@@ -107,17 +114,33 @@ export default function HuntField({ player, stats, onAction }) {
 
             {active && <>
               <div className="mx-auto grid w-36 grid-cols-3 gap-1" role="group" aria-label="개척 방향 버튼">
-                {[[0, -1, '↑', '위', 2], [-1, 0, '←', '왼쪽', 1], [0, 1, '↓', '아래', 2], [1, 0, '→', '오른쪽', 3]].map(([dx, dy, symbol, name, col], i) => <button key={name} type="button" className="flat-btn justify-center" style={{ gridColumn: col, gridRow: i === 0 ? 1 : 2 }} aria-label={`${name}로 한 칸 이동`} disabled={!!current.encounter} onClick={() => move(dx, dy)}>{symbol}</button>)}
+                {[[0, -1, '↑', '위', 2], [-1, 0, '←', '왼쪽', 1], [0, 1, '↓', '아래', 2], [1, 0, '→', '오른쪽', 3]].map(([dx, dy, symbol, name, col], i) => <button key={name} type="button" className="flat-btn justify-center" style={{ gridColumn: col, gridRow: i === 0 ? 1 : 2 }} aria-label={`${name}로 한 칸 이동`} disabled={disabledActions || !!current.encounter} onClick={() => move(dx, dy)}>{symbol}</button>)}
               </div>
-              <div className="mt-3 h-[5.5rem] overflow-y-auto flex flex-col justify-start gap-1" aria-label="개척 채집 버튼">{actionNodes.length ? actionNodes.map(node => <button key={node.id} type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled={!!current.encounter || huntOdds(node.kind,node.level,stats).blocked} onClick={() => act({ type: 'attempt', nodeId: node.id })}>{nameOf(node)} {node.kind === 'animal' || node.kind === 'spirit' ? '수렵' : '채집'} (1턴)</button>) : <button type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled>채집·수렵 대상 없음</button>}
-              </div><button type="button" className="flat-btn mt-2 w-full justify-center text-xs" disabled={!!current.encounter} onClick={() => setConfirmLeave(true)}>개척 그만두기</button>
+              {showItems && <div className="mt-3 rounded border border-edge/15 p-2" aria-label="개척 아이템" data-hunt-items>
+                <p className="text-[11px] text-paper/65">개척 아이템 <span className="text-paper/40">· #개척 · 쓸 때 턴을 쓰지 않는다</span></p>
+                {huntBuffs.length > 0 && <p className="mt-1 text-[10px] leading-snug text-gold" data-hunt-buffs>{huntBuffs.map(b => b.text).join(' · ')}</p>}
+                {huntItems.length ? <ul className="mt-1.5 grid grid-cols-4 gap-1">{huntItems.map(({ item, n }) => <li key={item.id}>
+                  <button type="button" data-hunt-item={item.id} aria-pressed={pickItem === item.id} title={`${item.name} ×${n} — ${item.effectText}`} aria-label={`${item.name} ${n}개`} disabled={disabledActions || !!current.encounter} onClick={() => setPickItem(pickItem === item.id ? null : item.id)} className={`relative flex w-full flex-col items-center rounded p-1 disabled:opacity-40 ${pickItem === item.id ? 'bg-gold-fill/20 ring-1 ring-gold/60' : 'hover:bg-gold-fill/10'}`}>
+                    <ItemIcon item={item} size={30} />
+                    <span className="mt-0.5 w-full truncate text-center text-[9px] text-paper/75">{item.name}</span>
+                    <span className="absolute right-0 top-0 rounded bg-shade/85 px-1 text-[9px] tabular-nums text-paper">{n}</span>
+                  </button>
+                </li>)}</ul> : <p className="mt-1 text-[11px] text-paper/45">소지품에 #개척 아이템이 없다. (공작소 · 조리실에서 만든다)</p>}
+                {pickedItem && <div className="mt-2 border-t border-edge/15 pt-2" data-hunt-item-detail>
+                  <p className="text-xs text-paper">{pickedItem.item.name} <span className="text-paper/50">×{pickedItem.n}</span></p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-paper/70">{pickedItem.item.effectText}</p>
+                  <button type="button" className="flat-btn mt-1.5 w-full justify-center text-xs" data-hunt-item-use disabled={disabledActions || !!current.encounter} onClick={() => { act({ type: 'item', itemId: pickedItem.item.id }); if (pickedItem.n <= 1) setPickItem(null) }}>사용하기</button>
+                </div>}
+              </div>}
+              <div className="mt-3 h-[5.5rem] overflow-y-auto flex flex-col justify-start gap-1" aria-label="개척 채집 버튼">{actionNodes.length ? actionNodes.map(node => <button key={node.id} type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled={disabledActions || !!current.encounter || oddsOf(node).blocked} onClick={() => act({ type: 'attempt', nodeId: node.id })}>{nameOf(node)} {node.kind === 'animal' || node.kind === 'spirit' ? '수렵' : '채집'} (1턴)</button>) : <button type="button" className="flat-btn mt-3 w-full justify-center text-xs disabled:opacity-40" disabled>채집·수렵 대상 없음</button>}
+              </div><button type="button" className="flat-btn mt-2 w-full justify-center text-xs" disabled={disabledActions || !!current.encounter} onClick={() => setConfirmLeave(true)}>개척 그만두기</button>
             </>}
-            {!active && <button type="button" className="flat-btn w-full justify-center text-sm disabled:opacity-40" disabled={missing.length > 0 || running || player.mp < 10} onClick={() => act({ type: 'enter', siteId })}>{missing.length ? '개방 준비 중' : player.mp < 10 ? '의지력 10이 필요합니다' : '개척 시작하기 (의지력 10)'}</button>}
+            {!active && <button type="button" className="flat-btn w-full justify-center text-sm disabled:opacity-40" disabled={disabledActions || missing.length > 0 || running || player.mp < 10} onClick={() => act({ type: 'enter', siteId })}>{missing.length ? '개방 준비 중' : player.mp < 10 ? '의지력 10이 필요합니다' : '개척 시작하기 (의지력 10)'}</button>}
             <div className="mt-4 border-t border-edge/15 pt-3"><div className="min-h-28 rounded border border-edge/15 p-3 text-xs leading-relaxed text-paper/80" aria-live="polite" aria-label="타일 정보">
               {hasInformation && <p className="font-bold text-paper">{focusCell ? cellName(focusCell) : '타일 정보'}</p>}
               {hasInformation && (points.length ? points.map(node => {
-                const odds = Number.isFinite(node.level) && node.kind !== 'ghost' ? huntOdds(node.kind, node.level, stats) : null
-                return <div key={node.id} className="mt-2"><p>{nameOf(node)} · {HUNT_KINDS[node.kind].label}</p><p>적정 레벨 {node.level ?? '미정'}</p>{node.kind === 'ghost' ? <p>만나면 별도 전투가 시작됩니다.</p> : <><p>남은 시도 {node.attemptsLeft ?? 3}회</p>{odds && <p>내 산출값 {odds.value} <span className="text-paper/60">({odds.formula})</span><br />{odds.blocked ? '수렵 불가 (레벨 차이 15 이상)' : `성공 ${odds.success}%`}{odds.fixed && <><br />수렵 레벨이 많이 차이납니다.</>}{node.kind !== 'spirit' && <> · 보너스 {odds.bonus}%</>}</p>}</>}</div>
+                const odds = Number.isFinite(node.level) && node.kind !== 'ghost' ? oddsOf(node) : null
+                return <div key={node.id} className="mt-2"><p>{nameOf(node)} · {HUNT_KINDS[node.kind].label}</p><p>적정 레벨 {node.level ?? '미정'}</p>{node.kind === 'ghost' ? <p>만나면 별도 전투가 시작됩니다.</p> : <><p>남은 시도 {node.attemptsLeft ?? 3}회</p>{odds && <p>내 산출값 {odds.value} <span className="text-paper/60">({odds.formula})</span><br />{odds.blocked ? '수렵 불가 (레벨 차이 15 이상)' : `성공 ${odds.success}%${odds.extra ? ` (보정 +${odds.extra}%)` : ''}`}{odds.fixed && <><br />수렵 레벨이 많이 차이납니다.</>}{node.kind !== 'spirit' && <> · 보너스 {odds.bonus}%</>}</p>}</>}</div>
               }) : <p className="mt-2">현재 내 위치입니다.</p>)}
             </div></div>
           </div>

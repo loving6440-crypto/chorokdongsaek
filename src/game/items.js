@@ -5,6 +5,8 @@ import { B06_ITEMS, B06_OVERRIDES } from './itemsB06.js'
 import { B07_ITEMS } from './itemsB07.js'
 import { B08_SHEET_ITEMS, B08_SHEET_OVERRIDES } from './itemsB08.js'
 import { B08_ITEMS } from './recipesB08.js'
+import { B16_ITEM_EFFECTS } from './itemEffectsB16.js'
+import { BAG_ITEM, TRASH_ITEM } from './itemsB17.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -26,8 +28,15 @@ import { B08_ITEMS } from './recipesB08.js'
  *  boost(마이쮸: 한 명에게만 건네는 공격력 버프)는 대상이 한 명뿐이라 턴을 소모하지 않는다. */
 export const itemTurnFree = (item) => {
   const e = item?.effect ?? {}
-  return item?.battle && !(e.partyHp || e.partyMp || e.partyBoost || e.giveHp)
+  return item?.battle && !(e.partyHp || e.partyMp || e.partyBoost || e.giveHp || e.partyStat || e.partyCleanse || e.partyCharms || e.giveMp || e.giveCleanse)
 }
+/** v-B.16: 다인 전투에서 받을 사람(일행 한 명 또는 나)을 고르는 아이템 */
+export const itemNeedsTarget = (item) => {
+  const e = item?.effect ?? {}
+  return !!(e.boost || e.giveHp || e.giveMp || e.giveCleanse)
+}
+/** v-B.16: 개척 중에만 쓰는 아이템(#개척) */
+export const isHuntItem = (item) => !!item?.effect?.hunt
 export const START_MONEY = 50
 
 const RAW_ITEMS = [
@@ -959,6 +968,9 @@ const RAW_ITEMS = [
   ...B07_ITEMS,
   ...B08_SHEET_ITEMS,
   ...B08_ITEMS,
+  // v-B.17: 가방(누구나 하나씩 · 매점 50냥)
+  BAG_ITEM,
+  TRASH_ITEM, // v-B.18 공작소 실패작
 ]
 
 /**
@@ -987,10 +999,11 @@ const V79_OVERRIDES = {
   'spirit-disposable': { effect: {}, battle: false, effectText: '' },
 }
 export const ITEMS = RAW_ITEMS.map((original) => {
-  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}), ...(B08_SHEET_OVERRIDES[original.id] ?? {}) }
+  // v-B.16: 효과가 비어 있던 완성품 102종의 효과(itemEffectsB16.js)를 맨 마지막에 덮어쓴다.
+  const it = { ...original, ...(V79_OVERRIDES[original.id] ?? {}), ...(V79_SHEET_DATA[original.id] ?? {}), ...(B06_OVERRIDES[original.id] ?? {}), ...(B08_SHEET_OVERRIDES[original.id] ?? {}), ...(B16_ITEM_EFFECTS[original.id] ?? {}) }
 
   const tags = [...(it.tags ?? [])]
-  if (it.battle || it.party || it.effect?.partyHp || it.effect?.partyMp || it.effect?.partyBoost || it.effect?.giveHp) {
+  if (it.battle || it.party || it.effect?.partyHp || it.effect?.partyMp || it.effect?.partyBoost || it.effect?.giveHp || it.effect?.giveMp) {
     if (!tags.includes('일행')) tags.push('일행')
   }
   it.tags = tags
@@ -1241,6 +1254,7 @@ export function discardInventoryItem(player, itemId, amount) {
   if (!it || !Number.isSafeInteger(qty) || qty < 1 || qty > (player.inventory?.[itemId] || 0)) return { error: '버릴 수량이나 소지품이 올바르지 않다.' }
   if (it.id === 'uniform' || it.tags?.includes('버릴 수 없음')) return { error: '버릴 수 없는 물건이다.' }
   if (it.slot === 'weapon' && qty !== 1) return { error: '무구는 한 벌씩 버려야 한다.' }
+  if (it.id === 'bag' && (player.inventory.bag - qty) < (player.bags ?? []).filter((c) => Object.values(c ?? {}).some((q) => q > 0)).length) return { error: '물건이 든 가방은 버릴 수 없다. 가방을 먼저 비워 주세요.' }
   const inventory = { ...(player.inventory ?? {}) }
   inventory[itemId] -= qty
   if (!inventory[itemId]) delete inventory[itemId]
@@ -1323,8 +1337,14 @@ export const isStoreOpen = (now = Date.now()) => {
 export const countOf = (player, id) => player.inventory?.[id] || 0
 
 /** 지금 이 아이템을 쓸 수 있는가. { ok, why } */
-export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostOn, usedThisBattle, downed }) {
+export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostOn, usedThisBattle, downed, inHunt = false }) {
   if (!countNow) return { ok: false, why: '갖고 있지 않다' }
+  // v-B.16 #개척 아이템: 진행 중인 개척(요괴와 싸우는 중이 아닐 때)에서만 쓴다.
+  if (isHuntItem(item)) {
+    if (inBattle) return { ok: false, why: '개척 아이템은 전투 중에는 쓸 수 없다' }
+    if (!inHunt) return { ok: false, why: '개척 중에만 쓸 수 있다 (개척 화면의 아이템 칸에서도 쓸 수 있다)' }
+    return { ok: true }
+  }
   // v-B.06: 매점에 파는 물건(누군가 잃어버린 물건 등)은 '사용'하지 않고 매점 → 판매에서 판다.
   if (item.effect?.sellMoney && Object.keys(item.effect).length === 1) return { ok: false, why: '매점에서 팔 수 있는 물건이다. (기숙사 매점 → 판매)' }
   // v-B.06: 쓰러져 버티기를 기다리는 동안엔 아무것도 쓸 수 없다(예전엔 에너지드링크가 소모만 되고 효과가 없었다).
@@ -1332,6 +1352,7 @@ export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostO
   if (isMaterial(item)) return { ok: false, why: '재료 아이템이다. 직접 쓰는 물건이 아니다' }
   if (isGear(item)) return { ok: false, why: '착용하는 장비다' }
   if (!Object.keys(item.effect ?? {}).length && !item.giftNpc && !['material','gear','tool'].includes(item.kind)) return { ok: false, why: '아직 사용할 수 있는 효과가 없는 아이템이다.' }
+  if (item.id === 'bag') return { ok: false, why: '가방은 [가방 열기]로 열어 물건을 넣고 꺼낸다' }
   if (item.kind === 'tool') return { ok: false, why: item.id === 'goblin-token' ? '무구보관소에서 10개를 무구 한 벌로 바꿀 수 있다' : item.id === 'lost-key' ? '본관 3층 물품보관소에서 [몰래 열어보기]를 할 때 지니고 있으면 된다' : '무구보관소에서 무구를 강화할 때 쓴다' }
   if (item.giftNpc && !inBattle) return { ok: false, why: '전투 중이 아닐 땐 NPC에게 건네면 호감도가 오른다. (NPC와 대화하는 곳에서)' }
   if ((item.effect?.enemyVulnerability || item.effect?.instantKill) && !isParty) return {ok:false, why:'현재 단체 전투에서만 사용할 수 있다'}
@@ -1340,6 +1361,7 @@ export function canUseItem(item, { inBattle, isParty, countNow, reviveOn, boostO
   if (inBattle && !item.battle) return { ok: false, why: '전투 중에는 쓸 수 없다' }
   if (item.only === 'battle' && !inBattle) return { ok: false, why: '전투 중에만 쓸 수 있다' }
   if (item.effect.revive && inBattle && usedThisBattle) return { ok: false, why: '이 전투에서 이미 사용했다 (1회 한정)' }
+  if (item.effect.oncePerBattle && inBattle && usedThisBattle) return { ok: false, why: '이 전투에서 이미 사용했다 (한 전투에 1번)' }
   if (item.effect.revive && reviveOn) return { ok: false, why: '이미 효과가 걸려 있다' }
   if (item.effect.boost && boostOn) return { ok: false, why: '이미 효과가 걸려 있다' }
   return { ok: true }

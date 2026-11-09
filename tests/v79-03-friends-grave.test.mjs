@@ -70,8 +70,10 @@ test('묘소 구 버전 탐사 세이브에서 빠진 4칸 복원',()=>{
 })
 
 async function freePort() { const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return p }
-async function post(port,route,body){const res=await fetch(`http://127.0.0.1:${port}${route}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return {...await res.json(),httpStatus:res.status} }
-async function loginEvents(port,id,name){const controller=new AbortController();const r=await fetch(`http://127.0.0.1:${port}/api/events?${new URLSearchParams({id,name})}`,{signal:controller.signal});assert.equal(r.status,200);const reader=r.body.getReader();const hello=await reader.read();assert.equal(hello.done,false);return {close:async()=>{controller.abort();await reader.cancel().catch(()=>{})}}}
+const tokens = new Map()
+async function post(port,route,body){const res=await fetch(`http://127.0.0.1:${port}${route}`,{method:'POST',headers:{'Content-Type':'application/json',...(tokens.has(body?.id) ? {Authorization:`Bearer ${tokens.get(body.id)}`} : {})},body:JSON.stringify(body)});const data={...await res.json(),httpStatus:res.status};if(route==='/api/account/signup'&&data.token)tokens.set(body.id,data.token);return data }
+
+async function loginEvents(port,id,name){const ticket=await post(port,'/api/events/ticket',{id});assert.equal(ticket.ok,true);const controller=new AbortController();const r=await fetch(`http://127.0.0.1:${port}/api/events?${new URLSearchParams({ticket:ticket.ticket,name})}`,{signal:controller.signal});assert.equal(r.status,200);const reader=r.body.getReader();const hello=await reader.read();assert.equal(hello.done,false);return {close:async()=>{controller.abort();await reader.cancel().catch(()=>{})}}}
 async function startServer(env){const child=spawn(process.execPath,['server/index.js'],{cwd,env:{...process.env,...env},stdio:'ignore'});let started=false;for(let i=0;i<90;i++){try{if((await fetch(`http://127.0.0.1:${env.PORT}/api/health`)).ok){started=true;break}}catch{}await sleep(50)}assert.ok(started,'서버 부팅 실패');return {stop:async()=>{child.kill('SIGTERM');await Promise.race([new Promise(r=>child.once('exit',r)),sleep(2500)])}}}
 
 test('서버: 신청 단계에서는 양쪽 미등록, 쪽지 동의 후 쌍방 등록·삭제·거절·저장', {timeout:25000},async()=>{
@@ -80,31 +82,31 @@ test('서버: 신청 단계에서는 양쪽 미등록, 쪽지 동의 후 쌍방 
  let server;const sessions=[]
  try{
   server=await startServer(env)
-  for(const id of ['testA','testB','testC'])assert.equal((await post(port,'/api/account/signup',{id,password:'pass1234',twitter:id})).ok,true)
-  for(const id of ['testA','testB','testC'])sessions.push(await loginEvents(port,id,id))
+  for(const id of ['testAlice','testBravo','testCedar'])assert.equal((await post(port,'/api/account/signup',{id,password:'pass1234',twitter:id})).ok,true)
+  for(const id of ['testAlice','testBravo','testCedar'])sessions.push(await loginEvents(port,id,id))
   const list=async id=>post(port,'/api/friends/list',{id})
-  const make=await post(port,'/api/friends/change',{id:'testA',to:'testB',action:'add'})
+  const make=await post(port,'/api/friends/change',{id:'testAlice',to:'testBravo',action:'add'})
   assert.equal(make.ok,true); assert.equal(make.pending,true)
-  assert.deepEqual((await list('testA')).friends,[])
-  assert.deepEqual((await list('testB')).friends,[])
-  assert.equal((await post(port,'/api/friends/change',{id:'testA',to:'testB',action:'add'})).alreadyPending,true)
-  const box=await post(port,'/api/mail/box',{id:'testB'})
+  assert.deepEqual((await list('testAlice')).friends,[])
+  assert.deepEqual((await list('testBravo')).friends,[])
+  assert.equal((await post(port,'/api/friends/change',{id:'testAlice',to:'testBravo',action:'add'})).alreadyPending,true)
+  const box=await post(port,'/api/mail/box',{id:'testBravo'})
   const req=box.received.find(x=>x.id===make.requestId)
   assert.equal(req.kind,'friend-request');assert.equal(req.status,'pending')
-  assert.equal(req.text,'testA 님이 친구 신청을 보냈습니다.')
-  assert.equal((await post(port,'/api/friends/respond',{id:'testC',requestId:req.id,accept:true})).httpStatus,404,'타인의 친구 신청 수락 금지')
-  const accept=await post(port,'/api/friends/respond',{id:'testB',requestId:req.id,accept:true})
+  assert.equal(req.text,'testAlice 님이 친구 신청을 보냈습니다.')
+  assert.equal((await post(port,'/api/friends/respond',{id:'testCedar',requestId:req.id,accept:true})).httpStatus,404,'타인의 친구 신청 수락 금지')
+  const accept=await post(port,'/api/friends/respond',{id:'testBravo',requestId:req.id,accept:true})
   assert.equal(accept.ok,true)
-  assert.deepEqual((await list('testA')).friends.map(x=>x.id),['testB'])
-  assert.deepEqual((await list('testB')).friends.map(x=>x.id),['testA'])
-  assert.equal((await post(port,'/api/friends/respond',{id:'testB',requestId:req.id,accept:true})).httpStatus,409)
-  assert.equal((await post(port,'/api/friends/change',{id:'testA',to:'testB',action:'remove'})).ok,true)
-  assert.deepEqual((await list('testA')).friends,[]);assert.deepEqual((await list('testB')).friends,[])
-  const req2=await post(port,'/api/friends/change',{id:'testC',to:'testB',action:'add'})
-  assert.equal((await post(port,'/api/friends/respond',{id:'testB',requestId:req2.requestId,accept:false})).accepted,false)
-  assert.deepEqual((await list('testB')).friends,[])
-  const req3=await post(port,'/api/friends/change',{id:'testC',to:'testA',action:'add'})
-  assert.equal((await post(port,'/api/friends/respond',{id:'testA',requestId:req3.requestId,accept:true})).accepted,true)
+  assert.deepEqual((await list('testAlice')).friends.map(x=>x.id),['testBravo'])
+  assert.deepEqual((await list('testBravo')).friends.map(x=>x.id),['testAlice'])
+  assert.equal((await post(port,'/api/friends/respond',{id:'testBravo',requestId:req.id,accept:true})).httpStatus,409)
+  assert.equal((await post(port,'/api/friends/change',{id:'testAlice',to:'testBravo',action:'remove'})).ok,true)
+  assert.deepEqual((await list('testAlice')).friends,[]);assert.deepEqual((await list('testBravo')).friends,[])
+  const req2=await post(port,'/api/friends/change',{id:'testCedar',to:'testBravo',action:'add'})
+  assert.equal((await post(port,'/api/friends/respond',{id:'testBravo',requestId:req2.requestId,accept:false})).accepted,false)
+  assert.deepEqual((await list('testBravo')).friends,[])
+  const req3=await post(port,'/api/friends/change',{id:'testCedar',to:'testAlice',action:'add'})
+  assert.equal((await post(port,'/api/friends/respond',{id:'testAlice',requestId:req3.requestId,accept:true})).accepted,true)
   await sleep(700)
   for(const s of sessions)await s.close();sessions.length=0
   await server.stop();server=null
@@ -112,12 +114,12 @@ test('서버: 신청 단계에서는 양쪽 미등록, 쪽지 동의 후 쌍방 
   assert.ok(saved.mail.log.find(m=>m.id===req.id&&m.status==='accepted'))
   assert.ok(saved.mail.log.find(m=>m.id===req2.requestId&&m.status==='declined'))
   server=await startServer(env)
-  sessions.push(await loginEvents(port,'testB','testB'))
-  sessions.push(await loginEvents(port,'testA','testA'))
-  sessions.push(await loginEvents(port,'testC','testC'))
-  assert.deepEqual((await list('testA')).friends.map(x=>x.id),['testC'])
-  assert.deepEqual((await list('testC')).friends.map(x=>x.id),['testA'])
-  const persisted=await post(port,'/api/mail/box',{id:'testB'})
+  sessions.push(await loginEvents(port,'testBravo','testBravo'))
+  sessions.push(await loginEvents(port,'testAlice','testAlice'))
+  sessions.push(await loginEvents(port,'testCedar','testCedar'))
+  assert.deepEqual((await list('testAlice')).friends.map(x=>x.id),['testCedar'])
+  assert.deepEqual((await list('testCedar')).friends.map(x=>x.id),['testAlice'])
+  const persisted=await post(port,'/api/mail/box',{id:'testBravo'})
   assert.equal(persisted.received.find(x=>x.id===req2.requestId).status,'declined')
  }finally{for(const s of sessions)await s.close().catch(()=>{});await server?.stop();rmSync(tmp,{recursive:true,force:true})}
 })

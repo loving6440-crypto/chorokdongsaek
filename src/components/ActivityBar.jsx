@@ -29,6 +29,14 @@ export default function ActivityBar({ panel, locationId, onMove, activity, onSel
       </header>
     )
   }
+  if (panel === 'quest') {
+    return (
+      <header className={BOX} aria-label="활동 선택">
+        <h2 className="font-serif text-base text-gold">의뢰</h2>
+        <p className="mt-2 text-sm text-paper/70">아래 화면에서 학교 사람들의 부탁을 받고 건넬 수 있다. 바리의 도깨비 퀘스트는 밤에 뒷산 캠핑장에서. 다른 곳으로 가려면 ‘학교 구역’을 누르자.</p>
+      </header>
+    )
+  }
   if (panel === 'market') {
     return (
       <header className={BOX} aria-label="활동 선택">

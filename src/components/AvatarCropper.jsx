@@ -89,7 +89,7 @@ export default function AvatarCropper({ img, onDone, onCancel }) {
             src={img.src}
             alt=""
             draggable={false}
-            className="select-none"
+            className="user-photo select-none"
             style={{ width: imgW, height: imgH, transform: `translate(${pan.x}px, ${pan.y}px)`, maxWidth: 'none' }}
           />
         </div>

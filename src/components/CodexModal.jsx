@@ -34,7 +34,7 @@ export function Entry({ e, admin, onGet, have }) {
   return (
     <li className="flex items-start gap-3 rounded-xl bg-edge/[0.07] p-3" data-codex={e.id} data-known="1">
       {e.kind === 'item' && <ItemIcon item={e.item} size={44} className="shrink-0" />}
-      {e.kind === 'npc' && <img src={e.npc.portrait} alt={e.name} className="size-11 shrink-0 rounded-full bg-edge/15 object-cover object-top" draggable={false} />}
+      {e.kind === 'npc' && <img src={e.npc.portrait} alt={e.name} className="npc-portrait size-11 shrink-0 rounded-full bg-edge/15 object-cover object-top" draggable={false} />}
       {e.kind === 'enemy' && (
         <span className="grid size-11 shrink-0 place-items-center rounded-full bg-crimson/80 font-myeongjo text-lg font-bold text-[#fbf6e9]" aria-hidden>
           {tierLabel(e.tier)[0]}

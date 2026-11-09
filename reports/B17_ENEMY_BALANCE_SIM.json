@@ -1,0 +1,2206 @@
+[
+ {
+  "enemy": "scarecrow",
+  "S": 3,
+  "kit": {
+   "S": 3,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.829,
+   "M": 1.1178136363636322,
+   "rounds": 10.129
+  },
+  "withKit": {
+   "win": 0.855,
+   "M": 1.149716666666664,
+   "rounds": 9.254
+  },
+  "k": 1.07,
+  "after": {
+   "k": 1.0703125,
+   "win": 0.807,
+   "M": 1.1158418560606034,
+   "rounds": 9.96
+  }
+ },
+ {
+  "enemy": "snake",
+  "S": 6,
+  "kit": {
+   "S": 6,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.75,
+   "M": 1.065700000000004,
+   "rounds": 8.333
+  },
+  "withKit": {
+   "win": 0.835,
+   "M": 1.1156634920634954,
+   "rounds": 7.442
+  },
+  "k": 1.1,
+  "after": {
+   "k": 1.099609375,
+   "win": 0.753,
+   "M": 1.0656262626262678,
+   "rounds": 8.2
+  }
+ },
+ {
+  "enemy": "wonhon",
+  "S": 9,
+  "kit": {
+   "S": 9,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.509,
+   "M": 0.940527149321264,
+   "rounds": 7.742
+  },
+  "withKit": {
+   "win": 0.668,
+   "M": 1.0282557354925723,
+   "rounds": 7.731
+  },
+  "k": 1.13,
+  "after": {
+   "k": 1.12890625,
+   "win": 0.495,
+   "M": 0.9394274973147141,
+   "rounds": 8.329
+  }
+ },
+ {
+  "enemy": "foxfire",
+  "S": 3,
+  "kit": {
+   "S": 3,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "mushroom-stew",
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.997,
+   "M": 1.2182818181818198,
+   "rounds": 7.734
+  },
+  "withKit": {
+   "win": 0.985,
+   "M": 1.3434121212121188,
+   "rounds": 7.394
+  },
+  "k": 1.48,
+  "after": {
+   "k": 1.48046875,
+   "win": 0.956,
+   "M": 1.218837005019521,
+   "rounds": 13.693
+  }
+ },
+ {
+  "enemy": "dueoksini",
+  "S": 6,
+  "kit": {
+   "S": 6,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "mushroom-stew",
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.775,
+   "M": 1.0345907867494855,
+   "rounds": 10.974
+  },
+  "withKit": {
+   "win": 0.972,
+   "M": 1.2119082298136648,
+   "rounds": 10.445
+  },
+  "k": 1.28,
+  "after": {
+   "k": 1.275390625,
+   "win": 0.663,
+   "M": 1.0246839956118992,
+   "rounds": 14.487
+  }
+ },
+ {
+  "enemy": "bulgasari",
+  "S": 9,
+  "kit": {
+   "S": 9,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "charm-bundle",
+    "spirit-disposable"
+   ]
+  },
+  "base": {
+   "win": 0.001,
+   "M": 0.6007400240798076,
+   "rounds": 13.603
+  },
+  "withKit": {
+   "win": 0.304,
+   "M": 0.9097492690058461,
+   "rounds": 18.921
+  },
+  "k": 1.52,
+  "after": {
+   "k": 1.521484375,
+   "win": 0.001,
+   "M": 0.6010954845302411,
+   "rounds": 20.574
+  }
+ },
+ {
+  "enemy": "geuseundae",
+  "S": 19,
+  "kit": {
+   "S": 19,
+   "body": "talisman-robe",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "control": 3,
+    "comprehension": 3,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "endurance": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.072,
+   "M": 0.7580552057613166,
+   "rounds": 14.818
+  },
+  "withKit": {
+   "win": 0.912,
+   "M": 1.1082233333333356,
+   "rounds": 13.774
+  },
+  "k": 1.59,
+  "after": {
+   "k": 1.5947265625,
+   "win": 0.054,
+   "M": 0.7573312932278454,
+   "rounds": 21.079
+  }
+ },
+ {
+  "enemy": "mongdangbi",
+  "S": 4,
+  "kit": {
+   "S": 4,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.909,
+   "M": 1.165869949494951,
+   "rounds": 9.317
+  },
+  "withKit": {
+   "win": 0.929,
+   "M": 1.1883345959595977,
+   "rounds": 8.627
+  },
+  "k": 1.05,
+  "after": {
+   "k": 1.046875,
+   "win": 0.902,
+   "M": 1.1678309178743962,
+   "rounds": 9.15
+  }
+ },
+ {
+  "enemy": "yagwanggwi",
+  "S": 4,
+  "kit": {
+   "S": 4,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.843,
+   "M": 1.1193270202020238,
+   "rounds": 8.645
+  },
+  "withKit": {
+   "win": 0.872,
+   "M": 1.1471325757575779,
+   "rounds": 7.955
+  },
+  "k": 1.05,
+  "after": {
+   "k": 1.046875,
+   "win": 0.842,
+   "M": 1.12156884057971,
+   "rounds": 8.418
+  }
+ },
+ {
+  "enemy": "dalgyal-gwisin",
+  "S": 4,
+  "kit": {
+   "S": 4,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.735,
+   "M": 1.0605735294117666,
+   "rounds": 9.823
+  },
+  "withKit": {
+   "win": 0.785,
+   "M": 1.088029411764708,
+   "rounds": 9.129
+  },
+  "k": 1.05,
+  "after": {
+   "k": 1.046875,
+   "win": 0.737,
+   "M": 1.0636772300469506,
+   "rounds": 9.58
+  }
+ },
+ {
+  "enemy": "dungap-jwi",
+  "S": 4,
+  "kit": {
+   "S": 4,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "mushroom-stew",
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.801,
+   "M": 1.0661335810332657,
+   "rounds": 9.951
+  },
+  "withKit": {
+   "win": 0.956,
+   "M": 1.2356054936305743,
+   "rounds": 9.82
+  },
+  "k": 1.23,
+  "after": {
+   "k": 1.234375,
+   "win": 0.724,
+   "M": 1.067459765177549,
+   "rounds": 13.265
+  }
+ },
+ {
+  "enemy": "kim-seobang",
+  "S": 4,
+  "kit": {
+   "S": 4,
+   "body": null,
+   "trinket": null,
+   "daily": null,
+   "bonus": {},
+   "random": null,
+   "items": [
+    "mushroom-stew",
+    "charm-bundle",
+    "barley-gaetteok"
+   ]
+  },
+  "base": {
+   "win": 0.432,
+   "M": 0.9456245644599303,
+   "rounds": 13.371
+  },
+  "withKit": {
+   "win": 0.945,
+   "M": 1.2712734385081965,
+   "rounds": 12.002
+  },
+  "k": 1.54,
+  "after": {
+   "k": 1.5361328125,
+   "win": 0.389,
+   "M": 0.9456864134542751,
+   "rounds": 20.986
+  }
+ },
+ {
+  "enemy": "mangtae-halabeom",
+  "S": 7,
+  "kit": {
+   "S": 7,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.772,
+   "M": 1.0869884353741488,
+   "rounds": 7.976
+  },
+  "withKit": {
+   "win": 0.849,
+   "M": 1.1320893424036294,
+   "rounds": 7.197
+  },
+  "k": 1.09,
+  "after": {
+   "k": 1.09375,
+   "win": 0.766,
+   "M": 1.0863995846313586,
+   "rounds": 7.85
+  }
+ },
+ {
+  "enemy": "mongdal-gwisin",
+  "S": 7,
+  "kit": {
+   "S": 7,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.642,
+   "M": 1.0082969696969661,
+   "rounds": 8.829
+  },
+  "withKit": {
+   "win": 0.755,
+   "M": 1.061785858585856,
+   "rounds": 7.923
+  },
+  "k": 1.08,
+  "after": {
+   "k": 1.0849609375,
+   "win": 0.619,
+   "M": 0.9999811391223126,
+   "rounds": 8.385
+  }
+ },
+ {
+  "enemy": "dokgak-gwi",
+  "S": 7,
+  "kit": {
+   "S": 7,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.528,
+   "M": 0.9480491452991422,
+   "rounds": 7.982
+  },
+  "withKit": {
+   "win": 0.623,
+   "M": 0.9932339743589711,
+   "rounds": 7.415
+  },
+  "k": 1.06,
+  "after": {
+   "k": 1.064453125,
+   "win": 0.55,
+   "M": 0.9577411411411376,
+   "rounds": 7.747
+  }
+ },
+ {
+  "enemy": "gaekgwi",
+  "S": 7,
+  "kit": {
+   "S": 7,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "mushroom-stew",
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.574,
+   "M": 0.9746978787878777,
+   "rounds": 11.475
+  },
+  "withKit": {
+   "win": 0.869,
+   "M": 1.1284820202020205,
+   "rounds": 11.292
+  },
+  "k": 1.21,
+  "after": {
+   "k": 1.2109375,
+   "win": 0.538,
+   "M": 0.9746561561561555,
+   "rounds": 14.187
+  }
+ },
+ {
+  "enemy": "jangsanbeom",
+  "S": 7,
+  "kit": {
+   "S": 7,
+   "body": null,
+   "trinket": "clover-crown",
+   "daily": null,
+   "bonus": {
+    "insight": 1
+   },
+   "random": null,
+   "items": [
+    "mushroom-stew",
+    "charm-bundle",
+    "barley-gaetteok"
+   ]
+  },
+  "base": {
+   "win": 0.126,
+   "M": 0.7663185185185183,
+   "rounds": 14.526
+  },
+  "withKit": {
+   "win": 0.578,
+   "M": 1.0459720370370373,
+   "rounds": 14.527
+  },
+  "k": 1.25,
+  "after": {
+   "k": 1.2490234375,
+   "win": 0.105,
+   "M": 0.7748472592592597,
+   "rounds": 17.947
+  }
+ },
+ {
+  "enemy": "heokkaebi",
+  "S": 10,
+  "kit": {
+   "S": 10,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.795,
+   "M": 1.0829296607531869,
+   "rounds": 7.015
+  },
+  "withKit": {
+   "win": 0.911,
+   "M": 1.190402240896357,
+   "rounds": 6.635
+  },
+  "k": 1.23,
+  "after": {
+   "k": 1.228515625,
+   "win": 0.794,
+   "M": 1.088971689497716,
+   "rounds": 8.011
+  }
+ },
+ {
+  "enemy": "daemang",
+  "S": 10,
+  "kit": {
+   "S": 10,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.64,
+   "M": 0.9991732804232784,
+   "rounds": 7.511
+  },
+  "withKit": {
+   "win": 0.815,
+   "M": 1.1115845238095265,
+   "rounds": 7.346
+  },
+  "k": 1.18,
+  "after": {
+   "k": 1.181640625,
+   "win": 0.634,
+   "M": 1.0007887024608488,
+   "rounds": 8.46
+  }
+ },
+ {
+  "enemy": "songaksi",
+  "S": 10,
+  "kit": {
+   "S": 10,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.528,
+   "M": 0.9505739408473187,
+   "rounds": 8.352
+  },
+  "withKit": {
+   "win": 0.787,
+   "M": 1.0759070143884875,
+   "rounds": 8.247
+  },
+  "k": 1.21,
+  "after": {
+   "k": 1.2109375,
+   "win": 0.509,
+   "M": 0.9511440476190454,
+   "rounds": 9.576
+  }
+ },
+ {
+  "enemy": "imae-mangryang",
+  "S": 10,
+  "kit": {
+   "S": 10,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "charm-bundle"
+   ]
+  },
+  "base": {
+   "win": 0.569,
+   "M": 0.9672385070380354,
+   "rounds": 11.432
+  },
+  "withKit": {
+   "win": 0.969,
+   "M": 1.21420522237197,
+   "rounds": 10.088
+  },
+  "k": 1.37,
+  "after": {
+   "k": 1.369140625,
+   "win": 0.504,
+   "M": 0.9666399278215227,
+   "rounds": 15.469
+  }
+ },
+ {
+  "enemy": "cheonnyeon-jine",
+  "S": 10,
+  "kit": {
+   "S": 10,
+   "body": null,
+   "trinket": "berry-ribbon",
+   "daily": "dragon-palace-soup",
+   "bonus": {
+    "agility": 3,
+    "comprehension": 1,
+    "endurance": 2
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "charm-bundle",
+    "spirit-disposable"
+   ]
+  },
+  "base": {
+   "win": 0.06,
+   "M": 0.7856322477997304,
+   "rounds": 16.826
+  },
+  "withKit": {
+   "win": 0.858,
+   "M": 1.195049220590902,
+   "rounds": 15.121
+  },
+  "k": 1.31,
+  "after": {
+   "k": 1.3076171875,
+   "win": 0.095,
+   "M": 0.7834803962316429,
+   "rounds": 25.153
+  }
+ },
+ {
+  "enemy": "changgwi",
+  "S": 15,
+  "kit": {
+   "S": 15,
+   "body": "straw-raincape",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "endurance": 3,
+    "control": 2,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.75,
+   "M": 1.0468576134010958,
+   "rounds": 5.975
+  },
+  "withKit": {
+   "win": 0.929,
+   "M": 1.171012487512487,
+   "rounds": 5.141
+  },
+  "k": 1.33,
+  "after": {
+   "k": 1.328125,
+   "win": 0.753,
+   "M": 1.047033552220141,
+   "rounds": 6.25
+  }
+ },
+ {
+  "enemy": "myogwi",
+  "S": 15,
+  "kit": {
+   "S": 15,
+   "body": "straw-raincape",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "endurance": 3,
+    "control": 2,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.667,
+   "M": 0.997162968070581,
+   "rounds": 6.319
+  },
+  "withKit": {
+   "win": 0.89,
+   "M": 1.1452043563560161,
+   "rounds": 5.378
+  },
+  "k": 1.32,
+  "after": {
+   "k": 1.31640625,
+   "win": 0.681,
+   "M": 0.9971768739536254,
+   "rounds": 6.337
+  }
+ },
+ {
+  "enemy": "jeokwi",
+  "S": 15,
+  "kit": {
+   "S": 15,
+   "body": "straw-raincape",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "endurance": 3,
+    "control": 2,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.476,
+   "M": 0.9241281859070511,
+   "rounds": 7.428
+  },
+  "withKit": {
+   "win": 0.863,
+   "M": 1.1286860869016038,
+   "rounds": 6.783
+  },
+  "k": 1.41,
+  "after": {
+   "k": 1.41015625,
+   "win": 0.489,
+   "M": 0.9243292540792575,
+   "rounds": 8.519
+  }
+ },
+ {
+  "enemy": "agwi",
+  "S": 15,
+  "kit": {
+   "S": 15,
+   "body": "straw-raincape",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "endurance": 3,
+    "control": 2,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.57,
+   "M": 0.9664673715055072,
+   "rounds": 11.799
+  },
+  "withKit": {
+   "win": 0.992,
+   "M": 1.261558287795995,
+   "rounds": 7.795
+  },
+  "k": 1.55,
+  "after": {
+   "k": 1.5537109375,
+   "win": 0.509,
+   "M": 0.9672140409414738,
+   "rounds": 14.725
+  }
+ },
+ {
+  "enemy": "geumdwaeji",
+  "S": 15,
+  "kit": {
+   "S": 15,
+   "body": "straw-raincape",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "endurance": 3,
+    "control": 2,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush",
+    "spirit-disposable"
+   ]
+  },
+  "base": {
+   "win": 0.052,
+   "M": 0.6889719390471777,
+   "rounds": 13.916
+  },
+  "withKit": {
+   "win": 0.857,
+   "M": 1.1161379254234973,
+   "rounds": 11.88
+  },
+  "k": 1.76,
+  "after": {
+   "k": 1.76171875,
+   "win": 0.023,
+   "M": 0.6889122691870138,
+   "rounds": 19.286
+  }
+ },
+ {
+  "enemy": "gildal",
+  "S": 19,
+  "kit": {
+   "S": 19,
+   "body": "talisman-robe",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "control": 3,
+    "comprehension": 3,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "endurance": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.724,
+   "M": 1.0601821305841879,
+   "rounds": 6.846
+  },
+  "withKit": {
+   "win": 0.894,
+   "M": 1.1574626902307315,
+   "rounds": 5.638
+  },
+  "k": 1.22,
+  "after": {
+   "k": 1.22265625,
+   "win": 0.747,
+   "M": 1.0543703285111545,
+   "rounds": 6.643
+  }
+ },
+ {
+  "enemy": "jigwi",
+  "S": 19,
+  "kit": {
+   "S": 19,
+   "body": "talisman-robe",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "control": 3,
+    "comprehension": 3,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "endurance": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.613,
+   "M": 0.9574400437119699,
+   "rounds": 6.642
+  },
+  "withKit": {
+   "win": 0.733,
+   "M": 1.0314368591934433,
+   "rounds": 6.205
+  },
+  "k": 1.14,
+  "after": {
+   "k": 1.1435546875,
+   "win": 0.622,
+   "M": 0.9569550956365854,
+   "rounds": 6.696
+  }
+ },
+ {
+  "enemy": "gawi-gwi",
+  "S": 19,
+  "kit": {
+   "S": 19,
+   "body": "talisman-robe",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "control": 3,
+    "comprehension": 3,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "endurance": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.458,
+   "M": 0.8774716610549906,
+   "rounds": 7.319
+  },
+  "withKit": {
+   "win": 0.758,
+   "M": 1.058470129870133,
+   "rounds": 6.817
+  },
+  "k": 1.35,
+  "after": {
+   "k": 1.3515625,
+   "win": 0.445,
+   "M": 0.8770818302068363,
+   "rounds": 8.121
+  }
+ },
+ {
+  "enemy": "udu-mamyeon",
+  "S": 19,
+  "kit": {
+   "S": 19,
+   "body": "talisman-robe",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "control": 3,
+    "comprehension": 3,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "endurance": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.48,
+   "M": 0.9447818375083229,
+   "rounds": 12.401
+  },
+  "withKit": {
+   "win": 0.978,
+   "M": 1.22983893993282,
+   "rounds": 8.931
+  },
+  "k": 1.45,
+  "after": {
+   "k": 1.4453125,
+   "win": 0.422,
+   "M": 0.9441599025974029,
+   "rounds": 14.692
+  }
+ },
+ {
+  "enemy": "gumiho",
+  "S": 19,
+  "kit": {
+   "S": 19,
+   "body": "talisman-robe",
+   "trinket": "magpie-hairpiece",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "control": 3,
+    "comprehension": 3,
+    "insight": 4,
+    "agility": 3,
+    "aggression": 1,
+    "endurance": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.07,
+   "M": 0.6622816131687245,
+   "rounds": 14.209
+  },
+  "withKit": {
+   "win": 0.81,
+   "M": 1.079424158730164,
+   "rounds": 12.606
+  },
+  "k": 1.59,
+  "after": {
+   "k": 1.591796875,
+   "win": 0.053,
+   "M": 0.6607636196857303,
+   "rounds": 18.805
+  }
+ },
+ {
+  "enemy": "yeou-nui",
+  "S": 30,
+  "kit": {
+   "S": 30,
+   "body": "weasel-galot",
+   "trinket": "jujube-hairpin",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "agility": 6,
+    "insight": 4,
+    "control": 4,
+    "endurance": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.795,
+   "M": 1.0566751012145787,
+   "rounds": 5.044
+  },
+  "withKit": {
+   "win": 0.944,
+   "M": 1.2187412445278298,
+   "rounds": 4.683
+  },
+  "k": 1.45,
+  "after": {
+   "k": 1.451171875,
+   "win": 0.767,
+   "M": 1.0575885963495368,
+   "rounds": 6.081
+  }
+ },
+ {
+  "enemy": "noho-seung",
+  "S": 30,
+  "kit": {
+   "S": 30,
+   "body": "weasel-galot",
+   "trinket": "jujube-hairpin",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "agility": 6,
+    "insight": 4,
+    "control": 4,
+    "endurance": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.623,
+   "M": 0.9806823543969668,
+   "rounds": 6.933
+  },
+  "withKit": {
+   "win": 0.907,
+   "M": 1.149123442159187,
+   "rounds": 6.404
+  },
+  "k": 1.34,
+  "after": {
+   "k": 1.33984375,
+   "win": 0.637,
+   "M": 0.9801400297024027,
+   "rounds": 7.984
+  }
+ },
+ {
+  "enemy": "chokru-gwi",
+  "S": 30,
+  "kit": {
+   "S": 30,
+   "body": "weasel-galot",
+   "trinket": "jujube-hairpin",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "agility": 6,
+    "insight": 4,
+    "control": 4,
+    "endurance": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.568,
+   "M": 0.996440115118308,
+   "rounds": 9.143
+  },
+  "withKit": {
+   "win": 0.813,
+   "M": 1.1020636626705238,
+   "rounds": 8.089
+  },
+  "k": 1.14,
+  "after": {
+   "k": 1.1435546875,
+   "win": 0.605,
+   "M": 0.9964323928620619,
+   "rounds": 9.382
+  }
+ },
+ {
+  "enemy": "bulgae",
+  "S": 30,
+  "kit": {
+   "S": 30,
+   "body": "weasel-galot",
+   "trinket": "jujube-hairpin",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "agility": 6,
+    "insight": 4,
+    "control": 4,
+    "endurance": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.561,
+   "M": 0.95007184493492,
+   "rounds": 12.085
+  },
+  "withKit": {
+   "win": 0.861,
+   "M": 1.074887239144279,
+   "rounds": 12.25
+  },
+  "k": 1.21,
+  "after": {
+   "k": 1.2109375,
+   "win": 0.533,
+   "M": 0.9506583695288994,
+   "rounds": 14.788
+  }
+ },
+ {
+  "enemy": "yeoksin",
+  "S": 30,
+  "kit": {
+   "S": 30,
+   "body": "weasel-galot",
+   "trinket": "jujube-hairpin",
+   "daily": "sipjeon-tang",
+   "bonus": {
+    "agility": 6,
+    "insight": 4,
+    "control": 4,
+    "endurance": 3,
+    "aggression": 1,
+    "comprehension": 1
+   },
+   "random": null,
+   "items": [
+    "king-mushroom-stew",
+    "badger-brush",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.098,
+   "M": 0.7989408951775231,
+   "rounds": 15.302
+  },
+  "withKit": {
+   "win": 0.797,
+   "M": 1.0763402063704943,
+   "rounds": 12.484
+  },
+  "k": 1.48,
+  "after": {
+   "k": 1.4775390625,
+   "win": 0.076,
+   "M": 0.7990987936550625,
+   "rounds": 18.373
+  }
+ },
+ {
+  "enemy": "geuseunsae",
+  "S": 40,
+  "kit": {
+   "S": 40,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.752,
+   "M": 1.0428743961352596,
+   "rounds": 6.257
+  },
+  "withKit": {
+   "win": 0.91,
+   "M": 1.145952073056095,
+   "rounds": 5.899
+  },
+  "k": 1.24,
+  "after": {
+   "k": 1.2431640625,
+   "win": 0.757,
+   "M": 1.0426424411833177,
+   "rounds": 6.934
+  }
+ },
+ {
+  "enemy": "hwama",
+  "S": 40,
+  "kit": {
+   "S": 40,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.675,
+   "M": 0.9911944875241193,
+   "rounds": 5.975
+  },
+  "withKit": {
+   "win": 0.834,
+   "M": 1.0619556405410226,
+   "rounds": 5.84
+  },
+  "k": 1.16,
+  "after": {
+   "k": 1.158203125,
+   "win": 0.697,
+   "M": 0.9913306813050946,
+   "rounds": 6.33
+  }
+ },
+ {
+  "enemy": "yeongno",
+  "S": 40,
+  "kit": {
+   "S": 40,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.513,
+   "M": 0.943631152125277,
+   "rounds": 8.243
+  },
+  "withKit": {
+   "win": 0.77,
+   "M": 1.055741670165662,
+   "rounds": 7.721
+  },
+  "k": 1.18,
+  "after": {
+   "k": 1.1787109375,
+   "win": 0.524,
+   "M": 0.9454937807718314,
+   "rounds": 8.738
+  }
+ },
+ {
+  "enemy": "yacha-nachal",
+  "S": 40,
+  "kit": {
+   "S": 40,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "badger-brush"
+   ]
+  },
+  "base": {
+   "win": 0.497,
+   "M": 0.9274154269249607,
+   "rounds": 12.186
+  },
+  "withKit": {
+   "win": 0.667,
+   "M": 0.9883968445824372,
+   "rounds": 12.001
+  },
+  "k": 1.09,
+  "after": {
+   "k": 1.09375,
+   "win": 0.497,
+   "M": 0.9276332201073862,
+   "rounds": 13.017
+  }
+ },
+ {
+  "enemy": "hanbal",
+  "S": 40,
+  "kit": {
+   "S": 40,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "badger-brush",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.084,
+   "M": 0.7343605957339393,
+   "rounds": 14.709
+  },
+  "withKit": {
+   "win": 0.731,
+   "M": 1.0322482169180236,
+   "rounds": 11.527
+  },
+  "k": 1.62,
+  "after": {
+   "k": 1.6240234375,
+   "win": 0.18,
+   "M": 0.7330441106575355,
+   "rounds": 15.737
+  }
+ },
+ {
+  "enemy": "gangcheol",
+  "S": 46,
+  "kit": {
+   "S": 46,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.719,
+   "M": 1.0235290928609786,
+   "rounds": 6.136
+  },
+  "withKit": {
+   "win": 0.92,
+   "M": 1.161017776140178,
+   "rounds": 5.425
+  },
+  "k": 1.3,
+  "after": {
+   "k": 1.298828125,
+   "win": 0.689,
+   "M": 1.0236461355742932,
+   "rounds": 6.818
+  }
+ },
+ {
+  "enemy": "mudu-gwi",
+  "S": 46,
+  "kit": {
+   "S": 46,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.625,
+   "M": 0.9643983822903377,
+   "rounds": 6.095
+  },
+  "withKit": {
+   "win": 0.828,
+   "M": 1.0845168137077557,
+   "rounds": 5.613
+  },
+  "k": 1.23,
+  "after": {
+   "k": 1.234375,
+   "win": 0.608,
+   "M": 0.9638989646443006,
+   "rounds": 6.346
+  }
+ },
+ {
+  "enemy": "gwimok",
+  "S": 46,
+  "kit": {
+   "S": 46,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.512,
+   "M": 0.9575130234091681,
+   "rounds": 9.58
+  },
+  "withKit": {
+   "win": 0.757,
+   "M": 1.089485707925759,
+   "rounds": 8.667
+  },
+  "k": 1.21,
+  "after": {
+   "k": 1.205078125,
+   "win": 0.482,
+   "M": 0.9570548605506232,
+   "rounds": 10.065
+  }
+ },
+ {
+  "enemy": "baekgwi",
+  "S": 46,
+  "kit": {
+   "S": 46,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.43,
+   "M": 0.9124609885620928,
+   "rounds": 12.684
+  },
+  "withKit": {
+   "win": 0.84,
+   "M": 1.0786412595876398,
+   "rounds": 9.796
+  },
+  "k": 1.34,
+  "after": {
+   "k": 1.3427734375,
+   "win": 0.472,
+   "M": 0.9122887719349511,
+   "rounds": 12.744
+  }
+ },
+ {
+  "enemy": "samdugumi",
+  "S": 46,
+  "kit": {
+   "S": 46,
+   "body": "crane-robe",
+   "trinket": "jujube-hairpin",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 7,
+    "endurance": 5
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "wolf-fang-charm",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.045,
+   "M": 0.7336435986400237,
+   "rounds": 15.896
+  },
+  "withKit": {
+   "win": 0.77,
+   "M": 1.04797257828594,
+   "rounds": 10.491
+  },
+  "k": 1.57,
+  "after": {
+   "k": 1.568359375,
+   "win": 0.204,
+   "M": 0.7336970073908647,
+   "rounds": 17.317
+  }
+ },
+ {
+  "enemy": "baekgol-janggun",
+  "S": 50,
+  "kit": {
+   "S": 50,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.726,
+   "M": 1.0435333208201483,
+   "rounds": 7.624
+  },
+  "withKit": {
+   "win": 0.89,
+   "M": 1.1394815310483024,
+   "rounds": 6.261
+  },
+  "k": 1.21,
+  "after": {
+   "k": 1.205078125,
+   "win": 0.744,
+   "M": 1.0434113373740637,
+   "rounds": 7.461
+  }
+ },
+ {
+  "enemy": "yohwa",
+  "S": 50,
+  "kit": {
+   "S": 50,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.577,
+   "M": 0.9525909455649505,
+   "rounds": 6.639
+  },
+  "withKit": {
+   "win": 0.909,
+   "M": 1.1803750918016895,
+   "rounds": 5.495
+  },
+  "k": 1.45,
+  "after": {
+   "k": 1.451171875,
+   "win": 0.517,
+   "M": 0.9524119236317337,
+   "rounds": 7.762
+  }
+ },
+ {
+  "enemy": "daein",
+  "S": 50,
+  "kit": {
+   "S": 50,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.42,
+   "M": 0.8800831284114815,
+   "rounds": 6.758
+  },
+  "withKit": {
+   "win": 0.737,
+   "M": 1.0305482332919786,
+   "rounds": 6.026
+  },
+  "k": 1.26,
+  "after": {
+   "k": 1.2607421875,
+   "win": 0.416,
+   "M": 0.8796332847073403,
+   "rounds": 6.865
+  }
+ },
+ {
+  "enemy": "gunggi",
+  "S": 50,
+  "kit": {
+   "S": 50,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.504,
+   "M": 0.92805819513907,
+   "rounds": 12.252
+  },
+  "withKit": {
+   "win": 0.67,
+   "M": 0.982251551906149,
+   "rounds": 11.409
+  },
+  "k": 1.1,
+  "after": {
+   "k": 1.099609375,
+   "win": 0.52,
+   "M": 0.927563251487689,
+   "rounds": 12.365
+  }
+ },
+ {
+  "enemy": "jihaguk-daejeok",
+  "S": 50,
+  "kit": {
+   "S": 50,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "wolf-fang-charm",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.07,
+   "M": 0.6930623907594349,
+   "rounds": 18.289
+  },
+  "withKit": {
+   "win": 0.996,
+   "M": 1.1888441523778392,
+   "rounds": 7.34
+  },
+  "k": 1.83,
+  "after": {
+   "k": 1.83203125,
+   "win": 0.053,
+   "M": 0.6933857560815128,
+   "rounds": 21.078
+  }
+ },
+ {
+  "enemy": "cheonma",
+  "S": 60,
+  "kit": {
+   "S": 60,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.369,
+   "M": 0.8410862173934873,
+   "rounds": 6.949
+  },
+  "withKit": {
+   "win": 0.586,
+   "M": 0.949683334756013,
+   "rounds": 6.345
+  },
+  "k": 1.18,
+  "after": {
+   "k": 1.1787109375,
+   "win": 0.375,
+   "M": 0.8408450683835189,
+   "rounds": 6.86
+  }
+ },
+ {
+  "enemy": "doul",
+  "S": 60,
+  "kit": {
+   "S": 60,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.18,
+   "M": 0.767874719682594,
+   "rounds": 10.786
+  },
+  "withKit": {
+   "win": 0.605,
+   "M": 0.9932052869448706,
+   "rounds": 9.223
+  },
+  "k": 1.28,
+  "after": {
+   "k": 1.28125,
+   "win": 0.154,
+   "M": 0.7485338909838379,
+   "rounds": 10.402
+  }
+ },
+ {
+  "enemy": "geoul-gwi",
+  "S": 60,
+  "kit": {
+   "S": 60,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.142,
+   "M": 0.6951971687251425,
+   "rounds": 8.079
+  },
+  "withKit": {
+   "win": 0.328,
+   "M": 0.852840473604778,
+   "rounds": 8.736
+  },
+  "k": 1.31,
+  "after": {
+   "k": 1.3076171875,
+   "win": 0.097,
+   "M": 0.6952933237520358,
+   "rounds": 8.901
+  }
+ },
+ {
+  "enemy": "hondon",
+  "S": 60,
+  "kit": {
+   "S": 60,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "wolf-fang-charm"
+   ]
+  },
+  "base": {
+   "win": 0.145,
+   "M": 0.763983372254481,
+   "rounds": 10.271
+  },
+  "withKit": {
+   "win": 0.616,
+   "M": 0.9527131081961483,
+   "rounds": 8.418
+  },
+  "k": 1.32,
+  "after": {
+   "k": 1.3193359375,
+   "win": 0.216,
+   "M": 0.7635258737067817,
+   "rounds": 9.84
+  }
+ },
+ {
+  "enemy": "docheol",
+  "S": 60,
+  "kit": {
+   "S": 60,
+   "body": "crane-robe",
+   "trinket": "dragon-hatstring",
+   "daily": "fortune-pill",
+   "bonus": {
+    "comprehension": 5,
+    "control": 4,
+    "endurance": 3,
+    "agility": 4,
+    "aggression": 4,
+    "insight": 3
+   },
+   "random": {
+    "count": 2,
+    "amount": 4,
+    "hours": 24
+   },
+   "items": [
+    "fortune-talisman",
+    "wolf-fang-charm",
+    "wild-ginseng-jeonggwa"
+   ]
+  },
+  "base": {
+   "win": 0.001,
+   "M": 0.4792957596288979,
+   "rounds": 11.655
+  },
+  "withKit": {
+   "win": 0.346,
+   "M": 0.8051164270795268,
+   "rounds": 13.003
+  },
+  "k": 1.73,
+  "after": {
+   "k": 1.7265625,
+   "win": 0.002,
+   "M": 0.47977807406256695,
+   "rounds": 14.06
+  }
+ }
+]

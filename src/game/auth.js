@@ -72,14 +72,11 @@ export function clearSession() {
 
 export function signup({ id, password, twitter }) {
   const cleanId = id.trim()
-  if (!cleanId || cleanId.length < 2) {
-    return { ok: false, error: '아이디는 2글자 이상이어야 합니다.' }
+  if (!/^[A-Za-z]{8,40}$/.test(cleanId)) {
+    return { ok: false, error: '아이디는 영문자만 사용 가능하며 8~40자여야 합니다.' }
   }
-  if (!/^[a-zA-Z0-9가-힣_]+$/.test(cleanId)) {
-    return { ok: false, error: '아이디는 영문, 숫자, 한글, _ 만 사용할 수 있습니다.' }
-  }
-  if (!password || password.length < 4) {
-    return { ok: false, error: '비밀번호는 4글자 이상이어야 합니다.' }
+  if (!password || password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    return { ok: false, error: '비밀번호는 8자 이상이며 영문과 숫자를 모두 포함해야 합니다.' }
   }
   if (!twitter || !twitter.trim()) {
     return { ok: false, error: '트위터 아이디를 입력해 주세요.' }
@@ -283,7 +280,7 @@ let pushTimer = null
 let pushing = false
 const listeners = new Set()
 
-const getToken = () => {
+export const getAuthToken = () => {
   try {
     return localStorage.getItem(TOKEN_KEY) || ''
   } catch {
@@ -334,7 +331,7 @@ function rememberSentAvatars(u) {
 }
 
 /** 서버 연결 상태: 'online'(동기화 중) | 'offline'(서버 연결 안 됨, 이 브라우저에만 저장) */
-export const syncMode = () => (getToken() ? 'online' : 'offline')
+export const syncMode = () => (getAuthToken() ? 'online' : 'offline')
 
 /** 다른 기기에서 더 최근에 저장된 기록을 받아 사본을 바꿨을 때 알림을 받는다. fn(user) — 화면을 새로 그려야 한다. */
 export function onRemoteUpdate(fn) {
@@ -348,7 +345,7 @@ async function api(path, { method = 'POST', body, timeout = 8000, keepalive = fa
   const t = setTimeout(() => ctrl.abort(), timeout)
   try {
     const headers = { 'Content-Type': 'application/json' }
-    if (auth) headers.Authorization = `Bearer ${getToken()}`
+    if (auth) headers.Authorization = `Bearer ${getAuthToken()}`
     const r = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal, keepalive })
     const data = await r.json().catch(() => null)
     if (!data || r.status === 404 || r.status >= 500) return { offline: true, status: r.status }
@@ -375,7 +372,7 @@ function adoptServerUser(serverUser, passwordHash) {
 }
 
 function schedulePush(delay = PUSH_DELAY_MS) {
-  if (!getToken()) return
+  if (!getAuthToken()) return
   // 이미 예약돼 있으면 그대로 둔다. (저장이 계속 일어나는 동안에도 몇 초에 한 번은 반드시 보낸다 — 매번 예약을 미루면 영영 안 간다)
   if (pushTimer) return
   pushTimer = setTimeout(() => {
@@ -388,7 +385,7 @@ function schedulePush(delay = PUSH_DELAY_MS) {
 export async function pushNow({ keepalive = false } = {}) {
   const sid = sessionId()
   const u = sid && loadUsers()[sid]
-  if (!getToken() || !u?.dirty) return
+  if (!getAuthToken() || !u?.dirty) return
   if (pushing) return schedulePush(1000)
   pushing = true
   const seq = changeSeq
@@ -433,8 +430,9 @@ if (typeof window !== 'undefined') {
 
 const AUTH_ERRORS = {
   'bad-login': '아이디 또는 비밀번호가 올바르지 않습니다.',
-  'bad-id': '아이디는 2글자 이상, 영문 · 숫자 · 한글 · _ 만 사용할 수 있습니다.',
-  'bad-password': '비밀번호는 4글자 이상이어야 합니다.',
+  'bad-id': '아이디는 영문자만 사용 가능하며 8~40자여야 합니다.',
+  'bad-password': '비밀번호는 8자 이상이며 영문과 숫자를 모두 포함해야 합니다.',
+  'legacy-migration-paused': '구형 로컬 계정의 자동 이전이 보안상의 이유로 중단되었습니다. 관리자에게 문의해 주세요.',
   'no-twitter': '트위터 아이디를 입력해 주세요.',
   taken: '이미 사용 중인 아이디입니다.',
   'slow-down': '시도가 너무 많습니다. 잠시 뒤에 다시 해 주세요.',
@@ -445,7 +443,7 @@ const authError = (r) => ({ ok: false, error: AUTH_ERRORS[r.data?.error] ?? '처
 export async function serverSignup({ id, password, twitter, adminKey }) {
   const cleanId = id.trim()
   const r = await api('/api/account/signup', { body: { id: cleanId, password, twitter, adminKey } })
-  if (r.offline) return { ...signup({ id, password, twitter }), offline: true }
+  if (r.offline) return { ok: false, error: '가입 서버에 연결할 수 없습니다. 연결을 확인한 뒤 다시 시도해 주세요.' }
   if (!r.ok) return authError(r)
   setToken(r.data.token)
   const user = adoptServerUser(r.data.user, simpleHash(password + cleanId + 'changnok'))
@@ -471,6 +469,7 @@ export async function setNewPassword(password) {
   const r = await api('/api/account/password', { body: { password }, auth: true })
   if (r.offline) return { ok: false, error: '서버에 연결할 수 없습니다.' }
   if (!r.ok) return authError(r)
+  if (r.data?.token) setToken(r.data.token) // 비밀번호 변경으로 이전 세션 버전은 무효화됨
   // 이 브라우저의 오프라인 로그인용 해시도 같이 바꿔 둔다.
   const session = getSession()
   if (session) {
@@ -518,7 +517,7 @@ export async function serverFindIds(twitter) {
 export async function syncOnStart() {
   const local = getCurrentUser()
   if (!local) return { user: null }
-  if (!getToken()) {
+  if (!getAuthToken()) {
     const h = await api('/api/health', { method: 'GET', timeout: 4000 })
     if (h.offline) return { user: local } // 서버가 없다 → 이 브라우저만으로 계속
     // 관리자 계정이 아니면 비밀번호 없이 바로 서버로 옮긴다. (자동 이전)

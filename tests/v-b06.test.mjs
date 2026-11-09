@@ -27,7 +27,9 @@ test('v-B.06 매점: 잃어버린 물건은 정해진 값, 살 수 있는 물건
   assert.ok(sellPriceOf('somdari') < sellPriceOf('turtle-shell'))
   assert.ok(sellPriceOf('chestnut') > sellPriceOf('acorn'), '같은 칸이라도 드물게 나오면 비싸다')
   for (const it of I.ITEMS.filter((x) => I.isMaterial(x))) assert.ok(sellPriceOf(it) >= 1, it.id)
-  for (const id of ['w-fan', 'uniform', 'whetstone', 'polishing-stone', 'hwatu-pine', 'goblin-token', 'bibimbap', 'feather-deco']) assert.equal(sellPriceOf(id), null, id)
+  // v-B.18: 만든 완성품(숫돌 · 연마석 · 비빔밥 · 깃털 장식 등)은 이제 판다. 무구 · 교복(만들 수 없는 장비) · 화투패 · 증표는 그대로 받지 않는다.
+  for (const id of ['w-fan', 'uniform', 'hwatu-pine', 'goblin-token']) assert.equal(sellPriceOf(id), null, id)
+  for (const id of ['whetstone', 'polishing-stone', 'bibimbap', 'feather-deco']) assert.ok(sellPriceOf(id) >= 1, id)
 })
 
 test('v-B.06 매점: 판매하면 돈이 들어오고 소지품이 줄며, 가진 것보다 많이 팔 수 없다', () => {
@@ -170,6 +172,7 @@ test('v-B.06 에너지드링크: 쓸 수 없는 때는 이유를 알려 준다 (
   const game = read('../src/Game.jsx')
   assert.match(game, /if \(!ok\.ok\) \{ notify\(ok\.why\); return \}/, '예전엔 조용히 무시됐다')
   assert.match(game, /usedItems=\{mbLive \? \(mbMe\?\.energyUsed \? \['energy'\] : \[\]\) : battleUsedItems\}/)
-  assert.match(read('../src/components/InventoryModal.jsx'), /usedThisBattle: usedItems\.includes\(picked\.id\), downed/)
+  // v-B.16: 같은 전투에서 다른 부활 아이템을 이미 썼는지도 함께 본다(reviveSpent).
+  assert.match(read('../src/components/InventoryModal.jsx'), /usedThisBattle: usedItems\.includes\(picked\.id\) \|\| reviveSpent, downed/)
   assert.match(read('../src/components/locations/Battle.jsx'), /downed: afflictKey\[2\] === '1'/)
 })

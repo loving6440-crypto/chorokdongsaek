@@ -19,7 +19,7 @@ import {
 import { LessonContext, SkinContext } from '../game/lessonContext'
 import { SKINS, isSkinOpen } from '../game/skins2048'
 import { SKINS_RUNNER, isRunnerSkinOpen } from '../game/skinsRunner'
-import { submitScore } from '../net/online'
+import { startRankedSession, submitScore } from '../net/online'
 
 // 과목 id → 미니게임. 여기에 등록하면 해당 과목에서 바로 플레이할 수 있다.
 const MINIGAMES = {
@@ -62,6 +62,7 @@ export default function GameModal({
   const [result, setResult] = useState(null) // 직전 판의 결과 { score, dead, won }
   const [tab, setTab] = useState('game') // game | rank
   const [rankKey, setRankKey] = useState(0)
+  const [rankNote, setRankNote] = useState(null) // v-B.15 서버 검증 결과 안내
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -97,13 +98,24 @@ export default function GameModal({
         c.actions.complete(c.course.id)
       }
     }
-    const submit = (score) => {
+    // v-B.15: 랭킹은 서버가 발급한 판(sid)의 진행 기록(proof)을 서버가 다시 계산해 올린다.
+    const submit = (score, ranked) => {
       const c = live.current
       const info = COURSE_INFO[c.course?.id]
       if (!info?.ranked || !(score > 0) || !c.playerKey) return
-      submitScore(c.course.id, c.playerKey, c.playerName || c.playerKey, Math.round(score)).then(() =>
-        setRankKey((k) => k + 1),
-      )
+      if (!ranked?.sid) {
+        setRankNote('이번 판은 서버 검증 세션 없이 진행되어 랭킹에 오르지 않았다.')
+        return
+      }
+      submitScore(c.course.id, c.playerKey, c.playerName || c.playerKey, Math.round(score), ranked).then((r) => {
+        if (r?.ok && r.recorded) setRankNote(`서버 검증 완료 · 랭킹 기록 ${Number(r.score).toLocaleString('ko-KR')}`)
+        else if (r?.ok && r.reason === 'admin') setRankNote('관리자 계정의 기록은 랭킹에 올리지 않는다.')
+        else if (r?.ok) setRankNote('서버 검증 완료 · 이번 주 최고 기록보다 낮아 랭킹은 그대로다.')
+        else if (r?.error === 'session-expired') setRankNote('판 세션이 만료되어(서버 재시작 등) 랭킹에 오르지 않았다.')
+        else if (r?.error === 'ranking-rejected') setRankNote('서버 재현 결과와 기록이 맞지 않아 랭킹에 오르지 않았다.')
+        else setRankNote('서버에 기록을 올리지 못했다. (연결 상태를 확인해 줘)')
+        setRankKey((k) => k + 1)
+      })
     }
     return {
       start: () => {
@@ -113,20 +125,28 @@ export default function GameModal({
         if (ok) {
           setActive(true)
           setResult(null)
+          setRankNote(null)
         }
         return ok
+      },
+      // 랭킹 판 세션을 연다. { sid, seed } 또는 null(오프라인·비로그인 → 랭킹 미반영 판)
+      session: () => {
+        const c = live.current
+        const info = COURSE_INFO[c.course?.id]
+        if (!info?.ranked || !c.playerKey) return Promise.resolve(null)
+        return startRankedSession(c.course.id, c.playerKey)
       },
       metric,
       submit,
       finish: (score, opts = {}) => {
         if (opts.metric !== null) metric(opts.metric ?? score)
-        submit(score)
+        submit(score, opts.ranked)
         setActive(false)
         setResult({ score: Math.round(score), dead: !!opts.dead, won: !!opts.won })
       },
       // 계속할 수 있는 성공(2048 달성): 판은 이어지고 성공 문구만 띄운다.
-      won: (score) => {
-        submit(score)
+      won: (score, ranked) => {
+        submit(score, ranked)
         setResult({ score: Math.round(score), dead: false, won: true })
       },
       abandon: () => setActive(false),
@@ -337,6 +357,9 @@ export default function GameModal({
                 >
                   {result.won ? info.success : result.dead ? info.death : '수업을 마쳤다.'}
                 </p>
+              )}
+              {info.ranked && rankNote && (
+                <p className="mb-3 text-center text-[11px] text-paper/60" role="status">{rankNote}</p>
               )}
               {!isFortune && !active && (
                 <p className="mb-3 text-center text-[11px] text-paper/50">

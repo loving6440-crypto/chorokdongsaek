@@ -116,7 +116,9 @@ export const clampSpirit = (p) => {
   return { ...p, spirit: Number.isFinite(v) ? SPIRIT_BASELINE_MAX : 0 }
 }
 
-export const AVATAR_SIZE = 256 // 업로드한 이미지를 이 크기의 정사각형으로 저장한다.
+// v-B.17: 자른 영역을 원본 해상도 그대로 저장한다. 다만 서버·Supabase 부담 때문에 한 변이 이 크기를 넘으면 그만큼만 매끄럽게 줄인다.
+export const AVATAR_SIZE = 512
+export const AVATAR_MAX_CHARS = 240_000 // 서버가 받는 사진 데이터 URL 상한(250,000자)보다 조금 작게
 export const AVATAR_MAX_FILE_MB = 8
 // 단색 프로필의 기본 색. 실제 색은 캐릭터 생성 화면에서 #코드로 직접 입력한다.
 export const DEFAULT_AVATAR_COLOR = '#1f7a4d'

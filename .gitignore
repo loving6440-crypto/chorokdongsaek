@@ -27,3 +27,7 @@ server/accounts.json
 
 # Local player profile cache — do not commit to Git
 server/cards.json
+
+# B.10 verified trade ledger (may include privately-held balances)
+server/economy.json
+server/economy.json.*.tmp

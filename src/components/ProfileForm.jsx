@@ -206,7 +206,7 @@ export default function ProfileForm({ value, onChange, title = '인적 사항', 
               onClick={() => set({ avatar: { kind: 'image', src: uploaded } })}
               className={swatchClass(value.avatar.kind === 'image')}
             >
-              <img src={uploaded} alt="" className="size-full object-cover" />
+              <img src={uploaded} alt="" className="user-photo size-full object-cover" />
             </button>
           )}
           <button

@@ -24,7 +24,8 @@ function bossRageText(enemy, stage) {
   return rage.short1 ?? `분노 — ${rage.specialEvery ?? 3}라운드마다 반드시 영능력!`
 }
 
-export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose }) {
+export default function MultiBattle({ meId, view, stats, seen, specials, psychics = [], onAct, onScan, onSurvive, onOpenItems, onSpecialSeen, onClose, onFlee }) {
+  const [fleeAsk, setFleeAsk] = useState(false) // v-B.17 [전투 이탈] 확인
   const enemy = enemyById(view.enemyId)
   const me = view.members.find((m) => m.id === meId)
   // 보스전의 상시 영능력은 '가져가기'로 골랐을 때만 발동한다.
@@ -556,6 +557,20 @@ export default function MultiBattle({ meId, view, stats, seen, specials, psychic
         </div>
       )}
       {view.phase === 'survive' && !me?.pendingDeath && !view.over && <p className="mt-3 text-center text-xs text-paper/60">일행이 버틸지 정하고 있다…</p>}
+      {!view.over && me?.status === 'alive' && onFlee && (
+        <div className="mt-3 text-center" data-mb-flee>
+          {fleeAsk ? (
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded border border-crimson/40 p-2 text-xs">
+              <span className="text-paper/80">전투에서 이탈할까? (보상도 손실도 없다. 남은 일행은 계속 싸운다)</span>
+              <button type="button" className="flat-btn !py-1 text-xs !bg-crimson" onClick={() => { setFleeAsk(false); onFlee() }}>이탈</button>
+              <button type="button" className="flat-btn !py-1 text-xs" onClick={() => setFleeAsk(false)}>계속 싸운다</button>
+            </div>
+          ) : (
+            <button type="button" className="text-[11px] text-paper/50 underline-offset-2 hover:text-paper hover:underline" onClick={() => setFleeAsk(true)}>전투 이탈</button>
+          )}
+          <p className="mt-1 text-[10px] text-paper/40">접속이 끊겨도 전투에서 빠지지 않는다. 내 차례는 1분이 지나면 자동으로 처리되고, 다시 접속하면 이어서 싸운다.</p>
+        </div>
+      )}
 
       {view.over && (
         <div className="ink-panel mt-3 rounded-xl p-4 text-center" data-mb-result>

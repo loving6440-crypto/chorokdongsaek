@@ -4,6 +4,7 @@
  * 한 라운드: 살아 있는 모두가 행동을 고른다 → 신속이 빠른 순서대로 한 명씩 해결 → 상대가 한 번 움직인다(체력이 가장 많은 사람을 노린다).
  * 개인 판정(명중·피해·돌발·버티기…)은 기존 단독 전투의 함수(playerTurn · enemyTurn · resolveSurvive)를 그대로 쓴다.
  */
+import { cleansed, rollItemHit } from './battleItems.js'
 import { enemyById, effectHitsAll, effectPierces, effectTargeting, effectExpr, afflictStats, tickStatus, tickEnemyStatus, playerTurnStart, beforePlayer, afterPlayer, reviveCheck, strikeOf, shownQueue, auraOf, auraSelfOf, bellTick, enemyTurn, fireTurn, maxSurvives, mpCostOf, newBattle, pickTarget, playerTurn, psychicTurn, resolveSurvive, rollInitiative, rollRash, maxHp, specialSpiritCost, specialEffects, SPECIAL_PERCENT, rollIntent, languageReveal, maskFriendlyFirePercent } from './battle.js'
 import { itemTurnFree } from './items.js'
 
@@ -12,7 +13,7 @@ const auraFor = (mb, attackerId) => aliveOf(mb).reduce((sum, x) => { const st = 
 
 export const MULTI_TAG = '다인 전투'
 export const isMulti = (e) => !!e?.tags?.includes(MULTI_TAG)
-export const MB_INPUT_MS = 45_000
+export const MB_INPUT_MS = 60_000 // v-B.17: 한 사람의 차례는 1분. 시간이 지나면 자동으로 처리된다(autoFill).
 export const MB_SURVIVE_MS = 20_000
 export const MB_LOG_MAX = 80
 
@@ -97,12 +98,12 @@ let logSeq = 1
 const tag = (events, by) => events.map((e) => ({ ...e, by, id: logSeq++ }))
 
 export function createMB(enemyId, rawMembers, rng = Math.random) {
-  const enemy = enemyById(enemyId)
+  const enemy = typeof enemyId === 'object' && enemyId ? enemyId : enemyById(enemyId) // (밸런스 시뮬레이터는 능력치를 바꾼 적 객체를 넘긴다)
   const members = rawMembers.map(makeMember)
   const base = newBattle(enemy, members[0].stats, rng, undefined, undefined, { party: true }) // 상대의 행동 큐(여럿이 함께 본다) — 일행을 상대하는 판
   const mb = {
     // 보스가 전투 중 커지는 등 능력치가 바뀔 수 있어, 원본(적 데이터)을 건드리지 않도록 복사해 둔다.
-    enemy: { ...enemy },
+    enemy: { ...enemy, baseAtk: enemy.atk },
     grow: 0, // 커지는 보스(그슨대)의 현재 단계
     ehp: enemy.hp,
     espirit: enemy.spirit, // 영능력 전용 영력 자원(다인 전투는 일행 수와 무관하게 한 번 쓸 때마다 한 번만 깎인다)
@@ -331,7 +332,9 @@ function useItemCore(mb, id, item, targetId) {
   if ((m.ps?.itemSeal || 0) > 0) return { error: 'item-seal' } // v-B.05: 야광귀의 신 훔치기
   const e = item?.effect ?? {}
   // v-B.05: 돌림병 — 회복 아이템이 듣지 않는다(받는 사람 기준)
-  if ((e.hp || e.giveHp) && (t.ps?.healBlock || 0) > 0) return { error: 'heal-block' }
+  // (v-B.16: 해제·스탯 등 다른 효과가 함께 있는 아이템은 회복만 빼고 나머지가 듣는다)
+  const healOnly = Object.keys(e).every((k) => ['hp', 'mp', 'giveHp', 'giveMp'].includes(k))
+  if (healOnly && (e.hp || e.giveHp) && (t.ps?.healBlock || 0) > 0) return { error: 'heal-block' }
   if (!item?.battle) return { error: 'not-battle-item' }
   if (mb.enemy.boss) {
     if ((m.bring?.[item.id] || 0) < 1) return { error: 'not-brought' } // 가져오지 않은 아이템은 쓸 수 없다
@@ -353,22 +356,47 @@ function useItemCore(mb, id, item, targetId) {
     addLog(mb, [{kind:'end',text:`${m.name}의 고독! ${mb.enemy.name}이(가) 즉시 쓰러졌다. 참가자 전원이 3일간 [저주]를 받았다.`}],m.id)
     return {ok:true}
   }
-  if (e.boost) {
+  // v-B.16: 한 전투에 1번만 쓰는 아이템(적 피해·부적·간파 등)
+  if (e.oncePerBattle && m.usedItems.includes(item.id)) return { error: 'already' }
+  const STAT = { insight: '안목', aggression: '호전', endurance: '인내', control: '절제', agility: '신속', comprehension: '이해' }
+  const statLine = (map) => Object.entries(map).map(([k, v]) => `${STAT[k] ?? k} +${v}`).join(' · ')
+  const addStats = (x, map) => { for (const [k, v] of Object.entries(map)) x.stats[k] = (x.stats[k] || 0) + v }
+  // ── 건네는 아이템: 마이쮸(boost) · 쌍쌍바(giveHp) · v-B.16 giveMp · giveCleanse — 일행 한 명(또는 나)에게
+  if (e.boost || e.giveHp || e.giveMp || e.giveCleanse) {
     if (t.status !== 'alive') return { error: 'bad-target' }
-    if (t.boost) return { error: 'already' }
-    t.boost = true
-    const who = t.id === m.id ? '자신' : t.name
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. ${t.name}의 다음 행동 피해가 2배가 된다.`, popup: { type: 'item', name: m.name, item: item.name, target: who } }], m.id)
+    const onlyBoost = e.boost && !e.giveHp && !e.giveMp && !e.giveCleanse
+    if (onlyBoost && t.boost) return { error: 'already' }
+    if (e.giveHp && !e.giveMp && !e.giveCleanse && !e.boost && (t.ps?.healBlock || 0) > 0) return { error: 'heal-block' }
+    const mine = t.id === m.id
+    const parts = []
+    if (e.giveCleanse) { Object.assign(t, cleansed()); parts.push('나쁜 상태 해제') }
+    if (e.giveHp && !((t.ps?.healBlock || 0) > 0)) {
+      const amount = mine ? e.giveHp.self : e.giveHp.party
+      t.php = Math.min(t.phpMax, t.php + amount)
+      parts.push(`체력 +${amount}`)
+    }
+    if (e.giveMp) {
+      const amount = mine ? e.giveMp.self : e.giveMp.party
+      t.mp = Math.min(t.mpMax, t.mp + amount)
+      parts.push(`의지력 +${amount}`)
+    }
+    if (e.boost && !t.boost) { t.boost = true; parts.push('다음 행동 피해 2배') }
+    const who = mine ? '자신' : t.name
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. ${parts.join(' · ') || '(이미 걸린 효과뿐이라 달라진 것이 없다)'}.`, popup: { type: 'item', name: m.name, item: item.name, target: who } }], m.id)
     return { ok: true }
   }
-  // 봉지 과자 / 조각 케이크: 파티(살아있는 전원) 체력·의지력 회복.
-  if (e.partyHp || e.partyMp) {
+  // ── 일행 전원: 봉지 과자 · 조각 케이크 · v-B.16 partyStat · partyCleanse · partyCharms
+  if (e.partyHp || e.partyMp || e.partyStat || e.partyCleanse || e.partyCharms) {
     const alive = mb.members.filter((x) => x.status === 'alive')
     for (const x of alive) {
+      if (e.partyCleanse) Object.assign(x, cleansed())
       if (e.partyHp && !((x.ps?.healBlock || 0) > 0)) x.php = Math.min(x.phpMax, x.php + e.partyHp)
       if (e.partyMp) x.mp = Math.min(x.mpMax, x.mp + e.partyMp)
+      if (e.partyStat) addStats(x, e.partyStat)
+      if (e.partyCharms) x.charms = (x.charms || 0) + e.partyCharms
     }
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원의 ${e.partyHp ? `체력 +${e.partyHp}` : `의지력 +${e.partyMp}`}.`, popup: { type: 'item', name: m.name, item: item.name, target: '일행 전원' } }], m.id)
+    const parts = [e.partyCleanse ? '나쁜 상태 해제' : '', e.partyHp ? `체력 +${e.partyHp}` : '', e.partyMp ? `의지력 +${e.partyMp}` : '', e.partyStat ? statLine(e.partyStat) : '', e.partyCharms ? `부적 +${e.partyCharms}` : ''].filter(Boolean)
+    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 꺼냈다! 일행 전원 ${parts.join(' · ')}.`, popup: { type: 'item', name: m.name, item: item.name, target: '일행 전원' } }], m.id)
     return { ok: true }
   }
   // 폭죽: 자신을 제외한 일행 전원 다음 공격력 ×2, 사용한 자신은 2턴 행동불능(자신에게는 ×2가 적용되지 않는다).
@@ -393,28 +421,36 @@ function useItemCore(mb, id, item, targetId) {
     )
     return { ok: true }
   }
-  // 쌍쌍바: 파티원에게 주면 더 크게, 자기 자신이면 조금 회복.
-  if (e.giveHp) {
-    if (t.status !== 'alive') return { error: 'bad-target' }
-    const amount = t.id === m.id ? e.giveHp.self : e.giveHp.party
-    t.php = Math.min(t.phpMax, t.php + amount)
-    const who = t.id === m.id ? '자신' : t.name
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) ${who}에게 건넸다. 체력 +${amount}.`, popup: { type: 'item', name: m.name, item: item.name, target: who } }], m.id)
-    return { ok: true }
-  }
   if (t.id !== m.id) return { error: 'self-only' }
+  // ── 나에게만: 에너지드링크(revive) · 회복 · v-B.16 부적 · 해제 · 전투 스탯 · 적 피해 · 영력 감소 · 간파
+  if (e.revive && (m.energyUsed || m.revive)) return { error: 'already' } // 한 전투에 부활 아이템은 1번 (v71)
+  const parts = []
   if (e.revive) {
-    // 에너지드링크: 한 전투에 1회만 쓸 수 있다 — 효과가 소비된 뒤(부활 뒤)에도 다시 쓸 수 없다. (v71)
-    if (m.energyUsed) return { error: 'already' }
-    if (m.revive) return { error: 'already' }
     m.revive = true
     m.energyUsed = true
-    addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 마셨다. (전투불능 시 1회 부활 대기, 이 전투에서는 다시 쓸 수 없다)`, popup: { type: 'item', name: m.name, item: item.name, target: '자신' } }], m.id)
-    return { ok: true }
+    parts.push('전투불능 시 1회 부활 대기, 이 전투에서는 부활 아이템을 다시 쓸 수 없다')
   }
-  if (e.hp) m.php = Math.min(m.phpMax, m.php + e.hp)
-  if (e.mp) m.mp = Math.min(m.mpMax, m.mp + e.mp)
-  addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 사용했다.`, popup: { type: 'item', name: m.name, item: item.name, target: '자신' } }], m.id)
+  if (e.cleanse) { Object.assign(m, cleansed()); parts.push('나쁜 상태 해제') }
+  if (e.hp && !((m.ps?.healBlock || 0) > 0)) { m.php = Math.min(m.phpMax, m.php + e.hp); parts.push(`체력 +${e.hp}`) }
+  if (e.mp) { m.mp = Math.min(m.mpMax, m.mp + e.mp); parts.push(`의지력 +${e.mp}`) }
+  if (e.charms) { m.charms = (m.charms || 0) + e.charms; parts.push(`부적 +${e.charms}`) }
+  if (e.battleStat) { addStats(m, e.battleStat); parts.push(`이 전투 동안 ${statLine(e.battleStat)}`) }
+  if (e.enemyHit) {
+    const before = mb.ehp
+    mb.ehp = Math.max(1, mb.ehp - rollItemHit(e.enemyHit, mb.enemy.hp, Math.random))
+    parts.push(`${mb.enemy.name}에게 피해 ${before - mb.ehp}`)
+  }
+  if (e.drainSpirit) {
+    const before = mb.espirit ?? 0
+    mb.espirit = Math.max(0, before - e.drainSpirit)
+    parts.push(`적의 영력 -${before - mb.espirit}`)
+  }
+  if (e.reveal) {
+    const n = Math.min(e.reveal, mb.queue?.length ?? 0)
+    if (n > (mb.known || 0)) mb.known = n
+    parts.push(`적의 행동 ${n}개 간파`)
+  }
+  addLog(mb, [{ kind: 'info', text: `${m.name}이(가) ${item.name}을(를) 사용했다.${parts.length ? ` ${parts.join(' · ')}.` : ''}`, popup: { type: 'item', name: m.name, item: item.name, target: '자신' } }], m.id)
   return { ok: true }
 }
 
@@ -1169,7 +1205,7 @@ function growReason(mb, m, action) {
 export function growBoss(mb, amount, reason) {
   const g = mb.enemy.grows
   if (!g || amount <= 0) return []
-  const base = enemyById(mb.enemy.id)?.atk ?? mb.enemy.atk
+  const base = mb.enemy.baseAtk ?? enemyById(mb.enemy.id)?.atk ?? mb.enemy.atk
   const before = mb.grow || 0
   mb.grow = Math.min(g.max, before + amount)
   mb.enemy.atk = base + g.atkPerStage * mb.grow
@@ -1225,7 +1261,12 @@ export function survive(mb, id, accept, rng = Math.random) {
   return { ok: true, events: evs }
 }
 
-/** 접속이 끊긴 사람을 전투에서 뺀다 */
+/** v-B.17: 판 기록에 안내 한 줄(접속 끊김 등)을 남긴다. */
+export function noteMB(mb, text) {
+  return addLog(mb, [{ kind: 'info', text }], null)
+}
+
+/** 전투에서 뺀다 — v-B.17부터는 본인이 [전투 이탈]을 눌렀을 때만 쓴다(접속이 끊겨도 빠지지 않는다). */
 export function dropMember(mb, id) {
   const m = mb.members.find((x) => x.id === id)
   if (!m || m.status !== 'alive') return []

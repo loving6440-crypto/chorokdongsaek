@@ -707,6 +707,10 @@ input, textarea, select {
 }
 /* Portrait diamonds, status bars, icons retain their dimensions; only the rendering style changes. */
 img, canvas, svg { image-rendering: pixelated; }
+/* v-B.17: 사용자가 올린 사진(프로필 등)은 픽셀 아트처럼 깨지지 않게 원래대로 매끄럽게 보여 준다. */
+img.user-photo, .user-photo img { image-rendering: auto !important; }
+/* v-B.18: NPC 초상화도 도트처럼 깨지지 않게 원래 그림 그대로 매끄럽게 보여 준다. */
+img.npc-portrait, [data-npc] img { image-rendering: auto !important; }
 /* Disable buttery motion that clashes with frame-by-frame retro UI. */
 .tilt:not(:disabled):hover, .tilt:not(:disabled):active { transform: none; }
 

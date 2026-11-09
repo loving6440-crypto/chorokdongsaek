@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Languages, Lock, Palette, RotateCcw } from 'lucide-react'
 import { createGame, step } from '../../game/minigames/logic2048'
+import { MOVE_CODE_2048, seeded2048 } from '../../game/minigames/rankedVerify'
 import TileFace, { Blossom } from './TileFace'
 import { ACHIEVEMENTS } from '../../game/achievements'
 import { SKINS, skinOf } from '../../game/skins2048'
@@ -70,11 +71,38 @@ export default function Game2048() {
     setGame(next)
   }, [])
 
+  // v-B.15 랭킹 검증: 서버가 정한 씨앗으로 판을 만들고, 실제로 바뀐 이동만 기록해 서버가 재현한다.
+  const randRef = useRef(Math.random)
+  const sessRef = useRef(null) // { sid, seed } — 없으면 이번 판은 랭킹 미반영
+  const movesRef = useRef('')
+  const boardToken = useRef(0)
+  const ranked = () => (sessRef.current ? { sid: sessRef.current.sid, proof: { moves: movesRef.current } } : null)
+  const freshBoard = useCallback(() => {
+    const token = ++boardToken.current
+    randRef.current = Math.random
+    sessRef.current = null
+    movesRef.current = ''
+    commit(createGame(gameRef.current.best))
+    run.session().then((sess) => {
+      // 세션이 오기 전에 이미 첫 수를 뒀다면 그 판은 그대로(랭킹 미반영) 둔다.
+      if (!sess || token !== boardToken.current || started.current) return
+      const { game: g, rand } = seeded2048(sess.seed, gameRef.current.best)
+      randRef.current = rand
+      sessRef.current = sess
+      commit(g)
+    })
+  }, [commit, run])
+  useEffect(() => {
+    freshBoard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const move = useCallback(
     (dir) => {
       const cur = gameRef.current
-      const next = step(cur, dir)
+      const next = step(cur, dir, randRef.current)
       if (next === cur) return
+      movesRef.current += MOVE_CODE_2048[dir]
       if (next.best > cur.best) saveBest(next.best)
 
       if (!started.current) {
@@ -84,9 +112,9 @@ export default function Game2048() {
       run.metric(next.score) // 최소 조건: 3000점 넘기기
       if (next.over) {
         started.current = false
-        run.finish(next.score, { dead: true, metric: null })
+        run.finish(next.score, { dead: true, metric: null, ranked: ranked() })
       } else if (next.won && !cur.won) {
-        run.won(next.score)
+        run.won(next.score, ranked())
       }
 
       // 효과음: 끝 > 달성 > 합치기 > 그냥 이동
@@ -105,9 +133,12 @@ export default function Game2048() {
     if (started.current) run.abandon()
     started.current = false
     sfx.play('g2048Start')
-    commit(createGame(gameRef.current.best))
-  }, [commit, run])
-  const keepGoing = () => commit({ ...gameRef.current, keepGoing: true })
+    freshBoard()
+  }, [freshBoard, run])
+  const keepGoing = () => {
+    movesRef.current += 'k'
+    commit({ ...gameRef.current, keepGoing: true })
+  }
 
   useEffect(() => {
     const onKey = (e) => {

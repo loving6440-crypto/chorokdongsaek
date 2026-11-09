@@ -2,14 +2,21 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Backpack, X } from 'lucide-react'
 import { STAT_META } from '../game/constants'
-import { ENH_STATS, EQUIP_SLOTS, canUseItem, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
+import { ENH_STATS, EQUIP_SLOTS, canUseItem, itemNeedsTarget, countOf, enhLevel, enhTotal, equipOf, isGear, isMaterial, itemOf, ownedItems, specialTitleOf } from '../game/items'
 import ItemIcon from './ItemIcon'
 import ItemSearchBox from './ItemSearchBox'
 import { itemMatches } from '../game/itemSearch'
 import { INVENTORY_SLOTS, countSlots, inventoryStacks, maxStack, capacityFor } from '../game/inventoryCapacity'
+import { useVerifiedLocationEconomy } from '../hooks/useVerifiedLocationEconomy'
+import { BAG_ID, BAG_SLOTS, bagContents, bagCount, bagRoom, bagSlotsUsed } from '../game/bag'
 
 /** 소지품 팝업. 위에는 착용 장비(무구/신체/장신구), 아래는 가진 물건 타일. 타일을 누르면 설명과 사용·착용 팝업이 뜬다. X 로 닫는다. */
-export default function InventoryModal({ player, inBattle, reviveOn, boostOn, usedItems = [], downed = false, onUse, onDiscard, onEquip, onUnequip, onClaimPending, partyMates = [], partyBattle = false, onClose }) {
+const STACK_KEYS = new Set(['hp', 'mp', 'giveHp', 'giveMp', 'spirit', 'sellMoney', 'mpStats', 'trainUnder10', 'hpCost'])
+/** 여러 개를 한 번에 써도 효과가 그만큼 쌓이는 아이템인가 */
+export const multiUsable = (item) => !!item?.effect && !item.effect.hunt && Object.keys(item.effect).length > 0 && Object.keys(item.effect).every((k) => STACK_KEYS.has(k))
+
+export default function InventoryModal({ player, inBattle, reviveOn, boostOn, usedItems = [], downed = false, onUse, onDiscard, onEquip, onUnequip, onClaimPending, onBag, partyMates = [], partyBattle = false, onClose, online = false }) {
+  const trusted = useVerifiedLocationEconomy(online)
   const [sel, setSel] = useState(null) // 아이템 id
   const [slotSel, setSlotSel] = useState(null) // 착용 중인 부위 id
   const [targeting, setTargeting] = useState(false) // 마이쭈: 누구에게 줄까
@@ -20,6 +27,11 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
   const [hover, setHover] = useState(null)
   const [charcoalStat, setCharcoalStat] = useState(null)
   const [query, setQuery] = useState('') // v79.0.7: 소지품 검색
+  const [bagOpen, setBagOpen] = useState(null) // v-B.17 열어 둔 가방 번호
+  const [bagPick, setBagPick] = useState(null) // 가방 속에서 고른 { id, n }
+  const bags = bagCount(player)
+  const bagFor = (id, n) => { for (let i = 0; i < bags; i++) if (bagRoom(bagContents(player, i), id) >= n) return i; return -1 }
+  const bagDo = (action) => { const r = onBag?.(action); if (r?.error) setErr(r.error); return r }
   const tipFor = (item, e) => setHover({ item, x: e.clientX, y: e.clientY })
   const closeAll = () => {
     setSel(null)
@@ -49,12 +61,15 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
   const picked = sel ? owned.find((i) => i.id === sel) : null
   const ownedCount = picked ? countOf(player, picked.id) : 0
   const pn = picked ? Math.min(ownedCount, selectedStack?.id === picked.id ? selectedStack.quantity : ownedCount) : 0
-  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: ownedCount, reviveOn, boostOn, usedThisBattle: usedItems.includes(picked.id), downed }) : null // v-B.06: 이미 쓴 에너지드링크·쓰러진 상태도 버튼에서 바로 알려 준다
+  const reviveSpent = !!picked?.effect?.revive && usedItems.some((u) => itemOf(u)?.effect?.revive) // v-B.16: 한 전투에 부활 아이템은 1번
+  const pu = picked ? canUseItem(picked, { inBattle, isParty: partyBattle, countNow: ownedCount, reviveOn, boostOn, usedThisBattle: usedItems.includes(picked.id) || reviveSpent, downed, inHunt: player.huntExpedition?.status === 'active' && !player.huntExpedition?.encounter }) : null // v-B.06: 이미 쓴 에너지드링크·쓰러진 상태도 버튼에서 바로 알려 준다
   const slotItem = slotSel && eq[slotSel] ? itemOf(eq[slotSel]) : null
   const shown = picked ?? slotItem
   const displayName = (item) => item ? `${specialTitleOf(player, item.id)}${item.name}` : ''
   // 마이쭈(boost)·쌍쌍바(giveHp): 누구에게 줄지 고르는 아이템.
-  const chewyTarget = (picked?.effect?.boost || picked?.effect?.giveHp) && inBattle
+  // v-B.18: 수량 칸이 [사용]에도 적용된다(전투 밖). 효과가 겹치지 않는 아이템(버프 · 부활 · 개척 아이템 등)은 한 번에 하나.
+  const useN = picked && !inBattle && multiUsable(picked) ? Math.max(1, Math.min(pn ?? 1, discardQty)) : 1
+  const chewyTarget = itemNeedsTarget(picked) && inBattle // v-B.16: 의지력·상태 해제를 건네는 요리도 포함
 
   const doEquip = () => {
     const r = onEquip?.(picked.id)
@@ -148,6 +163,17 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
                 <li key={`empty:${i}`} aria-hidden="true" className="flex min-h-24 flex-col items-center justify-center rounded-xl border border-dashed border-edge/15 bg-shade/10 text-xs text-paper/20">—</li>
               ))}
           </ul>
+          {trusted.mode === 'verified' && <section data-trusted-inventory className="mt-5 rounded-xl border border-gold/35 bg-gold-fill/5 p-3" aria-label="서버 검증 소지품">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gold">서버 검증 소지품 (거래용 별도 장부)</p>
+              <button type="button" className="flat-btn !px-2 !py-1 text-xs" onClick={() => trusted.refresh()}>새로고침</button>
+            </div>
+            <p className="mt-1 text-xs text-paper/65">검증 잔액 {Number(trusted.wallet?.money ?? 0).toLocaleString()}냥 · 기존 캐릭터 소지품과 자동 합산되지 않습니다. 현재 전투 사용·장비 착용은 기존 소지품에서만 가능합니다.</p>
+            {Object.entries(trusted.wallet?.inventory ?? {}).filter(([, n]) => Number.isSafeInteger(n) && n > 0).length ? <ul className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+              {Object.entries(trusted.wallet.inventory).filter(([, n]) => Number.isSafeInteger(n) && n > 0).map(([id, count]) => <li key={id} className="rounded bg-shade/25 p-2 text-paper">{itemOf(id)?.name ?? id} ×{count}</li>)}
+            </ul> : <p className="mt-2 text-xs text-paper/55">검증 재고가 없습니다.</p>}
+          </section>}
+          {trusted.mode === 'error' && online && <p role="status" className="mt-3 text-xs text-crimson">검증 장부를 읽지 못했습니다. 기존 소지품과 혼합하지 않습니다.</p>}
           {!inBattle && Object.values(player.pendingInventory ?? {}).some(n => n > 0) && (
             <section className="mt-3 rounded-lg border border-gold/40 p-3" aria-label="수령 대기 물품">
               <p className="text-xs font-semibold text-gold">수령 대기 물품 (빈 소지품 칸이 생기면 수령 가능)</p>
@@ -247,14 +273,26 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap justify-end gap-2">
-                {picked && !isMaterial(picked) && !isGear(picked) && (
+                {picked && picked.id === BAG_ID && (
+                  <button type="button" disabled={inBattle} title={inBattle ? '전투 중에는 가방을 열 수 없다' : undefined} onClick={() => { closeAll(); setBagOpen(0) }} className="flat-btn !py-1 text-xs disabled:opacity-40" data-bag-open>
+                    가방 열기
+                  </button>
+                )}
+                {picked && picked.id !== BAG_ID && bags > 0 && !inBattle && onBag && (
+                  <button type="button" data-bag-put onClick={() => { const n = Math.min(pn, discardQty); const i = bagFor(picked.id, n); if (i < 0) return setErr(`가방에 칸이 모자란다. (가방 하나에 ${BAG_SLOTS}칸)`); if (!bagDo({ type: 'put', bag: i, id: picked.id, n })?.error) closeAll() }} className="flat-btn !py-1 text-xs">
+                    가방에 넣기
+                  </button>
+                )}
+                {picked && picked.id !== BAG_ID && !isMaterial(picked) && !isGear(picked) && (
                   <button
                     type="button"
                     disabled={!pu.ok || (picked.effect?.trainUnder10 && !charcoalStat)}
-                    onClick={() => (chewyTarget ? setTargeting(true) : onUse(picked.id, charcoalStat))}
+                    onClick={() => (chewyTarget ? setTargeting(true) : onUse(picked.id, charcoalStat, useN))}
                     className="flat-btn !py-1 text-xs disabled:opacity-40"
+                    data-use-qty={useN}
+                    title={!inBattle && discardQty > 1 && useN === 1 ? '효과가 겹치지 않는 아이템이라 한 번에 하나만 쓴다' : undefined}
                   >
-                    {chewyTarget ? '건네기' : '사용'}
+                    {chewyTarget ? '건네기' : useN > 1 ? `${useN}개 사용` : '사용'}
                   </button>
                 )}
                 {picked && isGear(picked) && (
@@ -267,7 +305,7 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
                     벗기
                   </button>
                 )}
-                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="버릴 수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
+                {picked && !inBattle && <><label className="flex items-center gap-1 text-xs text-paper/70">수량 <input aria-label="수량" type="number" min="1" max={pn} value={discardQty} onChange={e => setDiscardQty(Math.max(1, Math.min(pn, Math.floor(Number(e.target.value) || 1))))} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label><button type="button" onClick={() => setDiscardConfirm(true)} className="flat-btn-ghost !py-1 text-xs">버리기</button></>}
                 <button type="button" onClick={closeAll} className="rounded-lg bg-edge/10 px-3 py-1 text-xs text-paper/80 hover:bg-edge/20">
                   닫기
                 </button>
@@ -279,6 +317,37 @@ export default function InventoryModal({ player, inBattle, reviveOn, boostOn, us
       )}
       </div>
     </div>
+    {bagOpen != null && bags > 0 && (
+      <div className="modal-scrim fixed inset-0 z-[90] grid place-items-center p-4" onClick={() => { setBagOpen(null); setBagPick(null) }}>
+        <div role="dialog" aria-modal="true" aria-label="가방" data-bag-panel className="ink-panel flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between gap-2 border-b border-edge/15 px-4 py-3">
+            <h3 className="font-serif text-base text-gold">가방{bags > 1 ? ` ${Math.min(bagOpen, bags - 1) + 1}` : ''} <span className="font-sans text-xs text-paper/60" data-bag-slots>{bagSlotsUsed(bagContents(player, Math.min(bagOpen, bags - 1)))} / {BAG_SLOTS}칸</span></h3>
+            <button type="button" aria-label="가방 닫기" onClick={() => { setBagOpen(null); setBagPick(null) }} className="grid size-8 place-items-center rounded-lg bg-edge/10 text-paper/80 hover:bg-edge/20"><X size={16} /></button>
+          </div>
+          {bags > 1 && <div className="flex flex-wrap gap-1 px-4 pt-3" role="tablist">{Array.from({ length: bags }, (_, i) => <button key={i} type="button" role="tab" aria-selected={bagOpen === i} onClick={() => { setBagOpen(i); setBagPick(null) }} className={`rounded-full px-3 py-0.5 text-xs ${bagOpen === i ? 'bg-gold/15 text-gold' : 'text-paper/60'}`}>가방 {i + 1}</button>)}</div>}
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            {(() => {
+              const i = Math.min(bagOpen, bags - 1)
+              const contents = bagContents(player, i)
+              const list = inventoryStacks(contents)
+              return <>
+                {list.length === 0 && <p className="text-xs text-paper/55">비어 있다. 소지품에서 물건을 골라 [가방에 넣기]를 누르면 들어온다.</p>}
+                <ul className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label="가방 속 물건">
+                  {list.map((st) => { const it = itemOf(st.id); return <li key={`${st.id}:${st.index}`}><button type="button" data-bag-item={st.id} aria-pressed={bagPick?.id === st.id} onClick={() => { setErr(''); setBagPick({ id: st.id, n: st.quantity }) }} className={`flex w-full flex-col items-center gap-1 rounded-xl p-2 ${bagPick?.id === st.id ? 'bg-gold-fill/20' : 'bg-edge/[0.07] hover:bg-gold-fill/15'}`}><ItemIcon item={it} size={36} /><span className="w-full truncate text-center text-[11px] text-paper">{it?.name}</span><span className="text-[11px] text-gold">×{st.quantity}</span></button></li> })}
+                </ul>
+                {bagPick && contents[bagPick.id] > 0 && <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-edge/15 pt-3 text-xs" data-bag-take>
+                  <span className="mr-auto text-paper">{itemOf(bagPick.id)?.name} (가방에 {contents[bagPick.id]}개)</span>
+                  <label className="flex items-center gap-1 text-paper/70">수량 <input aria-label="꺼낼 수량" type="number" min="1" max={contents[bagPick.id]} value={Math.min(bagPick.n, contents[bagPick.id])} onChange={(e) => setBagPick({ ...bagPick, n: Math.max(1, Math.min(contents[bagPick.id], Math.floor(Number(e.target.value) || 1))) })} className="w-14 rounded border border-edge/30 bg-shade px-1 py-1 text-paper" /></label>
+                  <button type="button" className="flat-btn !py-1 text-xs" onClick={() => { const r = bagDo({ type: 'take', bag: i, id: bagPick.id, n: Math.min(bagPick.n, contents[bagPick.id]) }); if (!r?.error) setBagPick(null) }}>꺼내기</button>
+                </div>}
+                {err && <p role="alert" className="mt-2 text-xs text-crimson">{err}</p>}
+                <p className="mt-3 text-[10px] text-paper/45">가방 속 물건은 바로 쓸 수 없다. 꺼낸 뒤에 쓴다. 물건이 든 가방은 버리거나 팔 수 없다.</p>
+              </>
+            })()}
+          </div>
+        </div>
+      </div>
+    )}
     {hover && !popupOpen && createPortal(
       <div role="tooltip" className="pointer-events-none fixed z-[110] w-64 max-w-[85vw] rounded-lg border border-edge/30 bg-shade px-3 py-2 text-[12px] leading-relaxed text-paper shadow-xl"
         style={{ left: Math.max(8, Math.min(window.innerWidth - 272, hover.x - 90)), top: Math.max(8, hover.y - 12), transform: 'translateY(-100%)' }}>

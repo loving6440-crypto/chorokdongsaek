@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { TYPING_SENTENCES } from '../../game/minigames/typingSentences'
 import { countKeystrokes, gradeOf } from '../../game/minigames/typingMetrics'
+import { TYPING_ROUND, typingQueue } from '../../game/minigames/rankedVerify'
 import { COURSE_INFO } from '../../game/courseInfo'
 import { sfx } from '../../game/sfx'
 import { isTypingTarget, useLesson } from '../../game/lessonContext'
 
 const BEST_KEY = 'chorok-best-typing'
-const ROUND_SENTENCES = 10 // 한 판은 10문장
+const ROUND_SENTENCES = TYPING_ROUND // 한 판은 10문장 (서버 검증과 같은 값)
 
 const loadBest = () => {
   try {
@@ -56,8 +57,18 @@ export default function TypingGame() {
   const total = queue.length
   const target = queue[index] ?? ''
 
-  const start = useCallback(() => {
-    setQueue(shuffled(TYPING_SENTENCES).slice(0, ROUND_SENTENCES))
+  // v-B.15 랭킹 검증: 서버가 정한 씨앗으로 문장 순서를 정하고, 문장별 입력·시간을 서버에 보내 다시 계산한다.
+  const sessRef = useRef(null)
+  const entriesRef = useRef([])
+  const starting = useRef(false)
+  const start = useCallback(async () => {
+    if (starting.current) return
+    starting.current = true
+    const sess = await run.session()
+    starting.current = false
+    sessRef.current = sess
+    entriesRef.current = []
+    setQueue(sess ? typingQueue(sess.seed) : shuffled(TYPING_SENTENCES).slice(0, ROUND_SENTENCES))
     setIndex(0)
     setSpeeds([])
     setMisses([])
@@ -87,7 +98,8 @@ export default function TypingGame() {
       overAt.current = performance.now()
       setPhase('over')
       sfx.play(finalMisses.length ? 'typeBad' : 'typeDone')
-      run.finish(score, { dead: score < COURSE_INFO['spell-typing'].minValue })
+      const ranked = sessRef.current ? { sid: sessRef.current.sid, proof: { entries: entriesRef.current.slice() } } : null
+      run.finish(score, { dead: score < COURSE_INFO['spell-typing'].minValue, ranked })
     },
     [run],
   )
@@ -103,6 +115,7 @@ export default function TypingGame() {
     lastSubmit.current = now
 
     const elapsedMs = Math.max(now - startedAt.current, 300)
+    entriesRef.current.push({ text: value, ms: Math.round(now - startedAt.current) })
     el.value = ''
     startedAt.current = null
     setTyped('')

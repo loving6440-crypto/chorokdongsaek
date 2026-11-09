@@ -21,10 +21,14 @@ import { SKINS_RUNNER } from '../src/game/skinsRunner.js'
 import * as MB from '../src/game/mbattle.js'
 import { kstDate, STORY_MAX } from '../src/game/meals.js'
 import * as A from './accounts.js'
+import { createVerifiedEconomyStore, EconomyError } from './verifiedEconomy.js'
+import { clampMbInfo } from './mbTrust.js'
+import { NEW_ID_RULE, validNewPassword } from './authPolicy.js'
 import { CLUB_IDS, CLUB_JOIN_LOCK_MS, CLUB_REJOIN_WAIT_MS } from '../src/game/clubs.js'
 import { OMOK_SIZE, emptyBoard, placeStone } from '../src/game/omok.js'
 import { START as YUT_START, branchOptions as yutBranchOptions, resumeWalk as yutResumeWalk, rollYut, walk as yutWalk } from '../src/game/yut.js'
 import { FIRST_MELD_MIN, freshDeck as rummiFreshDeck, shuffle as rummiShuffle, validateMeld as rummiValidateMeld } from '../src/game/rummikub.js'
+import { RANKED_COURSES, verifyRankedRun } from '../src/game/minigames/rankedVerify.js'
 import { CATEGORIES as YACHT_CATEGORIES, isCategory as yachtIsCategory, isFull as yachtIsFull, MAX_ROLLS as YACHT_MAX_ROLLS, rollDice as yachtRollDice, scoreFor as yachtScoreFor, totalScore as yachtTotalScore } from '../src/game/yacht.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -112,13 +116,52 @@ let seq = 1 // 쪽지·선물·채팅·일행 id 에 함께 쓰는 전역 번호
 //  - 없으면 지금까지처럼 data.json 파일. (로컬 개발용)
 // Supabase 테이블:  create table saves (id text primary key, data jsonb not null, updated_at timestamptz default now());
 const DATABASE_URL = process.env.DATABASE_URL || ''
-const DB_ROW_ID = 'server'
+const DB_ROW_ID = 'server' // (예전 방식) 모든 공용 기록을 한 줄에 — 이제는 롤백·백업용으로 가끔만(기본 30분) 쓴다
+const DB_ROW_PREFIX = 'server:' // (v-B.15) 영역별 한 줄씩: server:ranking, server:mail, server:chat …
+// 채팅 한 줄 때문에 쪽지 5000건·장터·랭킹까지 통째로 다시 쓰지 않도록, 바뀐 영역의 줄만 쓴다.
+// (applyRaw 는 일부 키만 있는 객체도 받으므로, 영역 행은 그대로 applyRaw 에 넣으면 된다)
+const SNAPSHOT_DOMAINS = {
+  ranking: () => ({ ranking, rankingWeek, lastWeek }),
+  market: () => ({ market }),
+  members: () => ({ members }),
+  social: () => ({ friendships, blockedUsers, customChatTitles }),
+  stories: () => ({ stories }),
+  mail: () => ({ mail }),
+  clubs: () => ({ clubs, clubOf, clubLeftAt }),
+  clubChat: () => ({ clubChat }),
+  chat: () => ({ history, parties: [...parties.values()] }),
+  bgm: () => ({ bgmPlaylist }),
+}
+const SNAPSHOT_DOMAIN_KEYS = Object.keys(SNAPSHOT_DOMAINS)
+const LEGACY_SNAPSHOT_MS = Number.isFinite(Number(process.env.CHOROK_LEGACY_SNAPSHOT_MS)) ? Math.max(0, Number(process.env.CHOROK_LEGACY_SNAPSHOT_MS)) : 30 * 60_000
 const DB_ROW_ID_CARDS = 'server-cards' // (예전 방식) 인적사항 카드 전원분을 한 덩어리로 담던 행 — 마이그레이션 읽기에만 쓴다
 const CARD_ROW_PREFIX = 'card:' // (지금 방식) 사람별로 한 줄씩: `card:<id>`
+// v-B.15 DB 연결 인증서 검증.
+//  - CHOROK_DB_CA_CERT(PEM 본문) 또는 CHOROK_DB_CA_FILE(PEM 파일 경로): 그 CA 로 서버 인증서를 검증한다. (Supabase 대시보드의 SSL 인증서)
+//  - CHOROK_DB_SSL_STRICT=1: 시스템 기본 CA 로 검증한다.
+//  - 아무것도 없으면 기존 운영과의 호환을 위해 검증을 끈 채로 연결하되, 부팅 로그에 경고를 남긴다.
+function dbSslOptions() {
+  let ca = process.env.CHOROK_DB_CA_CERT || ''
+  if (!ca && process.env.CHOROK_DB_CA_FILE) {
+    try {
+      ca = fs.readFileSync(process.env.CHOROK_DB_CA_FILE, 'utf8')
+    } catch (e) {
+      console.error('CHOROK_DB_CA_FILE 을 읽지 못했습니다:', e.message)
+      process.exit(1) // 검증을 원했는데 조용히 꺼진 채 연결하지 않는다
+    }
+  }
+  if (ca) return { rejectUnauthorized: true, ca: ca.replace(/\\n/g, '\n') }
+  if (process.env.CHOROK_DB_SSL_STRICT === '1') return { rejectUnauthorized: true }
+  console.warn('경고: DB 인증서 검증이 꺼져 있습니다. CHOROK_DB_CA_CERT(또는 CHOROK_DB_CA_FILE)에 Supabase CA 인증서를 넣으면 검증을 켭니다.')
+  return { rejectUnauthorized: false }
+}
 let db = null // pg Pool (DATABASE_URL 이 있을 때만)
+let bootNeedsFullSave = false // data.json → DB 이전처럼, 부팅 직후 모든 영역을 한 번 써야 하는 경우
 if (DATABASE_URL) {
   const { default: pg } = await import('pg')
-  db = new pg.Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 3 })
+  const configuredMax = Number(process.env.CHOROK_DB_POOL_MAX ?? 6)
+  const poolMax = Number.isInteger(configuredMax) ? Math.max(2, Math.min(10, configuredMax)) : 6
+  db = new pg.Pool({ connectionString: DATABASE_URL, ssl: dbSslOptions(), max: poolMax, connectionTimeoutMillis: 10000, idleTimeoutMillis: 30000 })
   db.on('error', (e) => console.error('DB 연결 오류:', e.message))
 }
 
@@ -149,7 +192,7 @@ function rollWeek(now = Date.now()) {
       : { start: prevWeek, end: cur, top: Object.fromEntries(COURSES.map((c) => [c, []])) }
   ranking = Object.fromEntries(COURSES.map((c) => [c, {}]))
   rankingWeek = cur
-  scheduleSave()
+  scheduleSave('ranking')
   return true
 }
 function applyRaw(raw) {
@@ -192,11 +235,16 @@ if (db) {
   // DB 를 못 읽었는데 빈 상태로 시작하면 다음 저장 때 기존 기록을 덮어쓰므로, 읽기에 실패하면 서버를 띄우지 않는다.
   try {
     const r = await db.query('select data from saves where id = $1', [DB_ROW_ID])
+    // v-B.15: 'server:<영역>' 행이 있으면 그쪽이 더 최신이다. (예전 통짜 행 위에 영역별로 덮어쓴다)
+    const parts = await db.query('select id, data from saves where id like $1', [DB_ROW_PREFIX + '%'])
     if (r.rows[0]) applyRaw(r.rows[0].data)
-    else {
+    for (const row of parts.rows) if (SNAPSHOT_DOMAINS[row.id.slice(DB_ROW_PREFIX.length)]) applyRaw(row.data)
+    if (parts.rows.length) console.log(`서버 기록: 영역별 행 ${parts.rows.length}개를 불러왔습니다.`)
+    if (!r.rows[0] && !parts.rows.length) {
       // DB 가 비어 있으면 data.json 이 남아 있을 경우 한 번 옮겨 온다. (로컬에서 쓰던 기록 이전용)
       try {
         applyRaw(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')))
+        bootNeedsFullSave = true
         console.log('data.json 의 기록을 DB 로 옮깁니다.')
       } catch {
         /* 옮길 파일도 없으면 빈 상태로 시작 */
@@ -251,6 +299,13 @@ if (db) {
 // 계정 · 캐릭터 저장소 (server/accounts.js). DB 가 없으면 accounts.json 파일.
 const ACCOUNTS_FILE = process.env.CHOROK_ACCOUNTS || path.join(__dirname, 'accounts.json')
 const accounts = await A.createAccountStore({ db, file: ACCOUNTS_FILE })
+// 서버 검증 거래만 저장하는 별도 장부. 기존 account.save/player 재화와 자동 병합하지 않는다.
+const verifiedEconomy = createVerifiedEconomyStore({
+  db,
+  file: process.env.CHOROK_ECONOMY_FILE || path.join(__dirname, 'economy.json'),
+  itemIds: ITEMS.map((it) => it.id),
+  onMetric: recordEconomyMetric,
+})
 const ACCOUNT_BODY_MAX = 3_000_000 // 프로필 사진(데이터 URL)이 들어 있을 수 있어 넉넉히
 let loginFails = new Map() // id → [틀린 시각]  (10분에 10번 넘게 틀리면 잠시 막는다)
 const loginBlocked = (id) => {
@@ -258,8 +313,25 @@ const loginBlocked = (id) => {
   loginFails.set(id, arr)
   return arr.length >= 10
 }
-const bearer = (req) => accounts && A.readToken(accounts.secret, (req.headers.authorization ?? '').replace(/^Bearer\s+/i, ''))
+// 계정 레코드와 세션 버전까지 검증. 단순 서명 확인만으로 로그인 상태를 확정하지 않는다.
+const bearer = async (req, { allowReset = false } = {}) => {
+  const header = req.headers.authorization ?? ''
+  if (!/^Bearer\s+/i.test(header)) return null
+  const claims = A.readTokenClaims(accounts.secret, header.replace(/^Bearer\s+/i, ''))
+  if (!claims) return null
+  const start = performance.now()
+  const acc = await accounts.session(claims.id)
+  metrics.authLookups++
+  metrics.authLookupMs += performance.now() - start
+  if (!acc || (acc.sessionVersion ?? 0) !== claims.version || (!allowReset && acc.mustReset)) return null
+  return acc.id
+}
 const ID_RULE = /^[a-zA-Z0-9가-힣_]{2,40}$/
+// 서버가 소유권을 검증하기 전까지 거래/점수 접수는 안전하게 거절한다.
+// 무검증 경제·랭킹 우회 설정은 vB.10부터 제거했다.
+const VERIFIED_ECONOMY_ENABLED = process.env.CHOROK_ENABLE_VERIFIED_ECONOMY === '1'
+const eventTickets = new Map()
+const EVENT_TICKET_TTL = 60_000 // 단 한 번 사용하며, 발급 후 1분 이내에 접속해야 한다
 
 const snapshot = () => ({
   ranking,
@@ -288,43 +360,130 @@ const metrics = {
   startedAt: Date.now(),
   snapshotSaveCount: 0, // 전체 서버 스냅샷(랭킹·장터·쪽지·일행 등)을 DB/파일에 실제로 쓴 횟수
   snapshotSaveBytes: 0, // 그 누적 바이트(JSON.stringify 기준)
+  snapshotDomainBytes: {}, // v-B.15 영역별 누적 바이트 (어느 기능이 쓰기를 많이 만드는지)
+  legacySnapshotSaveCount: 0, // v-B.15 롤백·백업용 통짜 행 쓰기 횟수(기본 30분 간격)
+  legacySnapshotSaveBytes: 0,
   sseConnectCount: 0, // GET /api/events 로 (재)접속한 횟수 — 재접속이 유난히 잦다면 egress 의 큰 원인이 된다
   accountSaveCount: 0, // POST /api/account/save 로 실제 처리(충돌로 되돌리지 않고 저장까지 간)한 횟수
   accountSaveBytes: 0, // 그 요청 본문의 누적 바이트
+  authLookups: 0,
+  authLookupMs: 0,
+  economyReadCount: 0,
+  economyWriteCount: 0,
+  economyReadBytes: 0,
+  economyWriteBytes: 0,
+  economyRowReads: 0,
+  economyRowWrites: 0,
+  economyOperationMs: 0,
+  economyPoolWaitMs: 0,
+  economyFailures: 0,
+  sseSendCount: 0,
+  sseSendBytes: 0,
+  sseSlowDisconnects: 0,
+  sseRejected: 0, // v-B.15 접속 수 제한으로 거절한 SSE
+  economyOpsPruned: 0, // v-B.15 정리한 오래된 멱등 기록 수
+  rankVerified: 0, // v-B.15 서버 재현을 통과한 랭킹 제출
+  rankRejected: 0, // 재현 불일치·시간 초과 등으로 거절한 랭킹 제출
 }
-async function saveNow() {
-  const snap = snapshot()
-  const json_ = JSON.stringify(snap) // 실제로 나가는 바이트 기준으로 계측(들여쓰기 없는 쪽)
-  metrics.snapshotSaveCount++
-  metrics.snapshotSaveBytes += json_.length
-  if (db) {
-    await db.query(
-      `insert into saves (id, data, updated_at) values ($1, $2, now())
-       on conflict (id) do update set data = excluded.data, updated_at = now()`,
-      [DB_ROW_ID, json_]
-    )
-  } else {
-    // 동기 쓰기(writeFileSync)는 쓰는 동안 이벤트 루프 전체를 멈춘다 — 접속자가 많을 때는 비동기로.
-    // (로컬 파일은 사람이 열어 보기 쉽도록 들여쓰기를 둔다 — 위 json_ 과 내용은 같다)
-    await fs.promises.writeFile(DATA_FILE, JSON.stringify(snap, null, 1))
-  }
+function recordEconomyMetric(sample) {
+  if (sample.type === 'read') metrics.economyReadCount++
+  else metrics.economyWriteCount++
+  metrics.economyReadBytes += sample.readBytes ?? 0
+  metrics.economyWriteBytes += sample.writeBytes ?? 0
+  metrics.economyRowReads += sample.reads ?? 0
+  metrics.economyRowWrites += sample.writes ?? 0
+  metrics.economyOperationMs += sample.ms ?? 0
+  metrics.economyPoolWaitMs += sample.waitMs ?? 0
+  if (sample.failed) metrics.economyFailures++
+}
+let snapshotWriteChain = Promise.resolve()
+const dirtyDomains = new Set()
+let legacySavedAt = Date.now() // 부팅 직후엔 방금 읽은 통짜 행이 최신이다
+let legacyDirty = false
+function saveNow({ forceLegacy = false } = {}) {
+  const next = snapshotWriteChain.then(async () => {
+    if (!db) {
+      dirtyDomains.clear()
+      const snap = snapshot()
+      const json_ = JSON.stringify(snap)
+      metrics.snapshotSaveCount++
+      metrics.snapshotSaveBytes += json_.length
+      // 동기 쓰기(writeFileSync)는 쓰는 동안 이벤트 루프 전체를 멈춘다 — 접속자가 많을 때는 비동기로.
+      // (로컬 파일은 사람이 열어 보기 쉽도록 들여쓰기를 둔다)
+      await fs.promises.writeFile(DATA_FILE, JSON.stringify(snap, null, 1))
+      return
+    }
+    const domains = [...dirtyDomains]
+    dirtyDomains.clear()
+    try {
+      if (domains.length) {
+        const params = []
+        const values = []
+        for (const d of domains) {
+          const json_ = JSON.stringify({ ...SNAPSHOT_DOMAINS[d](), seq })
+          metrics.snapshotSaveCount++
+          metrics.snapshotSaveBytes += json_.length
+          metrics.snapshotDomainBytes[d] = (metrics.snapshotDomainBytes[d] ?? 0) + json_.length
+          params.push(DB_ROW_PREFIX + d, json_)
+          values.push(`($${params.length - 1}, $${params.length}, now())`)
+        }
+        await db.query(
+          `insert into saves (id, data, updated_at) values ${values.join(', ')}
+           on conflict (id) do update set data = excluded.data, updated_at = now()`,
+          params
+        )
+        legacyDirty = true
+      }
+      // 예전 통짜 행: 이전 버전으로 되돌릴 때·수동 백업용. 바뀐 게 있을 때만, 정해진 간격(기본 30분)마다 한 번.
+      if (legacyDirty && (forceLegacy || (LEGACY_SNAPSHOT_MS > 0 && Date.now() - legacySavedAt >= LEGACY_SNAPSHOT_MS))) {
+        const json_ = JSON.stringify(snapshot())
+        metrics.legacySnapshotSaveCount++
+        metrics.legacySnapshotSaveBytes += json_.length
+        await db.query(
+          `insert into saves (id, data, updated_at) values ($1, $2, now())
+           on conflict (id) do update set data = excluded.data, updated_at = now()`,
+          [DB_ROW_ID, json_]
+        )
+        legacySavedAt = Date.now()
+        legacyDirty = false
+      }
+    } catch (e) {
+      for (const d of domains) dirtyDomains.add(d) // 실패한 영역은 다음 시도에 다시 쓴다
+      throw e
+    }
+  })
+  snapshotWriteChain = next.catch(() => {})
+  return next
 }
 let saveTimer = null
 let dirty = false
-function scheduleSave() {
+let firstDirtyAt = 0
+const SNAPSHOT_MAX_DEFER_MS = 15_000 // continuous chat may never become quiet
+/** domain 을 주면 그 영역만, 안 주면(예전 호출) 모든 영역을 다시 쓴다. */
+function scheduleSave(...domains) {
+  if (!domains.length) for (const d of SNAPSHOT_DOMAIN_KEYS) dirtyDomains.add(d)
+  for (const d of domains) if (SNAPSHOT_DOMAINS[d]) dirtyDomains.add(d)
   dirty = true
+  if (!firstDirtyAt) firstDirtyAt = Date.now()
   clearTimeout(saveTimer)
+  // Ordinary bursts are coalesced; sustained traffic still persists by 15s.
+  const maxDelay = Math.max(0, SNAPSHOT_MAX_DEFER_MS - (Date.now() - firstDirtyAt))
   saveTimer = setTimeout(async () => {
     saveTimer = null
+    firstDirtyAt = 0
     dirty = false
     try {
       await saveNow()
     } catch (e) {
+      dirty = true
       console.error('기록 저장 실패(10초 뒤 다시 시도):', e.message)
-      if (!saveTimer) setTimeout(() => !saveTimer && scheduleSave(), 10_000)
+      setTimeout(() => { if (dirty && !saveTimer) scheduleSave(...dirtyDomains) }, 10_000)
     }
-  }, db ? 1500 : 400)
+  }, Math.min(db ? 1500 : 400, maxDelay))
 }
+// 바뀐 영역이 없어도 통짜 백업 행이 오래 묵지 않도록 주기적으로 확인한다.
+if (bootNeedsFullSave) scheduleSave()
+if (db && LEGACY_SNAPSHOT_MS > 0) setInterval(() => { if (legacyDirty && !saveTimer) saveNow().catch((e) => console.error('백업 행 저장 실패:', e.message)) }, Math.min(LEGACY_SNAPSHOT_MS, 5 * 60_000)).unref()
 
 // 인적사항 카드(cards)는 따로, 더 느긋하게 저장한다 — 사진이 커서 매번 다시 굳히는 비용이 있고,
 // 프로필을 자주 고치는 사람도 적어서 급하게 저장할 필요가 없다. (서버가 중간에 죽어도 카드는 잠깐 전 상태로만 복구된다)
@@ -376,18 +535,33 @@ const invites = new Map() // inviteeId → { fromId, at }
 const partyStats = new Map() // playerId → { hp, hpMax, mp, mpMax, stats:{...육조}, equipment } — 일행에게 보여줄 실시간 상태(재시작 땐 안 남아도 된다. 접속하면 금방 다시 채워진다)
 const rate = new Map() // id → [timestamps]
 
-const send = (client, payload) => {
+const SSE_MAX_PENDING_BYTES = 256 * 1024
+const writeEvent = (client, data) => {
   try {
-    client.res.write(`data: ${JSON.stringify(payload)}\n\n`)
+    if (client.res.writableEnded || client.res.destroyed) return
+    if (client.res.writableLength > SSE_MAX_PENDING_BYTES) {
+      metrics.sseSlowDisconnects++
+      client.res.end() // clients reconnect to receive a fresh snapshot
+      return
+    }
+    client.res.write(data)
+    metrics.sseSendCount++
+    metrics.sseSendBytes += Buffer.byteLength(data)
   } catch {
-    /* 끊긴 연결은 close 핸들러가 정리한다 */
+    /* disconnect cleanup happens on close */
   }
 }
+const send = (client, payload) => writeEvent(client, `data: ${JSON.stringify(payload)}\n\n`)
 const sendTo = (id, payload) => {
   const c = clients.get(id)
   if (c) send(c, payload)
 }
-const broadcast = (payload) => clients.forEach((c) => send(c, payload))
+// B.14: serialize a broadcast once, not once per recipient (100 users => 100x less stringify).
+const broadcast = (payload) => {
+  if (!clients.size) return
+  const data = `data: ${JSON.stringify(payload)}\n\n`
+  clients.forEach((c) => writeEvent(c, data))
+}
 const effectiveChatTitle = (id, isAdmin = admins.has(id)) => isAdmin ? ADMIN_TITLE : (customChatTitles[id] || undefined)
 function refreshChatTitle(id) {
   const live = clients.get(id)
@@ -470,7 +644,7 @@ function leaveParty(id, reason = 'leave') {
     pushParty(p)
   }
   pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
-  scheduleSave()
+  scheduleSave('chat')
 }
 
 // 파티장이 일행 전체를 바로 해체한다. (혼자 탈퇴해서 자연 해산되는 leaveParty 와 달리, 인원이 남아 있어도 전원 내보낸다)
@@ -485,7 +659,7 @@ function disbandParty(p) {
   }
   parties.delete(p.id)
   pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
-  scheduleSave()
+  scheduleSave('chat')
 }
 
 
@@ -503,7 +677,19 @@ let mbSeq = 1
 const mbMembers = (g) => (g.mb ? g.mb.members.map((m) => m.id) : [...mbOf].filter(([, b]) => b === g.id).map(([id]) => id))
 function mbPush(g, extra = {}) {
   if (!g.mb) return
-  for (const id of g.mb.members.map((m) => m.id)) sendTo(id, { t: 'mb', ev: 'state', bid: g.id, view: MB.viewOf(g.mb, { deadline: g.deadline, ...extra }) })
+  const view = MB.viewOf(g.mb, { deadline: g.deadline, ...extra })
+  g.leftSent ??= new Set()
+  for (const m of g.mb.members) {
+    if (m.status === 'fled') {
+      // v-B.17: 이탈한 사람(이탈 버튼 · 생존본능)에게는 '이탈' 결과 화면을 한 번만 보내고, 그 뒤 판 소식은 보내지 않는다.
+      if (g.leftSent.has(m.id)) continue
+      g.leftSent.add(m.id)
+      sendTo(m.id, { t: 'mb', ev: 'state', bid: g.id, view: { ...view, over: view.over || 'fled', members: view.members.map((x) => (x.id === m.id ? { ...x, result: 'fled' } : x)) } })
+      if (mbOf.get(m.id) === g.id) mbOf.delete(m.id)
+      continue
+    }
+    sendTo(m.id, { t: 'mb', ev: 'state', bid: g.id, view })
+  }
 }
 function mbClear(g, ids) {
   clearTimeout(g.timer)
@@ -530,7 +716,8 @@ function mbArm(g) {
   } else if (mb.phase === 'survive') {
     g.deadline = Date.now() + MB.MB_SURVIVE_MS
     g.timer = setTimeout(() => {
-      for (const m of MB.pendingSurvivors(mb)) MB.survive(mb, m.id, false)
+      // v-B.17: 고르지 못한 사람(접속이 끊긴 사람 포함)은 자동으로 버티기를 시도한다(의지력이 모자라면 쓰러진다).
+      for (const m of MB.pendingSurvivors(mb)) MB.survive(mb, m.id, true)
       mbAfter(g)
     }, MB.MB_SURVIVE_MS)
   }
@@ -626,6 +813,16 @@ const mbInfo = (c, me) => ({
   revive: !!me?.revive,
   boost: !!me?.boost,
 })
+// v-B.15: 다인 전투 참가 정보는 서버에 저장된 캐릭터 기준 상한으로 깎는다. (server/mbTrust.js)
+async function trustedMbInfo(c, me) {
+  const acc = await accounts.get(c.id)
+  const player = acc?.save?.player
+  if (!player || typeof player !== 'object' || !player.stats || typeof player.stats !== 'object') return { error: 'character-not-synced' }
+  return { info: clampMbInfo(mbInfo(c, me), player, { admin: !!acc.admin }) }
+}
+function addMbNote(g, text) {
+  if (g.mb) MB.noteMB(g.mb, text)
+}
 function mbDisconnect(id) {
   const bid = mbOf.get(id)
   const g = bid && mbs.get(bid)
@@ -642,16 +839,10 @@ function mbDisconnect(id) {
       mbLobbyCheck(g)
     }
   } else if (g.phase === 'fight') {
-    // 잠깐 끊긴 건 봐 준다. 30초 안에 돌아오지 않으면 전투에서 이탈한 것으로 친다.
-    setTimeout(() => {
-      if (clients.has(id) || g.phase !== 'fight') return
-      MB.dropMember(g.mb, id)
-      mbOf.delete(id)
-      if (g.mb.over) return mbEnd(g)
-      if (g.mb.phase === 'survive' && !MB.pendingSurvivors(g.mb).length) mbAfter(g)
-      else if (MB.ready(g.mb)) mbStep(g)
-      else mbPush(g)
-    }, 30_000)
+    // v-B.17: 접속이 끊겨도 전투에서 빼지 않는다. 그 사람의 차례는 1분(MB_INPUT_MS)이 지나면 자동으로 처리되고(막기/일반 공격),
+    // 다시 접속하면 hello 의 mb 로 같은 판에 그대로 돌아온다. 전투에서 빠지는 건 본인이 [전투 이탈]을 눌렀을 때뿐이다.
+    const m = g.mb?.members.find((x) => x.id === id)
+    if (m && m.status === 'alive') { addMbNote(g, `[${m.name}] 접속이 끊겼다. 차례가 오면 1분 뒤 자동으로 행동한다.`); mbPush(g) }
   }
 }
 
@@ -1178,14 +1369,17 @@ function addMail(entry) {
   const m = { id: `m${mail.seq++}`, at: Date.now(), read: false, ...entry }
   mail.log.push(m)
   if (mail.log.length > MAIL_LOG_CAP) mail.log.splice(0, mail.log.length - MAIL_LOG_CAP)
-  scheduleSave()
+  scheduleSave('mail')
   sendTo(m.to.id, { t: 'mail', mail: m })
   return m
 }
 const editReqs = new Map() // 관리자 수정 요청(당사자 동의 대기): rid → { rid, admin, target, changes, status }
 const storyRate = new Map() // 사연 투고 횟수 제한(접속 중에만 기억, 쓴 사람은 저장하지 않는다)
-const requireClient = (body, res) => {
+const requireClient = async (req, body, res) => {
+  const verified = await bearer(req)
+  if (!verified) { json(res, 401, { error: 'no-auth' }); return null }
   const id = cleanId(body?.id)
+  if (id !== verified) { json(res, 403, { error: 'wrong-account' }); return null }
   const c = id && clients.get(id)
   if (!c) {
     json(res, 409, { error: 'not-connected' })
@@ -1202,26 +1396,79 @@ function rateLimited(id) {
 }
 
 // ───────── 랭킹 ─────────
+// v-B.15: 랭킹 점수는 서버가 발급한 판(세션)의 씨앗과 진행 기록으로 서버가 직접 다시 계산한다.
+// (src/game/minigames/rankedVerify.js) 세션은 메모리에만 두며, 서버가 재시작되면 진행 중이던 판은 랭킹에 오르지 않는다.
+const RANK_SESSION_TTL_MS = 3 * 3600 * 1000
+const RANK_SESSIONS_PER_USER = 6
+const RANK_SESSIONS_PER_DAY = 120 // 한 계정이 하루에 열 수 있는 랭킹 판 수(과목 합계) — 씨앗 무한 뽑기 방지
+const rankSessions = new Map() // sid → { sid, id, course, seed, startedAt }
+const rankSessionDaily = new Map() // `${id}|${kstDate}` → count
+function pruneRankSessions(now = Date.now()) {
+  for (const [sid, s] of rankSessions) if (now - s.startedAt > RANK_SESSION_TTL_MS) rankSessions.delete(sid)
+  const today = kstDate()
+  for (const key of rankSessionDaily.keys()) if (!key.endsWith(`|${today}`)) rankSessionDaily.delete(key)
+}
+function openRankSession(id, course) {
+  const now = Date.now()
+  pruneRankSessions(now)
+  const dayKey = `${id}|${kstDate()}`
+  const used = rankSessionDaily.get(dayKey) ?? 0
+  if (used >= RANK_SESSIONS_PER_DAY) return null
+  rankSessionDaily.set(dayKey, used + 1)
+  const mine = [...rankSessions.values()].filter((s) => s.id === id).sort((a, b) => a.startedAt - b.startedAt)
+  while (mine.length >= RANK_SESSIONS_PER_USER) rankSessions.delete(mine.shift().sid)
+  if (rankSessions.size > 5000) rankSessions.delete(rankSessions.keys().next().value)
+  const s = { sid: crypto.randomBytes(18).toString('base64url'), id, course, seed: crypto.randomBytes(4).readUInt32LE(0), startedAt: now }
+  rankSessions.set(s.sid, s)
+  return s
+}
 const topOf = (course, limit = 20) =>
   Object.values(ranking[course])
     .sort((a, b) => b.score - a.score || a.at - b.at)
     .slice(0, limit)
     .map((r, i) => ({ rank: i + 1, id: r.id, name: r.name, score: r.score }))
 
+const HEALTH_DB_CACHE_MS = 60_000
+const healthCache = { at: 0, ok: null, pending: null }
+
+// ───────── 실시간(SSE) 접속 제한 ─────────
+// v-B.15: 한 IP 에서 수많은 SSE 를 열어 메모리·브로드캐스트 비용을 키우는 것을 막는다.
+// Render 같은 역방향 프록시 뒤에서는 프록시가 마지막에 붙인 X-Forwarded-For 값(가장 오른쪽)이 실제 접속 IP 다.
+const SSE_MAX_TOTAL = Math.max(10, Number(process.env.CHOROK_SSE_MAX) || 600)
+// 학교·가정 공유기처럼 여러 명이 한 IP 를 쓰는 경우를 고려해 넉넉하게 둔다(환경변수로 조절).
+const SSE_MAX_PER_IP = Math.max(1, Number(process.env.CHOROK_SSE_PER_IP) || 40)
+const sseByIp = new Map() // ip → 열린 SSE 수
+const clientIp = (req) => {
+  const xff = typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',').map((x) => x.trim()).filter(Boolean) : []
+  return (process.env.CHOROK_TRUST_PROXY !== '0' && xff.length ? xff[xff.length - 1] : req.socket?.remoteAddress) || 'unknown'
+}
+
 // ───────── 라우터 ─────────
 async function handleApi(req, res, url) {
   const route = url.pathname
 
   // 잠들기 방지용으로 UptimeRobot 등이 주기적으로 찌르는 주소. DB 도 함께 건드려 Supabase 무료 프로젝트가 일시정지되지 않게 한다.
+  // v-B.15: 외부 헬스체크가 아무리 잦아도 DB 확인은 최대 1분에 한 번만 한다(결과 캐시). Supabase 일시정지 방지 목적엔 충분하다.
   if (req.method === 'GET' && route === '/api/health') {
     let dbOk = null
-    if (db) dbOk = await db.query('select 1').then(() => true, () => false)
+    if (db) {
+      if (!healthCache.pending && Date.now() - healthCache.at >= HEALTH_DB_CACHE_MS) {
+        healthCache.pending = db.query('select 1').then(() => true, () => false).then((v) => {
+          healthCache.ok = v
+          healthCache.at = Date.now()
+          healthCache.pending = null
+          return v
+        })
+      }
+      dbOk = healthCache.pending ? await healthCache.pending : healthCache.ok
+    }
     return json(res, 200, { ok: true, online: clients.size, db: dbOk })
   }
 
   // (v72) Render/Supabase egress 를 줄이는 작업을 위한 계측치 조회. 관리자 키 필요. 서버가 재시작되면 0부터 다시 쌓인다.
   if (req.method === 'GET' && route === '/api/admin/metrics') {
-    if (!adminOk(url.searchParams.get('key') ?? '')) return json(res, 403, { error: 'bad-key' })
+    if (!await bearer(req)) return json(res, 401, { error: 'no-auth' })
+    if (!adminOk(req.headers['x-admin-key'] ?? '')) return json(res, 403, { error: 'bad-key' })
     const upMs = Date.now() - metrics.startedAt
     return json(res, 200, {
       ok: true,
@@ -1230,6 +1477,8 @@ async function handleApi(req, res, url) {
       ...metrics,
       snapshotSaveBytesAvg: metrics.snapshotSaveCount ? Math.round(metrics.snapshotSaveBytes / metrics.snapshotSaveCount) : 0,
       accountSaveBytesAvg: metrics.accountSaveCount ? Math.round(metrics.accountSaveBytes / metrics.accountSaveCount) : 0,
+      authLookupMsAvg: metrics.authLookups ? Math.round(metrics.authLookupMs / metrics.authLookups * 100) / 100 : 0,
+      economyOperationMsAvg: metrics.economyReadCount + metrics.economyWriteCount ? Math.round(metrics.economyOperationMs / (metrics.economyReadCount + metrics.economyWriteCount) * 100) / 100 : 0,
     })
   }
 
@@ -1247,28 +1496,53 @@ async function handleApi(req, res, url) {
 
   // 내 계정 (로그인 토큰 필요): 다른 기기에서 저장한 최신 기록을 받아 간다.
   if (req.method === 'GET' && route === '/api/account/me') {
-    const id = bearer(req)
+    const id = await bearer(req, { allowReset: true })
     if (!id) return json(res, 401, { error: 'no-auth' })
     const acc = await accounts.get(id, { withAvatar: true })
     if (!acc) return json(res, 401, { error: 'no-account' })
     return json(res, 200, { ok: true, user: A.publicAccount(acc) })
   }
 
+  // B.14: no authentication or DB round-trip for a public feature flag.
+  // The client checks this before opening any verified-economy wallet polling.
+  if (req.method === 'GET' && route === '/api/economy/status') {
+    return json(res, 200, { ok: true, tradingEnabled: VERIFIED_ECONOMY_ENABLED })
+  }
+
+  // B.10: 서버 전용 신뢰 장부 조회. 게임 저장의 숫자는 거래 재고로 취급하지 않는다.
+  if (req.method === 'GET' && route === '/api/economy/wallet') {
+    const id = await bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    if (rateLimited(`economy-read:${id}`)) return json(res, 429, { error: 'slow-down' })
+    const wallet = await verifiedEconomy.wallet(id)
+    return json(res, 200, { ok: true, wallet, tradingEnabled: VERIFIED_ECONOMY_ENABLED, migration: 'not-automated' })
+  }
+  if (req.method === 'GET' && route === '/api/economy/market') {
+    const id = await bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    if (rateLimited(`economy-read:${id}`)) return json(res, 429, { error: 'slow-down' })
+    return json(res, 200, { ok: true, listings: await verifiedEconomy.marketplace(id), tradingEnabled: VERIFIED_ECONOMY_ENABLED })
+  }
+
   // 벼룩시장 목록: 물건 종류별로(상점 순서) 1개당 값이 싼 것부터. 올린 사람은 알려 주지 않고, 본인 것만 mine 으로 표시한다.
   if (req.method === 'GET' && route === '/api/market') {
-    const id = cleanId(url.searchParams.get('id'))
-    if (!id || !clients.get(id)) return json(res, 409, { error: 'not-connected' })
+    const id = await bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    if (id !== cleanId(url.searchParams.get('id'))) return json(res, 403, { error: 'wrong-account' })
+    if (!clients.get(id)) return json(res, 409, { error: 'not-connected' })
     const order = new Map(ITEMS.map((it, i) => [it.id, i]))
     const list = [...market.listings]
       .sort((a, b) => order.get(a.item) - order.get(b.item) || a.price - b.price || a.at - b.at)
       .map((l) => ({ id: l.id, item: l.item, qty: l.qty, price: l.price, total: l.price * l.qty, mine: l.seller === id }))
-    return json(res, 200, { ok: true, listings: list })
+    return json(res, 200, { ok: true, listings: list, maintenance: true })
   }
 
   // 인적사항 카드 조회: 접속해 있는 사람만 볼 수 있다. 상대가 접속 중이 아니어도 마지막으로 저장된 카드가 나온다.
   if (req.method === 'GET' && route === '/api/card') {
-    const id = cleanId(url.searchParams.get('id'))
-    if (!id || !clients.get(id)) return json(res, 409, { error: 'not-connected' })
+    const id = await bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    if (id !== cleanId(url.searchParams.get('id'))) return json(res, 403, { error: 'wrong-account' })
+    if (!clients.get(id)) return json(res, 409, { error: 'not-connected' })
     const target = cleanId(url.searchParams.get('target'))
     const c = target && cards[target]
     if (!c) return json(res, 404, { error: 'no-card' })
@@ -1276,11 +1550,40 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, card: { ...c, id: target }, online: !!live, title: live?.title ?? null })
   }
 
+  // 브라우저 EventSource 는 Authorization 헤더를 실을 수 없으므로 POST 인증으로 단기 티켓을 발급한다.
+  if (req.method === 'POST' && route === '/api/events/ticket') {
+    const id = await bearer(req)
+    if (!id) return json(res, 401, { error: 'no-auth' })
+    if (rateLimited(`ticket:${id}`)) return json(res, 429, { error: 'slow-down' })
+    const body = await readBody(req)
+    if (!body || (body.id && cleanId(body.id) !== id)) return json(res, 403, { error: 'wrong-account' })
+    if (eventTickets.size > 2000) for (const [key, t] of eventTickets) if (t.expires < Date.now()) eventTickets.delete(key)
+    const ticket = crypto.randomBytes(32).toString('base64url')
+    // bearer() has already verified this signed token against the DB session version.
+    const claims = A.readTokenClaims(accounts.secret, String(req.headers.authorization).replace(/^Bearer\s+/i, ''))
+    eventTickets.set(ticket, { id, version: claims.version, isAdmin: !!(body.key && adminOk(body.key)), expires: Date.now() + EVENT_TICKET_TTL })
+    return json(res, 200, { ok: true, ticket, expiresIn: EVENT_TICKET_TTL / 1000 })
+  }
+
   if (req.method === 'GET' && route === '/api/events') {
-    const id = cleanId(url.searchParams.get('id'))
-    const name = cleanName(url.searchParams.get('name')) || id
-    if (!id) return json(res, 400, { error: 'bad-id' })
-    const isAdmin = adminOk(url.searchParams.get('key') ?? '')
+    const ticket = url.searchParams.get('ticket')
+    const t = ticket && eventTickets.get(ticket)
+    if (!t || t.expires <= Date.now()) return json(res, 401, { error: 'no-auth' })
+    const acc = await accounts.get(t.id)
+    if (!acc || (acc.sessionVersion ?? 0) !== t.version || acc.mustReset) return json(res, 401, { error: 'no-auth' })
+    const id = t.id
+    // 표시 이름도 브라우저 URL 이 아닌 저장된 캐릭터 정보에 바인딩한다.
+    const name = cleanName(acc.save?.character?.name) || id
+    if (url.searchParams.has('id') && cleanId(url.searchParams.get('id')) !== id) return json(res, 403, { error: 'wrong-account' })
+    eventTickets.delete(ticket) // 재사용/공유된 티켓으로 동일 계정의 SSE 접속을 탈취하지 못하게 한다.
+    const ip = clientIp(req)
+    const replacing = clients.has(t.id) // 같은 계정 재접속은 이전 연결을 밀어내므로 총량이 늘지 않는다
+    if ((sseByIp.get(ip) ?? 0) >= SSE_MAX_PER_IP || (!replacing && clients.size >= SSE_MAX_TOTAL)) {
+      metrics.sseRejected++
+      return json(res, 503, { error: 'too-many-connections' })
+    }
+    sseByIp.set(ip, (sseByIp.get(ip) ?? 0) + 1)
+    const isAdmin = t.isAdmin
     if (isAdmin) admins.add(id)
     metrics.sseConnectCount++
     res.writeHead(200, {
@@ -1308,7 +1611,7 @@ async function handleApi(req, res, url) {
       // 5분 이상 차이 날 때만 저장을 예약한다. (메모리 값은 매번 최신으로 갱신되므로 화면·관리자 도구엔 영향 없다)
       const staleSave = !m || now - (m.lastSeen ?? 0) > 5 * 60_000
       members[id] = { id, name, firstSeen: m?.firstSeen ?? now, lastSeen: now, visits: (m?.visits ?? 0) + (prev ? 0 : 1) }
-      if (staleSave) scheduleSave()
+      if (staleSave) scheduleSave('members')
     }
     clients.set(id, client)
     const pid = partyOf.get(id)
@@ -1345,6 +1648,12 @@ async function handleApi(req, res, url) {
       })(),
     })
     if (party) pushParty(party)
+    // v-B.17: 다인 전투 중에 끊겼다 돌아오면 같은 판에 그대로 이어서 싸운다(hello 에 판을 실어 보냈다).
+    {
+      const g = mbs.get(mbOf.get(id))
+      const m = g?.phase === 'fight' ? g.mb?.members.find((x) => x.id === id && x.status === 'alive') : null
+      if (m && !prev) { addMbNote(g, `[${m.name}] 다시 접속했다.`); mbPush(g) }
+    }
     pushPresence({ add: [presenceEntry(id)] })
     // 이미 끊긴 연결에 쓰다가 예외가 나면(close 이벤트가 아직 안 와도 생길 수 있다) 서버 전체가 죽는다 — 반드시 감싼다.
     const ping = setInterval(() => {
@@ -1356,6 +1665,9 @@ async function handleApi(req, res, url) {
     }, 20_000)
     req.on('close', () => {
       clearInterval(ping)
+      const left = (sseByIp.get(ip) ?? 1) - 1
+      if (left > 0) sseByIp.set(ip, left)
+      else sseByIp.delete(ip)
       if (clients.get(id) === client) {
         clients.delete(id)
         invites.delete(id)
@@ -1372,7 +1684,7 @@ async function handleApi(req, res, url) {
             p.members = [nextLeader, ...p.members.filter(m => m !== nextLeader)]
             pushPartyMsg(p, makeMsg(null, '파티장이 접속을 종료하여 온라인 멤버에게 파티장 권한이 넘어갔다.', { system: true }))
             pushParty(p)
-            scheduleSave()
+            scheduleSave('chat')
           }
         }
         pushPresence({ remove: [id] })
@@ -1397,6 +1709,8 @@ async function handleApi(req, res, url) {
     return json(res, 200, {
       course,
       week: 'this',
+      submissionsPaused: false,
+      verified: true,
       ...weekInfo,
       top: topOf(course),
       me: mine ? { score: mine.score, rank: all.findIndex((r) => r.id === me) + 1 } : null,
@@ -1405,7 +1719,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method !== 'POST') return json(res, 404, { error: 'not-found' })
-  const body = await readBody(req, route === '/api/card' ? 400_000 : route.startsWith('/api/account/') ? ACCOUNT_BODY_MAX : 10_000)
+  const body = await readBody(req, route === '/api/card' ? 400_000 : route === '/api/ranking' ? 200_000 : route.startsWith('/api/account/') ? ACCOUNT_BODY_MAX : 10_000)
   if (!body) return json(res, 400, { error: 'bad-json' })
 
   // ───────── 계정 (가입 · 로그인 · 저장 · 아이디 찾기) ─────────
@@ -1413,8 +1727,8 @@ async function handleApi(req, res, url) {
     const id = nfc(typeof body.id === 'string' ? body.id.trim() : '')
     const password = typeof body.password === 'string' ? body.password : ''
     const twitter = typeof body.twitter === 'string' ? body.twitter.trim().replace(/^@/, '') : ''
-    if (!ID_RULE.test(id)) return json(res, 400, { error: 'bad-id' })
-    if (password.length < 4) return json(res, 400, { error: 'bad-password' })
+    if (!NEW_ID_RULE.test(id)) return json(res, 400, { error: 'bad-id' })
+    if (!validNewPassword(password)) return json(res, 400, { error: 'bad-password' })
     if (!twitter) return json(res, 400, { error: 'no-twitter' })
     if (rateLimited(`auth:${id}`)) return json(res, 429, { error: 'slow-down' })
     if (await accounts.get(id)) return json(res, 409, { error: 'taken' })
@@ -1425,11 +1739,13 @@ async function handleApi(req, res, url) {
       twitterNorm: A.normTwitter(twitter),
       createdAt: Date.now(),
       admin: !!(body.adminKey && adminOk(body.adminKey)),
+      passwordPolicy: 2,
+      sessionVersion: 0,
       save: null,
       updatedAt: Date.now(),
     }
     await accounts.put(acc)
-    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id, acc.sessionVersion ?? 0), user: A.publicAccount(acc) })
   }
 
   // 로그인. 서버에 계정이 없고 이 브라우저에 옛 기록(local)이 있으면, 비밀번호가 맞을 때 그 기록을 서버로 옮긴다. (자동 이전)
@@ -1440,9 +1756,14 @@ async function handleApi(req, res, url) {
     if (rateLimited(`auth:${id}`) || loginBlocked(id)) return json(res, 429, { error: 'slow-down' })
     const local = body.local && typeof body.local === 'object' && body.local.id === id ? body.local : null
     const localOk = !!local && local.passwordHash === A.legacyHash(password, id)
-    let acc = await accounts.get(id, { withAvatar: true })
+    // v-B.15: 사진 바이트 없이 읽는다. 바뀐 것이 있을 때만 저장하고, 화면용 사진은 응답 직전에 따로 채운다.
+    // (예전에는 로그인할 때마다 계정 본채와 프로필 사진 줄을 통째로 다시 썼다)
+    let acc = await accounts.get(id)
     let migrated = false
+    let changed = false
     if (!acc) {
+      // 클라이언트가 임의로 만든 "옛 계정"은 소유권을 증명할 수 없다. 기본 설정에서는 이전 금지.
+      if (process.env.CHOROK_ALLOW_UNVERIFIED_ADOPT !== '1') return json(res, 403, { error: 'legacy-migration-paused' })
       if (!localOk) {
         loginFails.get(id)?.push(Date.now()) ?? loginFails.set(id, [Date.now()])
         return json(res, 401, { error: 'bad-login' })
@@ -1453,17 +1774,19 @@ async function handleApi(req, res, url) {
         twitter: String(local.twitter ?? ''),
         twitterNorm: A.normTwitter(local.twitter),
         createdAt: Number(local.createdAt) || Date.now(),
-        admin: !!local.admin,
+        admin: false, // 브라우저 복원 자료는 관리자 권한의 근거가 될 수 없다.
         ...A.pickGame(local),
         updatedAt: Date.now(),
       }
       migrated = true
+      changed = true
     } else {
       const legacy = typeof acc.passwordHash === 'string' && acc.passwordHash.startsWith('legacy$')
       const pwOk = legacy ? acc.passwordHash === `legacy$${A.legacyHash(password, id)}` : A.verifyPassword(password, acc.passwordHash)
       if (pwOk && legacy) {
         acc.passwordHash = A.hashPassword(password) // 처음 로그인하는 순간 안전한 방식으로 바꾼다
         delete acc.adopted
+        changed = true
       }
       if (!pwOk) {
         loginFails.get(id)?.push(Date.now()) ?? loginFails.set(id, [Date.now()])
@@ -1471,29 +1794,35 @@ async function handleApi(req, res, url) {
       }
       // 이 브라우저에서 서버에 못 보낸 플레이(dirty)가 있고, 그 사이 다른 기기가 저장하지 않았다면 이 브라우저 쪽을 남긴다.
       if (localOk && local.dirty && Number(local.syncBase) === (acc.updatedAt || 0)) {
-        Object.assign(acc, A.pickGame(local), { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
+        Object.assign(acc, A.reconcileAvatars(A.pickGame(local), acc), { updatedAt: Math.max(Date.now(), (acc.updatedAt || 0) + 1) })
         migrated = true
+        changed = true
       }
     }
-    if (body.adminKey && adminOk(body.adminKey)) acc.admin = true
+    if (body.adminKey && adminOk(body.adminKey) && !acc.admin) {
+      acc.admin = true
+      changed = true
+    }
     loginFails.delete(id)
-    await accounts.put(acc)
-    return json(res, 200, { ok: true, migrated, mustReset: !!acc.mustReset, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+    if (changed) await accounts.put(acc)
+    const full = (db && (await accounts.get(id, { withAvatar: true }))) || acc
+    return json(res, 200, { ok: true, migrated, mustReset: !!full.mustReset, token: A.makeToken(accounts.secret, id, full.sessionVersion ?? 0), user: A.publicAccount(full) })
   }
 
   // 비밀번호 바꾸기(로그인 토큰 필요). 관리자가 임시 비밀번호를 발급한 뒤, 본인이 로그인해서 새 비밀번호로 바꿀 때 쓴다.
   if (route === '/api/account/password') {
-    const id = bearer(req)
+    const id = await bearer(req, { allowReset: true })
     if (!id) return json(res, 401, { error: 'no-auth' })
     const acc = await accounts.get(id)
     if (!acc) return json(res, 401, { error: 'no-account' })
     const password = typeof body.password === 'string' ? body.password : ''
-    if (password.length < 4) return json(res, 400, { error: 'bad-password' })
+    if (acc.passwordPolicy === 2 ? !validNewPassword(password) : password.length < 4) return json(res, 400, { error: 'bad-password' })
     if (rateLimited(`auth:${id}`)) return json(res, 429, { error: 'slow-down' })
     acc.passwordHash = A.hashPassword(password)
+    acc.sessionVersion = (acc.sessionVersion ?? 0) + 1
     delete acc.mustReset
     await accounts.put(acc)
-    return json(res, 200, { ok: true })
+    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id, acc.sessionVersion) })
   }
 
   // 자동 이전: 서버 저장이 생기기 전부터 로그인해 있던 브라우저가 접속하자마자 자기 기록을 올린다. (비밀번호 입력 없이)
@@ -1502,6 +1831,7 @@ async function handleApi(req, res, url) {
   if (route === '/api/account/adopt') {
     const local = body.local && typeof body.local === 'object' ? body.local : null
     const id = nfc(typeof local?.id === 'string' ? local.id.trim() : '')
+    if (process.env.CHOROK_ALLOW_UNVERIFIED_ADOPT !== '1') return json(res, 403, { error: 'legacy-migration-paused' })
     if (!ID_RULE.test(id) || !/^[0-9a-f]{8}$/.test(String(local.passwordHash ?? ''))) return json(res, 400, { error: 'bad-local' })
     if (rateLimited(`auth:${id}`) || rateLimited('adopt:all')) return json(res, 429, { error: 'slow-down' })
     if (await accounts.get(id)) return json(res, 409, { error: 'exists' })
@@ -1517,12 +1847,12 @@ async function handleApi(req, res, url) {
       updatedAt: Date.now(),
     }
     await accounts.put(acc)
-    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id), user: A.publicAccount(acc) })
+    return json(res, 200, { ok: true, token: A.makeToken(accounts.secret, id, acc.sessionVersion ?? 0), user: A.publicAccount(acc) })
   }
 
   // 게임 저장 (로그인 토큰 필요). 브라우저가 저장할 때마다 몇 초 모아서 보낸다.
   if (route === '/api/account/save') {
-    const id = bearer(req)
+    const id = await bearer(req)
     if (!id) return json(res, 401, { error: 'no-auth' })
     const acc = await accounts.get(id) // 사진은 해시만 — 평소 자동저장에서는 사진 바이트를 전혀 안 읽는다
     if (!acc) return json(res, 401, { error: 'no-account' })
@@ -1546,6 +1876,13 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, ids })
   }
 
+  // 관리자 라우트는 비밀 키뿐 아니라 로그인 세션과 요청 ID 일치도 필요하다.
+  if (route.startsWith('/api/admin/') && route !== '/api/admin/verify') {
+    const actor = await bearer(req)
+    if (!actor) return json(res, 401, { error: 'no-auth' })
+    if (actor !== cleanId(body.id)) return json(res, 403, { error: 'wrong-account' })
+  }
+
   // 관리자: 계정 문제(비밀번호를 잊음 등)가 생긴 사람에게 임시 비밀번호를 발급한다.
   // 본인이 그 임시 비밀번호로 로그인하면 곧바로 새 비밀번호를 정해야 한다(mustReset). 관리자는 원래 비밀번호를 알 수도, 볼 수도 없다.
   if (route === '/api/admin/account/reset') {
@@ -1560,6 +1897,7 @@ async function handleApi(req, res, url) {
     if (!acc) return json(res, 400, { error: 'no-account' }) // 404 는 이 호출을 거는 game/auth.js 의 api() 가 '서버 없음'으로 오인해, 진짜 사유가 가려진다
     const temp = crypto.randomBytes(5).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8)
     acc.passwordHash = A.hashPassword(temp)
+    acc.sessionVersion = (acc.sessionVersion ?? 0) + 1
     acc.mustReset = true
     await accounts.put(acc)
     return json(res, 200, { ok: true, target, tempPassword: temp })
@@ -1606,9 +1944,7 @@ async function handleApi(req, res, url) {
     if (!ADMIN_KEY) return json(res, 503, { error: 'admin-disabled' })
     if (keyBlocked()) return json(res, 429, { error: 'slow-down' })
     if (!adminOk(body.key)) return json(res, 403, { error: 'bad-key' })
-    admins.add(id)
-    const live = clients.get(id)
-    if (live) { live.isAdmin = true; refreshChatTitle(id) }
+    // 키 확인만 수행한다. 미인증 요청은 특정 계정에 관리자 직함을 부여할 수 없다.
     return json(res, 200, { ok: true })
   }
 
@@ -1627,7 +1963,7 @@ async function handleApi(req, res, url) {
       .map((t) => ({ id: t.id, title: typeof t.title === 'string' ? t.title.slice(0, 80) : '' }))
     bgmPlaylist = list
     broadcast({ t: 'bgm', playlist: bgmPlaylist })
-    scheduleSave()
+    scheduleSave('bgm')
     return json(res, 200, { ok: true, playlist: bgmPlaylist })
   }
 
@@ -1648,7 +1984,7 @@ async function handleApi(req, res, url) {
     if (title) customChatTitles[target] = title
     else delete customChatTitles[target]
     const displayed = refreshChatTitle(target)
-    scheduleSave()
+    scheduleSave('social')
     return json(res, 200, { ok: true, target, title: title || null, displayedTitle: displayed })
   }
 
@@ -1758,34 +2094,130 @@ async function handleApi(req, res, url) {
       const paper = (stories.papers[today] ??= [])
       const no = paper.reduce((m, s) => Math.max(m, s.no), 0) + 1
       paper.push({ no, text: st.text, at: Date.now() })
-      scheduleSave()
+      scheduleSave('stories')
       return json(res, 200, { ok: true, no, date: today })
     }
-    scheduleSave()
+    scheduleSave('stories')
     return json(res, 200, { ok: true, rejected: true })
   }
 
-  if (route === '/api/ranking') {
-    rollWeek()
-    const id = cleanId(body.id)
-    const course = body.course
-    const score = Number(body.score)
-    if (!id || !COURSES.includes(course) || !Number.isFinite(score) || score < 0 || score > 1e9) {
-      return json(res, 400, { error: 'bad-score' })
-    }
-    if (admins.has(id)) return json(res, 200, { ok: true, ignored: 'admin' }) // 관리자는 랭킹에 오르지 않는다
-    const name = cleanName(body.name) || id
-    const prev = ranking[course][id]
-    const best = !prev || score > prev.score
-    if (best) ranking[course][id] = { id, name, score: Math.round(score * 10) / 10, at: Date.now() }
-    else if (prev.name !== name) prev.name = name
-    scheduleSave()
-    const all = Object.values(ranking[course]).sort((a, b) => b.score - a.score || a.at - b.at)
-    return json(res, 200, { ok: true, newBest: best, rank: all.findIndex((r) => r.id === id) + 1 })
+  // v-B.15: 랭킹 판 시작 — 서버가 씨앗을 정하고 시작 시각을 잰다.
+  if (route === '/api/ranking/session') {
+    const actor = await bearer(req)
+    if (!actor) return json(res, 401, { error: 'no-auth' })
+    if (actor !== cleanId(body.id)) return json(res, 403, { error: 'wrong-account' })
+    if (!RANKED_COURSES.includes(body.course)) return json(res, 404, { error: 'unknown-course' })
+    if (rateLimited(`rank-session:${actor}`)) return json(res, 429, { error: 'slow-down' })
+    const s = openRankSession(actor, body.course)
+    if (!s) return json(res, 429, { error: 'daily-limit' })
+    return json(res, 200, { ok: true, sid: s.sid, seed: s.seed, ttl: RANK_SESSION_TTL_MS / 1000 })
   }
 
-  const me = requireClient(body, res)
+  // v-B.15: 랭킹 제출 — 브라우저가 보낸 점수는 쓰지 않고, 세션 씨앗 + 진행 기록을 서버가 재현해 점수를 계산한다.
+  if (route === '/api/ranking') {
+    const actor = await bearer(req)
+    if (!actor) return json(res, 401, { error: 'no-auth' })
+    if (actor !== cleanId(body.id)) return json(res, 403, { error: 'wrong-account' })
+    if (rateLimited(`rank-submit:${actor}`)) return json(res, 429, { error: 'slow-down' })
+    const s = typeof body.sid === 'string' ? rankSessions.get(body.sid) : null
+    if (!s || s.id !== actor || Date.now() - s.startedAt > RANK_SESSION_TTL_MS) return json(res, 410, { error: 'session-expired' })
+    if (s.course !== body.course) return json(res, 409, { error: 'wrong-course' })
+    const v = verifyRankedRun(s.course, s.seed, body.proof, Date.now() - s.startedAt, body.score)
+    if (!v.ok) {
+      metrics.rankRejected++
+      return json(res, 422, { error: 'ranking-rejected', reason: v.error })
+    }
+    metrics.rankVerified++
+    const acc = await accounts.get(actor)
+    // 관리자 계정은 스탯·자원을 마음대로 조절할 수 있어 랭킹에 올리지 않는다.
+    if (acc?.admin || admins.has(actor)) return json(res, 200, { ok: true, score: v.score, recorded: false, reason: 'admin' })
+    if (!(v.score > 0)) return json(res, 200, { ok: true, score: 0, recorded: false })
+    rollWeek()
+    const prev = ranking[s.course][actor]
+    let recorded = false
+    if (!prev || v.score > prev.score) {
+      const name = clients.get(actor)?.name || members[actor]?.name || cleanName(acc?.save?.character?.name) || actor
+      ranking[s.course][actor] = { id: actor, name, score: v.score, at: Date.now() }
+      recorded = true
+      scheduleSave('ranking')
+    }
+    const all = Object.values(ranking[s.course]).sort((a, b) => b.score - a.score || a.at - b.at)
+    return json(res, 200, { ok: true, score: v.score, recorded, best: ranking[s.course][actor].score, rank: all.findIndex((r) => r.id === actor) + 1 })
+  }
+
+  const me = await requireClient(req, body, res)
   if (!me) return
+  // 기존 클라이언트용 거래 API는 검증되지 않은 player.money/inventory를 사용하므로 영구 차단한다.
+  // 신뢰 장부의 전용 API는 별도 플래그로 활성화하더라도 입금은 서버 검증 액션에서만 가능하다.
+  if (route.startsWith('/api/market/') || route === '/api/gift') {
+    return json(res, 503, { error: 'economy-verification-pending' })
+  }
+
+  if (route.startsWith('/api/economy/')) {
+    if (!VERIFIED_ECONOMY_ENABLED) return json(res, 503, { error: 'verified-economy-not-activated' })
+    if (rateLimited(`economy-write:${me.id}`)) return json(res, 429, { error: 'slow-down' })
+    const reqData = { actor: me.id, requestId: body.requestId }
+    try {
+      if (route === '/api/economy/expedition/enter') {
+        return json(res, 200, await verifiedEconomy.expeditionEnter({ ...reqData, siteId: body.siteId }))
+      }
+      if (route === '/api/economy/expedition/move') {
+        return json(res, 200, await verifiedEconomy.expeditionMove({ ...reqData, position: body.position }))
+      }
+      if (route === '/api/economy/expedition/attempt') {
+        return json(res, 200, await verifiedEconomy.expeditionAttempt({ ...reqData, nodeId: body.nodeId }))
+      }
+      if (route === '/api/economy/expedition/leave') {
+        return json(res, 200, await verifiedEconomy.expeditionLeave(reqData))
+      }
+      if (route === '/api/economy/gather/start') {
+        return json(res, 200, await verifiedEconomy.startGather({ ...reqData, spotId: body.spotId }))
+      }
+      if (route === '/api/economy/gather/claim') {
+        return json(res, 200, await verifiedEconomy.claimGather(reqData))
+      }
+      if (route === '/api/economy/craft') {
+        return json(res, 200, await verifiedEconomy.craft({ ...reqData, recipeId: body.recipeId, qty: body.qty }))
+      }
+      if (route === '/api/economy/garden/buy') {
+        return json(res, 200, await verifiedEconomy.buySeed({ ...reqData, seedId: body.seedId, qty: body.qty }))
+      }
+      if (route === '/api/economy/garden/plant') {
+        return json(res, 200, await verifiedEconomy.plantSeed({ ...reqData, seedId: body.seedId, slot: body.slot }))
+      }
+      if (route === '/api/economy/garden/harvest') {
+        return json(res, 200, await verifiedEconomy.harvestSeed({ ...reqData, slot: body.slot }))
+      }
+      if (route === '/api/economy/npc/sell') {
+        return json(res, 200, await verifiedEconomy.npcSell({ ...reqData, item: body.item, qty: body.qty }))
+      }
+      if (route === '/api/economy/market/list') {
+        return json(res, 200, await verifiedEconomy.list({ ...reqData, item: body.item, qty: body.qty, price: body.price }))
+      }
+      if (route === '/api/economy/market/buy') {
+        return json(res, 200, await verifiedEconomy.buy({ ...reqData, listing: body.listing }))
+      }
+      if (route === '/api/economy/market/cancel') {
+        return json(res, 200, await verifiedEconomy.cancel({ ...reqData, listing: body.listing }))
+      }
+      if (route === '/api/economy/market/claim') {
+        return json(res, 200, await verifiedEconomy.claim(reqData))
+      }
+      if (route === '/api/economy/gift') {
+        const to = cleanId(body.to)
+        if (!to || !await accounts.get(to)) return json(res, 404, { error: 'no-target' })
+        return json(res, 200, await verifiedEconomy.gift({ ...reqData, to, items: body.items, note: body.note ?? '' }))
+      }
+      if (route === '/api/economy/gift/claim') {
+        return json(res, 200, await verifiedEconomy.claimGift({ ...reqData, giftId: body.giftId }))
+      }
+    } catch (error) {
+      if (error instanceof EconomyError) return json(res, error.status, { error: error.code })
+      throw error // DB 실패는 성공으로 간주하지 않는다.
+    }
+    return json(res, 404, { error: 'not-found' })
+  }
+
 
   // 당사자의 답: 관리자의 수정 요청에 동의/거절. 동의하면 클라이언트가 자기 캐릭터에 적용한 뒤 이 답을 보낸다.
   if (route === '/api/admin/edit/respond') {
@@ -1828,7 +2260,7 @@ async function handleApi(req, res, url) {
       if (pending) return json(res, 200, { ok: true, pending: true, alreadyPending: true, requestId: pending.id })
       if (mutualFriends(me.id).length >= 200 || mutualFriends(to).length >= 200) return json(res, 400, { error: 'friend-limit' })
       const m = addMail({ kind: 'friend-request', status: 'pending', from: { id: me.id, name: me.name }, to: { id: to, name: members[to].name }, text: `${me.name} 님이 친구 신청을 보냈습니다.` })
-      scheduleSave()
+      scheduleSave('mail')
       return json(res, 200, { ok: true, pending: true, requestId: m.id })
     }
     if (action === 'remove' || action === 'block') {
@@ -1840,7 +2272,7 @@ async function handleApi(req, res, url) {
     }
     if (action === 'block') updateBlock(true)
     if (action === 'unblock') updateBlock(false)
-    scheduleSave()
+    scheduleSave('social', 'mail')
     return json(res, 200, { ok: true })
   }
   if (route === '/api/friends/respond') {
@@ -1866,7 +2298,7 @@ async function handleApi(req, res, url) {
       addMail({ kind: 'note', from: { id: me.id, name: me.name }, to: { id: from, name: members[from].name }, text: `${me.name} 님이 친구 신청을 수락했다. 서로 친구로 추가했다.` })
     }
     notifyFriendsChanged(me.id, from)
-    scheduleSave()
+    scheduleSave('social', 'mail')
     return json(res, 200, { ok: true, accepted: accept })
   }
 
@@ -1890,7 +2322,7 @@ async function handleApi(req, res, url) {
   if (route === '/api/mail/read') {
     let n = 0
     for (const m of mail.log) if (m.to.id === me.id && !m.read) (m.read = true), n++
-    if (n) scheduleSave()
+    if (n) scheduleSave('mail')
     return json(res, 200, { ok: true, n })
   }
   // 쪽지를 보낼 수 있는 사람 목록(서버에 접속한 적 있는 계정)
@@ -1915,7 +2347,7 @@ async function handleApi(req, res, url) {
     arr.push(now)
     storyRate.set(me.id, arr)
     stories.pending.push({ id: `s${stories.seq++}`, text, at: now })
-    scheduleSave()
+    scheduleSave('stories')
     return json(res, 200, { ok: true })
   }
 
@@ -1929,14 +2361,14 @@ async function handleApi(req, res, url) {
       history[channel].push(msg)
       if (history[channel].length > HISTORY_MAX) history[channel].shift()
       broadcast({ t: 'chat', channel, msg })
-      scheduleSave()
+      scheduleSave('chat')
       return json(res, 200, { ok: true })
     }
     if (channel === 'party') {
       const p = parties.get(partyOf.get(me.id))
       if (!p) return json(res, 400, { error: 'no-party' })
       pushPartyMsg(p, makeMsg(me, text))
-      scheduleSave()
+      scheduleSave('chat')
       return json(res, 200, { ok: true })
     }
     return json(res, 400, { error: 'bad-channel' })
@@ -1957,91 +2389,8 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true })
   }
 
-  // ───────── 벼룩시장 ─────────
-  if (route === '/api/market/list') {
-    const item = ITEMS.find((i) => i.id === body.item)
-    const qty = body.qty
-    const price = body.price
-    if (!item || !Number.isInteger(qty) || qty < 1 || qty > MARKET_QTY_MAX) return json(res, 400, { error: 'bad-qty' })
-    if (!Number.isInteger(price) || price < 1 || price > MARKET_PRICE_MAX) return json(res, 400, { error: 'bad-price' })
-    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
-    if (market.listings.filter((l) => l.seller === me.id).length >= MARKET_MAX_PER_SELLER) return json(res, 400, { error: 'too-many-listings' })
-    const l = { id: `m${market.seq++}`, seller: me.id, item: item.id, qty, price, at: Date.now() }
-    market.listings.push(l)
-    scheduleSave()
-    return json(res, 200, { ok: true, id: l.id })
-  }
-  if (route === '/api/market/buy') {
-    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
-    const i = market.listings.findIndex((l) => l.id === body.listing)
-    if (i < 0) return json(res, 404, { error: 'gone' }) // 이미 팔렸거나 내려갔다
-    const l = market.listings[i]
-    if (l.seller === me.id) return json(res, 400, { error: 'own' })
-    market.listings.splice(i, 1)
-    const total = l.price * l.qty
-    market.proceeds[l.seller] = (market.proceeds[l.seller] || 0) + total
-    scheduleSave()
-    const seller = clients.get(l.seller)
-    if (seller) send(seller, { t: 'market-sold' })
-    return json(res, 200, { ok: true, item: l.item, qty: l.qty, total })
-  }
-  if (route === '/api/market/cancel') {
-    const i = market.listings.findIndex((l) => l.id === body.listing && l.seller === me.id)
-    if (i < 0) return json(res, 404, { error: 'gone' })
-    const [l] = market.listings.splice(i, 1)
-    scheduleSave()
-    return json(res, 200, { ok: true, item: l.item, qty: l.qty })
-  }
-  if (route === '/api/market/claim') {
-    const amount = market.proceeds[me.id] || 0
-    if (amount > 0) {
-      delete market.proceeds[me.id]
-      scheduleSave()
-    }
-    return json(res, 200, { ok: true, amount })
-  }
-
-  // 선물: 접속 중인 다른 사람에게 아이템을 합쳐 최대 GIFT_MAX 개까지. 돈(냥)은 보낼 수 없다.
-  if (route === '/api/gift') {
-    const target = clients.get(cleanId(body.to))
-    if (!target || target.id === me.id) return json(res, 400, { error: 'no-target' })
-    const given = body.items
-    if (!given || typeof given !== 'object' || Array.isArray(given)) return json(res, 400, { error: 'bad-items' })
-    const ids = new Set(ITEMS.map((i) => i.id))
-    // 무구는 한 벌마다 고유 id('w-칼#꼬리'). 무구 종류의 id 와 꼬리 형식이 맞으면 통과시킨다.
-    const okInstance = (k) => /^w-[a-z]+#[a-z0-9]{4,12}$/.test(k) && ids.has(k.split('#')[0])
-    const clean = {}
-    let total = 0
-    for (const [k, v] of Object.entries(given)) {
-      if (!ids.has(k) && !okInstance(k)) return json(res, 400, { error: 'items-only' }) // money 를 포함해 아이템이 아닌 건 모두 거절
-      if (!Number.isInteger(v) || v < 1 || (k.includes('#') && v !== 1)) return json(res, 400, { error: 'bad-items' })
-      clean[k] = v
-      total += v
-    }
-    if (total < 1 || total > GIFT_MAX) return json(res, 400, { error: 'too-many' })
-    if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
-    // 무구의 강화: 보내는 무구에 한해, 알려진 스탯 · 0~5 정수만 통과시킨다.
-    const enh = {}
-    const ENH_KEYS = ['insight', 'comprehension', 'control', 'endurance', 'aggression', 'agility']
-    if (body.enh && typeof body.enh === 'object' && !Array.isArray(body.enh)) {
-      for (const [wid, st] of Object.entries(body.enh)) {
-        if (!clean[wid] || !okInstance(wid) || !st || typeof st !== 'object') continue
-        const one = {}
-        for (const k of ENH_KEYS) {
-          const v = Math.floor(Number(st[k]))
-          if (v >= 1) one[k] = Math.min(5, v)
-        }
-        if (Object.keys(one).length) enh[wid] = one
-      }
-    }
-    const note = cleanNote(body.note)
-    if (note.length > MAIL_MAX) return json(res, 400, { error: 'too-long' })
-    const gift = { id: `g${seq++}`, from: { id: me.id, name: me.name }, items: clean, ...(Object.keys(enh).length ? { enh } : {}), ...(note ? { note } : {}), at: Date.now() }
-    send(target, { t: 'gift', gift })
-    addMail({ kind: 'gift', from: { id: me.id, name: me.name }, to: { id: target.id, name: target.name }, text: note, items: clean, ...(Object.keys(enh).length ? { enh } : {}) })
-    return json(res, 200, { ok: true, giftId: gift.id, to: { id: target.id, name: target.name } })
-  }
-
+  // 레거시 장터 및 선물 처리기는 무검증 잔액/재고를 사용하므로 B.10부터 제거했다.
+  // 계정에 기록된 구 장터 매물·대금·쪽지 기록은 DB 스냅샷에 그대로 보존된다.
 
   // ───────── 동아리 ─────────
   // 가입 신청서 제출 = 그 자리에서 가입. 한 번에 한 동아리만, 탈퇴 뒤 24시간은 다른 동아리에도 못 들어간다.
@@ -2059,7 +2408,7 @@ async function handleApi(req, res, url) {
     if (!name) return json(res, 400, { error: 'bad-app' })
     clubs[clubId].members[me.id] = { id: me.id, name, grade, age, hope, joinedAt: Date.now() }
     clubOf[me.id] = clubId
-    scheduleSave()
+    scheduleSave('clubs')
     return json(res, 200, { ok: true, club: clubId })
   }
   if (route === '/api/club/leave') {
@@ -2070,7 +2419,7 @@ async function handleApi(req, res, url) {
     delete clubs[clubId].members[me.id]
     delete clubOf[me.id]
     clubLeftAt[me.id] = Date.now()
-    scheduleSave()
+    scheduleSave('clubs')
     return json(res, 200, { ok: true })
   }
   // v-B.07 본관 3층 교실의 학생기록부: 그 학년으로 등록된 학생 전원의 이름(인적사항 카드 기준, 학년이 없으면 나이로 셈한다).
@@ -2105,7 +2454,7 @@ async function handleApi(req, res, url) {
     const msg = makeMsg(me, text)
     clubChat[clubId].push(msg)
     if (clubChat[clubId].length > CLUB_CHAT_CAP) clubChat[clubId].shift()
-    scheduleSave()
+    scheduleSave('clubChat')
     for (const pid of Object.keys(clubs[clubId].members)) sendTo(pid, { t: 'clubChat', club: clubId, msg })
     return json(res, 200, { ok: true })
   }
@@ -2472,6 +2821,9 @@ async function handleApi(req, res, url) {
     const enemy = enemyById(body.enemy)
     if (!enemy || !MB.isMulti(enemy)) return json(res, 400, { error: 'not-multi' })
     if (mbOf.has(me.id)) return json(res, 409, { error: 'already-in-battle' })
+    const trusted = await trustedMbInfo(me, body.me)
+    if (trusted.error) return json(res, 409, { error: trusted.error })
+    if (mbOf.has(me.id)) return json(res, 409, { error: 'already-in-battle' }) // 저장 캐릭터를 읽는 사이 다른 요청이 먼저 시작했을 수 있다
     const p = parties.get(partyOf.get(me.id))
     const mates = p ? p.members.filter((m) => m !== me.id && clients.has(m)) : []
     if (!mates.length) return json(res, 409, { error: 'need-party' })
@@ -2479,7 +2831,7 @@ async function handleApi(req, res, url) {
     if (rateLimited(me.id)) return json(res, 429, { error: 'slow-down' })
     const free = mates.filter((m) => !mbOf.has(m))
     if (!free.length) return json(res, 409, { error: 'mates-busy' })
-    const g = { id: `b${mbSeq++}`, host: me.id, enemyId: enemy.id, phase: 'lobby', invited: Object.fromEntries(free.map((m) => [m, 'wait'])), joins: { [me.id]: mbInfo(me, body.me) }, mb: null, timer: null, deadline: null }
+    const g = { id: `b${mbSeq++}`, host: me.id, enemyId: enemy.id, phase: 'lobby', invited: Object.fromEntries(free.map((m) => [m, 'wait'])), joins: { [me.id]: trusted.info }, mb: null, timer: null, deadline: null }
     mbs.set(g.id, g)
     mbOf.set(me.id, g.id)
     for (const m of free) {
@@ -2498,8 +2850,11 @@ async function handleApi(req, res, url) {
     const g = mbs.get(body.bid)
     if (!g || g.phase !== 'lobby' || g.invited[me.id] !== 'wait') return json(res, 410, { error: 'expired' })
     if (body.accept) {
+      const trusted = await trustedMbInfo(me, body.me)
+      if (trusted.error) return json(res, 409, { error: trusted.error })
+      if (g.phase !== 'lobby' || g.invited[me.id] !== 'wait') return json(res, 410, { error: 'expired' })
       g.invited[me.id] = 'yes'
-      g.joins[me.id] = mbInfo(me, body.me)
+      g.joins[me.id] = trusted.info
     } else {
       g.invited[me.id] = 'no'
       mbOf.delete(me.id)
@@ -2537,6 +2892,20 @@ async function handleApi(req, res, url) {
     if (r.error) return json(res, 409, r)
     if (g.mb.phase === 'survive') mbPush(g)
     else mbAfter(g)
+    return json(res, 200, { ok: true })
+  }
+
+  // v-B.17: 본인이 직접 누르는 [전투 이탈]. 보상도 손실도 없이 빠지고, 남은 일행은 그대로 싸운다.
+  if (route === '/api/mb/flee') {
+    const g = mbs.get(body.bid)
+    if (!g || g.phase !== 'fight' || mbOf.get(me.id) !== g.id) return json(res, 410, { error: 'expired' })
+    const m = g.mb.members.find((x) => x.id === me.id)
+    if (!m || m.status !== 'alive') return json(res, 409, { error: 'not-fighting' })
+    MB.dropMember(g.mb, me.id)
+    if (g.mb.over) mbEnd(g)
+    else if (g.mb.phase === 'survive' && !MB.pendingSurvivors(g.mb).length) mbAfter(g)
+    else if (g.mb.phase === 'input' && MB.ready(g.mb)) mbStep(g)
+    else mbPush(g)
     return json(res, 200, { ok: true })
   }
 
@@ -2588,7 +2957,7 @@ async function handleApi(req, res, url) {
     pushPartyMsg(p, makeMsg(null, `${me.name}님이 일행으로 합류했다.`, { system: true }))
     pushParty(p)
     pushPresence({ update: presenceChanged.map(presenceEntry).filter(Boolean) })
-    scheduleSave()
+    scheduleSave('chat')
     return json(res, 200, { ok: true })
   }
 
@@ -2722,14 +3091,17 @@ server.listen(PORT, () => console.log(`초록동색 서버: http://localhost:${P
 
 // Render 는 재배포 · 재시작 직전에 SIGTERM 을 보낸다. 아직 안 쓴 기록이 있으면 마저 저장하고 끈다.
 let shuttingDown = false
-async function shutdown(sig) {
+async function shutdown(sig, code = 0) {
   if (shuttingDown) return
   shuttingDown = true
+  server.close() // 새 요청은 받지 않는다(진행 중인 요청은 마저 끝난다)
   console.log(`${sig} 수신: 기록을 저장하고 종료합니다.`)
   clearTimeout(saveTimer)
-  if (dirty || saveTimer) {
+  // 영역 표시 없이 메모리에서만 바뀐 값(접속 기록 등)까지 남도록, 종료 때는 모든 영역 행을 한 번 쓴다.
+  if (db) for (const d of SNAPSHOT_DOMAIN_KEYS) dirtyDomains.add(d)
+  if (dirty || saveTimer || dirtyDomains.size || legacyDirty) {
     try {
-      await saveNow()
+      await saveNow({ forceLegacy: true }) // 종료 때는 예전 통짜 행도 최신으로 맞춰 둔다(이전 버전 롤백 대비)
     } catch (e) {
       console.error('종료 전 저장 실패:', e.message)
     }
@@ -2739,13 +3111,41 @@ async function shutdown(sig) {
   } catch (e) {
     console.error('계정 파일 저장 실패:', e.message)
   }
+  // A save may already be in flight even when `dirty` is false.
+  await snapshotWriteChain.catch(() => {})
+  clearTimeout(cardsSaveTimer)
+  if (dirtyCards.size) {
+    try { await saveCardsNow() } catch (e) { console.error('종료 전 인적사항 카드 저장 실패:', e.message) }
+  }
   await db?.end().catch(() => {})
-  process.exit(0)
+  process.exit(code)
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
 
 // 어딘가에서 예외를 못 잡고 흘렸다고 해서 접속해 있는 모두의 연결이 통째로 끊기면 안 된다.
 // 로그만 남기고 서버는 계속 돌린다(이미 깨진 요청 하나는 응답을 못 받겠지만, 그게 전체가 죽는 것보단 낫다).
-process.on('uncaughtException', (e) => console.error('uncaughtException:', e))
+// v-B.15: 다만 '잡히지 않은 예외'는 메모리 상태(파티·전투·저장 대기열)가 어디까지 바뀌었는지 알 수 없는 상태다.
+// 그대로 계속 돌면 엉킨 상태로 저장할 수 있으므로, 저장을 시도한 뒤 종료해 Render 가 새 프로세스로 다시 띄우게 한다.
+// (CHOROK_EXIT_ON_FATAL=0 이면 예전처럼 로그만 남기고 계속 돈다.) 처리되지 않은 Promise 거절은 로그만 남긴다.
+process.on('uncaughtException', (e) => {
+  console.error('uncaughtException:', e)
+  if (process.env.CHOROK_EXIT_ON_FATAL === '0') return
+  setTimeout(() => process.exit(1), 8000).unref() // 저장이 멈춰도 8초 뒤에는 반드시 끝낸다
+  shutdown('uncaughtException', 1)
+})
 process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e))
+
+// v-B.15: 검증 장부의 오래된 멱등 기록(op 행) 정리 — 6시간마다, 기본 30일 보관.
+const ECONOMY_OP_RETENTION_MS = Math.max(1, Number(process.env.CHOROK_ECONOMY_OP_RETENTION_DAYS) || 30) * 86_400_000
+async function pruneEconomyOps() {
+  try {
+    const n = await verifiedEconomy.pruneOperations(ECONOMY_OP_RETENTION_MS)
+    metrics.economyOpsPruned += n
+    if (n) console.log(`검증 장부: ${n}개의 오래된 멱등 기록을 정리했습니다.`)
+  } catch (e) {
+    console.error('검증 장부 멱등 기록 정리 실패:', e.message)
+  }
+}
+setTimeout(pruneEconomyOps, 60_000).unref()
+setInterval(pruneEconomyOps, 6 * 3600_000).unref()

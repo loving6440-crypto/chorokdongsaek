@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, Store } from 'lucide-react'
 import { ITEMS, countOf, itemOf } from '../game/items'
-import { marketFetch } from '../net/online'
+import { marketFetch, getVerifiedEconomyStatus } from '../net/online'
+import VerifiedEconomyPanel from './VerifiedEconomyPanel'
 import ItemIcon from './ItemIcon'
 import { canAddInventory } from '../game/inventoryCapacity'
 
@@ -12,9 +13,23 @@ export const MARKET_PRICE_MAX = 99999
  * 벼룩시장: 사람들이 값을 정해 올린 물건을 사고판다. 올린 사람은 보이지 않고, 물건 종류별로 싼 것부터 나온다.
  * onSell(itemId, qty, price) / onBuy(listing) / onCancel(listing) 은 Promise<{ ok, message }> 를 돌려준다.
  */
-export default function Market({ player, admin = false, online, onSell, onBuy, onCancel, onOpen }) {
+export default function Market(props) {
+  const { online } = props
+  const [verifiedMode, setVerifiedMode] = useState(null)
+  useEffect(() => {
+    let alive = true
+    if (!online) { setVerifiedMode(false); return undefined }
+    getVerifiedEconomyStatus().then((r) => { if (alive) setVerifiedMode(!!r.ok && !!r.tradingEnabled) })
+    return () => { alive = false }
+  }, [online])
+  if (online && verifiedMode === null) return <section aria-label="벼룩시장"><h2 className="font-serif text-2xl text-gold">벼룩시장</h2><p className="mt-3 text-sm text-paper/70">서버의 거래 상태를 확인하고 있습니다.</p></section>
+  return verifiedMode ? <VerifiedEconomyPanel/> : <LegacyMarket {...props}/>
+}
+
+function LegacyMarket({ player, admin = false, online, onSell, onBuy, onCancel, onOpen }) {
   const [listings, setListings] = useState(null) // null = 불러오는 중
   const [failed, setFailed] = useState(false)
+  const [maintenance, setMaintenance] = useState(false)
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(null) // 사려는 매물
@@ -26,6 +41,7 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
     const r = await marketFetch()
     if (r.ok) {
       setListings(r.listings)
+      setMaintenance(!!r.maintenance)
       setFailed(false)
     } else {
       setFailed(true)
@@ -81,6 +97,7 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
         </button>
       </div>
       <p className="mt-1 text-sm text-paper/65">사람들이 값을 매겨 올린 물건을 사고팔 수 있다. 누가 올렸는지는 알 수 없다. 물건 종류별로 싼 것부터 보인다.</p>
+      {maintenance && <p role="status" className="mt-2 rounded border border-gold/40 p-3 text-sm text-gold">거래 보안 점검 중입니다. 기존 매물은 보존되지만 새 등록·구매·취소·정산은 잠시 중단됩니다.</p>}
       <p className="mt-2 text-sm text-paper/65">
         소지금 <b className="text-gold" data-money-market>{admin ? '∞' : Math.floor(player.money)}냥</b>
       </p>
@@ -112,12 +129,12 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
                 </p>
               </div>
               {l.mine ? (
-                <button type="button" disabled={busy} onClick={() => run(() => onCancel(l))} className="flat-btn-ghost !py-1 text-xs">
+                <button type="button" disabled={busy || maintenance} onClick={() => run(() => onCancel(l))} className="flat-btn-ghost !py-1 text-xs">
                   내리기
                 </button>
               ) : (
-                <button type="button" title={!hasSpace ? '소지품이 30칸을 넘어 구매할 수 없다' : undefined} disabled={!can || busy} onClick={() => setConfirm(l)} className="flat-btn !py-1 text-xs disabled:opacity-40">
-                  {can ? '구매' : '냥이 모자라다'}
+                <button type="button" title={!hasSpace ? '소지품이 30칸을 넘어 구매할 수 없다' : undefined} disabled={!can || busy || maintenance} onClick={() => setConfirm(l)} className="flat-btn !py-1 text-xs disabled:opacity-40">
+                  {maintenance ? '점검 중' : can ? '구매' : '냥이 모자라다'}
                 </button>
               )}
             </li>
@@ -160,7 +177,7 @@ export default function Market({ player, admin = false, online, onSell, onBuy, o
           </p>
           <button
             type="button"
-            disabled={busy || have < 1}
+            disabled={maintenance || busy || have < 1}
             onClick={() => run(() => onSell(sellItem.id, q, p))}
             className="flat-btn justify-center disabled:opacity-40"
           >

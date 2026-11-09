@@ -85,7 +85,7 @@ function BariCard({ face = 'bari', lines = [], note, hint, onNext, nextLabel = '
   if (!lines.length) return null
   return (
     <div className="ink-panel mt-3 flex items-start gap-3 rounded-2xl border-2 border-gold/70 p-3.5 shadow-lg sm:p-4">
-      <img src={FACE_SRC[face] ?? FACE_SRC.bari} alt="바리" className="size-14 shrink-0 rounded-xl bg-edge/10 object-cover object-top sm:size-16" draggable={false} />
+      <img src={FACE_SRC[face] ?? FACE_SRC.bari} alt="바리" className="npc-portrait size-14 shrink-0 rounded-xl bg-edge/10 object-cover object-top sm:size-16" draggable={false} />
       <div className="min-w-0 flex-1">
         <p className="inline-block rounded-full bg-gold-fill px-2.5 py-0.5 text-[11px] font-medium text-ink light:text-ink">바리</p>
         <div className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-paper/95 sm:text-sm">

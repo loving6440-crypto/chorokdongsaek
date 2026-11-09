@@ -60,7 +60,8 @@ export function createPlayer({ name, age, grade = null, avatar, stats, greeting 
     stats: { ...stats },
     spirit: SPIRIT_START,
     money: START_MONEY,
-    inventory: {},
+    inventory: { bag: 1 }, // v-B.17: 누구나 가방 하나를 갖고 시작한다
+    bagStarter: true,
     profile0: { name, greeting, age, grade, avatar }, // 최초 입학 때의 인적사항. 프로필을 고친 적이 없으면 남들에게는 이게 보인다.
     createdAt: Date.now(), // 캐릭터를 만든 시각 (업적 '신의 주시' 기준)
     hp: HP_MAX,

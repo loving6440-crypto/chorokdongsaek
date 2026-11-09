@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { markAdmin, serverFindIds, serverLogin, serverSignup } from '../game/auth'
 import { verifyAdminKey } from '../net/online'
 import logo from '../assets/logo.png'
@@ -29,6 +29,16 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
   const [loading, setLoading] = useState(false)
   const [adminKey, setAdminKey] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
+  const logoClicks = useRef([])
+  const logoGesture = () => {
+    const now = Date.now()
+    logoClicks.current = [...logoClicks.current.filter((t) => now - t < 5000), now]
+    if (logoClicks.current.length >= 7) {
+      logoClicks.current = []
+      setShowAdmin((visible) => !visible)
+      setAdminKey('')
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -42,6 +52,12 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
         setError(r.error)
       } else setFound(r.ids)
       return
+    }
+    if (mode === 'signup') {
+      if (!/^[A-Za-z]{8,40}$/.test(id.trim())) { setError('아이디는 영문자만 사용 가능하며 8~40자여야 합니다.'); return }
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+        setError('비밀번호는 8자 이상이며 영문과 숫자를 모두 포함해야 합니다.'); return
+      }
     }
     setLoading(true)
 
@@ -96,11 +112,11 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
 
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <div className="logo-tag relative mx-auto inline-block px-6 py-3">
+          <button type="button" onClick={logoGesture} aria-label="초록동색" className="logo-tag relative mx-auto inline-block px-6 py-3">
             <img src={logo} alt="草綠同色 초록동색" className="block h-24 w-auto select-none" draggable={false} />
             <span className="sparkle absolute -top-3 -right-3 text-2xl" aria-hidden="true" />
             <span className="sparkle absolute -bottom-2 -left-2 text-lg [animation-delay:-1.2s]" aria-hidden="true" />
-          </div>
+          </button>
           <p className="mt-4 text-sm text-paper/65">수련생 등록 및 로그인</p>
         </header>
 
@@ -160,7 +176,11 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
                 className={inputClass}
                 value={id}
                 onChange={(e) => setId(e.target.value)}
-                placeholder="2글자 이상"
+                placeholder={mode === 'signup' ? '영문만 8~40자' : '아이디'}
+                minLength={mode === 'signup' ? 8 : undefined}
+                maxLength={40}
+                pattern={mode === 'signup' ? '[A-Za-z]{8,40}' : undefined}
+                title={mode === 'signup' ? '아이디는 영문 8~40자만 허용됩니다.' : undefined}
                 autoComplete="username"
                 required
               />
@@ -176,7 +196,8 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
                 className={inputClass}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="4글자 이상"
+                placeholder={mode === 'signup' ? '8자 이상 · 영문과 숫자 필수' : '비밀번호'}
+                minLength={mode === 'signup' ? 8 : undefined}
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
               />
@@ -221,28 +242,14 @@ export default function AuthScreen({ theme, onToggleTheme, onSuccess, notice, pr
               </>
             )}
 
-            <div>
-              {!showAdmin ? (
-                <button type="button" onClick={() => setShowAdmin(true)} className="text-[11px] text-paper/40 underline-offset-2 hover:text-paper/70 hover:underline">
-                  관리자 계정이라면
-                </button>
-              ) : (
-                <>
-                  <label className={labelClass} htmlFor="auth-admin">
-                    관리자 키 (선택)
-                  </label>
-                  <input
-                    id="auth-admin"
-                    type="password"
-                    className={inputClass}
-                    value={adminKey}
-                    onChange={(e) => setAdminKey(e.target.value)}
-                    placeholder="관리자만 입력"
-                    autoComplete="off"
-                  />
-                </>
-              )}
-            </div>
+            {showAdmin && (
+              <div>
+                <label className={labelClass} htmlFor="auth-admin">관리자 키 (선택)</label>
+                <input id="auth-admin" type="password" className={inputClass}
+                  value={adminKey} onChange={(e) => setAdminKey(e.target.value)}
+                  placeholder="관리자만 입력" autoComplete="off" />
+              </div>
+            )}
 
             </>)}
 

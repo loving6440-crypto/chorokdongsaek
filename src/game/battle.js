@@ -16,12 +16,13 @@ export const PSY_SEAL_ROUNDS = 3
 /** 그슨대 [어둠 드리우기]의 의지력 흡수 주사위 면 수: 영력의 3/4 */
 export const darkDrainDie = (enemy) => Math.max(1, Math.floor(enemy.spirit * 0.75))
 
+// v-B.17: 아래 체력 · 공격력은 제작품(v-B.16)을 반영해 다시 맞춘 값이다. (bestiary.js 머리말 · VB_17_PATCH.md)
 export const ENEMIES = [
   {
     id: 'scarecrow',
     name: '허수아비 잡귀',
     blurb: '밭에서 떠도는 잡귀. 움직임이 단순하다.',
-    hp: 60,
+    hp: 64,
     atk: 6,
     act: 6,
     spirit: 5,
@@ -31,8 +32,8 @@ export const ENEMIES = [
     id: 'snake',
     name: '먹구렁이',
     blurb: '묵은 담벼락 밑에서 몸을 부풀려 덮치는 구렁이.',
-    hp: 90,
-    atk: 10,
+    hp: 99,
+    atk: 11,
     act: 9,
     spirit: 8,
     special: { label: '휘감기', note: '몸을 감아 조이고, 다음 내 턴엔 막기를 할 수 없다.' },
@@ -41,8 +42,8 @@ export const ENEMIES = [
     id: 'wonhon',
     name: '묵은 원귀',
     blurb: '오래 묵어 독이 오른 원귀. 한 방이 무겁다.',
-    hp: 130,
-    atk: 15,
+    hp: 147,
+    atk: 16,
     act: 14,
     spirit: 13,
     special: { label: '원한의 저주', note: '세 번의 상대 턴 동안 매번 피해가 스며든다.' },
@@ -56,8 +57,8 @@ export const ENEMIES = [
     tier: 1,
     partySize: 2,
     tags: ['다인 전투'],
-    hp: 110,
-    atk: 6,
+    hp: 163,
+    atk: 7,
     act: 7,
     spirit: 6,
     special: { label: '불똥 흩뿌리기', note: '사방으로 튀는 불똥. 막을 수 없는 피해를 입는다.' },
@@ -69,8 +70,8 @@ export const ENEMIES = [
     tier: 2,
     partySize: 2,
     tags: ['다인 전투'],
-    hp: 230,
-    atk: 11,
+    hp: 294,
+    atk: 13,
     act: 10,
     spirit: 10,
     special: { label: '짓누르는 그림자', note: '막을 수 없는 일격으로 몸을 짓누르고, 의지력을 빨아들이며, 다음 내 턴엔 막기를 할 수 없다.' },
@@ -85,8 +86,8 @@ export const ENEMIES = [
     partySize: 3,
     boss: true,
     tags: ['다인 전투', '보스'],
-    hp: 760,
-    atk: 17,
+    hp: 1155,
+    atk: 21,
     act: 14,
     spirit: 16,
     special: { label: '쇠 갉아먹기', note: '한 사람의 살과 의지를 갉아먹는다. 막을 수 없는 피해를 주고 의지력을 빨아들인다.' },
@@ -108,8 +109,8 @@ export const ENEMIES = [
     // 밸런스(v-B.02 몬테카를로 3000판, 3인·전원 스탯 18~20, 아이템 없이):
     //   숙련 플레이(도깨비불·효험·간파·막기 사용) 승률 약 23~24%, 평균 16라운드 — 불가살이(적정 스탯 8~10, 같은 방식 28%)보다 조금 어렵게 의도.
     //   단순 공격 위주 약 27%. 스탯 15~17이면 약 5%, 21~23이면 약 44%.
-    hp: 1400,
-    atk: 23,
+    hp: 2226,
+    atk: 30,
     act: 18,
     spirit: 24,
     // 간파로 올려다볼 때마다(그리고 체력 25% 미만이면 매 라운드) 커진다: 1단계마다 공격력 +2, 최대 5단계. (mbattle.js growBoss)

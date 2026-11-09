@@ -9,3 +9,6 @@ server/accounts.json
 .vscode
 .idea
 .DS_Store
+
+server/economy.json
+server/economy.json.*.tmp

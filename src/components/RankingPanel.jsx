@@ -48,6 +48,7 @@ export default function RankingPanel({ courseId, playerId, scoreLabel, refreshKe
   return (
     <div>
       {tabs}
+      {data.submissionsPaused && !last && <p role="status" className="mb-2 rounded border border-gold/40 p-2 text-xs text-gold">신규 랭킹 등록이 일시 중단되었습니다. 기존 기록은 조회할 수 있습니다.</p>}
       <p className="mb-2 flex items-center gap-1.5 text-xs text-paper/60" data-rank-head>
         <Trophy size={13} className="text-gold" />
         {last

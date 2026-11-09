@@ -43,6 +43,9 @@ function collectSources() {
   for (const c of GARDEN_CROPS) { add(c.id, { type: '텃밭', where: '비닐하우스', what: '씨앗을 심어 거둔다', level: 0 }); add(c.seedId, { type: '텃밭', where: '씨앗 상점', what: '3냥', level: 0 }) }
   for (const s of GARDEN_EXTRA_SEEDS) add(s.id, { type: '텃밭', where: '씨앗 상점', what: '3냥', level: 0 })
   for (const id of LOST_THINGS) add(id, { type: '이동', where: '건물 이동 중', what: '분실물 줍기', level: 0 })
+  // v-B.18 제작 실패작: 조리실 숯 · 공작소 쓰레기 (제작 칸에 제작법에 없는 조합을 올리면)
+  add('trash', { type: '제작 실패', where: '공작소', what: '제작법에 없는 조합으로 만들면', level: 0 })
+  add('charcoal', { type: '제작 실패', where: '조리실', what: '제작법에 없는 조합으로 만들면', level: 0 })
   // 볍씨: 도깨비 농장에서 볍씨 주머니를 열면 나온다 → 주머니를 얻는 레벨을 따른다.
   const pouch = src['rice-seeds']
   if (pouch) add('rice-grain', { type: '도깨비 농장', where: '볍씨 주머니 열기', what: '주머니 o개 → o d o개', level: Math.min(...pouch.map((s) => s.level ?? 0)) })
