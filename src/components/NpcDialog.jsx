@@ -10,7 +10,7 @@ export default function NpcDialog({ npc, src, face, dataNpc, children, lineClass
           src={src}
           alt={npc}
           data-face={face}
-          className="size-28 shrink-0 rounded-2xl bg-edge/10 object-cover object-top sm:size-36"
+          className="npc-portrait size-28 shrink-0 rounded-2xl bg-edge/10 object-cover object-top sm:size-36"
           draggable={false}
         />
       ) : (

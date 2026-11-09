@@ -59,7 +59,7 @@ export default function QuestBoard({ player, onAct }) {
               onClick={() => { setNpcId(n.id); setErr('') }}
               className={`tilt flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-left ${n.id === npcId ? 'bg-gold-fill/30' : 'bg-edge/[0.07] hover:bg-gold-fill/15'}`}
             >
-              <img src={faceOf(n, 'plain')} alt="" className="size-9 shrink-0 rounded-lg bg-edge/10 object-cover object-top" draggable={false} />
+              <img src={faceOf(n, 'plain')} alt="" className="npc-portrait size-9 shrink-0 rounded-lg bg-edge/10 object-cover object-top" draggable={false} />
               <span className="min-w-0">
                 <span className="block text-sm text-paper">{n.name}</span>
                 <span className={`block text-[10px] ${st.on ? 'text-gold' : 'text-paper/45'}`}>{st.text}</span>

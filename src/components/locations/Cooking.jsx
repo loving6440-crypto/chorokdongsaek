@@ -1,27 +1,37 @@
 import { useState } from 'react'
 import { CookingPot } from 'lucide-react'
 import { COOK_RECIPES, KITCHEN, canCook } from '../../game/cooking'
-import { countOf, itemOf } from '../../game/items'
+import { BENCH_SLOTS, matchRecipe } from '../../game/freeCraft'
+import CraftBench from '../CraftBench'
+import RecipeBook from '../RecipeBook'
+import { itemOf } from '../../game/items'
 import { withMeta } from './recipeMeta'
 import { useVerifiedLocationEconomy } from '../../hooks/useVerifiedLocationEconomy'
 
-// v-B.08: 요리법은 적정 레벨순. 분류 탭으로 걸러 본다.
+// v-B.18: [제작](제작 칸 10칸) · [제작법 보기](가나다순, 만들 수 있는 것만 보기 토글) 두 화면.
 const LISTED = withMeta(COOK_RECIPES)
-const TABS = [['all', '전체'], ['can', '만들 수 있음'], ['material', '재료'], ['etc', '요리']]
 
 /** 조리실: 등록된 조리법은 재료가 있으면 바로 조리한다. */
-export default function Cooking({ player, admin, onCook, online = false }) {
+export default function Cooking({ player, admin, onCook, onBench, online = false }) {
   const verified = useVerifiedLocationEconomy(online)
   const verifiedOn = verified.mode === 'verified'
   const viewPlayer = verifiedOn ? { ...player, inventory: verified.wallet?.inventory ?? {} } : player
   const free = admin && !verifiedOn
-  const [msg, setMsg] = useState('')
-  const [tab, setTab] = useState('all')
-  const known = LISTED.filter(({ r, group }) => tab === 'all' || (tab === 'can' ? free || canCook(viewPlayer, r) : group === tab))
-  const go = async (r) => {
-    if (verified.busy || verified.mode === 'pending' || verified.mode === 'error') return
-    const res = verifiedOn ? await verified.transact('craft', { recipeId: r.id, qty: 1 }) : onCook(r.id)
-    setMsg(res?.error ? `조리 실패: ${res.error}` : `${itemOf(r.result).name}을(를) ${verifiedOn ? '서버 장부에서 ' : ''}만들었다.`)
+  const [view, setView] = useState('bench') // v-B.18: 'bench'(제작) | 'book'(제작법 보기)
+  const [slots, setSlots] = useState(() => Array(BENCH_SLOTS).fill(null))
+  // v-B.18 [제작] 칸: 맞는 요리법이 있으면 그대로, 없으면 숯. 서버 검증 모드는 요리법에 맞는 조합만.
+  const benchGo = async (list) => {
+    if (verifiedOn) {
+      const m = matchRecipe(list, 'kitchen')
+      if (!m) return { error: '서버 검증 모드에서는 요리법에 맞는 조합만 만들 수 있다.' }
+      const res = await verified.transact('craft', { recipeId: m.recipe.id, qty: m.k })
+      return res?.error ? { error: verified.message || res.error } : { item: itemOf(m.recipe.result), qty: m.k, failed: false }
+    }
+    return onBench?.(list)
+  }
+  const loadRecipe = (r) => {
+    setSlots([...r.inputs.map(([id, n]) => ({ id, n })), ...Array(Math.max(0, BENCH_SLOTS - r.inputs.length)).fill(null)].slice(0, BENCH_SLOTS))
+    setView('bench')
   }
   return (
     <section aria-label={KITCHEN.name} data-kitchen>
@@ -31,50 +41,24 @@ export default function Cooking({ player, admin, onCook, online = false }) {
         <p className="text-sm leading-[1.9] break-keep text-paper/85" data-kitchen-desc>{KITCHEN.desc}</p>
       </div>
       <div className="ink-panel mt-4 w-full rounded-xl p-5">
-        <p className="flex items-center gap-1.5 text-[10px] tracking-[0.25em] text-yellow-500/80 light:text-yellow-700"><CookingPot size={12} aria-hidden />조리</p>
-        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="제작법 분류">
-          {TABS.map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} data-recipe-tab={id} onClick={() => setTab(id)} className={`rounded-full border px-2.5 py-0.5 text-[11px] ${tab === id ? 'border-gold/60 bg-gold/15 text-gold' : 'border-edge/25 text-paper/65 hover:text-paper'}`}>{label}</button>
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="조리실">
+          {[['bench', '제작'], ['book', '제작법 보기']].map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={view === id} data-kitchen-view={id} onClick={() => setView(id)} className={`tilt flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm ${view === id ? 'bg-gold-fill text-ink' : 'bg-edge/[0.07] text-paper/85 hover:bg-gold-fill/20'}`}>
+              {id === 'bench' && <CookingPot size={13} aria-hidden />}{label}
+            </button>
           ))}
         </div>
-        {known.length === 0 ? (
-          <p className="mt-3 text-sm text-paper/70" data-kitchen-empty>{tab === 'all' ? '등록된 조리실 제작법이 없다.' : '여기에 해당하는 요리법이 없다.'}</p>
-        ) : (
-          <ul className="mt-3 space-y-2" aria-label="요리법 목록">
-            {known.map(({ r, lv, depth, missing }) => {
-              const out = itemOf(r.result)
-              const ok = (verified.mode === 'legacy' || verifiedOn) && (free || canCook(viewPlayer, r))
-              return (
-                <li key={r.id} data-recipe={r.id} className="rounded-xl bg-shade/25 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-serif text-base text-paper">{out.name}</p>
-                      <p className="mt-0.5 text-xs text-paper/60">{r.note ?? out.desc}</p>
-                      {out.effectText && <p className="mt-1 text-xs leading-relaxed text-gold" data-recipe-effect>효과 · {out.effectText}</p>}
-                      <p className="mt-1 flex flex-wrap gap-1.5 text-[10px]" data-recipe-meta>
-                        <span className="rounded-full bg-gold/15 px-2 py-px text-gold" data-recipe-lv={lv ?? 'none'} title={lv == null ? '이 재료들은 아직 게임 안에서 얻을 곳이 없다. 다음 업데이트에서 수급처가 추가된다.' : undefined}>{lv == null ? `수급처 준비 중 · ${missing.join(', ')}` : `적정 레벨 ${lv}`}</span>
-                        {depth > 1 && <span className="rounded-full bg-shade/40 px-2 py-px text-paper/70" data-recipe-depth={depth}>{depth}단 제작</span>}
-                      </p>
-                      <p className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
-                        {r.inputs.map(([id, n]) => (
-                          <span key={id} className={`rounded-full border px-2 py-px ${countOf(viewPlayer, id) >= n ? 'border-edge/30 text-paper/80' : 'border-crimson/50 text-crimson'}`}>
-                            {itemOf(id).name} {n} <span className="opacity-60">({countOf(viewPlayer, id)})</span>
-                          </span>
-                        ))}
-                      </p>
-                    </div>
-                    <button type="button" data-cook={r.id} disabled={!ok || verified.busy} onClick={() => go(r)} className="flat-btn shrink-0 text-xs disabled:opacity-40">만들기</button>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-        {msg && <p className="mt-3 text-sm text-gold" role="status" data-kitchen-msg>{msg}</p>}
+        <div className="mt-4">
+          {view === 'bench' ? (
+            <CraftBench player={viewPlayer} place="kitchen" slots={slots} setSlots={setSlots} onCraft={benchGo} disabled={verified.busy || verified.mode === 'pending' || verified.mode === 'error' ? '잠시 뒤에 다시 시도해 주세요.' : ''} />
+          ) : (
+            <RecipeBook listed={LISTED} player={viewPlayer} free={free} canMake={(r) => canCook(viewPlayer, r)} onLoad={loadRecipe} emptyText="등록된 조리실 제작법이 없다." />
+          )}
+        </div>
       </div>
       {free && (
         <div className="ink-panel mt-4 w-full rounded-xl p-4" data-kitchen-admin>
-          <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 모든 요리법을 알고 있고, 조리에 재료가 들지 않는다</p>
+          <p className="text-[10px] tracking-[0.25em] text-crimson">관리자 · 요리법대로 만들 때 재료가 들지 않는다</p>
         </div>
       )}
     </section>

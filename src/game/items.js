@@ -6,7 +6,7 @@ import { B07_ITEMS } from './itemsB07.js'
 import { B08_SHEET_ITEMS, B08_SHEET_OVERRIDES } from './itemsB08.js'
 import { B08_ITEMS } from './recipesB08.js'
 import { B16_ITEM_EFFECTS } from './itemEffectsB16.js'
-import { BAG_ITEM } from './itemsB17.js'
+import { BAG_ITEM, TRASH_ITEM } from './itemsB17.js'
 /**
  * 아이템 정의. 재화 단위는 '냥'.
  *
@@ -970,6 +970,7 @@ const RAW_ITEMS = [
   ...B08_ITEMS,
   // v-B.17: 가방(누구나 하나씩 · 매점 50냥)
   BAG_ITEM,
+  TRASH_ITEM, // v-B.18 공작소 실패작
 ]
 
 /**

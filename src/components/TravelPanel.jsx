@@ -58,7 +58,7 @@ export default function TravelPanel({ traveling, mp, onFastTravel }) {
             <div className="mt-3 flex flex-wrap justify-center gap-3">
               {npcs.map((n) => (
                 <div key={n.id} className="flex flex-col items-center gap-1">
-                  <img src={n.portrait} alt={n.name} className="size-10 rounded-full border border-gold/30 object-cover" />
+                  <img src={n.portrait} alt={n.name} className="npc-portrait size-10 rounded-full border border-gold/30 object-cover" />
                   <span className="text-[11px] text-paper/70">{n.name}</span>
                 </div>
               ))}

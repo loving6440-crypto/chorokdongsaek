@@ -65,7 +65,7 @@ export const V79_ITEMS = [
   {"id": "goblin-mask", "kind": "craft", "name": "도깨비 탈", "price": null, "desc": "바리가 쓰고 다니는 것과 같은 붉은 색의, 푸른 뿔이 달린 도깨비 탈. 얼굴을 가리는 것 외에도 어떤 것을 받아들이는 효과를 주기도 한다.", "effectText": "", "effect": {}, "battle": false},
   {"id": "rice-cake", "kind": "food", "name": "쑥떡", "price": null, "desc": "전자렌지로 제조. 매점 담당이 전자렌지 닦고 가라고 한소리 했다. 나눠주면 용서해줄지도?", "effectText": "체력과 의지력 +15", "effect": {"hp": 15, "mp": 15}, "battle": false},
   {"id": "carp-soup", "kind": "food", "name": "잉어탕", "price": null, "desc": "기생충 조심. 손질이 조금 까다롭다. 나이든 입맛이네, 라고 누군가가 말했다.", "effectText": "", "effect": {}, "battle": false},
-  {"id": "charcoal", "kind": "food", "name": "숯", "price": null, "desc": "아직 젊어서 먹는다고 죽진 않는데 우리는 급식실이 있다는 사실을 잊지 말도록 해.", "effectText": "기본 스탯이 10 미만인 육조 하나를 +1, 체력 -30", "effect": {"trainUnder10": true}, "battle": false},
+  {"id": "charcoal", "kind": "material", "tags": ["재료"], "name": "숯", "price": null, "desc": "아직 젊어서 먹는다고 죽진 않는데 우리는 급식실이 있다는 사실을 잊지 말도록 해. 조리실에서 제작법에 없는 걸 만들려다 보면 이게 나온다.", "effectText": "제작용 재료.", "effect": {}, "battle": false},
   {"id": "snakeberry-jam", "kind": "food", "name": "뱀딸기잼", "price": null, "desc": "뱀딸기를 설탕에 졸여 만든 잼.", "effectText": "", "effect": {}, "battle": false},
   {"id": "mushroom-stew", "kind": "food", "name": "버섯전골", "price": null, "desc": "버섯을 잔뜩 넣어 끓인 전골.", "effectText": "", "effect": {}, "battle": false},
   {"id": "king-mushroom-stew", "kind": "food", "name": "왕버섯전골", "price": null, "desc": "왕버섯이 들어간 커다란 버섯전골.", "effectText": "", "effect": {}, "battle": false},

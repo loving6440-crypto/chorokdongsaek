@@ -15,3 +15,17 @@ export const BAG_ITEM = {
   battle: false,
 }
 
+
+// v-B.18 공작소에서 제작법에 없는 조합으로 만들면 나오는 것. 재료로 친다(매점에서 1냥).
+export const TRASH_ID = 'trash'
+export const TRASH_ITEM = {
+  id: TRASH_ID,
+  kind: 'material',
+  tags: ['재료'],
+  name: '쓰레기',
+  price: null,
+  desc: '무언가를 만들려고 했던 흔적. 무엇이었는지는 만든 사람만 안다. 아마 만든 사람도 모를 것이다.',
+  effectText: '제작용 재료.',
+  effect: {},
+  battle: false,
+}

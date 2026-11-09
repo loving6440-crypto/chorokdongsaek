@@ -336,7 +336,8 @@ test('B18 수정: 시트 대사 · 제목 반영, 퀘스트 대사에 따옴표 
 })
 
 test('B18 아이템: 제작 전 효과 표시 · 완성품 판매 · 수량만큼 사용', async () => {
-  for (const f of ['../src/components/locations/Workshop.jsx', '../src/components/locations/Cooking.jsx']) assert.match(read(f), /data-recipe-effect>효과 · \{out\.effectText\}/)
+  assert.match(read('../src/components/RecipeBook.jsx'), /data-recipe-effect>효과 · \{out\.effectText\}/)
+  for (const f of ['../src/components/locations/Workshop.jsx', '../src/components/locations/Cooking.jsx']) assert.match(read(f), /<RecipeBook listed=\{LISTED\}/)
   const S = await import('../src/game/sell.js')
   const { RECIPES } = await import('../src/game/crafting.js')
   const { COOK_RECIPES } = await import('../src/game/cooking.js')
@@ -364,4 +365,64 @@ test('B18 아이템: 제작 전 효과 표시 · 완성품 판매 · 수량만�
   const game = read('../src/Game.jsx')
   assert.match(game, /onUse=\{useItemN\}/)
   assert.match(game, /const times = battleRef\.current \|\| mbLiveRef\.current \? 1 :/)
+})
+
+
+test('B18 자유 제작: 제작 칸 10칸, 제작법과 맞으면 그대로(배수면 여러 개), 없으면 조리실 숯 · 공작소 쓰레기', async () => {
+  const F = await import('../src/game/freeCraft.js')
+  const { RECIPES } = await import('../src/game/crafting.js')
+  const { COOK_RECIPES } = await import('../src/game/cooking.js')
+  assert.equal(F.BENCH_SLOTS, 10)
+  const wr = RECIPES.find((r) => r.inputs.length >= 2)
+  const inv = Object.fromEntries(wr.inputs.map(([id, n]) => [id, n * 3]))
+  const p = { inventory: inv }
+  // 정확히 맞으면 1개
+  const one = F.benchCraft(p, wr.inputs.map(([id, n]) => ({ id, n })), 'workshop')
+  assert.ok(!one.error, one.error)
+  assert.equal(one.failed, false)
+  assert.equal(one.player.inventory[wr.result], (inv[wr.result] || 0) + 1)
+  // 같은 물건을 여러 칸에 나눠 올려도 합쳐서 본다 · 딱 2배면 2개
+  const split = wr.inputs.flatMap(([id, n]) => [{ id, n }, { id, n }])
+  const two = F.benchCraft(p, split, 'workshop')
+  assert.equal(two.qty, 2)
+  // 맞지 않는 조합 → 쓰레기, 재료는 사라진다
+  const [a0] = wr.inputs[0]
+  const bad = F.benchCraft(p, [{ id: a0, n: 1 }], 'workshop')
+  assert.equal(bad.failed, true)
+  assert.equal(bad.item.id, 'trash')
+  assert.equal(bad.player.inventory.trash, 1)
+  assert.equal(bad.player.inventory[a0], inv[a0] - 1)
+  // 조리실 실패작은 숯
+  const cr = COOK_RECIPES[0]
+  const pk = { inventory: Object.fromEntries(cr.inputs.map(([id, n]) => [id, n * 2])) }
+  assert.equal(F.benchCraft(pk, cr.inputs.map(([id, n]) => ({ id, n })), 'kitchen').item.id, cr.result)
+  const ck = F.benchCraft(pk, [{ id: cr.inputs[0][0], n: 1 }], 'kitchen')
+  assert.equal(ck.item.id, 'charcoal')
+  // 가진 것보다 많이 올리면 안 된다
+  assert.match(F.benchCraft(p, [{ id: a0, n: 999 }], 'workshop').error, /모자란다/)
+  assert.match(F.benchCraft(p, [], 'workshop').error, /비어 있다/)
+  // 미리 보기
+  assert.equal(F.benchPreview([{ id: a0, n: 1 }], 'workshop').fail, true)
+  assert.equal(F.benchPreview(wr.inputs.map(([id, n]) => ({ id, n })), 'workshop').recipe.id, wr.id)
+  // 숯은 이제 효과 없는 재료, 쓰레기는 새 재료(아이콘 포함)
+  assert.equal(itemOf('charcoal').kind, 'material')
+  assert.deepEqual(itemOf('charcoal').effect, {})
+  assert.equal(itemOf('trash').name, '쓰레기')
+  assert.match(read('../src/components/iconsB17.jsx'), /trash: \{ bg: 'sand'/)
+  // UI 연결
+  const bench = read('../src/components/CraftBench.jsx')
+  assert.match(bench, /onDrop=/)
+  assert.match(bench, /draggable=\{can > 0\}/)
+  const book = read('../src/components/RecipeBook.jsx')
+  assert.match(book, /만들 수 있는 제작만 보기/)
+  assert.match(book, /localeCompare\(itemOf\(b\.r\.result\)\?\.name \?\? '', 'ko'\)/)
+  for (const f of ['../src/components/locations/Workshop.jsx', '../src/components/locations/Cooking.jsx']) {
+    const src = read(f)
+    assert.match(src, /\['bench', '제작'\], \['book', '제작법 보기'\]/)
+    assert.match(src, /<CraftBench /)
+  }
+  assert.match(read('../src/Game.jsx'), /onBench=\{benchCraftAct\}/)
+  // NPC 초상화 도트 효과 끔
+  assert.match(read('../src/index.css'), /img\.npc-portrait, \[data-npc\] img \{ image-rendering: auto !important; \}/)
+  assert.match(read('../src/components/NpcDialog.jsx'), /className="npc-portrait /)
 })

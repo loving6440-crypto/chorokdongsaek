@@ -115,8 +115,9 @@ import GuideModal from './components/GuideModal'
 import UpdateNotesModal from './components/UpdateNotesModal'
 import Market from './components/Market'
 import QuestBoard from './components/QuestBoard'
+import { benchCraft } from './game/freeCraft'
 import ExtraQuestModal from './components/ExtraQuestModal'
-import { questEvent, rollExtra, acceptBari, acceptNpc, acceptExtra, turnInQuest, abandonQuest, relayQuest, readyCount, EXTRA_ZONES } from './game/quests'
+import { questEvent, rollExtra, acceptBari, acceptNpc, acceptExtra, turnInQuest, abandonQuest, relayQuest, readyCount, josa, EXTRA_ZONES } from './game/quests'
 
 /** 화면이 넓을 때(lg 이상)는 채팅을 오른쪽 아래에 늘 띄워 둔다. */
 function useDesktop() {
@@ -1087,6 +1088,24 @@ export default function Game({
     [addLog, admin],
   )
 
+  // v-B.18 조리실 · 공작소의 [제작] 칸. 맞는 제작법이면 그대로(동아리 '제작' 1회), 없으면 숯 · 쓰레기.
+  const benchCraftAct = useCallback(
+    (place, slots) => {
+      if (battleRef.current) return { error: '전투 중이다.' }
+      const cur = playerRef.current
+      if (place === 'workshop' && cur.crafting) return { error: '이미 제작 중이다.' }
+      const r = benchCraft(cur, slots, place, admin)
+      if (r.error) return r
+      const next = r.failed ? r.player : bumpDaily(bumpWeekly(r.player, 'craft'), 'craft')
+      playerRef.current = next
+      setPlayer(next)
+      const where = place === 'kitchen' ? '조리실' : '공작소'
+      addLog(r.failed ? `${where}에서 제작법에 없는 조합을 시도했다. 재료가 엉망이 되어 ${josa(r.item.name, '이')} 남았다.` : `${where}에서 ${r.qty > 1 ? `${r.item.name} ${r.qty}개를` : josa(r.item.name, '을')} 만들었다.`)
+      return { ...r, player: next }
+    },
+    [addLog, admin],
+  )
+
   // 무구 강화 (무구보관소). 관리자는 재료를 쓰지 않는다.
   const enhance = useCallback(
     (weaponId, stat) => {
@@ -2004,6 +2023,7 @@ export default function Game({
                     player={viewPlayer}
                     admin={admin}
                     onCraft={craftItem}
+                    onBench={benchCraftAct}
                     onStopCraft={() => guardTraining(() => endCraft('스스로 멈춰'))}
                     onCook={cookItem}
                     online={online.status === 'online'}

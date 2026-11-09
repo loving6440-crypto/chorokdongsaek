@@ -23,6 +23,7 @@ const MANUAL = {
   'friendship-letter': 3, inkstick: 3,
   'small-pot': 4, dye: 5, 'alcohol-lamp': 5, 'cherry-branch': 6, 'crescent-flower': 8,
   'soybean-oil': 22, // 콩 5개로 만든다
+  trash: 1, // v-B.18 공작소 실패작
 }
 const CROP_PRICE = 4
 
