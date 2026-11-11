@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges" role="img" aria-label="파란 무당칼">
+ <rect width="64" height="64" fill="#071527"/>
+ <g fill="none" stroke-linecap="square" stroke-linejoin="miter">
+  <path d="M32 4 24 17 25 35 32 43 39 35 40 17Z" stroke="#4db7ed" stroke-width="2"/>
+  <path d="M32 9V41M26 21h12" stroke="#164e91" stroke-width="2"/>
+  <path d="M19 42h26v4H19z" stroke="#73dcfc" stroke-width="2"/>
+  <path d="M28 46h8v9h-8zM25 55h14M30 57h4" stroke="#50aeed" stroke-width="2"/>
+  <path d="M32 58v3M30 60h4" stroke="#73dcfc" stroke-width="2"/>
+  <path d="M23 43l-6 6v7M41 43l6 6v7" stroke="#2379bd" stroke-width="2"/>
+  <path d="M15 55h4M45 55h4" stroke="#79dafa" stroke-width="2"/>
+ </g><path d="M30 17h4v17l-2 4-2-4z" fill="#19619b" opacity=".5"/>
+</svg>

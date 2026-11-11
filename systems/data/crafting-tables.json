@@ -1,0 +1,5122 @@
+{
+  "RECIPES": [
+    {
+      "id": "r-exercise-lamp",
+      "result": "exercise-lamp",
+      "inputs": [
+        [
+          "cloth-scrap",
+          2
+        ],
+        [
+          "alcohol-lamp",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-beginner-godok",
+      "result": "beginner-godok",
+      "inputs": [
+        [
+          "sewer-rat",
+          2
+        ],
+        [
+          "centipede",
+          2
+        ],
+        [
+          "small-pot",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-godok",
+      "result": "godok",
+      "inputs": [
+        [
+          "sewer-rat",
+          5
+        ],
+        [
+          "centipede",
+          5
+        ],
+        [
+          "small-pot",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-curse-doll",
+      "result": "curse-doll",
+      "inputs": [
+        [
+          "fine-woodchip",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "r-whetstone",
+      "result": "whetstone",
+      "inputs": [
+        [
+          "stone",
+          9
+        ]
+      ]
+    },
+    {
+      "id": "r-polishing-stone",
+      "result": "polishing-stone",
+      "inputs": [
+        [
+          "whetstone",
+          1
+        ],
+        [
+          "pebble",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-five-knot",
+      "result": "five-knot",
+      "inputs": [
+        [
+          "five-color-thread",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r18-shell-necklace",
+      "result": "shell-necklace",
+      "inputs": [
+        [
+          "shell",
+          3
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-oil-cloth",
+      "result": "oil-cloth",
+      "inputs": [
+        [
+          "soybean-oil",
+          3
+        ],
+        [
+          "cloth-scrap",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-cinnabar-charm",
+      "result": "cinnabar-charm",
+      "inputs": [
+        [
+          "brush",
+          1
+        ],
+        [
+          "charm-scrap",
+          3
+        ],
+        [
+          "crescent-flower",
+          2
+        ],
+        [
+          "waning-flower",
+          2
+        ],
+        [
+          "cinnabar",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r-feather-deco",
+      "result": "feather-deco",
+      "inputs": [
+        [
+          "dove-feather",
+          3
+        ],
+        [
+          "five-color-thread",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-jangseung-keyring",
+      "result": "jangseung-keyring",
+      "inputs": [
+        [
+          "carving-knife",
+          1
+        ],
+        [
+          "jangseung-piece",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "r-green-charm",
+      "result": "green-charm",
+      "inputs": [
+        [
+          "charm-scrap",
+          2
+        ],
+        [
+          "mugwort",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r-clover-bookmark",
+      "result": "clover-bookmark",
+      "inputs": [
+        [
+          "hanji",
+          3
+        ],
+        [
+          "pouch",
+          1
+        ],
+        [
+          "clover",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-jaeaek-charm",
+      "result": "jaeaek-charm",
+      "inputs": [
+        [
+          "deer-tooth",
+          2
+        ],
+        [
+          "hanji",
+          2
+        ],
+        [
+          "brush",
+          1
+        ],
+        [
+          "inkstick",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-exorcism-gate",
+      "result": "exorcism-gate",
+      "inputs": [
+        [
+          "snake-skin",
+          2
+        ],
+        [
+          "mugwort",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r-red-fox-charm",
+      "result": "red-fox-charm",
+      "inputs": [
+        [
+          "charm-scrap",
+          2
+        ],
+        [
+          "fox-fur",
+          3
+        ],
+        [
+          "hanji",
+          3
+        ],
+        [
+          "five-color-thread",
+          1
+        ],
+        [
+          "jangseung-piece",
+          1
+        ],
+        [
+          "inkstick",
+          1
+        ],
+        [
+          "pouch",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-spirit-disposable",
+      "result": "spirit-disposable",
+      "inputs": [
+        [
+          "raccoon-claw",
+          3
+        ],
+        [
+          "jangseung-piece",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r-goblin-mask",
+      "result": "goblin-mask",
+      "inputs": [
+        [
+          "jangseung-piece",
+          2
+        ],
+        [
+          "fine-woodchip",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r-five-color-thread",
+      "result": "five-color-thread",
+      "inputs": [
+        [
+          "web",
+          5
+        ],
+        [
+          "dye",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r-hanji",
+      "result": "hanji",
+      "inputs": [
+        [
+          "crumpled-hanji",
+          2
+        ]
+      ],
+      "note": "구김살이 난 종이를 부드러운 종이로 재활용하자.",
+      "price": 30
+    },
+    {
+      "id": "r-brush",
+      "result": "brush",
+      "inputs": [
+        [
+          "split-brush",
+          2
+        ]
+      ],
+      "note": "다 쓴 붓을 모아오면 새 붓으로 교환해준다.",
+      "price": 40
+    },
+    {
+      "id": "r-small-altar",
+      "result": "small-altar",
+      "inputs": [
+        [
+          "stone",
+          5
+        ],
+        [
+          "fine-woodchip",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-twine",
+      "result": "twine",
+      "inputs": [
+        [
+          "arrowroot",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-yarn-ball",
+      "result": "yarn-ball",
+      "inputs": [
+        [
+          "rabbit-fur",
+          2
+        ],
+        [
+          "web",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-pine-ink",
+      "result": "pine-ink",
+      "inputs": [
+        [
+          "pinecone",
+          4
+        ],
+        [
+          "water-moss",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-red-pigment",
+      "result": "red-pigment",
+      "inputs": [
+        [
+          "crescent-flower",
+          1
+        ],
+        [
+          "waning-flower",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-crystal-bead",
+      "result": "crystal-bead",
+      "inputs": [
+        [
+          "crystal",
+          2
+        ],
+        [
+          "water-moss",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-jujube-plaque",
+      "result": "jujube-plaque",
+      "inputs": [
+        [
+          "lightning-jujube",
+          2
+        ],
+        [
+          "carving-knife",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-feather-bundle",
+      "result": "feather-bundle",
+      "inputs": [
+        [
+          "dove-feather",
+          2
+        ],
+        [
+          "pheasant-feather",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-seal-powder",
+      "result": "seal-powder",
+      "inputs": [
+        [
+          "sealing-stone",
+          1
+        ],
+        [
+          "bone-fragment",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-talisman-ink",
+      "result": "talisman-ink",
+      "inputs": [
+        [
+          "pine-ink",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-pebble-sling",
+      "result": "pebble-sling",
+      "inputs": [
+        [
+          "pebble",
+          5
+        ],
+        [
+          "pouch",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-cairn-model",
+      "result": "cairn-model",
+      "inputs": [
+        [
+          "stone",
+          3
+        ],
+        [
+          "pebble",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-charm-bundle",
+      "result": "charm-bundle",
+      "inputs": [
+        [
+          "charm-scrap",
+          4
+        ],
+        [
+          "hanji",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-snakeskin-bookmark",
+      "result": "snakeskin-bookmark",
+      "inputs": [
+        [
+          "snake-skin",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-mugwort-incense",
+      "result": "mugwort-incense",
+      "inputs": [
+        [
+          "mugwort",
+          4
+        ],
+        [
+          "hanji",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-centipede-ward",
+      "result": "centipede-ward",
+      "inputs": [
+        [
+          "centipede",
+          2
+        ],
+        [
+          "charm-scrap",
+          2
+        ],
+        [
+          "brush",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-moss-pot",
+      "result": "moss-pot",
+      "inputs": [
+        [
+          "water-moss",
+          3
+        ],
+        [
+          "brick",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-ink-talisman",
+      "result": "ink-talisman",
+      "inputs": [
+        [
+          "pine-ink",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ],
+        [
+          "brush",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-yarn-doll",
+      "result": "yarn-doll",
+      "inputs": [
+        [
+          "yarn-ball",
+          2
+        ],
+        [
+          "fine-woodchip",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-badger-brush",
+      "result": "badger-brush",
+      "inputs": [
+        [
+          "badger-fur",
+          2
+        ],
+        [
+          "fine-woodchip",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-cinnabar-paste",
+      "result": "cinnabar-paste",
+      "inputs": [
+        [
+          "cinnabar",
+          2
+        ],
+        [
+          "water-moss",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-ghostfire-lantern",
+      "result": "ghostfire-lantern",
+      "inputs": [
+        [
+          "dokkaebi-flame",
+          1
+        ],
+        [
+          "hanji",
+          3
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-sealing-talisman",
+      "result": "sealing-talisman",
+      "inputs": [
+        [
+          "seal-powder",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-imugi-tag",
+      "result": "imugi-tag",
+      "inputs": [
+        [
+          "imugi-scale",
+          1
+        ],
+        [
+          "fine-woodchip",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-wolf-fang-charm",
+      "result": "wolf-fang-charm",
+      "inputs": [
+        [
+          "wolf-fang",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ],
+        [
+          "charm-scrap",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-jujube-amulet",
+      "result": "jujube-amulet",
+      "inputs": [
+        [
+          "jujube-plaque",
+          1
+        ],
+        [
+          "talisman-ink",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-hawk-quill",
+      "result": "hawk-quill",
+      "inputs": [
+        [
+          "hawk-feather",
+          1
+        ],
+        [
+          "pine-ink",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-soul-lantern",
+      "result": "soul-lantern",
+      "inputs": [
+        [
+          "spirit-orb",
+          1
+        ],
+        [
+          "ghostfire-lantern",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-serpent-chest",
+      "result": "serpent-chest",
+      "inputs": [
+        [
+          "golden-serpent-scale",
+          1
+        ],
+        [
+          "jujube-plaque",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-fortune-talisman",
+      "result": "fortune-talisman",
+      "inputs": [
+        [
+          "fortune-bat-wing",
+          1
+        ],
+        [
+          "talisman-ink",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-turtle-oracle",
+      "result": "turtle-oracle",
+      "inputs": [
+        [
+          "turtle-shell",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-straw-raincape",
+      "result": "straw-raincape",
+      "inputs": [
+        [
+          "arrowroot",
+          4
+        ],
+        [
+          "fern",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-foxfur-coat",
+      "result": "foxfur-coat",
+      "inputs": [
+        [
+          "fox-fur",
+          4
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-talisman-robe",
+      "result": "talisman-robe",
+      "inputs": [
+        [
+          "sealing-talisman",
+          1
+        ],
+        [
+          "yarn-ball",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-bat-cape",
+      "result": "bat-cape",
+      "inputs": [
+        [
+          "bat-wing",
+          4
+        ],
+        [
+          "twine",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-marten-vest",
+      "result": "marten-vest",
+      "inputs": [
+        [
+          "marten-fur",
+          3
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-hawk-cheollik",
+      "result": "hawk-cheollik",
+      "inputs": [
+        [
+          "hawk-feather",
+          3
+        ],
+        [
+          "twine",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-bearfur-overcoat",
+      "result": "bearfur-overcoat",
+      "inputs": [
+        [
+          "bear-fur",
+          3
+        ],
+        [
+          "yarn-ball",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-frost-hansam",
+      "result": "frost-hansam",
+      "inputs": [
+        [
+          "frost-flower",
+          2
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-weasel-galot",
+      "result": "weasel-galot",
+      "inputs": [
+        [
+          "weasel-fur",
+          3
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-crane-robe",
+      "result": "crane-robe",
+      "inputs": [
+        [
+          "crane-feather",
+          3
+        ],
+        [
+          "yarn-ball",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-clover-crown",
+      "result": "clover-crown",
+      "inputs": [
+        [
+          "clover-leaf",
+          5
+        ],
+        [
+          "dandelion",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-berry-ribbon",
+      "result": "berry-ribbon",
+      "inputs": [
+        [
+          "wild-raspberry",
+          3
+        ],
+        [
+          "five-color-thread",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-deer-tooth-necklace",
+      "result": "deer-tooth-necklace",
+      "inputs": [
+        [
+          "deer-tooth",
+          2
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-feather-norigae",
+      "result": "feather-norigae",
+      "inputs": [
+        [
+          "feather-bundle",
+          1
+        ],
+        [
+          "five-color-thread",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-crystal-bracelet",
+      "result": "crystal-bracelet",
+      "inputs": [
+        [
+          "crystal-bead",
+          2
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-gogok-norigae",
+      "result": "gogok-norigae",
+      "inputs": [
+        [
+          "gogok",
+          1
+        ],
+        [
+          "five-color-thread",
+          2
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-jujube-hairpin",
+      "result": "jujube-hairpin",
+      "inputs": [
+        [
+          "jujube-plaque",
+          1
+        ],
+        [
+          "pearl",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-magpie-hairpiece",
+      "result": "magpie-hairpiece",
+      "inputs": [
+        [
+          "magpie-feather",
+          2
+        ],
+        [
+          "crystal-bead",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-toad-ring",
+      "result": "toad-ring",
+      "inputs": [
+        [
+          "gold-toad-skin",
+          1
+        ],
+        [
+          "crystal-bead",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-dragon-hatstring",
+      "result": "dragon-hatstring",
+      "inputs": [
+        [
+          "dragon-mane",
+          1
+        ],
+        [
+          "haedongcheong-feather",
+          1
+        ],
+        [
+          "pearl",
+          2
+        ]
+      ]
+    }
+  ],
+  "WORKSHOP": {
+    "id": "workshop",
+    "name": "공작소",
+    "desc": "일반 고등학교의 미술실 대신 쓰는 시설이라 해도 좋을 정도로 다양한 도구가 준비되어 있는 공간. 이곳에서 재료를 합성해서 물건을 제작할 수 있다."
+  },
+  "RECIPE_SHOP": [],
+  "B08_RECIPES": [
+    {
+      "id": "r8-twine",
+      "result": "twine",
+      "inputs": [
+        [
+          "arrowroot",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-yarn-ball",
+      "result": "yarn-ball",
+      "inputs": [
+        [
+          "rabbit-fur",
+          2
+        ],
+        [
+          "web",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-pine-ink",
+      "result": "pine-ink",
+      "inputs": [
+        [
+          "pinecone",
+          4
+        ],
+        [
+          "water-moss",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-red-pigment",
+      "result": "red-pigment",
+      "inputs": [
+        [
+          "crescent-flower",
+          1
+        ],
+        [
+          "waning-flower",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-crystal-bead",
+      "result": "crystal-bead",
+      "inputs": [
+        [
+          "crystal",
+          2
+        ],
+        [
+          "water-moss",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-jujube-plaque",
+      "result": "jujube-plaque",
+      "inputs": [
+        [
+          "lightning-jujube",
+          2
+        ],
+        [
+          "carving-knife",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-feather-bundle",
+      "result": "feather-bundle",
+      "inputs": [
+        [
+          "dove-feather",
+          2
+        ],
+        [
+          "pheasant-feather",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-seal-powder",
+      "result": "seal-powder",
+      "inputs": [
+        [
+          "sealing-stone",
+          1
+        ],
+        [
+          "bone-fragment",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-talisman-ink",
+      "result": "talisman-ink",
+      "inputs": [
+        [
+          "pine-ink",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-pebble-sling",
+      "result": "pebble-sling",
+      "inputs": [
+        [
+          "pebble",
+          5
+        ],
+        [
+          "pouch",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-cairn-model",
+      "result": "cairn-model",
+      "inputs": [
+        [
+          "stone",
+          3
+        ],
+        [
+          "pebble",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-charm-bundle",
+      "result": "charm-bundle",
+      "inputs": [
+        [
+          "charm-scrap",
+          4
+        ],
+        [
+          "hanji",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-snakeskin-bookmark",
+      "result": "snakeskin-bookmark",
+      "inputs": [
+        [
+          "snake-skin",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-mugwort-incense",
+      "result": "mugwort-incense",
+      "inputs": [
+        [
+          "mugwort",
+          4
+        ],
+        [
+          "hanji",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-centipede-ward",
+      "result": "centipede-ward",
+      "inputs": [
+        [
+          "centipede",
+          2
+        ],
+        [
+          "charm-scrap",
+          2
+        ],
+        [
+          "brush",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-moss-pot",
+      "result": "moss-pot",
+      "inputs": [
+        [
+          "water-moss",
+          3
+        ],
+        [
+          "brick",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-ink-talisman",
+      "result": "ink-talisman",
+      "inputs": [
+        [
+          "pine-ink",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ],
+        [
+          "brush",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-yarn-doll",
+      "result": "yarn-doll",
+      "inputs": [
+        [
+          "yarn-ball",
+          2
+        ],
+        [
+          "fine-woodchip",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-badger-brush",
+      "result": "badger-brush",
+      "inputs": [
+        [
+          "badger-fur",
+          2
+        ],
+        [
+          "fine-woodchip",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-cinnabar-paste",
+      "result": "cinnabar-paste",
+      "inputs": [
+        [
+          "cinnabar",
+          2
+        ],
+        [
+          "water-moss",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-ghostfire-lantern",
+      "result": "ghostfire-lantern",
+      "inputs": [
+        [
+          "dokkaebi-flame",
+          1
+        ],
+        [
+          "hanji",
+          3
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-sealing-talisman",
+      "result": "sealing-talisman",
+      "inputs": [
+        [
+          "seal-powder",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-imugi-tag",
+      "result": "imugi-tag",
+      "inputs": [
+        [
+          "imugi-scale",
+          1
+        ],
+        [
+          "fine-woodchip",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-wolf-fang-charm",
+      "result": "wolf-fang-charm",
+      "inputs": [
+        [
+          "wolf-fang",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ],
+        [
+          "charm-scrap",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-jujube-amulet",
+      "result": "jujube-amulet",
+      "inputs": [
+        [
+          "jujube-plaque",
+          1
+        ],
+        [
+          "talisman-ink",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-hawk-quill",
+      "result": "hawk-quill",
+      "inputs": [
+        [
+          "hawk-feather",
+          1
+        ],
+        [
+          "pine-ink",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-soul-lantern",
+      "result": "soul-lantern",
+      "inputs": [
+        [
+          "spirit-orb",
+          1
+        ],
+        [
+          "ghostfire-lantern",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-serpent-chest",
+      "result": "serpent-chest",
+      "inputs": [
+        [
+          "golden-serpent-scale",
+          1
+        ],
+        [
+          "jujube-plaque",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-fortune-talisman",
+      "result": "fortune-talisman",
+      "inputs": [
+        [
+          "fortune-bat-wing",
+          1
+        ],
+        [
+          "talisman-ink",
+          1
+        ],
+        [
+          "hanji",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-turtle-oracle",
+      "result": "turtle-oracle",
+      "inputs": [
+        [
+          "turtle-shell",
+          1
+        ],
+        [
+          "red-pigment",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-straw-raincape",
+      "result": "straw-raincape",
+      "inputs": [
+        [
+          "arrowroot",
+          4
+        ],
+        [
+          "fern",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-foxfur-coat",
+      "result": "foxfur-coat",
+      "inputs": [
+        [
+          "fox-fur",
+          4
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-talisman-robe",
+      "result": "talisman-robe",
+      "inputs": [
+        [
+          "sealing-talisman",
+          1
+        ],
+        [
+          "yarn-ball",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-bat-cape",
+      "result": "bat-cape",
+      "inputs": [
+        [
+          "bat-wing",
+          4
+        ],
+        [
+          "twine",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-marten-vest",
+      "result": "marten-vest",
+      "inputs": [
+        [
+          "marten-fur",
+          3
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-hawk-cheollik",
+      "result": "hawk-cheollik",
+      "inputs": [
+        [
+          "hawk-feather",
+          3
+        ],
+        [
+          "twine",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-bearfur-overcoat",
+      "result": "bearfur-overcoat",
+      "inputs": [
+        [
+          "bear-fur",
+          3
+        ],
+        [
+          "yarn-ball",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-frost-hansam",
+      "result": "frost-hansam",
+      "inputs": [
+        [
+          "frost-flower",
+          2
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-weasel-galot",
+      "result": "weasel-galot",
+      "inputs": [
+        [
+          "weasel-fur",
+          3
+        ],
+        [
+          "yarn-ball",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-crane-robe",
+      "result": "crane-robe",
+      "inputs": [
+        [
+          "crane-feather",
+          3
+        ],
+        [
+          "yarn-ball",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "r8-clover-crown",
+      "result": "clover-crown",
+      "inputs": [
+        [
+          "clover-leaf",
+          5
+        ],
+        [
+          "dandelion",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-berry-ribbon",
+      "result": "berry-ribbon",
+      "inputs": [
+        [
+          "wild-raspberry",
+          3
+        ],
+        [
+          "five-color-thread",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-deer-tooth-necklace",
+      "result": "deer-tooth-necklace",
+      "inputs": [
+        [
+          "deer-tooth",
+          2
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-feather-norigae",
+      "result": "feather-norigae",
+      "inputs": [
+        [
+          "feather-bundle",
+          1
+        ],
+        [
+          "five-color-thread",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "r8-crystal-bracelet",
+      "result": "crystal-bracelet",
+      "inputs": [
+        [
+          "crystal-bead",
+          2
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-gogok-norigae",
+      "result": "gogok-norigae",
+      "inputs": [
+        [
+          "gogok",
+          1
+        ],
+        [
+          "five-color-thread",
+          2
+        ],
+        [
+          "twine",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-jujube-hairpin",
+      "result": "jujube-hairpin",
+      "inputs": [
+        [
+          "jujube-plaque",
+          1
+        ],
+        [
+          "pearl",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-magpie-hairpiece",
+      "result": "magpie-hairpiece",
+      "inputs": [
+        [
+          "magpie-feather",
+          2
+        ],
+        [
+          "crystal-bead",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-toad-ring",
+      "result": "toad-ring",
+      "inputs": [
+        [
+          "gold-toad-skin",
+          1
+        ],
+        [
+          "crystal-bead",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "r8-dragon-hatstring",
+      "result": "dragon-hatstring",
+      "inputs": [
+        [
+          "dragon-mane",
+          1
+        ],
+        [
+          "haedongcheong-feather",
+          1
+        ],
+        [
+          "pearl",
+          2
+        ]
+      ]
+    }
+  ],
+  "B08_COOK_RECIPES": [
+    {
+      "id": "cook8-lake-broth",
+      "result": "lake-broth",
+      "inputs": [
+        [
+          "lake-water",
+          3
+        ],
+        [
+          "mushroom",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-acorn-flour",
+      "result": "acorn-flour",
+      "inputs": [
+        [
+          "acorn",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "cook8-chestnut-syrup",
+      "result": "chestnut-syrup",
+      "inputs": [
+        [
+          "chestnut",
+          3
+        ],
+        [
+          "rice-grain",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-herb-decoction",
+      "result": "herb-decoction",
+      "inputs": [
+        [
+          "dangwi",
+          2
+        ],
+        [
+          "licorice",
+          2
+        ],
+        [
+          "doraji",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-wild-grape-juice",
+      "result": "wild-grape-juice",
+      "inputs": [
+        [
+          "wild-grape",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "cook8-barley-flour",
+      "result": "barley-flour",
+      "inputs": [
+        [
+          "barley-seed",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-blanched-greens",
+      "result": "blanched-greens",
+      "inputs": [
+        [
+          "chwinamul",
+          2
+        ],
+        [
+          "fern",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-wheat-flour",
+      "result": "wheat-flour",
+      "inputs": [
+        [
+          "wheat-seed",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-pickled-raspberry",
+      "result": "pickled-raspberry",
+      "inputs": [
+        [
+          "wild-raspberry",
+          6
+        ]
+      ]
+    },
+    {
+      "id": "cook8-barley-gaetteok",
+      "result": "barley-gaetteok",
+      "inputs": [
+        [
+          "barley-flour",
+          1
+        ],
+        [
+          "wild-raspberry",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-grilled-mushroom",
+      "result": "grilled-mushroom",
+      "inputs": [
+        [
+          "mushroom",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "cook8-carrot-mushroom-stirfry",
+      "result": "carrot-mushroom-stirfry",
+      "inputs": [
+        [
+          "carrot",
+          2
+        ],
+        [
+          "mushroom",
+          2
+        ],
+        [
+          "soybean-oil",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-snakeberry-punch",
+      "result": "snakeberry-punch",
+      "inputs": [
+        [
+          "snake-berry",
+          3
+        ],
+        [
+          "wild-raspberry",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-dandelion-tea",
+      "result": "dandelion-tea",
+      "inputs": [
+        [
+          "dandelion",
+          3
+        ],
+        [
+          "lake-water",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-lake-mushroom-soup",
+      "result": "lake-mushroom-soup",
+      "inputs": [
+        [
+          "lake-broth",
+          1
+        ],
+        [
+          "mushroom",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-cabbage-soup",
+      "result": "cabbage-soup",
+      "inputs": [
+        [
+          "cabbage",
+          2
+        ],
+        [
+          "lake-broth",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-clover-salad",
+      "result": "clover-salad",
+      "inputs": [
+        [
+          "clover-leaf",
+          3
+        ],
+        [
+          "lettuce",
+          2
+        ],
+        [
+          "cherry-tomato",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-ssukbeomuri",
+      "result": "ssukbeomuri",
+      "inputs": [
+        [
+          "mugwort",
+          3
+        ],
+        [
+          "barley-flour",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-mugwort-potato-pancake",
+      "result": "mugwort-potato-pancake",
+      "inputs": [
+        [
+          "potato",
+          3
+        ],
+        [
+          "mugwort",
+          1
+        ],
+        [
+          "soybean-oil",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-stirfried-fern",
+      "result": "stirfried-fern",
+      "inputs": [
+        [
+          "fern",
+          3
+        ],
+        [
+          "soybean-oil",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-greens-sujebi",
+      "result": "greens-sujebi",
+      "inputs": [
+        [
+          "wheat-flour",
+          1
+        ],
+        [
+          "blanched-greens",
+          1
+        ],
+        [
+          "lake-broth",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-grilled-carp",
+      "result": "grilled-carp",
+      "inputs": [
+        [
+          "carp",
+          2
+        ],
+        [
+          "mugwort",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-loofah-namul",
+      "result": "loofah-namul",
+      "inputs": [
+        [
+          "loofah-fruit",
+          2
+        ],
+        [
+          "soybean-oil",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-acorn-jelly",
+      "result": "acorn-jelly",
+      "inputs": [
+        [
+          "acorn-flour",
+          1
+        ],
+        [
+          "lake-water",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-grilled-king-mushroom",
+      "result": "grilled-king-mushroom",
+      "inputs": [
+        [
+          "king-mushroom",
+          1
+        ],
+        [
+          "soybean-oil",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-dangwi-tea",
+      "result": "dangwi-tea",
+      "inputs": [
+        [
+          "dangwi",
+          2
+        ],
+        [
+          "lake-water",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-chestnut-porridge",
+      "result": "chestnut-porridge",
+      "inputs": [
+        [
+          "chestnut",
+          4
+        ],
+        [
+          "rice-grain",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-doraji-jeonggwa",
+      "result": "doraji-jeonggwa",
+      "inputs": [
+        [
+          "doraji",
+          3
+        ],
+        [
+          "chestnut-syrup",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-licorice-taffy",
+      "result": "licorice-taffy",
+      "inputs": [
+        [
+          "licorice",
+          2
+        ],
+        [
+          "chestnut-syrup",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-wild-grape-punch",
+      "result": "wild-grape-punch",
+      "inputs": [
+        [
+          "wild-grape-juice",
+          1
+        ],
+        [
+          "lake-water",
+          1
+        ],
+        [
+          "wild-raspberry",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-pearl-dumpling",
+      "result": "pearl-dumpling",
+      "inputs": [
+        [
+          "pearl",
+          1
+        ],
+        [
+          "chestnut-syrup",
+          1
+        ],
+        [
+          "rice-grain",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-arrowroot-tea",
+      "result": "arrowroot-tea",
+      "inputs": [
+        [
+          "arrowroot",
+          2
+        ],
+        [
+          "lake-water",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-sipjeon-tang",
+      "result": "sipjeon-tang",
+      "inputs": [
+        [
+          "herb-decoction",
+          1
+        ],
+        [
+          "ginseng",
+          1
+        ],
+        [
+          "licorice",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-grilled-deodeok",
+      "result": "grilled-deodeok",
+      "inputs": [
+        [
+          "deodeok",
+          3
+        ],
+        [
+          "soybean-oil",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-oyster-mushroom-hotpot",
+      "result": "oyster-mushroom-hotpot",
+      "inputs": [
+        [
+          "oyster-mushroom",
+          3
+        ],
+        [
+          "lake-broth",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-clover-hwajeon",
+      "result": "clover-hwajeon",
+      "inputs": [
+        [
+          "clover",
+          1
+        ],
+        [
+          "azalea",
+          1
+        ],
+        [
+          "wheat-flour",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-flower-rice-cake",
+      "result": "flower-rice-cake",
+      "inputs": [
+        [
+          "crescent-flower",
+          1
+        ],
+        [
+          "waning-flower",
+          1
+        ],
+        [
+          "rice-grain",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-omija-punch",
+      "result": "omija-punch",
+      "inputs": [
+        [
+          "omija",
+          3
+        ],
+        [
+          "lake-water",
+          1
+        ],
+        [
+          "azalea",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-songi-rice",
+      "result": "songi-rice",
+      "inputs": [
+        [
+          "songi",
+          2
+        ],
+        [
+          "rice-grain",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-dragon-palace-soup",
+      "result": "dragon-palace-soup",
+      "inputs": [
+        [
+          "imugi-scale",
+          1
+        ],
+        [
+          "carp",
+          2
+        ],
+        [
+          "lake-broth",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-antler-tonic",
+      "result": "antler-tonic",
+      "inputs": [
+        [
+          "antler",
+          1
+        ],
+        [
+          "herb-decoction",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-pine-nut-porridge",
+      "result": "pine-nut-porridge",
+      "inputs": [
+        [
+          "pine-nut",
+          3
+        ],
+        [
+          "rice-grain",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "cook8-pine-nut-gangjeong",
+      "result": "pine-nut-gangjeong",
+      "inputs": [
+        [
+          "pine-nut",
+          3
+        ],
+        [
+          "chestnut-syrup",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-golden-toad-pill",
+      "result": "golden-toad-pill",
+      "inputs": [
+        [
+          "gold-toad-skin",
+          1
+        ],
+        [
+          "licorice",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "cook8-wild-ginseng-jeonggwa",
+      "result": "wild-ginseng-jeonggwa",
+      "inputs": [
+        [
+          "wild-ginseng",
+          1
+        ],
+        [
+          "chestnut-syrup",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-frost-bingsu",
+      "result": "frost-bingsu",
+      "inputs": [
+        [
+          "frost-flower",
+          2
+        ],
+        [
+          "wild-grape-juice",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-somdari-tea",
+      "result": "somdari-tea",
+      "inputs": [
+        [
+          "somdari",
+          2
+        ],
+        [
+          "lake-water",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-fortune-pill",
+      "result": "fortune-pill",
+      "inputs": [
+        [
+          "fortune-bat-wing",
+          1
+        ],
+        [
+          "herb-decoction",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-elixir-of-youth",
+      "result": "elixir-of-youth",
+      "inputs": [
+        [
+          "lingzhi",
+          1
+        ],
+        [
+          "wild-ginseng",
+          1
+        ],
+        [
+          "herb-decoction",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cook8-turtle-shell-tonic",
+      "result": "turtle-shell-tonic",
+      "inputs": [
+        [
+          "turtle-shell",
+          1
+        ],
+        [
+          "herb-decoction",
+          1
+        ]
+      ]
+    }
+  ],
+  "B08_WORKSHOP_ITEMS": [
+    {
+      "id": "twine",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "노끈",
+      "price": null,
+      "desc": "칡뿌리 껍질을 비벼 꼰 질긴 끈. 묶을 수 있는 건 다 묶어 보고 싶어진다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cord",
+        "sand",
+        "#a07d4a",
+        "#6b4a3a"
+      ]
+    },
+    {
+      "id": "yarn-ball",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "털실 뭉치",
+      "price": null,
+      "desc": "토끼털과 거미줄을 함께 자아 만든 털실. 거미줄이 들어간 덕에 이상할 만큼 끊어지지 않는다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "yarn",
+        "pink",
+        "#f4efe6",
+        "#c9b8a8"
+      ]
+    },
+    {
+      "id": "pine-ink",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "송연묵",
+      "price": null,
+      "desc": "솔방울을 그을려 받은 그을음에 물이끼를 개어 굳힌 먹. 매점 먹보다 향이 훨씬 진하다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "inkstick",
+        "navy",
+        "#2f3447",
+        "#a07d4a"
+      ]
+    },
+    {
+      "id": "red-pigment",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "붉은 꽃물",
+      "price": null,
+      "desc": "초승꽃과 그믐꽃을 함께 짜낸 붉은 물. 굳기 전에 쓰지 않으면 꽃이 다시 오므라든 것처럼 거뭇해진다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "dish",
+        "sand",
+        "#c0392b",
+        "#e8d8c3"
+      ]
+    },
+    {
+      "id": "crystal-bead",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "수정 구슬",
+      "price": null,
+      "desc": "수정을 물이끼로 문질러 둥글게 간 구슬. 들여다보면 내 얼굴이 거꾸로 비친다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "orb",
+        "teal",
+        "#dff3f7",
+        "#9fd3df"
+      ]
+    },
+    {
+      "id": "jujube-plaque",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "벽조목 패",
+      "price": null,
+      "desc": "벽조목을 조각칼로 다듬어 만든 손바닥만 한 패. 잡귀가 이 패만 보면 슬금슬금 피한다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plaque",
+        "orange",
+        "#8a5a3c",
+        "#f5c84c"
+      ]
+    },
+    {
+      "id": "feather-bundle",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "깃털 다발",
+      "price": null,
+      "desc": "멧비둘기 깃과 꿩 깃을 가지런히 묶은 다발. 바람이 불면 혼자 날아가려 든다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "feathers",
+        "blue",
+        "#c9a46a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "seal-powder",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "봉인 가루",
+      "price": null,
+      "desc": "봉인석과 뼛조각을 함께 빻은 잿빛 가루. 손가락에 묻으면 한동안 감각이 둔해진다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "powder",
+        "navy",
+        "#b8b8c4",
+        "#e8e8f0"
+      ]
+    },
+    {
+      "id": "talisman-ink",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "부적 먹물",
+      "price": null,
+      "desc": "송연묵을 붉은 꽃물에 갈아 낸 검붉은 먹물. 이걸로 쓴 획은 마르고 나서도 미묘하게 꿈틀거린다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "ink",
+        "red",
+        "#5a1f24",
+        "#c0392b"
+      ]
+    },
+    {
+      "id": "pebble-sling",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "돌팔매 주머니",
+      "price": null,
+      "desc": "자갈돌을 잔뜩 넣은 주머니. 던지는 것보다 들고 다니는 게 더 힘들다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pouch",
+        "sand",
+        "#a07d4a",
+        "#8e8e8e"
+      ]
+    },
+    {
+      "id": "cairn-model",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "돌탑 모형",
+      "price": null,
+      "desc": "산길의 돌탑을 흉내 내 쌓아 본 작은 탑. 마지막 돌을 올릴 때 숨을 참게 된다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cairn",
+        "green",
+        "#9a9a9a",
+        "#cfcfcf"
+      ]
+    },
+    {
+      "id": "charm-bundle",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "부적 묶음",
+      "price": null,
+      "desc": "바스러지기 직전의 부적 조각을 한지로 감싸 묶은 것. 효험은 반의반이라도 있는 게 낫다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "talisman",
+        "yellow",
+        "#f4e7b8",
+        "#c0392b"
+      ]
+    },
+    {
+      "id": "snakeskin-bookmark",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "뱀 허물 책갈피",
+      "price": null,
+      "desc": "반투명한 허물을 한지 사이에 눌러 말린 책갈피. 책을 펼 때마다 흠칫한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bookmark",
+        "green",
+        "#d8d2b4",
+        "#8aa36b"
+      ]
+    },
+    {
+      "id": "mugwort-incense",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "쑥 향",
+      "price": null,
+      "desc": "쑥을 말려 한지로 돌돌 만 향. 피우면 잡귀보다 사람이 먼저 기침한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "incense",
+        "green",
+        "#6d8968",
+        "#d9d9d9"
+      ]
+    },
+    {
+      "id": "centipede-ward",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "지네 부적",
+      "price": null,
+      "desc": "지네 독으로 쓴 부적. 다른 벌레가 오지 않는 대신 이 부적을 만진 사람도 한동안 아무도 오지 않는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "talisman",
+        "red",
+        "#f4e7b8",
+        "#6b2f2f"
+      ]
+    },
+    {
+      "id": "moss-pot",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "물이끼 화분",
+      "price": null,
+      "desc": "벽돌을 파낸 자리에 물이끼를 심은 화분. 기숙사 창가에 두면 방이 조금 덜 건조해진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pot",
+        "teal",
+        "#b5653c",
+        "#5f9e5a"
+      ]
+    },
+    {
+      "id": "ink-talisman",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "송연묵 부적",
+      "price": null,
+      "desc": "직접 만든 송연묵으로 쓴 부적. 매점 먹으로 쓴 것보다 글씨에 힘이 붙는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "talisman",
+        "navy",
+        "#f4e7b8",
+        "#2f3447"
+      ]
+    },
+    {
+      "id": "yarn-doll",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "털실 인형",
+      "price": null,
+      "desc": "털실을 감아 만든 작은 인형. 이상하게 만든 사람을 닮는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "doll",
+        "pink",
+        "#f4efe6",
+        "#c97b8a"
+      ]
+    },
+    {
+      "id": "badger-brush",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "오소리털 붓",
+      "price": null,
+      "desc": "오소리 털을 매어 만든 붓. 빳빳해서 부적 획이 끊기지 않는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "brush",
+        "sand",
+        "#6b4a3a",
+        "#2f3447"
+      ]
+    },
+    {
+      "id": "cinnabar-paste",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "주사 인주",
+      "price": null,
+      "desc": "주사를 물이끼로 갠 붉은 인주. 도장을 찍으면 종이가 살짝 따뜻해진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "seal",
+        "red",
+        "#c0392b",
+        "#f4e7b8"
+      ]
+    },
+    {
+      "id": "ghostfire-lantern",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "도깨비불 등롱",
+      "price": null,
+      "desc": "한지 등롱 속에 도깨비불을 가둬 노끈으로 매단 것. 기름이 필요 없는 대신 가끔 혼자 산책을 나간다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "lantern",
+        "navy",
+        "#f4e7b8",
+        "#6ad0ff"
+      ]
+    },
+    {
+      "id": "sealing-talisman",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "봉인 부적",
+      "price": null,
+      "desc": "봉인 가루를 붉은 꽃물에 섞어 쓴 부적. 붙이는 순간 주변 공기가 한 겹 무거워진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "talisman",
+        "purple",
+        "#f4e7b8",
+        "#7a2f3a"
+      ]
+    },
+    {
+      "id": "imugi-tag",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "이무기 비늘 호패",
+      "price": null,
+      "desc": "이무기 비늘을 박아 넣은 나무 호패. 물가에 가면 비늘이 저 혼자 파르르 떤다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "tag",
+        "teal",
+        "#8a5a3c",
+        "#7fd6c2"
+      ]
+    },
+    {
+      "id": "wolf-fang-charm",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "늑대 송곳니 부적",
+      "price": null,
+      "desc": "늑대 송곳니에 붉은 꽃물로 주문을 새긴 부적. 밤길에 쥐고 있으면 뒤를 덜 돌아보게 된다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "fang",
+        "red",
+        "#f4efe6",
+        "#c0392b"
+      ]
+    },
+    {
+      "id": "jujube-amulet",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "벽조목 호부",
+      "price": null,
+      "desc": "벽조목 패에 부적 먹물로 수호 문자를 새긴 호부. 잡귀가 보면 먼 길을 돌아간다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plaque",
+        "yellow",
+        "#8a5a3c",
+        "#5a1f24"
+      ]
+    },
+    {
+      "id": "hawk-quill",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "매 깃털 깃펜",
+      "price": null,
+      "desc": "매의 꼬리깃을 깎아 송연묵을 찍어 쓰는 깃펜. 글씨가 저절로 날렵해진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "quill",
+        "blue",
+        "#8a6a4a",
+        "#2f3447"
+      ]
+    },
+    {
+      "id": "soul-lantern",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "혼백 등불",
+      "price": null,
+      "desc": "도깨비불 등롱 안에 혼백구슬을 넣은 등불. 불빛 아래에서는 그림자가 하나 더 생긴다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "lantern",
+        "purple",
+        "#f4e7b8",
+        "#b9a6ff"
+      ]
+    },
+    {
+      "id": "serpent-chest",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "황구렁이 비늘 함",
+      "price": null,
+      "desc": "벽조목 패에 황구렁이 비늘을 덮어 짠 작은 함. 넣어 둔 것이 줄어들지 않는다는 소문이 있다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "chest",
+        "yellow",
+        "#8a5a3c",
+        "#f5c84c"
+      ]
+    },
+    {
+      "id": "fortune-talisman",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "오복 부적",
+      "price": null,
+      "desc": "오복 날개막을 부적 먹물로 한지에 붙여 쓴 부적. 빛에 비추면 다섯 빛깔이 차례로 돈다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "talisman",
+        "orange",
+        "#f4e7b8",
+        "#8f7cc4"
+      ]
+    },
+    {
+      "id": "turtle-oracle",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "천년거북 점판",
+      "price": null,
+      "desc": "천년거북 등딱지에 붉은 꽃물로 별자리를 그어 만든 점판. 묻기도 전에 답이 떠오를 때가 있다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "board",
+        "green",
+        "#7a6a3a",
+        "#c0392b"
+      ]
+    },
+    {
+      "id": "straw-raincape",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "도롱이",
+      "price": null,
+      "desc": "칡뿌리와 고사리 줄기를 엮은 비옷. 비는 막아 주는데 입은 사람이 반쯤 덤불처럼 보인다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "cape",
+        "green",
+        "#9a8a4a",
+        "#6d8968"
+      ]
+    },
+    {
+      "id": "foxfur-coat",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "여우털 두루마기",
+      "price": null,
+      "desc": "여우 꼬리털을 털실로 덧댄 두루마기. 입고 있으면 어쩐지 말솜씨가 늘 것 같다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "robe",
+        "orange",
+        "#d9822b",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "talisman-robe",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "부적 도포",
+      "price": null,
+      "desc": "봉인 부적을 안감에 꿰매 넣은 도포. 걸을 때마다 종이 바스락거리는 소리가 난다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "robe",
+        "yellow",
+        "#f4e7b8",
+        "#7a2f3a"
+      ]
+    },
+    {
+      "id": "bat-cape",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "박쥐 날개 망토",
+      "price": null,
+      "desc": "박쥐 날개를 노끈으로 이어 붙인 망토. 펼치면 근사하지만 접을 때 손이 많이 간다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "cape",
+        "navy",
+        "#3b3550",
+        "#8f7cc4"
+      ]
+    },
+    {
+      "id": "marten-vest",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "담비털 배자",
+      "price": null,
+      "desc": "담비 털로 깃을 두른 배자. 담비에게는 미안하지만 정말 따뜻하다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "vest",
+        "sand",
+        "#8a5a3c",
+        "#e6d3b3"
+      ]
+    },
+    {
+      "id": "hawk-cheollik",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "매 깃털 철릭",
+      "price": null,
+      "desc": "매 깃털을 어깨에 덧댄 철릭. 입으면 등이 저절로 펴진다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "robe",
+        "blue",
+        "#4d5a7a",
+        "#c9a46a"
+      ]
+    },
+    {
+      "id": "bearfur-overcoat",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "곰털 덧옷",
+      "price": null,
+      "desc": "반달 무늬 곰 털을 털실로 누빈 덧옷. 한겨울 산꼭대기에서도 땀이 난다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "vest",
+        "navy",
+        "#2f2a2a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "frost-hansam",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "얼음꽃 한삼",
+      "price": null,
+      "desc": "얼음꽃을 털실에 엮어 소매 끝에 단 옷. 소매를 흔들면 서리가 흩날린다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "robe",
+        "teal",
+        "#e8f6ff",
+        "#9fd3df"
+      ]
+    },
+    {
+      "id": "weasel-galot",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "흰족제비 갖옷",
+      "price": null,
+      "desc": "눈처럼 흰 족제비 털로 지은 갖옷. 눈밭에 서면 정말로 사라진다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "robe",
+        "purple",
+        "#fbfbff",
+        "#c9c4e8"
+      ]
+    },
+    {
+      "id": "crane-robe",
+      "kind": "gear",
+      "slot": "body",
+      "tags": [
+        "완성품",
+        "신체"
+      ],
+      "name": "학창의",
+      "price": null,
+      "desc": "학 깃털을 깃과 소매에 두른 학창의. 입으면 말수가 줄고 오래 살고 싶어진다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "robe",
+        "sand",
+        "#fbfbf5",
+        "#2f3447"
+      ]
+    },
+    {
+      "id": "clover-crown",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "토끼풀 화관",
+      "price": null,
+      "desc": "토끼풀과 민들레를 엮은 화관. 쓰고 있으면 누가 와서 네잎을 찾아 준다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "wreath",
+        "navy",
+        "#8fd18c",
+        "#f5d76e"
+      ]
+    },
+    {
+      "id": "berry-ribbon",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "산딸기 댕기",
+      "price": null,
+      "desc": "산딸기 물을 들인 오색실 댕기. 달콤한 냄새에 벌이 따라온다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "ribbon",
+        "red",
+        "#e0566a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "deer-tooth-necklace",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "고라니 이빨 목걸이",
+      "price": null,
+      "desc": "고라니 이빨을 노끈에 꿴 목걸이. 걸을 때마다 달그락거려 몰래 다니기는 글렀다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "necklace",
+        "sand",
+        "#f4efe6",
+        "#a07d4a"
+      ]
+    },
+    {
+      "id": "feather-norigae",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "깃털 노리개",
+      "price": null,
+      "desc": "깃털 다발을 오색실 술에 단 노리개. 바람이 불면 주인보다 먼저 들뜬다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "norigae",
+        "blue",
+        "#c9a46a",
+        "#e05b5b"
+      ]
+    },
+    {
+      "id": "crystal-bracelet",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "수정 구슬 팔찌",
+      "price": null,
+      "desc": "수정 구슬을 노끈에 꿴 팔찌. 햇빛 아래에서 손목에 작은 무지개가 생긴다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "bracelet",
+        "teal",
+        "#dff3f7",
+        "#a07d4a"
+      ]
+    },
+    {
+      "id": "gogok-norigae",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "곡옥 노리개",
+      "price": null,
+      "desc": "곡옥에 오색실 술을 단 노리개. 옛 무당들이 차던 것과 꼭 닮았다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "norigae",
+        "green",
+        "#4f9d6b",
+        "#e05b5b"
+      ]
+    },
+    {
+      "id": "jujube-hairpin",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "벽조목 비녀",
+      "price": null,
+      "desc": "벽조목 패를 깎아 진주를 박은 비녀. 꽂고 있으면 악몽을 덜 꾼다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "hairpin",
+        "orange",
+        "#8a5a3c",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "magpie-hairpiece",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "흰까치 깃 머리꽂이",
+      "price": null,
+      "desc": "흰까치 깃에 수정 구슬을 단 머리꽂이. 좋은 소식이 오면 깃이 먼저 들썩인다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "hairpiece",
+        "blue",
+        "#fbfbff",
+        "#9fd3df"
+      ]
+    },
+    {
+      "id": "toad-ring",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "금두꺼비 반지",
+      "price": null,
+      "desc": "금두꺼비 허물로 수정 구슬을 감싼 반지. 끼고 있으면 길에서 동전을 자주 줍는다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "ring",
+        "yellow",
+        "#f5c84c",
+        "#dff3f7"
+      ]
+    },
+    {
+      "id": "dragon-hatstring",
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "name": "용마 갈기 갓끈",
+      "price": null,
+      "desc": "용마 갈기와 해동청 깃에 진주를 꿴 갓끈. 바람 한 점 없는 날에도 혼자 휘날린다.",
+      "effectText": "",
+      "effect": {},
+      "bonus": {},
+      "battle": false,
+      "ic": [
+        "hatstring",
+        "navy",
+        "#2f3447",
+        "#f4efe6"
+      ]
+    }
+  ],
+  "B08_KITCHEN_ITEMS": [
+    {
+      "id": "lake-broth",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "청화 육수",
+      "price": null,
+      "desc": "청화물에 버섯을 우려낸 맑은 육수. 이것만 있으면 무엇이든 국이 된다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "teal",
+        "#e8f1f2",
+        "#b08a5a"
+      ]
+    },
+    {
+      "id": "acorn-flour",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "도토리 가루",
+      "price": null,
+      "desc": "도토리를 말려 곱게 빻은 가루. 다람쥐가 보면 화낼 양이다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jar",
+        "sand",
+        "#a07d4a",
+        "#e6d3b3"
+      ]
+    },
+    {
+      "id": "chestnut-syrup",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "밤 조청",
+      "price": null,
+      "desc": "밤과 볍씨를 오래 고아 낸 끈적한 조청. 숟가락이 꽂힌 채로 서 있다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jar",
+        "orange",
+        "#b5651d",
+        "#f5c84c"
+      ]
+    },
+    {
+      "id": "herb-decoction",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "약재 달임물",
+      "price": null,
+      "desc": "당귀 · 감초 · 도라지를 함께 달인 물. 냄새만 맡아도 몸이 좋아지는 기분이다. 맛은 묻지 말자.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jar",
+        "green",
+        "#6b4a2a",
+        "#c9b37a"
+      ]
+    },
+    {
+      "id": "wild-grape-juice",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "머루즙",
+      "price": null,
+      "desc": "머루를 짓이겨 거른 진한 보랏빛 즙. 포도즙과 헷갈리면 머루가 서운해한다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "purple",
+        "#5b2a6e",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "barley-flour",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "보릿가루",
+      "price": null,
+      "desc": "보리 씨앗을 볶아 빻은 가루. 보리차가 되는 꿈은 이렇게 끝났다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jar",
+        "yellow",
+        "#c9a46a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "blanched-greens",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "나물 데침",
+      "price": null,
+      "desc": "취나물과 고사리를 함께 데쳐 물기를 짠 것. 이대로 먹어도 되지만 참는 게 좋다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "green",
+        "#5f8f4a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "wheat-flour",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "밀가루",
+      "price": null,
+      "desc": "밀 씨앗을 빻아 체에 친 가루. 열 알로 이만큼 나온 게 신기하다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jar",
+        "sand",
+        "#f4efe6",
+        "#c9a46a"
+      ]
+    },
+    {
+      "id": "pickled-raspberry",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "산딸기 절임",
+      "price": null,
+      "desc": "산딸기를 소금물에 절인 것. 새콤하다 못해 눈이 감긴다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jar",
+        "red",
+        "#d83a52",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "barley-gaetteok",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "보리개떡",
+      "price": null,
+      "desc": "보릿가루에 산딸기를 박아 찐 투박한 떡. 생긴 건 그래도 맛은 정직하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "yellow",
+        "#a8874a",
+        "#d83a52"
+      ]
+    },
+    {
+      "id": "grilled-mushroom",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "버섯 구이",
+      "price": null,
+      "desc": "버섯을 꼬치에 꿰어 구운 것. 먹어도 되는 버섯만 골랐는지 한 번 더 확인하자.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "skewer",
+        "orange",
+        "#b08a5a",
+        "#6b4a3a"
+      ]
+    },
+    {
+      "id": "carrot-mushroom-stirfry",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "당근 버섯 볶음",
+      "price": null,
+      "desc": "당근과 버섯을 콩기름에 볶은 반찬. 흐물파와 딱딱파가 이 접시 앞에서는 휴전한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "orange",
+        "#e8742b",
+        "#b08a5a"
+      ]
+    },
+    {
+      "id": "snakeberry-punch",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "뱀딸기 화채",
+      "price": null,
+      "desc": "뱀딸기와 산딸기를 띄운 화채. 뱀딸기만 남기는 사람이 꼭 있다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "pink",
+        "#f4c6cf",
+        "#d83a52"
+      ]
+    },
+    {
+      "id": "dandelion-tea",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "민들레 차",
+      "price": null,
+      "desc": "민들레를 말려 청화물에 우린 차. 쌉싸름해서 졸음이 달아난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "yellow",
+        "#c9a24a",
+        "#f5d76e"
+      ]
+    },
+    {
+      "id": "lake-mushroom-soup",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "청화 버섯국",
+      "price": null,
+      "desc": "청화 육수에 버섯을 듬뿍 넣은 국. 맑은 국물에 버섯이 동동 떠 있다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "teal",
+        "#e8f1f2",
+        "#b08a5a"
+      ]
+    },
+    {
+      "id": "cabbage-soup",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "배춧국",
+      "price": null,
+      "desc": "청화 육수에 배추를 넣고 끓인 국. 배추가 포기한 덕에 우리는 국을 먹는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "green",
+        "#e8f1f2",
+        "#8fbf6a"
+      ]
+    },
+    {
+      "id": "clover-salad",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "토끼풀 샐러드",
+      "price": null,
+      "desc": "토끼풀과 상추, 방울토마토를 버무린 샐러드. 토끼가 보면 줄을 선다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "green",
+        "#7fb77e",
+        "#e0453a"
+      ]
+    },
+    {
+      "id": "ssukbeomuri",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "쑥버무리",
+      "price": null,
+      "desc": "쑥과 보릿가루를 버무려 찐 떡. 향이 진해서 한 입이면 봄이 온다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "green",
+        "#6d8968",
+        "#e6d3b3"
+      ]
+    },
+    {
+      "id": "mugwort-potato-pancake",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "쑥 감자전",
+      "price": null,
+      "desc": "감자를 갈아 쑥을 넣고 콩기름에 부친 전. 가장자리가 바삭할 때 먹어야 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pancake",
+        "yellow",
+        "#e6c26a",
+        "#6d8968"
+      ]
+    },
+    {
+      "id": "stirfried-fern",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "고사리 볶음",
+      "price": null,
+      "desc": "고사리를 콩기름에 달달 볶은 나물. 충분히 삶았는지가 맛을 가른다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "sand",
+        "#7a5a3a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "greens-sujebi",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "나물 수제비",
+      "price": null,
+      "desc": "밀가루 반죽을 뜯어 청화 육수에 나물 데침과 끓인 수제비. 손이 많이 간 만큼 든든하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "sand",
+        "#e8f1f2",
+        "#5f8f4a"
+      ]
+    },
+    {
+      "id": "grilled-carp",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "잉어 구이",
+      "price": null,
+      "desc": "잉어에 쑥을 채워 구운 것. 비린내는 쑥이 다 가져갔다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "fish",
+        "orange",
+        "#d98b3a",
+        "#6d8968"
+      ]
+    },
+    {
+      "id": "loofah-namul",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "수세미 나물",
+      "price": null,
+      "desc": "어린 수세미 열매를 콩기름에 볶은 나물. 설거지 생각은 잠시 접어 두자.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "green",
+        "#9ac46a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "acorn-jelly",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "도토리묵",
+      "price": null,
+      "desc": "도토리 가루를 청화물에 쑤어 굳힌 묵. 젓가락으로 집으면 도망간다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "jelly",
+        "sand",
+        "#7a5a3a",
+        "#a07d4a"
+      ]
+    },
+    {
+      "id": "grilled-king-mushroom",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "왕버섯 구이",
+      "price": null,
+      "desc": "왕버섯을 두툼하게 썰어 콩기름에 구운 것. 한 조각이 손바닥만 하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "skewer",
+        "sand",
+        "#c9a46a",
+        "#6b4a3a"
+      ]
+    },
+    {
+      "id": "dangwi-tea",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "당귀 차",
+      "price": null,
+      "desc": "당귀를 청화물에 우린 차. 약 냄새가 진동하지만 몸은 확실히 따뜻해진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "green",
+        "#8a6a3a",
+        "#c9b37a"
+      ]
+    },
+    {
+      "id": "chestnut-porridge",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "밤죽",
+      "price": null,
+      "desc": "밤을 으깨 볍씨와 함께 쑨 죽. 달큰하고 부드러워서 아플 때 생각난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "orange",
+        "#f0d9a8",
+        "#b5651d"
+      ]
+    },
+    {
+      "id": "doraji-jeonggwa",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "도라지 정과",
+      "price": null,
+      "desc": "도라지를 밤 조청에 졸인 정과. 목이 칼칼할 때 하나씩 꺼내 먹는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "sand",
+        "#f4efe6",
+        "#c98a2b"
+      ]
+    },
+    {
+      "id": "licorice-taffy",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "감초 엿",
+      "price": null,
+      "desc": "감초를 밤 조청에 넣어 굳힌 엿. 약방의 감초가 드디어 주인공이 되었다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "candy",
+        "orange",
+        "#b5651d",
+        "#6b4a2a"
+      ]
+    },
+    {
+      "id": "wild-grape-punch",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "머루 화채",
+      "price": null,
+      "desc": "머루즙에 청화물과 산딸기를 띄운 화채. 보랏빛이 예뻐서 마시기 아깝다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "purple",
+        "#7a3a8e",
+        "#d83a52"
+      ]
+    },
+    {
+      "id": "pearl-dumpling",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "진주 경단",
+      "price": null,
+      "desc": "진주 가루를 넣어 빚은 경단을 밤 조청에 굴린 것. 씹을 때마다 은은하게 반짝인다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "dumpling",
+        "pink",
+        "#f4efe6",
+        "#c98a2b"
+      ]
+    },
+    {
+      "id": "arrowroot-tea",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "칡차",
+      "price": null,
+      "desc": "칡뿌리를 우린 차. 판 사람의 고생이 국물에 그대로 녹아 있다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "sand",
+        "#8a6a4a",
+        "#c9b37a"
+      ]
+    },
+    {
+      "id": "sipjeon-tang",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "십전대보탕",
+      "price": null,
+      "desc": "약재 달임물에 산삼과 감초를 더 넣고 달인 탕. 한 모금에 열 가지 기운이 돈다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "green",
+        "#4a3420",
+        "#c9b37a"
+      ]
+    },
+    {
+      "id": "grilled-deodeok",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "더덕 구이",
+      "price": null,
+      "desc": "더덕을 두드려 펴서 콩기름에 구운 것. 산 냄새가 부엌 가득 퍼진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "skewer",
+        "red",
+        "#c06a3a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "oyster-mushroom-hotpot",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "느타리 전골",
+      "price": null,
+      "desc": "느타리버섯을 청화 육수에 끓인 전골. 버섯끼리 모여 사는 모습이 정겹다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pot",
+        "orange",
+        "#c9a46a",
+        "#e8f1f2"
+      ]
+    },
+    {
+      "id": "clover-hwajeon",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "네잎클로버 화전",
+      "price": null,
+      "desc": "밀가루 반죽에 네잎클로버와 진달래를 올려 부친 화전. 먹으면 운이 좋아질 것 같지만 이미 하나 썼다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pancake",
+        "pink",
+        "#f4efe6",
+        "#7fb77e"
+      ]
+    },
+    {
+      "id": "flower-rice-cake",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "꽃물 떡",
+      "price": null,
+      "desc": "초승꽃과 그믐꽃 물로 물들인 붉은 떡. 너무 붉어서 처음 보는 사람은 놀란다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "red",
+        "#c0392b",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "omija-punch",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "오미자 화채",
+      "price": null,
+      "desc": "오미자를 우린 붉은 물에 진달래를 띄운 화채. 다섯 가지 맛이 차례로 지나간다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "red",
+        "#d83a52",
+        "#f4c6cf"
+      ]
+    },
+    {
+      "id": "songi-rice",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "송이 솥밥",
+      "price": null,
+      "desc": "송이버섯을 얹어 지은 솥밥. 뚜껑을 여는 순간 솔숲이 통째로 들어온다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pot",
+        "sand",
+        "#f4efe6",
+        "#a07d4a"
+      ]
+    },
+    {
+      "id": "dragon-palace-soup",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "용궁탕",
+      "price": null,
+      "desc": "이무기 비늘과 잉어를 청화 육수에 끓인 탕. 먹고 나면 물속에서도 숨을 오래 참을 수 있을 것 같다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "blue",
+        "#cfe8f0",
+        "#7fd6c2"
+      ]
+    },
+    {
+      "id": "antler-tonic",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "녹용 보약",
+      "price": null,
+      "desc": "녹용을 약재 달임물에 넣어 오래 달인 보약. 한 사발이면 사흘은 뛰어다닌다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "red",
+        "#4a2a20",
+        "#c9b37a"
+      ]
+    },
+    {
+      "id": "pine-nut-porridge",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "잣죽",
+      "price": null,
+      "desc": "잣을 곱게 갈아 볍씨와 쑨 죽. 고소한 맛이 숟가락마다 묻어난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "sand",
+        "#f7f0de",
+        "#c9a46a"
+      ]
+    },
+    {
+      "id": "pine-nut-gangjeong",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "잣 강정",
+      "price": null,
+      "desc": "잣을 밤 조청으로 뭉쳐 굳힌 강정. 이 사이에 끼는 건 각오해야 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "candy",
+        "yellow",
+        "#e6c26a",
+        "#f4efe6"
+      ]
+    },
+    {
+      "id": "golden-toad-pill",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "금두꺼비 환",
+      "price": null,
+      "desc": "금두꺼비 허물에 감초를 섞어 빚은 환. 삼키고 나면 지갑을 한 번 확인하게 된다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pill",
+        "yellow",
+        "#c9a24a",
+        "#6b4a2a"
+      ]
+    },
+    {
+      "id": "wild-ginseng-jeonggwa",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "천종삼 정과",
+      "price": null,
+      "desc": "천종삼을 밤 조청에 오래 졸인 정과. 아까워서 한 번에 다 먹은 사람이 없다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "plate",
+        "orange",
+        "#e6c26a",
+        "#c98a2b"
+      ]
+    },
+    {
+      "id": "frost-bingsu",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "얼음꽃 빙수",
+      "price": null,
+      "desc": "얼음꽃을 갈아 머루즙을 끼얹은 빙수. 한겨울에 먹어도 머리가 띵하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "teal",
+        "#f0fbff",
+        "#7a3a8e"
+      ]
+    },
+    {
+      "id": "somdari-tea",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "솜다리 꽃차",
+      "price": null,
+      "desc": "솜다리를 청화물에 띄운 꽃차. 높은 곳의 공기 맛이 난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "cup",
+        "blue",
+        "#fbfbff",
+        "#c9d8e8"
+      ]
+    },
+    {
+      "id": "fortune-pill",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "오복 환",
+      "price": null,
+      "desc": "오복 날개막을 약재 달임물에 개어 빚은 환. 다섯 가지 복 중 무엇이 올지는 먹어 봐야 안다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "pill",
+        "purple",
+        "#8f7cc4",
+        "#f5c84c"
+      ]
+    },
+    {
+      "id": "elixir-of-youth",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "불로장생탕",
+      "price": null,
+      "desc": "불로초와 천종삼을 약재 달임물에 함께 달인 탕. 이걸 끓인 솥은 다시는 평범한 솥이 될 수 없다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "red",
+        "#7a1f1f",
+        "#f5c84c"
+      ]
+    },
+    {
+      "id": "turtle-shell-tonic",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "귀갑 보약",
+      "price": null,
+      "desc": "천년거북 등딱지를 약재 달임물에 넣어 고아 낸 보약. 한 숟갈마다 별자리 하나만큼의 세월이 담겼다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false,
+      "ic": [
+        "bowl",
+        "green",
+        "#3a3a20",
+        "#c9b37a"
+      ]
+    }
+  ],
+  "B08_ICON_SPECS": {
+    "twine": [
+      "cord",
+      "sand",
+      "#a07d4a",
+      "#6b4a3a"
+    ],
+    "yarn-ball": [
+      "yarn",
+      "pink",
+      "#f4efe6",
+      "#c9b8a8"
+    ],
+    "pine-ink": [
+      "inkstick",
+      "navy",
+      "#2f3447",
+      "#a07d4a"
+    ],
+    "red-pigment": [
+      "dish",
+      "sand",
+      "#c0392b",
+      "#e8d8c3"
+    ],
+    "crystal-bead": [
+      "orb",
+      "teal",
+      "#dff3f7",
+      "#9fd3df"
+    ],
+    "jujube-plaque": [
+      "plaque",
+      "orange",
+      "#8a5a3c",
+      "#f5c84c"
+    ],
+    "feather-bundle": [
+      "feathers",
+      "blue",
+      "#c9a46a",
+      "#f4efe6"
+    ],
+    "seal-powder": [
+      "powder",
+      "navy",
+      "#b8b8c4",
+      "#e8e8f0"
+    ],
+    "talisman-ink": [
+      "ink",
+      "red",
+      "#5a1f24",
+      "#c0392b"
+    ],
+    "pebble-sling": [
+      "pouch",
+      "sand",
+      "#a07d4a",
+      "#8e8e8e"
+    ],
+    "cairn-model": [
+      "cairn",
+      "green",
+      "#9a9a9a",
+      "#cfcfcf"
+    ],
+    "charm-bundle": [
+      "talisman",
+      "yellow",
+      "#f4e7b8",
+      "#c0392b"
+    ],
+    "snakeskin-bookmark": [
+      "bookmark",
+      "green",
+      "#d8d2b4",
+      "#8aa36b"
+    ],
+    "mugwort-incense": [
+      "incense",
+      "green",
+      "#6d8968",
+      "#d9d9d9"
+    ],
+    "centipede-ward": [
+      "talisman",
+      "red",
+      "#f4e7b8",
+      "#6b2f2f"
+    ],
+    "moss-pot": [
+      "pot",
+      "teal",
+      "#b5653c",
+      "#5f9e5a"
+    ],
+    "ink-talisman": [
+      "talisman",
+      "navy",
+      "#f4e7b8",
+      "#2f3447"
+    ],
+    "yarn-doll": [
+      "doll",
+      "pink",
+      "#f4efe6",
+      "#c97b8a"
+    ],
+    "badger-brush": [
+      "brush",
+      "sand",
+      "#6b4a3a",
+      "#2f3447"
+    ],
+    "cinnabar-paste": [
+      "seal",
+      "red",
+      "#c0392b",
+      "#f4e7b8"
+    ],
+    "ghostfire-lantern": [
+      "lantern",
+      "navy",
+      "#f4e7b8",
+      "#6ad0ff"
+    ],
+    "sealing-talisman": [
+      "talisman",
+      "purple",
+      "#f4e7b8",
+      "#7a2f3a"
+    ],
+    "imugi-tag": [
+      "tag",
+      "teal",
+      "#8a5a3c",
+      "#7fd6c2"
+    ],
+    "wolf-fang-charm": [
+      "fang",
+      "red",
+      "#f4efe6",
+      "#c0392b"
+    ],
+    "jujube-amulet": [
+      "plaque",
+      "yellow",
+      "#8a5a3c",
+      "#5a1f24"
+    ],
+    "hawk-quill": [
+      "quill",
+      "blue",
+      "#8a6a4a",
+      "#2f3447"
+    ],
+    "soul-lantern": [
+      "lantern",
+      "purple",
+      "#f4e7b8",
+      "#b9a6ff"
+    ],
+    "serpent-chest": [
+      "chest",
+      "yellow",
+      "#8a5a3c",
+      "#f5c84c"
+    ],
+    "fortune-talisman": [
+      "talisman",
+      "orange",
+      "#f4e7b8",
+      "#8f7cc4"
+    ],
+    "turtle-oracle": [
+      "board",
+      "green",
+      "#7a6a3a",
+      "#c0392b"
+    ],
+    "straw-raincape": [
+      "cape",
+      "green",
+      "#9a8a4a",
+      "#6d8968"
+    ],
+    "foxfur-coat": [
+      "robe",
+      "orange",
+      "#d9822b",
+      "#f4efe6"
+    ],
+    "talisman-robe": [
+      "robe",
+      "yellow",
+      "#f4e7b8",
+      "#7a2f3a"
+    ],
+    "bat-cape": [
+      "cape",
+      "navy",
+      "#3b3550",
+      "#8f7cc4"
+    ],
+    "marten-vest": [
+      "vest",
+      "sand",
+      "#8a5a3c",
+      "#e6d3b3"
+    ],
+    "hawk-cheollik": [
+      "robe",
+      "blue",
+      "#4d5a7a",
+      "#c9a46a"
+    ],
+    "bearfur-overcoat": [
+      "vest",
+      "navy",
+      "#2f2a2a",
+      "#f4efe6"
+    ],
+    "frost-hansam": [
+      "robe",
+      "teal",
+      "#e8f6ff",
+      "#9fd3df"
+    ],
+    "weasel-galot": [
+      "robe",
+      "purple",
+      "#fbfbff",
+      "#c9c4e8"
+    ],
+    "crane-robe": [
+      "robe",
+      "sand",
+      "#fbfbf5",
+      "#2f3447"
+    ],
+    "clover-crown": [
+      "wreath",
+      "navy",
+      "#8fd18c",
+      "#f5d76e"
+    ],
+    "berry-ribbon": [
+      "ribbon",
+      "red",
+      "#e0566a",
+      "#f4efe6"
+    ],
+    "deer-tooth-necklace": [
+      "necklace",
+      "sand",
+      "#f4efe6",
+      "#a07d4a"
+    ],
+    "feather-norigae": [
+      "norigae",
+      "blue",
+      "#c9a46a",
+      "#e05b5b"
+    ],
+    "crystal-bracelet": [
+      "bracelet",
+      "teal",
+      "#dff3f7",
+      "#a07d4a"
+    ],
+    "gogok-norigae": [
+      "norigae",
+      "green",
+      "#4f9d6b",
+      "#e05b5b"
+    ],
+    "jujube-hairpin": [
+      "hairpin",
+      "orange",
+      "#8a5a3c",
+      "#f4efe6"
+    ],
+    "magpie-hairpiece": [
+      "hairpiece",
+      "blue",
+      "#fbfbff",
+      "#9fd3df"
+    ],
+    "toad-ring": [
+      "ring",
+      "yellow",
+      "#f5c84c",
+      "#dff3f7"
+    ],
+    "dragon-hatstring": [
+      "hatstring",
+      "navy",
+      "#2f3447",
+      "#f4efe6"
+    ],
+    "lake-broth": [
+      "bowl",
+      "teal",
+      "#e8f1f2",
+      "#b08a5a"
+    ],
+    "acorn-flour": [
+      "jar",
+      "sand",
+      "#a07d4a",
+      "#e6d3b3"
+    ],
+    "chestnut-syrup": [
+      "jar",
+      "orange",
+      "#b5651d",
+      "#f5c84c"
+    ],
+    "herb-decoction": [
+      "jar",
+      "green",
+      "#6b4a2a",
+      "#c9b37a"
+    ],
+    "wild-grape-juice": [
+      "cup",
+      "purple",
+      "#5b2a6e",
+      "#f4efe6"
+    ],
+    "barley-flour": [
+      "jar",
+      "yellow",
+      "#c9a46a",
+      "#f4efe6"
+    ],
+    "blanched-greens": [
+      "plate",
+      "green",
+      "#5f8f4a",
+      "#f4efe6"
+    ],
+    "wheat-flour": [
+      "jar",
+      "sand",
+      "#f4efe6",
+      "#c9a46a"
+    ],
+    "pickled-raspberry": [
+      "jar",
+      "red",
+      "#d83a52",
+      "#f4efe6"
+    ],
+    "barley-gaetteok": [
+      "plate",
+      "yellow",
+      "#a8874a",
+      "#d83a52"
+    ],
+    "grilled-mushroom": [
+      "skewer",
+      "orange",
+      "#b08a5a",
+      "#6b4a3a"
+    ],
+    "carrot-mushroom-stirfry": [
+      "plate",
+      "orange",
+      "#e8742b",
+      "#b08a5a"
+    ],
+    "snakeberry-punch": [
+      "cup",
+      "pink",
+      "#f4c6cf",
+      "#d83a52"
+    ],
+    "dandelion-tea": [
+      "cup",
+      "yellow",
+      "#c9a24a",
+      "#f5d76e"
+    ],
+    "lake-mushroom-soup": [
+      "bowl",
+      "teal",
+      "#e8f1f2",
+      "#b08a5a"
+    ],
+    "cabbage-soup": [
+      "bowl",
+      "green",
+      "#e8f1f2",
+      "#8fbf6a"
+    ],
+    "clover-salad": [
+      "plate",
+      "green",
+      "#7fb77e",
+      "#e0453a"
+    ],
+    "ssukbeomuri": [
+      "plate",
+      "green",
+      "#6d8968",
+      "#e6d3b3"
+    ],
+    "mugwort-potato-pancake": [
+      "pancake",
+      "yellow",
+      "#e6c26a",
+      "#6d8968"
+    ],
+    "stirfried-fern": [
+      "plate",
+      "sand",
+      "#7a5a3a",
+      "#f4efe6"
+    ],
+    "greens-sujebi": [
+      "bowl",
+      "sand",
+      "#e8f1f2",
+      "#5f8f4a"
+    ],
+    "grilled-carp": [
+      "fish",
+      "orange",
+      "#d98b3a",
+      "#6d8968"
+    ],
+    "loofah-namul": [
+      "plate",
+      "green",
+      "#9ac46a",
+      "#f4efe6"
+    ],
+    "acorn-jelly": [
+      "jelly",
+      "sand",
+      "#7a5a3a",
+      "#a07d4a"
+    ],
+    "grilled-king-mushroom": [
+      "skewer",
+      "sand",
+      "#c9a46a",
+      "#6b4a3a"
+    ],
+    "dangwi-tea": [
+      "cup",
+      "green",
+      "#8a6a3a",
+      "#c9b37a"
+    ],
+    "chestnut-porridge": [
+      "bowl",
+      "orange",
+      "#f0d9a8",
+      "#b5651d"
+    ],
+    "doraji-jeonggwa": [
+      "plate",
+      "sand",
+      "#f4efe6",
+      "#c98a2b"
+    ],
+    "licorice-taffy": [
+      "candy",
+      "orange",
+      "#b5651d",
+      "#6b4a2a"
+    ],
+    "wild-grape-punch": [
+      "cup",
+      "purple",
+      "#7a3a8e",
+      "#d83a52"
+    ],
+    "pearl-dumpling": [
+      "dumpling",
+      "pink",
+      "#f4efe6",
+      "#c98a2b"
+    ],
+    "arrowroot-tea": [
+      "cup",
+      "sand",
+      "#8a6a4a",
+      "#c9b37a"
+    ],
+    "sipjeon-tang": [
+      "bowl",
+      "green",
+      "#4a3420",
+      "#c9b37a"
+    ],
+    "grilled-deodeok": [
+      "skewer",
+      "red",
+      "#c06a3a",
+      "#f4efe6"
+    ],
+    "oyster-mushroom-hotpot": [
+      "pot",
+      "orange",
+      "#c9a46a",
+      "#e8f1f2"
+    ],
+    "clover-hwajeon": [
+      "pancake",
+      "pink",
+      "#f4efe6",
+      "#7fb77e"
+    ],
+    "flower-rice-cake": [
+      "plate",
+      "red",
+      "#c0392b",
+      "#f4efe6"
+    ],
+    "omija-punch": [
+      "cup",
+      "red",
+      "#d83a52",
+      "#f4c6cf"
+    ],
+    "songi-rice": [
+      "pot",
+      "sand",
+      "#f4efe6",
+      "#a07d4a"
+    ],
+    "dragon-palace-soup": [
+      "bowl",
+      "blue",
+      "#cfe8f0",
+      "#7fd6c2"
+    ],
+    "antler-tonic": [
+      "bowl",
+      "red",
+      "#4a2a20",
+      "#c9b37a"
+    ],
+    "pine-nut-porridge": [
+      "bowl",
+      "sand",
+      "#f7f0de",
+      "#c9a46a"
+    ],
+    "pine-nut-gangjeong": [
+      "candy",
+      "yellow",
+      "#e6c26a",
+      "#f4efe6"
+    ],
+    "golden-toad-pill": [
+      "pill",
+      "yellow",
+      "#c9a24a",
+      "#6b4a2a"
+    ],
+    "wild-ginseng-jeonggwa": [
+      "plate",
+      "orange",
+      "#e6c26a",
+      "#c98a2b"
+    ],
+    "frost-bingsu": [
+      "cup",
+      "teal",
+      "#f0fbff",
+      "#7a3a8e"
+    ],
+    "somdari-tea": [
+      "cup",
+      "blue",
+      "#fbfbff",
+      "#c9d8e8"
+    ],
+    "fortune-pill": [
+      "pill",
+      "purple",
+      "#8f7cc4",
+      "#f5c84c"
+    ],
+    "elixir-of-youth": [
+      "bowl",
+      "red",
+      "#7a1f1f",
+      "#f5c84c"
+    ],
+    "turtle-shell-tonic": [
+      "bowl",
+      "green",
+      "#3a3a20",
+      "#c9b37a"
+    ]
+  }
+}

@@ -1,0 +1,831 @@
+[
+  {
+    "enemyId": "scarecrow",
+    "enemyName": "허수아비 잡귀",
+    "tier": 1,
+    "slot": "special",
+    "label": "혼 빨기",
+    "note": "의지력을 빨아들인다."
+  },
+  {
+    "enemyId": "snake",
+    "enemyName": "먹구렁이",
+    "tier": 2,
+    "slot": "special",
+    "label": "휘감기",
+    "note": "몸을 감아 조이고, 다음 내 턴엔 막기를 할 수 없다."
+  },
+  {
+    "enemyId": "wonhon",
+    "enemyName": "묵은 원귀",
+    "tier": 3,
+    "slot": "special",
+    "label": "원한의 저주",
+    "note": "세 번의 상대 턴 동안 매번 피해가 스며든다."
+  },
+  {
+    "enemyId": "foxfire",
+    "enemyName": "여우불",
+    "tier": 1,
+    "slot": "special",
+    "label": "불똥 흩뿌리기",
+    "note": "사방으로 튀는 불똥. 막을 수 없는 피해를 입는다."
+  },
+  {
+    "enemyId": "dueoksini",
+    "enemyName": "두억시니",
+    "tier": 2,
+    "slot": "special",
+    "label": "짓누르는 그림자",
+    "note": "막을 수 없는 일격으로 몸을 짓누르고, 의지력을 빨아들이며, 다음 내 턴엔 막기를 할 수 없다."
+  },
+  {
+    "enemyId": "bulgasari",
+    "enemyName": "불가살이",
+    "tier": 3,
+    "slot": "special",
+    "label": "쇠 갉아먹기",
+    "note": "한 사람의 살과 의지를 갉아먹는다. 막을 수 없는 피해를 주고 의지력을 빨아들인다."
+  },
+  {
+    "enemyId": "bulgasari",
+    "enemyName": "불가살이",
+    "tier": 3,
+    "slot": "special2",
+    "label": "불길 내뿜기",
+    "note": "일행 전원에게 불길을 뿜는다. 막을 수 없는 피해를 입고, 다음 내 턴엔 막기를 할 수 없다."
+  },
+  {
+    "enemyId": "geuseundae",
+    "enemyName": "그슨대",
+    "tier": 5,
+    "slot": "special",
+    "label": "내리누르기",
+    "note": "한 사람을 거대한 손바닥으로 내리누른다. 막을 수 없는 피해를 주고, 다음 3라운드 동안 영능력을 봉인한다."
+  },
+  {
+    "enemyId": "geuseundae",
+    "enemyName": "그슨대",
+    "tier": 5,
+    "slot": "special2",
+    "label": "어둠 드리우기",
+    "note": "일행 전원 위로 그림자를 드리운다. 막을 수 있는 피해를 주는 대신 의지력을 더 많이 빨아들인다."
+  },
+  {
+    "enemyId": "mongdangbi",
+    "enemyName": "몽당비 도깨비",
+    "tier": 1,
+    "slot": "special",
+    "label": "쓸어내기",
+    "note": "닳은 빗자루로 앞날을 싹 쓸어 버린다. 간파해 둔 행동이 지워지고 새로 굴러간다.",
+    "effect": {
+      "wipeIntel": true
+    }
+  },
+  {
+    "enemyId": "yagwanggwi",
+    "enemyName": "야광귀",
+    "tier": 1,
+    "slot": "special",
+    "label": "신 훔치기",
+    "note": "신과 함께 주머니를 채 간다. 한동안 아이템을 꺼낼 수 없다.",
+    "effect": {
+      "dmg": {
+        "add": 0
+      },
+      "blockable": true,
+      "itemSeal": 3
+    }
+  },
+  {
+    "enemyId": "dalgyal-gwisin",
+    "enemyName": "달걀귀신",
+    "tier": 1,
+    "slot": "special",
+    "label": "맨얼굴",
+    "note": "아무것도 없는 얼굴을 들이민다. 온몸이 굳어 한 턴 동안 움직일 수 없다.",
+    "effect": {
+      "stun": 1
+    }
+  },
+  {
+    "enemyId": "dungap-jwi",
+    "enemyName": "둔갑쥐 떼",
+    "tier": 1,
+    "slot": "special",
+    "label": "쥐 떼 부르기",
+    "note": "찍찍 소리와 함께 쥐 떼가 몰려든다. 한동안 라운드가 끝날 때마다 누군가를 문다.",
+    "effect": {
+      "target": "one",
+      "summon": {
+        "rounds": 3,
+        "die": "atk/2"
+      }
+    }
+  },
+  {
+    "enemyId": "kim-seobang",
+    "enemyName": "김서방 도깨비",
+    "tier": 1,
+    "slot": "special",
+    "label": "메치기",
+    "note": "한 사람을 번쩍 들어 메친다. 지금 체력의 3분의 1을 앗아 가며 막기도 인내도 소용없다.",
+    "effect": {
+      "pctCurrent": 3
+    }
+  },
+  {
+    "enemyId": "kim-seobang",
+    "enemyName": "김서방 도깨비",
+    "tier": 1,
+    "slot": "special2",
+    "label": "도깨비방망이",
+    "note": "방망이를 크게 휘둘러 일행 전원을 후려친다. 한 방의 힘을 여럿이 나눠 맞으니, 사람이 많을수록 덜 아프다.",
+    "effect": {
+      "target": "all",
+      "splitDamage": 4
+    }
+  },
+  {
+    "enemyId": "mangtae-halabeom",
+    "enemyName": "망태 할아범",
+    "tier": 2,
+    "slot": "special",
+    "label": "해 질 녘",
+    "note": "해가 지면 망태 할아범이 온다. 싸움이 길어질수록 더 아프게 후려친다.",
+    "effect": {
+      "dmg": {
+        "add": "round*2"
+      }
+    }
+  },
+  {
+    "enemyId": "mongdal-gwisin",
+    "enemyName": "몽달귀신",
+    "tier": 2,
+    "slot": "special",
+    "label": "들러붙기",
+    "note": "서러운 한이 들러붙는다. 한동안 공격·부적을 쓸 때마다 체력이 빠진다.",
+    "effect": {
+      "thorns": {
+        "turns": 3,
+        "die": "spirit/2"
+      }
+    }
+  },
+  {
+    "enemyId": "dokgak-gwi",
+    "enemyName": "독각귀",
+    "tier": 2,
+    "slot": "special",
+    "label": "외발 뛰기",
+    "note": "외발로 껑충 뛰어 곧바로 한 번 더 움직인다.",
+    "effect": {
+      "extraAction": true
+    }
+  },
+  {
+    "enemyId": "gaekgwi",
+    "enemyName": "객귀 떼",
+    "tier": 2,
+    "slot": "special",
+    "label": "넋 뒤바꾸기",
+    "note": "떠도는 넋들이 일행의 몸을 뒤바꾼다. 가장 멀쩡한 사람과 가장 다친 사람의 체력 비율이 맞바뀐다.",
+    "effect": {
+      "swapAllyHp": true
+    }
+  },
+  {
+    "enemyId": "jangsanbeom",
+    "enemyName": "장산범",
+    "tier": 2,
+    "slot": "special",
+    "label": "목소리 흉내",
+    "note": "익숙한 목소리로 한 사람을 부른다. 다음 턴에 고른 행동이 멋대로 바뀐다.",
+    "effect": {
+      "scramble": 1
+    }
+  },
+  {
+    "enemyId": "jangsanbeom",
+    "enemyName": "장산범",
+    "tier": 2,
+    "slot": "special2",
+    "label": "흰 털 냄새",
+    "note": "흰 털을 한 사람에게 묻혀 둔다. 한동안 한 사람을 노리는 공격은 모두 그 사람에게 간다.",
+    "effect": {
+      "target": "one",
+      "mark": 3
+    }
+  },
+  {
+    "enemyId": "heokkaebi",
+    "enemyName": "허깨비",
+    "tier": 3,
+    "slot": "special",
+    "label": "헛것 보이기",
+    "note": "안개 속에 헛것을 띄운다. 앞으로 보이는 행동 몇 개는 거짓이다.",
+    "effect": {
+      "falseIntel": 3
+    }
+  },
+  {
+    "enemyId": "daemang",
+    "enemyName": "대망이",
+    "tier": 3,
+    "slot": "special",
+    "label": "통째로 삼키기",
+    "note": "통째로 삼키려 든다. 막을 수 없고, 입힌 피해만큼 체력을 되찾는다.",
+    "effect": {
+      "dmg": {
+        "add": "spirit"
+      },
+      "lifesteal": 1
+    }
+  },
+  {
+    "enemyId": "songaksi",
+    "enemyName": "손각시",
+    "tier": 3,
+    "slot": "special",
+    "label": "서러운 울음",
+    "note": "구슬픈 울음에 싸울 기운이 빠진다. 한동안 호전이 절반이 된다.",
+    "effect": {
+      "statDown": {
+        "stat": "aggression",
+        "turns": 3
+      }
+    }
+  },
+  {
+    "enemyId": "imae-mangryang",
+    "enemyName": "이매망량",
+    "tier": 3,
+    "slot": "special",
+    "label": "산과 물 잇기",
+    "note": "산의 정과 물의 정이 두 사람을 잇는다. 한쪽이 다치면 다른 쪽도 절반만큼 다친다.",
+    "effect": {
+      "target": "one",
+      "link": 3
+    }
+  },
+  {
+    "enemyId": "cheonnyeon-jine",
+    "enemyName": "천년지네",
+    "tier": 3,
+    "slot": "special",
+    "label": "독니",
+    "note": "한 사람을 독니로 문다. 독은 겹겹이 쌓이고 싸움이 끝날 때까지 빠지지 않는다.",
+    "effect": {
+      "poison": {
+        "die": "spirit/3"
+      }
+    }
+  },
+  {
+    "enemyId": "cheonnyeon-jine",
+    "enemyName": "천년지네",
+    "tier": 3,
+    "slot": "special2",
+    "label": "독안개",
+    "note": "독안개를 깔아 일행을 덮는다. 한동안 웅크리면 오히려 독을 들이마신다.",
+    "effect": {
+      "target": "all",
+      "guardTrap": {
+        "turns": 3,
+        "die": "spirit"
+      }
+    }
+  },
+  {
+    "enemyId": "changgwi",
+    "enemyName": "창귀",
+    "tier": 4,
+    "slot": "special",
+    "label": "범 부르기",
+    "note": "어디선가 범을 불러들인다. 약해진 사람일수록 더 크게 물린다.",
+    "effect": {
+      "dmg": {
+        "add": "spirit/2"
+      },
+      "execute": true
+    }
+  },
+  {
+    "enemyId": "myogwi",
+    "enemyName": "묘귀",
+    "tier": 4,
+    "slot": "special",
+    "label": "할퀸 상처",
+    "note": "깊게 할퀴어 상처를 남긴다. 이번 싸움 동안 최대 체력이 줄어든다.",
+    "effect": {
+      "dmg": {
+        "add": 0
+      },
+      "blockable": true,
+      "maxHpCut": 0.1
+    }
+  },
+  {
+    "enemyId": "jeokwi",
+    "enemyName": "저퀴",
+    "tier": 4,
+    "slot": "special",
+    "label": "병 옮기기",
+    "note": "병을 옮긴다. 한동안 받는 피해가 늘고 인내로 버티지 못한다.",
+    "effect": {
+      "vulnerable": 3
+    }
+  },
+  {
+    "enemyId": "agwi",
+    "enemyName": "아귀 떼",
+    "tier": 4,
+    "slot": "special",
+    "label": "약한 자부터",
+    "note": "굶주린 아귀들이 가장 약한 사람에게 몰려든다. 막을 수 없다.",
+    "effect": {
+      "targetLowest": true,
+      "dmg": {
+        "mult": 2
+      }
+    }
+  },
+  {
+    "enemyId": "geumdwaeji",
+    "enemyName": "금돼지",
+    "tier": 4,
+    "slot": "special",
+    "label": "엄니 갈기",
+    "note": "엄니를 갈며 숨을 고른다. 다음 행동은 세 배로 들이받는 강공이다.",
+    "effect": {
+      "chargeMult": 3
+    }
+  },
+  {
+    "enemyId": "geumdwaeji",
+    "enemyName": "금돼지",
+    "tier": 4,
+    "slot": "special2",
+    "label": "금빛 울림",
+    "note": "온몸의 금털을 떨어 굴을 울린다. 한동안 의지력이 드는 모든 행동이 두 배로 비싸다.",
+    "effect": {
+      "target": "all",
+      "costUp": 3
+    }
+  },
+  {
+    "enemyId": "gildal",
+    "enemyName": "길달",
+    "tier": 5,
+    "slot": "special",
+    "label": "여우 둔갑",
+    "note": "여우로 둔갑해 몸을 감춘다. 다음 일반 공격 두 번을 흘려 낸다.",
+    "effect": {
+      "evade": 2
+    }
+  },
+  {
+    "enemyId": "jigwi",
+    "enemyName": "지귀",
+    "tier": 5,
+    "slot": "special",
+    "label": "연모의 불길",
+    "note": "가슴의 불길이 옮겨붙는다. 한동안 앞뒤 가리지 않고 일반 공격만 하게 된다.",
+    "effect": {
+      "forceRash": 2
+    }
+  },
+  {
+    "enemyId": "gawi-gwi",
+    "enemyName": "가위귀",
+    "tier": 5,
+    "slot": "special",
+    "label": "가위눌림",
+    "note": "가슴을 짓눌러 잠재운다. 최대 세 턴 동안 움직일 수 없지만, 아프면 깬다.",
+    "effect": {
+      "sleep": 3
+    }
+  },
+  {
+    "enemyId": "udu-mamyeon",
+    "enemyName": "우두마면",
+    "tier": 5,
+    "slot": "special",
+    "label": "명부 쇠사슬",
+    "note": "명부의 쇠사슬로 한 사람의 넋을 옭아맨다. 막을 수 없고, 이번 싸움에서 버틸 기회를 하나 빼앗는다.",
+    "effect": {
+      "dmg": {
+        "add": "spirit/2"
+      },
+      "surviveSteal": 1
+    }
+  },
+  {
+    "enemyId": "gumiho",
+    "enemyName": "구미호",
+    "tier": 5,
+    "slot": "special",
+    "label": "여우구슬",
+    "note": "한 사람의 입에 구슬을 밀어 넣어 기운을 빼앗는다. 칠성낙인의 힘과 모으던 도깨비불이 구미호에게 넘어간다.",
+    "effect": {
+      "buffSteal": {
+        "rounds": 3
+      }
+    }
+  },
+  {
+    "enemyId": "gumiho",
+    "enemyName": "구미호",
+    "tier": 5,
+    "slot": "special2",
+    "label": "꼬리 하나 태우기",
+    "note": "꼬리 하나를 태워 상처를 아문다.",
+    "effect": {
+      "target": "one",
+      "heal": 0.15
+    }
+  },
+  {
+    "enemyId": "yeou-nui",
+    "enemyName": "여우누이",
+    "tier": 6,
+    "slot": "special",
+    "label": "누이 얼굴",
+    "note": "다정한 누이의 얼굴로 홀린다. 다음 일반 공격·부적이 나를 향한다.",
+    "effect": {
+      "confuse": 3
+    }
+  },
+  {
+    "enemyId": "noho-seung",
+    "enemyName": "노호승",
+    "tier": 6,
+    "slot": "special",
+    "label": "거꾸로 외는 경",
+    "note": "경을 거꾸로 외어 시간을 되감는다. 두 턴 전의 몸으로 돌아간다.",
+    "effect": {
+      "rewind": {
+        "turns": 2,
+        "cap": 0.3
+      }
+    }
+  },
+  {
+    "enemyId": "chokru-gwi",
+    "enemyName": "촉루귀",
+    "tier": 6,
+    "slot": "special",
+    "label": "뼈 맞추기",
+    "note": "흩어진 뼈를 미리 맞춰 둔다. 쓰러져도 한 번은 다시 일어선다.",
+    "effect": {
+      "revive": 0.25
+    }
+  },
+  {
+    "enemyId": "bulgae",
+    "enemyName": "불개",
+    "tier": 6,
+    "slot": "special",
+    "label": "해와 달 물기",
+    "note": "해를 물고 달을 문다. 한 사람에게서 다음 사람으로 옮겨 가며 물수록 힘이 빠진다.",
+    "effect": {
+      "target": "all",
+      "chain": true,
+      "dmg": {
+        "add": "spirit/2"
+      }
+    }
+  },
+  {
+    "enemyId": "yeoksin",
+    "enemyName": "역신",
+    "tier": 6,
+    "slot": "special",
+    "label": "역병",
+    "note": "한 사람에게 역병을 옮긴다. 라운드가 끝날 때마다 몸이 상하고, 안 걸린 사람에게 번진다.",
+    "effect": {
+      "plague": {
+        "rounds": 3,
+        "die": "spirit/2"
+      }
+    }
+  },
+  {
+    "enemyId": "yeoksin",
+    "enemyName": "역신",
+    "tier": 6,
+    "slot": "special2",
+    "label": "돌림병",
+    "note": "일행 전원에게 병을 돌린다. 한동안 어떤 회복도 듣지 않는다.",
+    "effect": {
+      "target": "all",
+      "healBlock": 3
+    }
+  },
+  {
+    "enemyId": "geuseunsae",
+    "enemyName": "그슨새",
+    "tier": 7,
+    "slot": "special",
+    "label": "날개 덮기",
+    "note": "커다란 날개로 하늘을 덮는다. 한동안 앞이 보이지 않아 공격이 자주 빗나간다.",
+    "effect": {
+      "blind": 3
+    }
+  },
+  {
+    "enemyId": "hwama",
+    "enemyName": "화마",
+    "tier": 7,
+    "slot": "special",
+    "label": "번지는 불",
+    "note": "불길을 옮겨붙인다. 내 턴마다 몸이 타고, 웅크려야 꺼진다.",
+    "effect": {
+      "burn": {
+        "turns": 3,
+        "pct": 0.06
+      }
+    }
+  },
+  {
+    "enemyId": "yeongno",
+    "enemyName": "영노",
+    "tier": 7,
+    "slot": "special",
+    "label": "아흔아홉째",
+    "note": "아흔아홉을 먹고 백을 채우려 한다. 막을 수 없고, 쓸 때마다 다음 피해가 두 배로 커진다.",
+    "effect": {
+      "dmg": {
+        "add": "spirit/2"
+      },
+      "escalate": 2
+    }
+  },
+  {
+    "enemyId": "yacha-nachal",
+    "enemyName": "야차나찰",
+    "tier": 7,
+    "slot": "special",
+    "label": "쌍칼 쳐내기",
+    "note": "쌍칼로 일행의 무구를 쳐낸다. 한동안 무구 효과와 특수 강화가 꺼진다.",
+    "effect": {
+      "target": "all",
+      "weaponSeal": 3
+    }
+  },
+  {
+    "enemyId": "hanbal",
+    "enemyName": "한발",
+    "tier": 7,
+    "slot": "special",
+    "label": "목마름",
+    "note": "한 사람의 물기를 말린다. 한동안 의지력을 쓸 때마다 같은 양의 체력이 깎인다.",
+    "effect": {
+      "mpTax": 3
+    }
+  },
+  {
+    "enemyId": "hanbal",
+    "enemyName": "한발",
+    "tier": 7,
+    "slot": "special2",
+    "label": "가뭄의 해",
+    "note": "땡볕을 내리쬔다. 라운드가 끝날 때마다 일행이 타들어 가고, 충분히 때려야 비가 온다.",
+    "effect": {
+      "target": "all",
+      "field": {
+        "die": "spirit/3",
+        "until": "atk*5"
+      }
+    }
+  },
+  {
+    "enemyId": "gangcheol",
+    "enemyName": "강철이",
+    "tier": 8,
+    "slot": "special",
+    "label": "마른 바람",
+    "note": "메마른 바람이 의지력을 태운다. 태운 만큼 몸이 다친다.",
+    "effect": {
+      "mpBurn": 0.5
+    }
+  },
+  {
+    "enemyId": "mudu-gwi",
+    "enemyName": "무두귀",
+    "tier": 8,
+    "slot": "special",
+    "label": "머리 찾기",
+    "note": "머리 없는 몸이 덥석 붙잡는다. 막을 수 없고, 공포에 질려 다음 턴엔 공격하지 못한다.",
+    "effect": {
+      "dmg": {
+        "add": 0
+      },
+      "fear": 1
+    }
+  },
+  {
+    "enemyId": "gwimok",
+    "enemyName": "귀목",
+    "tier": 8,
+    "slot": "special",
+    "label": "껍질 두르기",
+    "note": "두꺼운 껍질을 두른다. 껍질이 깨질 때까지 피해를 대신 받는다.",
+    "effect": {
+      "shield": 0.15
+    }
+  },
+  {
+    "enemyId": "baekgwi",
+    "enemyName": "백귀행렬",
+    "tier": 8,
+    "slot": "special",
+    "label": "행렬에 끼우기",
+    "note": "한 사람을 행렬에 끌고 간다. 두 라운드 동안 싸움에서 빠지지만, 남은 일행이 크게 때리면 돌아온다.",
+    "effect": {
+      "banish": {
+        "rounds": 2,
+        "need": "atk*3"
+      }
+    }
+  },
+  {
+    "enemyId": "samdugumi",
+    "enemyName": "삼두구미",
+    "tier": 8,
+    "slot": "special",
+    "label": "세 머리",
+    "note": "세 머리가 차례로 한 사람을 문다. 막을 수 없다.",
+    "effect": {
+      "dmg": {
+        "add": "spirit/3",
+        "hits": 3
+      }
+    }
+  },
+  {
+    "enemyId": "samdugumi",
+    "enemyName": "삼두구미",
+    "tier": 8,
+    "slot": "special2",
+    "label": "꼬리에 감은 원한",
+    "note": "아홉 꼬리에 감아 둔 원한을 풀어 놓는다. 최근 두 라운드 동안 받은 피해를 모아 일행에게 되돌린다.",
+    "effect": {
+      "target": "all",
+      "release": {
+        "pct": 0.3,
+        "rounds": 2
+      }
+    }
+  },
+  {
+    "enemyId": "baekgol-janggun",
+    "enemyName": "백골장군",
+    "tier": 9,
+    "slot": "special",
+    "label": "방패 진형",
+    "note": "백골 병사들이 방패를 겹겹이 세운다. 다음 공격의 피해 절반이 되돌아온다.",
+    "effect": {
+      "reflect": 0.5
+    }
+  },
+  {
+    "enemyId": "yohwa",
+    "enemyName": "요화",
+    "tier": 9,
+    "slot": "special",
+    "label": "저린 꽃가루",
+    "note": "저린 꽃가루를 흩뿌린다. 한동안 몸이 저려 고른 행동이 실패하곤 한다.",
+    "effect": {
+      "paralyze": {
+        "turns": 3,
+        "chance": 30
+      }
+    }
+  },
+  {
+    "enemyId": "daein",
+    "enemyName": "대인",
+    "tier": 9,
+    "slot": "special",
+    "label": "발 들어 올리기",
+    "note": "산만 한 발을 들어 올린다. 세 턴 뒤 내리찍지만, 그 사이 크게 때리면 넘어진다.",
+    "effect": {
+      "delayed": {
+        "turns": 3,
+        "mult": 3,
+        "add": "spirit",
+        "cancel": "atk*2"
+      }
+    }
+  },
+  {
+    "enemyId": "gunggi",
+    "enemyName": "궁기",
+    "tier": 9,
+    "slot": "special",
+    "label": "싸움 붙이기",
+    "note": "일행 사이에 싸움을 붙인다. 두 사람이 서로를 친다.",
+    "effect": {
+      "friendlyFire": true
+    }
+  },
+  {
+    "enemyId": "jihaguk-daejeok",
+    "enemyName": "지하국 대적",
+    "tier": 9,
+    "slot": "special",
+    "label": "머리 떼어 던지기",
+    "note": "제 머리 하나를 떼어 던진다. 자기 체력을 깎아 그 세 배로 친다.",
+    "effect": {
+      "sacrifice": {
+        "pct": 0.02,
+        "mult": 3
+      }
+    }
+  },
+  {
+    "enemyId": "jihaguk-daejeok",
+    "enemyName": "지하국 대적",
+    "tier": 9,
+    "slot": "special2",
+    "label": "아홉 머리 깨우기",
+    "note": "잠든 머리를 하나 더 깨운다. 쓸 때마다 공격력이 쌓여 오른다.",
+    "effect": {
+      "target": "one",
+      "rageStack": 4
+    }
+  },
+  {
+    "enemyId": "cheonma",
+    "enemyName": "천마",
+    "tier": 10,
+    "slot": "special",
+    "label": "마왕의 거울",
+    "note": "마왕의 거울에 나를 비춘다. 한동안 내 가장 강한 힘을 빌려 공격력이 오른다.",
+    "effect": {
+      "statCopy": 3
+    }
+  },
+  {
+    "enemyId": "doul",
+    "enemyName": "도올",
+    "tier": 10,
+    "slot": "special",
+    "label": "날뛰기",
+    "note": "미쳐 날뛴다. 다음 세 번의 행동이 모두 강공이다.",
+    "effect": {
+      "rampage": 3
+    }
+  },
+  {
+    "enemyId": "geoul-gwi",
+    "enemyName": "거울귀",
+    "tier": 10,
+    "slot": "special",
+    "label": "되비추기",
+    "note": "거울이 나와 저를 되비춘다. 둘의 체력 비율이 평균으로 맞춰진다.",
+    "effect": {
+      "equalize": true
+    }
+  },
+  {
+    "enemyId": "hondon",
+    "enemyName": "혼돈",
+    "tier": 10,
+    "slot": "special",
+    "label": "일곱 구멍 뒤섞기",
+    "note": "일곱 구멍을 뒤섞어 일행의 기운을 헝클어뜨린다. 한동안 저마다 스탯 두 개가 맞바뀐다.",
+    "effect": {
+      "target": "all",
+      "statSwap": 3
+    }
+  },
+  {
+    "enemyId": "docheol",
+    "enemyName": "도철",
+    "tier": 10,
+    "slot": "special",
+    "label": "결계째 삼키기",
+    "note": "한 사람의 영력결계를 통째로 삼킨다. 막을 수 없고, 결계는 이번 싸움에서 다시 서지 않는다.",
+    "effect": {
+      "barrierBreak": true,
+      "dmg": {
+        "add": "spirit"
+      }
+    }
+  },
+  {
+    "enemyId": "docheol",
+    "enemyName": "도철",
+    "tier": 10,
+    "slot": "special2",
+    "label": "끝없는 허기",
+    "note": "일행이 지닌 부적을 모두 먹어 치우고, 먹은 만큼 살이 오른다.",
+    "effect": {
+      "target": "all",
+      "charmEat": 0.03
+    }
+  }
+]

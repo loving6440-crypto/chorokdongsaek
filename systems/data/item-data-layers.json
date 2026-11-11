@@ -1,0 +1,3607 @@
+{
+  "B05_ITEMS": [
+    {
+      "id": "acorn",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "도토리",
+      "price": null,
+      "desc": "다람쥐가 볼이 터지게 물고 가던 것. 묵을 쑤면 맛있다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "chestnut",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "밤",
+      "price": null,
+      "desc": "가시 돋친 송이 속에 반질반질한 알이 셋.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "pheasant-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "꿩 깃털",
+      "price": null,
+      "desc": "장끼 꽁지에서 빠진 긴 깃털. 무늬가 화려하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "arrowroot",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "칡뿌리",
+      "price": null,
+      "desc": "씹을수록 단맛이 우러난다. 덩굴째 끊어 내느라 손이 얼얼하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "deodeok",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "더덕",
+      "price": null,
+      "desc": "향이 진한 산 뿌리. 캐는 순간 산 냄새가 확 퍼진다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "doraji",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "도라지",
+      "price": null,
+      "desc": "보라색 꽃 아래 하얀 뿌리. 목이 아플 때 좋다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "dangwi",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "당귀",
+      "price": null,
+      "desc": "잎을 비비면 쌉싸름한 약 냄새가 난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "badger-fur",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "오소리 털",
+      "price": null,
+      "desc": "뻣뻣하고 질긴 털. 붓을 매는 데 쓴다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "wild-grape",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "머루",
+      "price": null,
+      "desc": "포도보다 작고 새콤하다. 손이 보랏빛으로 물든다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "omija",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "오미자",
+      "price": null,
+      "desc": "다섯 가지 맛이 난다는 붉은 열매.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "lightning-jujube",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "벽조목",
+      "price": null,
+      "desc": "벼락 맞은 대추나무 조각. 잡귀가 가장 꺼리는 나무라고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "pine-nut",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "잣",
+      "price": null,
+      "desc": "잣송이를 털어 하나하나 까야 한다. 고소하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "marten-fur",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "담비 털",
+      "price": null,
+      "desc": "윤기가 흐르는 노란 털. 아주 귀하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "songi",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "송이버섯",
+      "price": null,
+      "desc": "솔숲에서만 난다. 향이 그윽하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "hawk-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "매 깃털",
+      "price": null,
+      "desc": "날카롭게 다듬어진 깃. 바람을 가르는 소리가 날 것 같다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "wolf-fang",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "늑대 송곳니",
+      "price": null,
+      "desc": "골짜기에 울리던 울음의 주인이 남긴 것.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "bear-fur",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "곰 털",
+      "price": null,
+      "desc": "가슴께의 반달 무늬 털. 한 줌인데도 묵직하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "frost-flower",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "얼음꽃",
+      "price": null,
+      "desc": "능선 바위에 핀 서리 꽃. 손에 닿으면 금세 녹는다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "goral-horn",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "산양 뿔",
+      "price": null,
+      "desc": "절벽을 타는 산양의 짧고 굽은 뿔.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "somdari",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "솜다리",
+      "price": null,
+      "desc": "솜털에 싸인 하얀 꽃. 높은 바위틈에서만 핀다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "magpie-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "흰 까치 깃털",
+      "price": null,
+      "desc": "좋은 소식을 물어 온다는 흰 까치의 깃.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "gold-toad-skin",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "금두꺼비 허물",
+      "price": null,
+      "desc": "금빛으로 반짝이는 얇은 허물. 복을 부른다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "wild-ginseng",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "천종삼",
+      "price": null,
+      "desc": "사람 손을 한 번도 타지 않은 산삼. 산삼 동자가 지키던 것.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "weasel-fur",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "흰 족제비 털",
+      "price": null,
+      "desc": "눈처럼 흰 털. 붓을 매면 글씨가 살아난다고 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "owl-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "부엉이 깃",
+      "price": null,
+      "desc": "소리 없이 나는 수리부엉이의 깃털.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "crane-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "학 깃털",
+      "price": null,
+      "desc": "끝이 까만 하얀 깃. 오래 산다는 새의 것이다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "lingzhi",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "불로초",
+      "price": null,
+      "desc": "흰 노루가 뜯어 먹는다는 풀. 붉게 윤이 난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "dragon-mane",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "용마 갈기",
+      "price": null,
+      "desc": "구름 속을 달리던 용마의 갈기 한 가닥. 쥐면 손이 따뜻하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "turtle-shell",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "천년 거북 등딱지",
+      "price": null,
+      "desc": "천 년을 산 거북이 벗어 둔 등딱지 조각. 무늬가 별자리 같다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "white-squirrel-tail",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "흰 다람쥐 꼬리털",
+      "price": null,
+      "desc": "복을 부른다는 흰 다람쥐가 남긴 꼬리털. 보드랍고 따뜻하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "golden-serpent-scale",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "황구렁이 비늘",
+      "price": null,
+      "desc": "집과 곳간을 지킨다는 업구렁이의 금빛 비늘. 손바닥만 하다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "fortune-bat-wing",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "오복 날개막",
+      "price": null,
+      "desc": "다섯 가지 복을 물어 온다는 박쥐의 얇은 날개막. 빛에 비추면 오색이 돈다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "haedongcheong-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "해동청 깃",
+      "price": null,
+      "desc": "임금도 탐냈다는 하얀 송골매의 깃. 끝에 잿빛 줄무늬가 있다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    }
+  ],
+  "B06_ITEMS": [
+    {
+      "id": "rice-grain",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "볍씨",
+      "price": null,
+      "desc": "이 몇 씨앗 가지고 든든한 밥을 만들 수 있긴 할까? 최소 10알 이상은 모여야 뭐라도 할 수 있을 것 같다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "wheat-seed",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "밀 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "밀가루를 만드는 건 일단 꿈도 못 꿀 것 같은 작은 씨앗. 최소 10알 이상은 모여야 뭐라도 할 수 있을 것 같다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "barley-seed",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "보리 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "보리차 한 잔 끓이기에도 턱없이 모자란 작은 씨앗. 최소 10알 이상은 모여야 뭐라도 할 수 있을 것 같다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "goblin-token",
+      "kind": "tool",
+      "tags": [
+        "완성품",
+        "무구 교환"
+      ],
+      "name": "도깨비 증표",
+      "price": null,
+      "desc": "도깨비들이 자신에게 흥미를 갖고 자신이 흥미를 가진 대상에게 나누어주는 특수한 증표.",
+      "effectText": "10개를 모을 시 무구보관소에서 무구 중 1개로 교환할 수 있다.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "small-altar",
+      "kind": "craft",
+      "tags": [
+        "완성품"
+      ],
+      "name": "소형 돌제단",
+      "price": null,
+      "desc": "",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "herb-salad",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "나물무침",
+      "price": null,
+      "desc": "이런저런 나물을 한데 모아 섞어둔 것. 건강에 좋은 맛이 난다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "mystery-tonic",
+      "kind": "food",
+      "tags": [
+        "완성품"
+      ],
+      "name": "정체불능의 보약",
+      "price": null,
+      "desc": "",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    }
+  ],
+  "B06_OVERRIDES": {
+    "pebble": {
+      "name": "자갈돌",
+      "desc": "그냥 돌보다는 크고 바위보다는 작은 것. 이런 어중간한 크기라도 다 쓸 데가 있다.",
+      "effectText": "제작용 재료"
+    },
+    "snakeberry-jam": {
+      "desc": "대부분의 과일은 설탕을 넣고 가열하면 맛있어진다는 얘기가 있다. 그래서 과학실에 무단침입한 사람 누구냐?"
+    },
+    "mushroom-stew": {
+      "desc": "평범한 버섯전골. 너무 평범하다 못해 밋밋한 맛이 난다."
+    },
+    "king-mushroom-stew": {
+      "desc": "정체를 알 수 없지만 먹을 수 있다는 사실만 명백한 왕버섯 전골."
+    },
+    "poison-mushroom-stew": {
+      "desc": "겉보기로는 버섯 전골과 다름이 없어 보인다. 겉보기로는."
+    },
+    "bibimbap": {
+      "desc": "여럿이 합의하지 않고 가져온 재료로 만든 비빔밥이 제일 맛있다."
+    },
+    "flower-pancake": {
+      "desc": "꽃으로 만들어지는 쫄깃하고 부드러운 전. 달큰하고 화한 맛이 입안 가득 퍼진다."
+    },
+    "w-bell": {
+      "effectText": "버티기를 시도할 수 있는 횟수가 1회 늘어난다. (0이 된 의지력은 자동으로 채워지지 않으며, 의지력이 0이면 두 번째 버티기도 할 수 없다.) 또한 소지자의 매 턴마다 10% 확률로 1d(이해)만큼 같은 파티원 전원(본인 포함)의 체력이 회복된다."
+    },
+    "polishing-stone": {
+      "effectText": "무구 일반 강화에 쓰는 재료. n번째 강화에 n개가 든다 (마지막 15번째는 15개). 공작소에서 숫돌 1개 + 자갈돌 1개로 만든다."
+    },
+    "whetstone": {
+      "effectText": "무구 일반 강화(1~3번째)와 특수 강화(화투패 1장 + 숫돌 9개)에 쓰는 재료."
+    }
+  },
+  "B07_ITEMS": [
+    {
+      "id": "lost-key",
+      "kind": "tool",
+      "tags": [
+        "완성품"
+      ],
+      "name": "누군가가 잃어버린 열쇠",
+      "price": null,
+      "desc": "학교에서 이런 걸 잃어버렸다는 것은 그의 고교 인생을 잃어버린 것과 다름이 없다.",
+      "effectText": "누군가의 물품보관소를 열 수 있다. 안에서 무엇이 나올지는 아무도 모르겠지만.",
+      "effect": {},
+      "battle": false
+    }
+  ],
+  "B08_SHEET_ITEMS": [
+    {
+      "id": "magpie-plain-feather",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "까치 깃",
+      "price": null,
+      "desc": "날쌔서 까치를 향해 손을 뻗으면 새는 도망치고 없고 깃만 조롱하듯 남겨져 있다.",
+      "effectText": "제작용 재료",
+      "effect": {},
+      "battle": false
+    }
+  ],
+  "B08_SHEET_OVERRIDES": {
+    "headband": {
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "bonus": {},
+      "trinketFx": "headband",
+      "effectText": "장신구형 에너자이저(소모품). 착용한 채 전투불능이 되면 한 번, 전투를 끝내지 않고 체력 1로 다시 일어선다. 효과가 나면 띠는 끊어져 사라진다."
+    },
+    "berry-earring": {
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "bonus": {
+        "aggression": 1
+      },
+      "effectText": "착용 시 호전 +1 보정."
+    },
+    "goblin-mask": {
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "bonus": {},
+      "trinketFx": "goblin-mask",
+      "effectText": "착용 시 모든 공격력에 +200% 보정. 단, 돌발 확률이 50% 늘어나고, 아군을 일반 공격으로 공격할 확률이 (호전/3)% 생긴다."
+    },
+    "gold-crown": {
+      "kind": "gear",
+      "slot": "trinket",
+      "tags": [
+        "완성품",
+        "장신구"
+      ],
+      "bonus": {}
+    },
+    "diary": {
+      "effect": {
+        "mpStats": [
+          "endurance",
+          "control"
+        ]
+      },
+      "effectText": "의지를 (인내+절제)만큼 회복한다.",
+      "desc": "오늘 있던 일을 정리하자. 멘탈관리에 도움을 주곤 한다. 평소에 일기를 자주 쓰는 만큼 익숙해진다."
+    },
+    "inkstick": {
+      "price": 10
+    },
+    "king-mushroom": {
+      "desc": "한 아름 되는 거대한 버섯. 맛보다는 보통 생김새에 압도당한다."
+    },
+    "barley-seed": {
+      "desc": "이 작은 씨앗은 미래에 자신이 보리차가 되리라곤 꿈도 못 꿀 것이다. 최소 10알 이상은 모여야 뭐라도 할 수 있을 것 같다."
+    },
+    "ginseng": {
+      "desc": "산속 깊은 곳에서 발견한 오래 묵은 산삼. 왠지 말하게 생겼다고? 기분 탓이다."
+    },
+    "acorn": {
+      "desc": "도토리 키 재기라는 말을 들어봤는가? 실제 도토리들은 은근히 크기 편차가 심하다.",
+      "effectText": "제작용 재료"
+    },
+    "chestnut": {
+      "effectText": "제작용 재료"
+    },
+    "pheasant-feather": {
+      "desc": "장끼 꽁지에서 빠진 긴 깃털. 무늬가 눈을 사로잡는다.",
+      "effectText": "제작용 재료"
+    },
+    "arrowroot": {
+      "name": "칡 뿌리",
+      "desc": "씹을수록 단맛이 우러난다. 파느라 고생한 만큼 먹어주겠다는 의지가 피어오른다.",
+      "effectText": "제작용 재료"
+    },
+    "deodeok": {
+      "effectText": "제작용 재료"
+    },
+    "doraji": {
+      "effectText": "제작용 재료"
+    },
+    "dangwi": {
+      "effectText": "제작용 재료"
+    },
+    "badger-fur": {
+      "effectText": "제작용 재료"
+    },
+    "wild-grape": {
+      "desc": "작고 새콤한 보랏빛 과일. 포도와는 다르다. 포도와는!",
+      "effectText": "제작용 재료"
+    },
+    "omija": {
+      "desc": "오미자는 보통 맛보다는 효능으로 유명하다. 열매로 본 사람이 몇이나 될까?",
+      "effectText": "제작용 재료"
+    },
+    "lightning-jujube": {
+      "desc": "벼락 맞은 대추나무 조각. 잡귀가 가장 꺼리는 나무라고 한다. 우리에게 있어서는 가장 반가운 나무다.",
+      "effectText": "제작용 재료"
+    },
+    "pine-nut": {
+      "desc": "고소하고 담백한 견과류. 송이를 하나하나 털어 먹어야 하지만, 그만큼 귀하다.",
+      "effectText": "제작용 재료"
+    },
+    "marten-fur": {
+      "desc": "누가 이 불쌍한 담비에게 털을 뽑아야 살아남을 수 있다고 겁이라도 준 거야?",
+      "effectText": "제작용 재료"
+    },
+    "songi": {
+      "desc": "솔숲에서만 난다. 향이 그윽한 것이 아주 맛있어보인다.",
+      "effectText": "제작용 재료"
+    },
+    "hawk-feather": {
+      "desc": "이 깃털은 알았을까? 하늘을 가르는 매의 자랑스러운 꼬리깃이었던 자신이 땅에 선 두발짐승의 손에 초라하게 들리게 되리라고⋯⋯.",
+      "effectText": "제작용 재료"
+    },
+    "wolf-fang": {
+      "desc": "골짜기에 울리던 울음의 주인이 남긴 것. 이갈이를 하는 건 포식자나 피식자나 똑같다.",
+      "effectText": "제작용 재료"
+    },
+    "bear-fur": {
+      "desc": "가슴께의 반달 무늬 털. 고작 한 줌인데도 왠지 묵직한 기분이 든다.",
+      "effectText": "제작용 재료"
+    },
+    "frost-flower": {
+      "desc": "얼능선 바위에 핀 서리 꽃. 손에 닿으면 금세 녹아내려 옮길 때에도 얼음팩을 지참해야 한다.",
+      "effectText": "제작용 재료"
+    },
+    "goral-horn": {
+      "desc": "절벽을 타는 산양의 부러진 뿔. 대체 이 산에는 뭐 얼마나 많은 동물들이 사는 걸까?",
+      "effectText": "제작용 재료"
+    },
+    "somdari": {
+      "effectText": "제작용 재료"
+    },
+    "magpie-feather": {
+      "name": "흰까치 깃",
+      "desc": "좋은 소식을 물어 온다는 흰 까치의 깃. 들여다보고 있으면 기분 좋은 색이다.",
+      "effectText": "제작용 재료"
+    },
+    "gold-toad-skin": {
+      "desc": "금빛으로 반짝이는 얇은 허물. 금을 닮아 복을 부른다고 한다.",
+      "effectText": "제작용 재료"
+    },
+    "weasel-fur": {
+      "name": "흰족제비 털",
+      "desc": "눈처럼 새하얀 색의 털. 붓을 매면 글씨가 살아난다고 하는데, 그렇다고 부족한 서예 실력을 살릴 수는 없다.",
+      "effectText": "제작용 재료"
+    },
+    "owl-feather": {
+      "desc": "소리 없이 나는 수리부엉이의 깃털. 밤이 되면 그들은 인간이 볼 수 없는 영역을 보게 된다. 혼, 백, 그 외의 것들도.",
+      "effectText": "제작용 재료"
+    },
+    "crane-feather": {
+      "desc": "끝이 까만 하얀 깃. 고고한 빛깔을 들여다보고 있으면 왠지 오래 살고 싶어진다나.",
+      "effectText": "제작용 재료"
+    },
+    "lingzhi": {
+      "effectText": "제작용 재료"
+    },
+    "dragon-mane": {
+      "desc": "구름 속을 달리던 용마의 갈기 한 가닥. 용마는 지금쯤 등이 억울하게 휑해졌을 것이다.",
+      "effectText": "제작용 재료"
+    },
+    "turtle-shell": {
+      "name": "천년거북 등딱지",
+      "effectText": "제작용 재료"
+    },
+    "white-squirrel-tail": {
+      "desc": "이젠 하다하다 꼬리털까지 뽑기 시작한 거야?",
+      "effectText": "제작용 재료"
+    },
+    "golden-serpent-scale": {
+      "desc": "집과 곳간을 지킨다는 업구렁이의 금빛 비늘. 비늘 하나가 손바닥보다 크다.",
+      "effectText": "제작용 재료"
+    },
+    "fortune-bat-wing": {
+      "effectText": "제작용 재료"
+    },
+    "haedongcheong-feather": {
+      "desc": "임금도 탐냈다는 송골매의 깃. 깃이라도 뽑아온 게 대단하다.",
+      "effectText": "제작용 재료"
+    },
+    "spirit-disposable": {
+      "desc": "보기엔 흉물스러운 경우가 많다. 진품과 가품 구분도 모호하기에 직접 만들어서 쓰는 걸 추천한다."
+    },
+    "small-altar": {
+      "desc": "소원을 비는 제단으로 기능한다. 그리 효과가 좋진 않지만 없는 것보다는 낫다."
+    },
+    "charcoal": {
+      "effectText": "10 미만인 스탯에만 사용 가능. 스탯 하나를 1올리는 대신 체력 30 상실"
+    },
+    "mystery-tonic": {
+      "desc": "산에서 자란 이런저런 것들을 넣어서 만든 보약. 먹어도 되는 거냐는 말은 금지. 이래보여도 손이 꽤 많이 간다."
+    }
+  },
+  "V79_ITEMS": [
+    {
+      "id": "cherry-tomato",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "방울토마토",
+      "price": null,
+      "desc": "손가락 한 마디만큼 작지만 커다란 토마토가 할 수 있는 대부분의 일을 할 수 있다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "carrot",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "당근",
+      "price": null,
+      "desc": "흐물흐물한 당근파와 딱딱한 당근파 사이에서 전쟁이 일어나곤 한다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "potato",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "감자",
+      "price": null,
+      "desc": "대부분의 한식에 빠지면 끔찍한 기분이 드는 필수 뿌리감자.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "cabbage",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "배추",
+      "price": null,
+      "desc": "포기하지 마. 배추가 항상 대신 포기하고 있다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "spinach",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "시금치",
+      "price": null,
+      "desc": "나물 입문을 원하는 편식쟁이에게 가장 무난한 선택지.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "soybean",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "콩",
+      "price": null,
+      "desc": "그 무엇으로든 변할 수 있는 다재다능한 두류 식물.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "soybean-oil",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "콩기름",
+      "price": null,
+      "desc": "고소함이 가득하다. 콩을 뭐 얼마나 넣어야 하는 건데?",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-cherry-tomato",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "방울토마토 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 방울토마토 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-carrot",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "당근 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 당근 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-lettuce",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "상추 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 상추 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-potato",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "감자 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 감자 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-cabbage",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "배추 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 배추 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-spinach",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "시금치 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 시금치 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "seed-soybean",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "콩 씨앗",
+      "price": 3,
+      "storeOnly": "garden",
+      "desc": "텃밭에 심으면 콩 수확이 가능한 씨앗.",
+      "effectText": "특수 효과 없음. 비닐하우스 재배용 씨앗.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "rice",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "쌀",
+      "price": null,
+      "desc": "밥 짓는 외에도 다양하게 쓰인다. 빻아서 전자렌지에 돌려 떡 만들어먹는 애들도 종종 있다. 청소 정도는 하고 가도록.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "centipede",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "지네",
+      "price": null,
+      "desc": "물리면 아프다. 다리가 많고, 딱딱하고, 구체적인 묘사 생략. 독이 있으니까 취급 주의.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "small-pot",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "작은 항아리",
+      "price": null,
+      "desc": "안에 뭘 넣을까? 무엇을 넣든 새로운 것이 태어날 것 같은 기분이 든다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "lettuce",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "상추",
+      "price": null,
+      "desc": "텃밭에서 키우고 있다. 뜯어갈 때는 허락을 구하자.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "lake-water",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "청화물",
+      "price": null,
+      "desc": "청화호수에서 직접 떠온 영험한 물. 좋은 음식을 만들 수 있을 것 같다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "cherry-branch",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "벚꽃나무 가지",
+      "price": null,
+      "desc": "매점 앞 벚나무의 가지. 계절과 무관하게 꽃이 핀 가지가 하나씩 발견되곤 한다. 그리 좋은 징조는 아니라고 한다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "alcohol-lamp",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "알코올 램프",
+      "price": null,
+      "desc": "일단은 취급 주의다. 화기니까.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "cloth-scrap",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "자투리 천조각",
+      "price": null,
+      "desc": "기술가정 수업에 쓰이는 재료의 귀퉁이들. 애들이 알아서 야무지게 써먹는다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "nail",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "못",
+      "price": null,
+      "desc": "기술가정에 딸린 목공 수업에 쓰라고 주면 남의 가슴에 박는 놈들이 나타나곤 한다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "sugar",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "설탕",
+      "price": null,
+      "desc": "소다를 넣으면 부풀어오른다. 교내에선 화기 엄금인거 알고는 있지?",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "dandelion",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "민들레",
+      "price": null,
+      "desc": "꽃이 꺾이지 않게 뽑는 게 은근히 어려운 꽃이다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "rabbit-fur",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "토끼 털뭉치",
+      "price": null,
+      "desc": "보슬보슬하고 희고 문지르면 기분이 좋아진다. 그 토끼는 탈모가 생겼겠지만.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "gogok",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "곡옥",
+      "price": null,
+      "desc": "곱게 굽은 옥 장신구. 어떤 신비로운 힘을 가졌을지도 모른다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "pinecone",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "솔방울",
+      "price": null,
+      "desc": "바짝 마르면 벌어지고, 젖으면 오므라든다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "crystal",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "수정",
+      "price": null,
+      "desc": "맑고 투명한 광물인 동시에 영력을 담는 그릇이기도 하다. 들여다보면 기분이 좋다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "bone-fragment",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "뼛조각",
+      "price": null,
+      "desc": "정체를 알 수 없는 생물의 뼈. 설마 주인이 찾으러 오지는 않겠지?",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "waning-flower",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "그믐꽃",
+      "price": null,
+      "desc": "초승꽃이 오므라든 형태의 신비한 붉은 꽃. 짜내면 핏빛의 안료가 된다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "crescent-flower",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "초승꽃",
+      "price": null,
+      "desc": "초승달 모양으로 피어나는 신비한 붉은 꽃. 짜내면 핏빛의 안료가 된다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "cinnabar",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "주사",
+      "price": null,
+      "desc": "독성을 가진 부적용 안료. 주술에는 언제나 대가가 필요한 법이다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "licorice",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "감초",
+      "price": null,
+      "desc": "약방의 감초. 맛은 책임 못 진다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "oyster-mushroom",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "느타리버섯",
+      "price": null,
+      "desc": "죽은 나무에 무리지어 자라는 버섯. 그 자체도 균체라는 점이 여러 생각을 들게 만든다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "rice-seeds",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "볍씨 주머니",
+      "price": null,
+      "desc": "볍씨가 소복하게 담긴 작은 주머니. 새들이 좋아할 것 같다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "boar-tusk",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "멧돼지 송곳니",
+      "price": null,
+      "desc": "멧돼지의 부러진 송곳니. 사람에게 구멍을 내기에 충분히 위협적이다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "fern",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "고사리",
+      "price": null,
+      "desc": "어린순을 돌돌 말고 자라는 산나물. 충분히 삶고 손질해야 먹을 수 있다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "chwinamul",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "취나물",
+      "price": null,
+      "desc": "향긋하기 그지없는 대표적인 산나물. 살짝 데쳐 무치면 봄 산의 향기가 밥상에 오른다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "azalea",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "진달래",
+      "price": null,
+      "desc": "봄마다 산을 분홍빛으로 물들이는 예쁜 꽃.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "brick",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "벽돌",
+      "price": null,
+      "desc": "흙을 빚어 단단하게 구운 건축 재료. 하지만 이걸 건축에만 쓰는 것은 아니다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "pebble",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "자갈",
+      "price": null,
+      "desc": "물과 바람에 깎여 작고 둥글어진 돌. 한 입에 쏙 들어오는 크기다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "dokkaebi-flame",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "도깨비불",
+      "price": null,
+      "desc": "허공을 떠다니는 기묘한 불꽃. 바라보고 있으면 무언가에 홀려버릴 것만 같다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "sealing-stone",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "봉인석",
+      "price": null,
+      "desc": "봉인의 술식이 새겨진 돌. 무엇을 가두고 있는지는 몰라도, 함부로 깨뜨리지 않는 편이 좋을 것이다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "pearl",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "진주",
+      "price": null,
+      "desc": "조개가 오랜 시간에 걸쳐 만들어 낸 영롱한 보석. 먼 과거 청화강의 용왕에게 바쳐졌을 것이다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "loofah-fruit",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "수세미 열매",
+      "price": null,
+      "desc": "보통은 물건을 닦는 데 쓰는 그것부터 떠올리겠지만, 누군가는 먹을 생각부터 하겠지.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "king-mushroom",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "왕버섯",
+      "price": null,
+      "desc": "한 아름 되는 거대한 버섯. 생김새에 압도당한다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "ginseng",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "산삼",
+      "price": null,
+      "desc": "산속 깊은 곳에서 발견한 오래 묵은 산삼.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "darkness",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "어둠",
+      "price": null,
+      "desc": "동굴 깊은 곳의 암령에게서 떼어 낸 한 줌의 어둠. 손바닥 위에서도 빛을 삼킨다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "antler",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "녹용",
+      "price": null,
+      "desc": "신비로운 사슴의 뿔 조각.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "spirit-orb",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "혼백구슬",
+      "price": null,
+      "desc": "영혼의 빛을 품은 희미한 구슬.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "bat-wing",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "박쥐 날개",
+      "price": null,
+      "desc": "작은 박쥐에게서 얻은 가죽 같은 날개.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "starlight",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "별빛",
+      "price": null,
+      "desc": "밤의 빛이 작은 결정에 남아 있다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "web",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "거미줄",
+      "price": null,
+      "desc": "끈적한 실이 한데 모여 있다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "lost-phone",
+      "kind": "craft",
+      "name": "누군가 잃어버린 핸드폰",
+      "price": null,
+      "desc": "잠깐, 오해하지 말라. 핸드폰을 돈 받고 판 게 아니라 귀중품을 찾아줘서 답례를 받은 거다.",
+      "effectText": "매점에 돌려주고 20냥을 받는다.",
+      "effect": {
+        "sellMoney": 20
+      },
+      "battle": false
+    },
+    {
+      "id": "headband",
+      "kind": "craft",
+      "name": "기합의 띠",
+      "price": null,
+      "desc": "머리에 두르면 어쩐지 웅변을 잘할 수 있을 것 같은 기분이 든다. 착각일까?",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "berry-earring",
+      "kind": "craft",
+      "name": "뱀딸기 귀걸이",
+      "price": null,
+      "desc": "뱀딸기처럼 생겨서 주웠더니 귀걸이였다. 은근 귀엽다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "gold-crown",
+      "kind": "craft",
+      "name": "금관",
+      "price": null,
+      "desc": "귀한 존재를 위해 준비된 것. 귀를 위해 준비된 것은 아니다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "bandage",
+      "kind": "craft",
+      "name": "밴드",
+      "price": null,
+      "desc": "큰 상처에는 안 통하지만 잔상처에는 나쁘지 않다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "diary",
+      "kind": "craft",
+      "name": "일기장",
+      "price": null,
+      "desc": "오늘 있던 일을 정리하자. 멘탈관리에 도움을 주곤 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "curse-doll",
+      "kind": "craft",
+      "name": "저주인형",
+      "price": null,
+      "desc": "무언가를 증오하는 흔하고 고전적인 방식. 그래도 친구에게는 사용하지 말자.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "beginner-godok",
+      "kind": "craft",
+      "name": "초보용 고독",
+      "price": null,
+      "desc": "흉내를 냈을 뿐인 귀여운 수준이다. 이 정도는 대단한 저주라고 할 수도 없다.",
+      "effectText": "적의 받는 피해 +20% (3턴).",
+      "effect": {
+        "enemyVulnerability": 3
+      },
+      "battle": true
+    },
+    {
+      "id": "godok",
+      "kind": "craft",
+      "name": "고독",
+      "price": null,
+      "desc": "살아남는 건 하나 뿐. 그러나 주의해라. 업으로부터 달아날 수 있는 존재는 없다.",
+      "effectText": "[보스] 포함 적을 즉시 쓰러뜨린다. 참여자 전원에게 3일간 사라지지 않는 저주가 걸리고, 저주 중에는 쇠약과 매 턴 10% 자해 가능성이 생긴다.",
+      "effect": {
+        "instantKill": true
+      },
+      "battle": true
+    },
+    {
+      "id": "exercise-lamp",
+      "kind": "craft",
+      "name": "무언가멋진천이꽂힌알코올램프",
+      "price": null,
+      "desc": "어쩐지 병이 초록색이다. 제작자는 교무실로 오라고 하신다.",
+      "effectText": "제작 시 업적 [직업은 학생, 취미는 운동] 달성.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "goblin-mask",
+      "kind": "craft",
+      "name": "도깨비 탈",
+      "price": null,
+      "desc": "바리가 쓰고 다니는 것과 같은 붉은 색의, 푸른 뿔이 달린 도깨비 탈. 얼굴을 가리는 것 외에도 어떤 것을 받아들이는 효과를 주기도 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "rice-cake",
+      "kind": "food",
+      "name": "쑥떡",
+      "price": null,
+      "desc": "전자렌지로 제조. 매점 담당이 전자렌지 닦고 가라고 한소리 했다. 나눠주면 용서해줄지도?",
+      "effectText": "체력과 의지력 +15",
+      "effect": {
+        "hp": 15,
+        "mp": 15
+      },
+      "battle": false
+    },
+    {
+      "id": "carp-soup",
+      "kind": "food",
+      "name": "잉어탕",
+      "price": null,
+      "desc": "기생충 조심. 손질이 조금 까다롭다. 나이든 입맛이네, 라고 누군가가 말했다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "charcoal",
+      "kind": "material",
+      "tags": [
+        "재료"
+      ],
+      "name": "숯",
+      "price": null,
+      "desc": "아직 젊어서 먹는다고 죽진 않는데 우리는 급식실이 있다는 사실을 잊지 말도록 해. 조리실에서 제작법에 없는 걸 만들려다 보면 이게 나온다.",
+      "effectText": "제작용 재료.",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "snakeberry-jam",
+      "kind": "food",
+      "name": "뱀딸기잼",
+      "price": null,
+      "desc": "뱀딸기를 설탕에 졸여 만든 잼.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "mushroom-stew",
+      "kind": "food",
+      "name": "버섯전골",
+      "price": null,
+      "desc": "버섯을 잔뜩 넣어 끓인 전골.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "king-mushroom-stew",
+      "kind": "food",
+      "name": "왕버섯전골",
+      "price": null,
+      "desc": "왕버섯이 들어간 커다란 버섯전골.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "poison-mushroom-stew",
+      "kind": "food",
+      "name": "독버섯전골",
+      "price": null,
+      "desc": "독버섯이 들어 있다. 조심해서 다뤄야 한다.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "bibimbap",
+      "kind": "food",
+      "name": "비빔밥",
+      "price": null,
+      "desc": "채소와 쌀을 한데 섞어 만든 음식.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    },
+    {
+      "id": "flower-pancake",
+      "kind": "food",
+      "name": "화전",
+      "price": null,
+      "desc": "꽃잎을 곁들여 지진 화전.",
+      "effectText": "",
+      "effect": {},
+      "battle": false
+    }
+  ],
+  "V79_SHEET_DATA": {
+    "picnic": {
+      "effectText": "의지력 +15, 전투 중 사용 가능"
+    },
+    "chewy": {
+      "effectText": "전투 중: 파티원(나 자신 포함) 한 명에게 건네면 그 사람의 다음 행동 피해가 1턴 동안 2배가 된다. \n전투가 아닐 때: NPC에게 주면 호감도가 오른다."
+    },
+    "lost-hairband": {
+      "effectText": "판매용 아이템. 매점에서 1냥을 받고 팔 수 있다."
+    },
+    "lost-slippers": {
+      "effectText": "판매용 아이템. 매점에서 5냥을 받고 팔 수 있다."
+    },
+    "lost-phone": {
+      "effectText": "판매용 아이템. 매점에서 20냥을 받고 팔 수 있다."
+    },
+    "lost-love-letter": {
+      "effectText": "‘사용’을 눌러 의지력 30을 얻을 수 있다."
+    },
+    "brush": {
+      "effectText": "제작용 재료."
+    },
+    "hanji": {
+      "effectText": "제작용 재료."
+    },
+    "dove-feather": {
+      "effectText": "제작용 재료."
+    },
+    "raccoon-claw": {
+      "effectText": "제작용 재료."
+    },
+    "deer-tooth": {
+      "effectText": "제작용 재료."
+    },
+    "snake-skin": {
+      "effectText": "제작용 재료."
+    },
+    "fox-fur": {
+      "desc": "부드럽고 폭신하다. 그런데 뒷산에 여우도 나온다고?",
+      "effectText": "제작용 재료."
+    },
+    "charm-scrap": {
+      "effectText": "제작용 재료."
+    },
+    "crumpled-hanji": {
+      "effectText": "제작용 재료."
+    },
+    "broken-inkstick": {
+      "effectText": "제작용 재료."
+    },
+    "split-brush": {
+      "effectText": "제작용 재료."
+    },
+    "jangseung-piece": {
+      "effectText": "제작용 재료."
+    },
+    "five-color-thread": {
+      "effectText": "제작용 재료"
+    },
+    "fine-woodchip": {
+      "effectText": "제작용 재료."
+    },
+    "creek-orchid": {
+      "effectText": "제작용 재료."
+    },
+    "clover-leaf": {
+      "effectText": "제작용 재료."
+    },
+    "pencil": {
+      "effectText": "제작용 재료."
+    },
+    "friendship-letter": {
+      "effectText": "제작용 재료."
+    },
+    "sewer-rat": {
+      "effectText": "제작용 재료."
+    },
+    "carving-knife": {
+      "effectText": "제작용 재료."
+    },
+    "pouch": {
+      "effectText": "제작용 재료."
+    },
+    "clover": {
+      "desc": "뒷산 호수 근처의 풀숲에서 용케 찾아낸 네잎클로버. 눌러 말리면 오래간다.",
+      "effectText": "제작용 재료."
+    },
+    "inkstick": {
+      "effectText": "제작용 재료."
+    },
+    "carp": {
+      "effectText": "제작용 재료."
+    },
+    "imugi-scale": {
+      "effectText": "제작용 재료."
+    },
+    "stone": {
+      "effectText": "제작용 재료."
+    },
+    "poison-mushroom": {
+      "effectText": "제작용 재료."
+    },
+    "water-moss": {
+      "effectText": "제작용 재료."
+    },
+    "lake-water": {
+      "effectText": "제작용 재료"
+    },
+    "cherry-branch": {
+      "effectText": "제작용 재료"
+    },
+    "alcohol-lamp": {
+      "effectText": "제작용 재료"
+    },
+    "cloth-scrap": {
+      "desc": "기술가정 수업에 쓰이는 재료...의 귀퉁이들. 애들이 알아서들 잘 빼돌려서 야무지게 써먹는다. 떡 찌기, 무언가의 병에 꽂히기..."
+    },
+    "nail": {
+      "effectText": "제작용 재료"
+    },
+    "sugar": {
+      "effectText": "제작용 재료"
+    },
+    "trap-scraps": {
+      "effectText": "제작용 재료"
+    },
+    "dandelion": {
+      "effectText": "제작용 재료"
+    },
+    "rabbit-fur": {
+      "effectText": "제작용 재료"
+    },
+    "gogok": {
+      "effectText": "제작용 재료"
+    },
+    "pinecone": {
+      "effectText": "제작용 재료"
+    },
+    "crystal": {
+      "effectText": "제작용 재료"
+    },
+    "bone-fragment": {
+      "effectText": "제작용 재료"
+    },
+    "waning-flower": {
+      "effectText": "제작용 재료"
+    },
+    "crescent-flower": {
+      "effectText": "제작용 재료"
+    },
+    "cinnabar": {
+      "effectText": "제작용 재료"
+    },
+    "licorice": {
+      "effectText": "제작용 재료"
+    },
+    "oyster-mushroom": {
+      "effectText": "제작용 재료"
+    },
+    "rice-seeds": {
+      "effectText": "제작용 재료"
+    },
+    "boar-tusk": {
+      "effectText": "제작용 재료"
+    },
+    "fern": {
+      "effectText": "제작용 재료"
+    },
+    "chwinamul": {
+      "effectText": "제작용 재료"
+    },
+    "azalea": {
+      "effectText": "제작용 재료"
+    },
+    "brick": {
+      "effectText": "제작용 재료"
+    },
+    "pebble": {
+      "effectText": "제작용 재료"
+    },
+    "dokkaebi-flame": {
+      "effectText": "제작용 재료"
+    },
+    "sealing-stone": {
+      "effectText": "제작용 재료"
+    },
+    "pearl": {
+      "effectText": "제작용 재료"
+    },
+    "loofah-fruit": {
+      "effectText": "제작용 재료"
+    },
+    "polishing-stone": {
+      "effectText": "무구 일반 강화와 특수 강화에 두루 쓰이는 재료."
+    },
+    "whetstone": {
+      "effectText": "무구보관소에서 무구를 일반 강화(1~3)할 때 쓰는 재료."
+    },
+    "oil-cloth": {
+      "effectText": "무구보관소에서 무구를 일반 강화(4~6)할 때 쓰는 재료."
+    },
+    "five-knot": {
+      "effectText": "무구보관소에서 무구를 일반 강화(7~9)할 때 쓰는 재료."
+    },
+    "cinnabar-charm": {
+      "effectText": "무구보관소에서 무구를 일반 강화(10~12)할 때 쓰는 재료."
+    },
+    "silver-inlay": {
+      "effectText": "무구보관소에서 무구를 일반 강화(13~15)할 때 쓰는 재료."
+    },
+    "hwatu-pine": {
+      "desc": "1월 소나무에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-plum": {
+      "desc": "2월 매화에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-cherry": {
+      "desc": "3월 벚꽃에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-black-wisteria": {
+      "desc": "4월 흑싸리에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-orchid": {
+      "desc": "5월 난초에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-peony": {
+      "desc": "6월 모란에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-red-wisteria": {
+      "desc": "7월 홍싸리에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-gwangsan": {
+      "desc": "8월 공산에 해당하는 무구 특수 강화용 화투패.",
+      "effectText": "강공을 막아 반격에 성공하면 적의 향후 5턴 내의 방어 태세가 행동 없음으로 바뀐다."
+    },
+    "hwatu-chrysanthemum": {
+      "desc": "9월 국화에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-maple": {
+      "desc": "10월 단풍에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-paulownia": {
+      "desc": "11월 오동에 해당하는 무구 특수 강화용 화투패."
+    },
+    "hwatu-willow": {
+      "desc": "12월 비에 해당하는 무구 특수 강화용 화투패."
+    },
+    "green-charm": {
+      "desc": "태우면 마음이 안정된다. 뒤에 산이 있는 만큼 화기를 사용할 때는 주의할 것"
+    },
+    "curse-doll": {
+      "desc": "무언가를 증오하는 흔하고-고전적이며-다소 목가적인 방식으로 유행조차도 타지 않는다! 그래도 친구에게는 사용하지 말자. 어떤 일들은 돌이킬 수 없으니까."
+    },
+    "beginner-godok": {
+      "desc": "흉내를 냈을 뿐인 귀여운 수준이다. 이 정도는 대단한 저주라고 할 수도 없다. 이제까지의 한과 역사에 비교하면.",
+      "effectText": "사용 시 3턴 동안 적이 받는 모든 피해량이 20% 증가한다."
+    },
+    "godok": {
+      "desc": "살아남는 건 하나 뿐. 그렇게 겨우 살아남은 마음을 짓밟는 것으로 실현되는 저주가 있다. 그러나 주의해라. 업으로부터 달아날 수 있는 존재는 없다.",
+      "effectText": "사용 시 [보스] 태그를 포함한 그 어떤 적이든 일격에 처치할 수 있다. 하지만 사용자와 주변인에게 매우 좋지 않은 일이 일어날 것 같다."
+    },
+    "exercise-lamp": {
+      "effectText": "아이템 효과 없음. 만들면 [직업은 학생, 취미는 운동] 업적을 달성한다."
+    },
+    "goblin-mask": {
+      "desc": "바리가 쓰고 다니는 것과 같은 붉은 색의, 푸른 뿔이 달린 도깨비 탈. 얼굴을 가리는 것 외에도 어떤 것을 ‘받아들이는’ 효과를 주기도 한다."
+    }
+  },
+  "B16_ITEM_EFFECTS": {
+    "mushroom-stew": {
+      "effect": {
+        "partyHp": 12,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 체력 +12"
+    },
+    "carp-soup": {
+      "effect": {
+        "partyHp": 20,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 체력 +20"
+    },
+    "king-mushroom-stew": {
+      "effect": {
+        "partyHp": 18,
+        "partyMp": 8,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 체력 +18 · 의지력 +8"
+    },
+    "oyster-mushroom-hotpot": {
+      "effect": {
+        "hp": 35,
+        "mp": 15
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +35 / 의지력 +15"
+    },
+    "flower-rice-cake": {
+      "effect": {
+        "partyCleanse": true,
+        "partyHp": 10,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 체력 +10 / 일행 전원의 나쁜 상태(독·저주·속박 등) 해제"
+    },
+    "songi-rice": {
+      "effect": {
+        "partyHp": 35,
+        "partyMp": 15,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 체력 +35 · 의지력 +15"
+    },
+    "frost-bingsu": {
+      "effect": {
+        "partyHp": 20,
+        "partyMp": 30,
+        "partyStat": {
+          "agility": 3
+        },
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 체력 +20 · 의지력 +30 / 일행 전원 그 전투 동안 신속 +3"
+    },
+    "barley-gaetteok": {
+      "effect": {
+        "hp": 12
+      },
+      "battle": true,
+      "party": false,
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "체력 +12"
+    },
+    "grilled-king-mushroom": {
+      "effect": {
+        "hp": 30
+      },
+      "battle": true,
+      "party": false,
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "체력 +30"
+    },
+    "doraji-jeonggwa": {
+      "effect": {
+        "cleanse": true,
+        "mp": 8,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 나의 나쁜 상태(독·저주·속박 등) 해제 / 의지력 +8"
+    },
+    "licorice-taffy": {
+      "effect": {
+        "mp": 25
+      },
+      "battle": true,
+      "party": false,
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "의지력 +25"
+    },
+    "antler-tonic": {
+      "effect": {
+        "battleStat": {
+          "aggression": 4,
+          "endurance": 2
+        },
+        "hp": 20,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 전투 중 호전 +4 · 인내 +2 (다인 전투는 그 전투 동안, 단독 전투는 20분) / 체력 +20"
+    },
+    "wild-ginseng-jeonggwa": {
+      "effect": {
+        "revive": true,
+        "hp": 50,
+        "mp": 30,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 전투불능 시 1회 체력 1로 부활 대기(한 전투에 부활 아이템은 1번) / 체력 +50 / 의지력 +30"
+    },
+    "pickled-raspberry": {
+      "effect": {
+        "giveHp": {
+          "party": 14,
+          "self": 6
+        }
+      },
+      "battle": true,
+      "party": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "체력 회복: 일행에게 건네면 +14, 자신이 먹으면 +6"
+    },
+    "snakeberry-punch": {
+      "effect": {
+        "giveMp": {
+          "party": 15,
+          "self": 6
+        }
+      },
+      "battle": true,
+      "party": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "의지력 회복: 일행에게 건네면 +15, 자신이 먹으면 +6"
+    },
+    "pearl-dumpling": {
+      "effect": {
+        "giveCleanse": true,
+        "giveHp": {
+          "party": 20,
+          "self": 8
+        }
+      },
+      "battle": true,
+      "party": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "체력 회복: 일행에게 건네면 +20, 자신이 먹으면 +8 / 받는 사람의 나쁜 상태(독·저주·속박 등) 해제"
+    },
+    "dangwi-tea": {
+      "effect": {
+        "giveHp": {
+          "party": 25,
+          "self": 10
+        },
+        "giveMp": {
+          "party": 15,
+          "self": 6
+        }
+      },
+      "battle": true,
+      "party": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "체력 회복: 일행에게 건네면 +25, 자신이 먹으면 +10 / 의지력 회복: 일행에게 건네면 +15, 자신이 먹으면 +6"
+    },
+    "pine-nut-gangjeong": {
+      "effect": {
+        "boost": true,
+        "giveHp": {
+          "party": 30,
+          "self": 12
+        }
+      },
+      "battle": true,
+      "party": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "체력 회복: 일행에게 건네면 +30, 자신이 먹으면 +12 / 받는 사람의 다음 행동 피해 2배(1턴)"
+    },
+    "grilled-mushroom": {
+      "effect": {
+        "hunt": {
+          "turns": 2
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +2"
+    },
+    "carrot-mushroom-stirfry": {
+      "effect": {
+        "hunt": {
+          "odds": {
+            "amount": 10,
+            "attempts": 3
+          }
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 3번의 채집·수렵 성공률 +10%"
+    },
+    "dandelion-tea": {
+      "effect": {
+        "hunt": {
+          "turns": 3
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +3"
+    },
+    "clover-salad": {
+      "effect": {
+        "hunt": {
+          "bonus": 15
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 이번 개척 동안 추가 보상 확률 +15%"
+    },
+    "ssukbeomuri": {
+      "effect": {
+        "hunt": {
+          "ward": 5
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 5턴 동안 요괴가 다가오지 못하고, 마주쳐도 비켜 간다"
+    },
+    "mugwort-potato-pancake": {
+      "effect": {
+        "hunt": {
+          "ward": 3
+        },
+        "hp": 10
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 3턴 동안 요괴가 다가오지 못하고, 마주쳐도 비켜 간다 / 체력 +10"
+    },
+    "stirfried-fern": {
+      "effect": {
+        "hunt": {
+          "odds": {
+            "amount": 12,
+            "attempts": 4
+          }
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 4번의 채집·수렵 성공률 +12%"
+    },
+    "greens-sujebi": {
+      "effect": {
+        "hunt": {
+          "turns": 4
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +4"
+    },
+    "loofah-namul": {
+      "effect": {
+        "hunt": {
+          "attempts": 1
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 지금 칸(옆 칸 장애물 포함) 대상의 남은 시도 +1"
+    },
+    "acorn-jelly": {
+      "effect": {
+        "hunt": {
+          "freeze": 3
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 3턴 동안 동물·영물이 제자리에 멈춘다"
+    },
+    "arrowroot-tea": {
+      "effect": {
+        "hunt": {
+          "stat": {
+            "endurance": 5,
+            "control": 3
+          }
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 이번 개척 동안 인내 +5 · 절제 +3"
+    },
+    "grilled-deodeok": {
+      "effect": {
+        "hunt": {
+          "stat": {
+            "insight": 4,
+            "comprehension": 4
+          }
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 이번 개척 동안 안목 +4 · 이해 +4"
+    },
+    "clover-hwajeon": {
+      "effect": {
+        "hunt": {
+          "double": 1
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 1번의 성공 보상이 2배"
+    },
+    "omija-punch": {
+      "effect": {
+        "hunt": {
+          "odds": {
+            "amount": 20,
+            "attempts": 5
+          },
+          "turns": 2
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +2 / 다음 5번의 채집·수렵 성공률 +20%"
+    },
+    "pine-nut-porridge": {
+      "effect": {
+        "hunt": {
+          "turns": 8
+        },
+        "mp": 20
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +8 / 의지력 +20"
+    },
+    "golden-toad-pill": {
+      "effect": {
+        "hunt": {
+          "double": 2,
+          "bonus": 25
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 2번의 성공 보상이 2배 / 이번 개척 동안 추가 보상 확률 +25%"
+    },
+    "somdari-tea": {
+      "effect": {
+        "hunt": {
+          "stat": {
+            "insight": 6,
+            "aggression": 6,
+            "endurance": 6,
+            "control": 6,
+            "agility": 6,
+            "comprehension": 6
+          },
+          "turns": 5
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +5 / 이번 개척 동안 모든 육조 +6"
+    },
+    "lake-mushroom-soup": {
+      "effect": {
+        "hp": 18,
+        "mp": 8
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +18 / 의지력 +8"
+    },
+    "cabbage-soup": {
+      "effect": {
+        "hp": 25
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +25"
+    },
+    "poison-mushroom-stew": {
+      "effect": {
+        "mp": 35,
+        "hpCost": 15
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "의지력 +35 / 체력 -15 (1 아래로는 내려가지 않는다)"
+    },
+    "herb-salad": {
+      "effect": {
+        "hp": 15,
+        "mp": 10
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +15 / 의지력 +10"
+    },
+    "grilled-carp": {
+      "effect": {
+        "hp": 15,
+        "buff": {
+          "stat": "endurance",
+          "amount": 1,
+          "hours": 24
+        }
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +15 / 24시간 동안 인내 +1"
+    },
+    "chestnut-porridge": {
+      "effect": {
+        "hp": 45
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +45"
+    },
+    "sipjeon-tang": {
+      "effect": {
+        "buffAll": {
+          "amount": 1,
+          "hours": 24
+        }
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "24시간 동안 모든 육조 +1"
+    },
+    "mystery-tonic": {
+      "effect": {
+        "randomBuff": {
+          "count": 1,
+          "amount": 3,
+          "hours": 24
+        },
+        "hp": 15
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +15 / 24시간 동안 무작위 육조 1개 +3"
+    },
+    "wild-grape-punch": {
+      "effect": {
+        "mp": 45
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "의지력 +45"
+    },
+    "dragon-palace-soup": {
+      "effect": {
+        "hp": 30,
+        "buffs": [
+          {
+            "stat": "agility",
+            "amount": 2,
+            "hours": 24
+          },
+          {
+            "stat": "endurance",
+            "amount": 2,
+            "hours": 24
+          }
+        ]
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +30 / 24시간 동안 신속 +2 · 인내 +2"
+    },
+    "fortune-pill": {
+      "effect": {
+        "randomBuff": {
+          "count": 2,
+          "amount": 4,
+          "hours": 24
+        },
+        "spirit": 20
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "24시간 동안 무작위 육조 2개 +4 / 영력 +20"
+    },
+    "elixir-of-youth": {
+      "effect": {
+        "hpFull": true,
+        "mpFull": true,
+        "cureWeak": true,
+        "spirit": 40
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 완전 회복 / 의지력 완전 회복 / [쇠약] 즉시 회복 / 영력 +40"
+    },
+    "turtle-shell-tonic": {
+      "effect": {
+        "buffAll": {
+          "amount": 3,
+          "hours": 48
+        },
+        "spirit": 60
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "48시간 동안 모든 육조 +3 / 영력 +60"
+    },
+    "snakeberry-jam": {
+      "effect": {
+        "mp": 25,
+        "buff": {
+          "stat": "control",
+          "amount": 1,
+          "hours": 12
+        }
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "의지력 +25 / 12시간 동안 절제 +1"
+    },
+    "bibimbap": {
+      "effect": {
+        "hp": 30,
+        "mp": 20
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +30 / 의지력 +20"
+    },
+    "flower-pancake": {
+      "effect": {
+        "hp": 20,
+        "buff": {
+          "stat": "comprehension",
+          "amount": 1,
+          "hours": 24
+        }
+      },
+      "battle": false,
+      "party": false,
+      "tags": [
+        "완성품"
+      ],
+      "effectText": "체력 +20 / 24시간 동안 이해 +1"
+    },
+    "pebble-sling": {
+      "effect": {
+        "enemyHit": {
+          "n": 2,
+          "sides": 6
+        },
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적에게 막을 수 없는 피해 2d6 (적 체력은 1 아래로 내려가지 않는다 — 마무리는 직접) (한 전투에 1번)"
+    },
+    "charm-bundle": {
+      "effect": {
+        "charms": 1,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 부적 사용 횟수 +1 (한 전투에 1번)"
+    },
+    "curse-doll": {
+      "effect": {
+        "drainSpirit": 3,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적의 영능력 자원(영력) -3 (한 전투에 1번)"
+    },
+    "green-charm": {
+      "effect": {
+        "cleanse": true,
+        "mp": 10,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 나의 나쁜 상태(독·저주·속박 등) 해제 / 의지력 +10"
+    },
+    "exorcism-gate": {
+      "effect": {
+        "partyCleanse": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원의 나쁜 상태(독·저주·속박 등) 해제"
+    },
+    "centipede-ward": {
+      "effect": {
+        "enemyHit": {
+          "n": 3,
+          "sides": 6,
+          "plus": 4
+        },
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적에게 막을 수 없는 피해 3d6 + 4 (적 체력은 1 아래로 내려가지 않는다 — 마무리는 직접) (한 전투에 1번)"
+    },
+    "jaeaek-charm": {
+      "effect": {
+        "drainSpirit": 4,
+        "reveal": 2,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적의 영능력 자원(영력) -4 / 적의 앞으로 2개 행동을 간파 (한 전투에 1번)"
+    },
+    "ink-talisman": {
+      "effect": {
+        "charms": 1,
+        "mp": 10,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 부적 사용 횟수 +1 / 의지력 +10 (한 전투에 1번)"
+    },
+    "badger-brush": {
+      "effect": {
+        "charms": 2,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 부적 사용 횟수 +2 (한 전투에 1번)"
+    },
+    "cinnabar-paste": {
+      "effect": {
+        "battleStat": {
+          "control": 5,
+          "insight": 1
+        },
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 전투 중 절제 +5 · 안목 +1 (다인 전투는 그 전투 동안, 단독 전투는 20분)"
+    },
+    "red-fox-charm": {
+      "effect": {
+        "battleStat": {
+          "agility": 4,
+          "insight": 2
+        },
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 전투 중 신속 +4 · 안목 +2 (다인 전투는 그 전투 동안, 단독 전투는 20분)"
+    },
+    "spirit-disposable": {
+      "effect": {
+        "revive": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": false,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 전투불능 시 1회 체력 1로 부활 대기(한 전투에 부활 아이템은 1번)"
+    },
+    "sealing-talisman": {
+      "effect": {
+        "drainSpirit": 8,
+        "reveal": 1,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적의 영능력 자원(영력) -8 / 적의 앞으로 1개 행동을 간파 (한 전투에 1번)"
+    },
+    "wolf-fang-charm": {
+      "effect": {
+        "battleStat": {
+          "aggression": 6
+        },
+        "enemyHit": {
+          "n": 2,
+          "sides": 10,
+          "pct": 3
+        },
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적에게 막을 수 없는 피해 2d10 + 적 최대 체력의 3% (적 체력은 1 아래로 내려가지 않는다 — 마무리는 직접) / 전투 중 호전 +6 (다인 전투는 그 전투 동안, 단독 전투는 20분) (한 전투에 1번)"
+    },
+    "fortune-talisman": {
+      "effect": {
+        "partyStat": {
+          "insight": 3,
+          "aggression": 3,
+          "endurance": 3,
+          "control": 3,
+          "agility": 3,
+          "comprehension": 3
+        },
+        "partyCharms": 1,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": true,
+      "only": "battle",
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모有"
+      ],
+      "effectText": "전투 중: 일행 전원 그 전투 동안 모든 육조 +3 / 일행 전원 부적 사용 횟수 +1"
+    },
+    "turtle-oracle": {
+      "effect": {
+        "reveal": 5,
+        "drainSpirit": 25,
+        "charms": 3,
+        "cleanse": true,
+        "oncePerBattle": true,
+        "onlyBattle": true
+      },
+      "battle": true,
+      "party": false,
+      "only": "battle",
+      "oncePerBattle": true,
+      "tags": [
+        "완성품",
+        "전투 중 사용 가능",
+        "#턴소모無"
+      ],
+      "effectText": "전투 중: 적의 영능력 자원(영력) -25 / 적의 앞으로 5개 행동을 간파 / 부적 사용 횟수 +3 / 나의 나쁜 상태(독·저주·속박 등) 해제 (한 전투에 1번)"
+    },
+    "small-altar": {
+      "effect": {
+        "hunt": {
+          "ward": 4
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 4턴 동안 요괴가 다가오지 못하고, 마주쳐도 비켜 간다"
+    },
+    "cairn-model": {
+      "effect": {
+        "hunt": {
+          "turns": 3
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +3"
+    },
+    "snakeskin-bookmark": {
+      "effect": {
+        "hunt": {
+          "freeze": 2
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 2턴 동안 동물·영물이 제자리에 멈춘다"
+    },
+    "mugwort-incense": {
+      "effect": {
+        "hunt": {
+          "ward": 6
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 6턴 동안 요괴가 다가오지 못하고, 마주쳐도 비켜 간다"
+    },
+    "moss-pot": {
+      "effect": {
+        "hunt": {
+          "odds": {
+            "amount": 15,
+            "attempts": 3
+          }
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 3번의 채집·수렵 성공률 +15%"
+    },
+    "feather-deco": {
+      "effect": {
+        "hunt": {
+          "bonus": 12
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 이번 개척 동안 추가 보상 확률 +12%"
+    },
+    "yarn-doll": {
+      "effect": {
+        "hunt": {
+          "freeze": 3
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 3턴 동안 동물·영물이 제자리에 멈춘다"
+    },
+    "clover-bookmark": {
+      "effect": {
+        "hunt": {
+          "double": 1
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 1번의 성공 보상이 2배"
+    },
+    "ghostfire-lantern": {
+      "effect": {
+        "hunt": {
+          "turns": 5
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +5"
+    },
+    "jangseung-keyring": {
+      "effect": {
+        "hunt": {
+          "ward": 8
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 8턴 동안 요괴가 다가오지 못하고, 마주쳐도 비켜 간다"
+    },
+    "imugi-tag": {
+      "effect": {
+        "hunt": {
+          "odds": {
+            "amount": 25,
+            "attempts": 5
+          }
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 5번의 채집·수렵 성공률 +25%"
+    },
+    "jujube-amulet": {
+      "effect": {
+        "hunt": {
+          "banish": true
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 이 터를 떠도는 요괴를 쫓아낸다(보상 없음)"
+    },
+    "hawk-quill": {
+      "effect": {
+        "hunt": {
+          "stat": {
+            "insight": 6,
+            "agility": 6,
+            "comprehension": 4
+          },
+          "turns": 2
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +2 / 이번 개척 동안 안목 +6 · 신속 +6 · 이해 +4"
+    },
+    "soul-lantern": {
+      "effect": {
+        "hunt": {
+          "turns": 10,
+          "freeze": 4
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 개척 행동 턴 +10 / 4턴 동안 동물·영물이 제자리에 멈춘다"
+    },
+    "serpent-chest": {
+      "effect": {
+        "hunt": {
+          "double": 3,
+          "bonus": 15
+        }
+      },
+      "battle": false,
+      "party": false,
+      "only": "hunt",
+      "tags": [
+        "완성품",
+        "#개척"
+      ],
+      "effectText": "개척 중: 다음 3번의 성공 보상이 2배 / 이번 개척 동안 추가 보상 확률 +15%"
+    },
+    "straw-raincape": {
+      "bonus": {
+        "endurance": 2,
+        "control": 1
+      },
+      "hunt": {
+        "turns": 2
+      },
+      "effectText": "착용 시 인내 +2 · 절제 +1 / 개척: 행동 턴 +2"
+    },
+    "foxfur-coat": {
+      "bonus": {
+        "comprehension": 2,
+        "agility": 1
+      },
+      "effectText": "착용 시 이해 +2 · 신속 +1"
+    },
+    "bat-cape": {
+      "bonus": {
+        "agility": 3
+      },
+      "effectText": "착용 시 신속 +3"
+    },
+    "talisman-robe": {
+      "bonus": {
+        "control": 2,
+        "comprehension": 2
+      },
+      "effectText": "착용 시 절제 +2 · 이해 +2"
+    },
+    "marten-vest": {
+      "bonus": {
+        "endurance": 3,
+        "agility": 2
+      },
+      "effectText": "착용 시 인내 +3 · 신속 +2"
+    },
+    "hawk-cheollik": {
+      "bonus": {
+        "insight": 3,
+        "aggression": 2
+      },
+      "hunt": {
+        "odds": 5
+      },
+      "effectText": "착용 시 안목 +3 · 호전 +2 / 개척: 채집·수렵 성공률 +5%"
+    },
+    "bearfur-overcoat": {
+      "bonus": {
+        "endurance": 5,
+        "aggression": 2
+      },
+      "effectText": "착용 시 인내 +5 · 호전 +2"
+    },
+    "frost-hansam": {
+      "bonus": {
+        "control": 4,
+        "insight": 3
+      },
+      "effectText": "착용 시 절제 +4 · 안목 +3"
+    },
+    "weasel-galot": {
+      "bonus": {
+        "agility": 5,
+        "insight": 3
+      },
+      "hunt": {
+        "odds": 8
+      },
+      "effectText": "착용 시 신속 +5 · 안목 +3 / 개척: 채집·수렵 성공률 +8%"
+    },
+    "crane-robe": {
+      "bonus": {
+        "comprehension": 5,
+        "control": 4,
+        "endurance": 3
+      },
+      "effectText": "착용 시 이해 +5 · 절제 +4 · 인내 +3"
+    },
+    "clover-crown": {
+      "bonus": {
+        "insight": 1
+      },
+      "hunt": {
+        "bonus": 5
+      },
+      "effectText": "착용 시 안목 +1 / 개척: 추가 보상 확률 +5%"
+    },
+    "berry-ribbon": {
+      "bonus": {
+        "agility": 1,
+        "comprehension": 1
+      },
+      "effectText": "착용 시 신속 +1 · 이해 +1"
+    },
+    "feather-norigae": {
+      "bonus": {
+        "agility": 2
+      },
+      "effectText": "착용 시 신속 +2"
+    },
+    "deer-tooth-necklace": {
+      "bonus": {
+        "aggression": 2
+      },
+      "effectText": "착용 시 호전 +2"
+    },
+    "crystal-bracelet": {
+      "bonus": {
+        "insight": 2,
+        "comprehension": 1
+      },
+      "effectText": "착용 시 안목 +2 · 이해 +1"
+    },
+    "gogok-norigae": {
+      "bonus": {
+        "comprehension": 3,
+        "control": 1
+      },
+      "effectText": "착용 시 이해 +3 · 절제 +1"
+    },
+    "jujube-hairpin": {
+      "bonus": {
+        "control": 3,
+        "endurance": 2
+      },
+      "effectText": "착용 시 절제 +3 · 인내 +2"
+    },
+    "magpie-hairpiece": {
+      "bonus": {
+        "insight": 3,
+        "agility": 2
+      },
+      "hunt": {
+        "bonus": 10
+      },
+      "effectText": "착용 시 안목 +3 · 신속 +2 / 개척: 추가 보상 확률 +10%"
+    },
+    "toad-ring": {
+      "bonus": {
+        "insight": 3
+      },
+      "hunt": {
+        "bonus": 20,
+        "odds": 5
+      },
+      "effectText": "착용 시 안목 +3 / 개척: 채집·수렵 성공률 +5% · 추가 보상 확률 +20%"
+    },
+    "dragon-hatstring": {
+      "bonus": {
+        "agility": 4,
+        "aggression": 4,
+        "insight": 3
+      },
+      "hunt": {
+        "turns": 5
+      },
+      "effectText": "착용 시 신속 +4 · 호전 +4 · 안목 +3 / 개척: 행동 턴 +5"
+    }
+  },
+  "B16_GROUPS": {
+    "foodBattleParty": [
+      "mushroom-stew",
+      "carp-soup",
+      "king-mushroom-stew",
+      "flower-rice-cake",
+      "songi-rice",
+      "frost-bingsu"
+    ],
+    "foodBattleSelf": [
+      "barley-gaetteok",
+      "grilled-king-mushroom",
+      "doraji-jeonggwa",
+      "licorice-taffy",
+      "antler-tonic",
+      "wild-ginseng-jeonggwa"
+    ],
+    "foodBattleGive": [
+      "pickled-raspberry",
+      "snakeberry-punch",
+      "pearl-dumpling",
+      "dangwi-tea",
+      "pine-nut-gangjeong"
+    ],
+    "foodHunt": [
+      "grilled-mushroom",
+      "carrot-mushroom-stirfry",
+      "dandelion-tea",
+      "clover-salad",
+      "ssukbeomuri",
+      "mugwort-potato-pancake",
+      "stirfried-fern",
+      "greens-sujebi",
+      "loofah-namul",
+      "acorn-jelly",
+      "arrowroot-tea",
+      "grilled-deodeok",
+      "clover-hwajeon",
+      "omija-punch",
+      "pine-nut-porridge",
+      "golden-toad-pill",
+      "somdari-tea"
+    ],
+    "foodDaily": [
+      "oyster-mushroom-hotpot",
+      "lake-mushroom-soup",
+      "cabbage-soup",
+      "poison-mushroom-stew",
+      "herb-salad",
+      "grilled-carp",
+      "chestnut-porridge",
+      "sipjeon-tang",
+      "mystery-tonic",
+      "wild-grape-punch",
+      "dragon-palace-soup",
+      "fortune-pill",
+      "elixir-of-youth",
+      "turtle-shell-tonic",
+      "snakeberry-jam",
+      "bibimbap",
+      "flower-pancake"
+    ],
+    "workshopBattle": [
+      "pebble-sling",
+      "charm-bundle",
+      "curse-doll",
+      "green-charm",
+      "exorcism-gate",
+      "centipede-ward",
+      "jaeaek-charm",
+      "ink-talisman",
+      "badger-brush",
+      "cinnabar-paste",
+      "red-fox-charm",
+      "spirit-disposable",
+      "sealing-talisman",
+      "wolf-fang-charm",
+      "fortune-talisman",
+      "turtle-oracle"
+    ],
+    "workshopHunt": [
+      "small-altar",
+      "cairn-model",
+      "snakeskin-bookmark",
+      "mugwort-incense",
+      "moss-pot",
+      "feather-deco",
+      "yarn-doll",
+      "clover-bookmark",
+      "ghostfire-lantern",
+      "jangseung-keyring",
+      "imugi-tag",
+      "jujube-amulet",
+      "hawk-quill",
+      "soul-lantern",
+      "serpent-chest"
+    ],
+    "body": [
+      "straw-raincape",
+      "foxfur-coat",
+      "bat-cape",
+      "talisman-robe",
+      "marten-vest",
+      "hawk-cheollik",
+      "bearfur-overcoat",
+      "frost-hansam",
+      "weasel-galot",
+      "crane-robe"
+    ],
+    "trinket": [
+      "clover-crown",
+      "berry-ribbon",
+      "feather-norigae",
+      "deer-tooth-necklace",
+      "crystal-bracelet",
+      "gogok-norigae",
+      "jujube-hairpin",
+      "magpie-hairpiece",
+      "toad-ring",
+      "dragon-hatstring"
+    ]
+  }
+}
